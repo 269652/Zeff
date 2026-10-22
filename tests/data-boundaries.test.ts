@@ -66,6 +66,13 @@ test("a knowledge page's and a reference's source", async () => {
   assert.equal(b.refSourceKey("T-12"), "todos");
   assert.equal(b.refSourceKey("context:3"), "notes");
   assert.equal(b.refSourceKey("person:4"), "people");
+  // The shared entity refs (structured questions, the timeline).
+  assert.equal(b.refSourceKey("msg:whatsapp:k1"), "whatsapp");
+  assert.equal(b.refSourceKey("msg:teams:k1"), "teams");
+  assert.equal(b.refSourceKey("entry:12"), "time");
+  assert.equal(b.refSourceKey("tx:abc"), "bank");
+  assert.equal(b.refSourceKey("todo:3"), "todos");
+  assert.equal(b.refSourceKey("ticket:PROJ-1"), "jira");
 });
 
 test("the matrix: what flows into each exit for a label (and a database's own switches)", async () => {

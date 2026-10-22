@@ -3,7 +3,8 @@
  * since: must (it should get actions again); one still open: open; one you dropped is out (the todo wasn't wanted,
  * whatever its actions). Items: `todo:<id>` (it got at least one action that passes the actions' own rules) and
  * `todo:<id>:<type>` for each kind of action it has now (open: the kinds proposed, not judged one by one — the
- * ai_feedback ledger will say which were taken). Frozen as the step shows them: each todo's block (its ticket,
+ * ai_feedback ledger says which were taken or taken off, lib/evals/ledger.ts). A todo whose actions you took off all at
+ * once is in too (its proposal from the ledger): the ledger makes it a negative. Frozen as the step shows them: each todo's block (its ticket,
  * sources, notes, what exists in Zeff), the actions' dictionary, the address book, the accounts, your busy times —
  * in batches of 6 like the step. A run: the step's prompt builder ({{me}} and {{today}} filled in), the AI, cleanOps.
  */
@@ -22,6 +23,16 @@ export const autoActionsAdapter: EvalAdapter<AutoActionsInput> = {
   costUsd: 1,
   async build() {
     const rows = getSqlite().prepare("select id, status, ops from todos where auto_ops_why is not null and status in ('done', 'open') order by id").all() as { id: number; status: string; ops: string }[];
+    // The todos whose proposed actions you took off all at once: the todo keeps none of them, the ledger does — frozen too, so
+    // the ledger's verdicts (lib/evals/ledger.ts) make them the step's real negatives ("it shouldn't have got any").
+    const { droppedAutoActions } = await import("../ledger");
+    const dropped = new Map(droppedAutoActions().map((d) => [d.id, d.ops]));
+    const have = new Set(rows.map((r) => r.id));
+    if (dropped.size) {
+      const ids = [...dropped.keys()].filter((id) => !have.has(id));
+      const more = ids.length ? (getSqlite().prepare(`select id, status, '[]' as ops from todos where id in (${ids.map(() => "?").join(",")}) and status in ('done', 'open')`).all(...ids) as { id: number; status: string; ops: string }[]) : [];
+      rows.push(...more);
+    }
     if (!rows.length) return [];
     const review = await import("@/plugins/auto-actions/review");
     const { listTodos, lastGoodRun } = await import("@/lib/boards/store");
@@ -40,6 +51,11 @@ export const autoActionsAdapter: EvalAdapter<AutoActionsInput> = {
         // none readable
       }
       for (const o of Array.isArray(ops) ? ops : []) if (typeof o?.type === "string") labels[`todo:${r.id}:${o.type}`] = "open";
+      // Taken off all at once: not judged here (open) — the ledger's verdicts say negative.
+      if (!have.has(r.id)) {
+        labels[`todo:${r.id}`] = "open";
+        for (const type of dropped.get(r.id) ?? []) labels[`todo:${r.id}:${type}`] = "open";
+      }
     }
     const wanted = new Set(rows.map((r) => r.id));
     const list = listTodos({ status: "all" }).filter((t) => wanted.has(t.id));

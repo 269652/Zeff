@@ -80,8 +80,9 @@ try {
 
   if (args.command === "build") {
     const { buildGoldenSets } = await import("@/lib/evals/build");
-    // (The ai_feedback ledger joins here as a VerdictSource once it exists.)
-    for (const r of await buildGoldenSets({ adapters: EVAL_ADAPTERS, dir: FIXTURES, account: id })) {
+    // Your decisions recorded in the ai_feedback ledger come in over the adapters' own rules (auto-actions: the negatives).
+    const { ledgerVerdicts } = await import("@/lib/evals/ledger");
+    for (const r of await buildGoldenSets({ adapters: EVAL_ADAPTERS, dir: FIXTURES, account: id, sources: [ledgerVerdicts()] })) {
       if (r.error) exit = 1;
       console.log(`[${id}] ${r.step.padEnd(14)} ${r.error ? `FEHLER: ${r.error}` : r.file ? `${r.cases} Fälle, ${r.items} Items → ${path.relative(ROOT, r.file)}` : "nichts gewertet — kein Golden Set"}`);
     }

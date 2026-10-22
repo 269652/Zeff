@@ -1,5 +1,8 @@
 import { getSqlite } from "@/db";
-import { has, hasAny, type Condition, type Filters, type Item, type QueryView } from "./view-types";
+import { allows, refusal } from "@/lib/boundaries";
+import { isInstalled } from "@/plugins/state";
+import { labelResolver } from "@/plugins/workspace/sensitivity";
+import { clearanceOf, has, hasAny, type Condition, type Filters, type Item, type QueryContext, type QueryView } from "./view-types";
 
 /**
  * The views Zeff brings itself (structured questions, views.ts): time entries, bank transactions (Finances), calendar
@@ -32,6 +35,43 @@ const DATE_FILTERS = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Entities (the Entities plugin, when installed): projects and organisations by a name, an alias, a domain
+// ---------------------------------------------------------------------------
+
+type Ents = typeof import("@/plugins/entities/resolve") & typeof import("@/plugins/entities/store") & typeof import("@/plugins/entities/normalize");
+
+/** The Entities plugin's resolver and store — null while it isn't installed. */
+async function entities(): Promise<Ents | null> {
+  if (!isInstalled("entities")) return null;
+  try {
+    return { ...(await import("@/plugins/entities/resolve")), ...(await import("@/plugins/entities/store")), ...(await import("@/plugins/entities/normalize")) };
+  } catch {
+    return null;
+  }
+}
+
+/** The refs a project filter means: the projects the entities resolve it to (by title, alias, job number, Jira key). */
+const projectRefs = (e: Ents, q: string): Set<string> => new Set(e.resolveEntity(q).filter((m) => m.kind === "project").map((m) => m.ref));
+
+/** The organisations an org filter means (by name, alias or a mail domain), with their names to find them as a counterparty. */
+function orgsOf(e: Ents, q: string): { refs: Set<string>; names: string[] } {
+  const hits = e.resolveEntity(q).filter((m) => m.kind === "org");
+  const loose = e.normalizeOrgName(q);
+  // Not resolved exactly: the organisations whose name or alias holds the words ("Acme" for "Acme Holding GmbH").
+  const found = hits.length
+    ? hits.map((m) => e.getEntity(m.ref))
+    : loose.length >= 3
+      ? e.listEntities("org").filter((o) => [o.name, ...o.aliases].some((n) => e.normalizeOrgName(n).includes(loose)))
+      : [];
+  const orgs = found.filter((o): o is NonNullable<typeof o> => !!o);
+  const names = [...new Set(orgs.flatMap((o) => [o.name, ...o.aliases]).map((n) => e.normalizeOrgName(n)).filter((n) => n.length >= 3))];
+  return { refs: new Set(orgs.map((o) => o.ref)), names };
+}
+
+/** Whether a project is for one of these organisations (its `org` link). */
+const projectForOrg = (e: Ents, project: string | null, orgs: Set<string>): boolean => !!project && e.entityLinks(project).some((l) => l.rel === "org" && orgs.has(l.target));
+
+// ---------------------------------------------------------------------------
 // Time entries
 // ---------------------------------------------------------------------------
 
@@ -42,7 +82,8 @@ const timeEntries: QueryView = {
   description: "Gebuchte Arbeitszeit (Zeiterfassung): je Eintrag Tag, Stunden, Beschreibung, Ticket, Auftrag (Job), Projekt, Art. Für „wie viele Stunden …“, „welche Tickets/Projekte haben am meisten Zeit gekostet“, „wann habe ich zuletzt an X gearbeitet“.",
   filters: {
     ...DATE_FILTERS,
-    project: { type: "text", description: "Projekt (Teil des Namens)" },
+    project: { type: "text", description: "Projekt (Teil des Namens, ein anderer Name, die Auftragsnummer oder der Jira-Key)" },
+    org: { type: "text", description: "Organisation bzw. Kunde (Name, anderer Name oder Mail-Domain): die Einträge ihrer Projekte und Aufträge" },
     job: { type: "text", description: "Auftrag: Nummer oder Teil des Namens" },
     ticket: { type: "text", description: "Ticket-Key oder sein Anfang (PROJ-337, PROJ)" },
     text: { type: "text", description: "Teil der Beschreibung" },
@@ -51,20 +92,31 @@ const timeEntries: QueryView = {
   },
   dims: ["ticket", "project", "job", "customer", "type", "reportedBy"],
   measures: { hours: "Stunden (dezimal)" },
-  items(f) {
+  async items(f) {
+    const project = str(f, "project");
+    const org = str(f, "org");
+    const ents = project || org ? await entities() : null;
+    const projects = ents && project ? projectRefs(ents, project) : null;
+    const orgs = ents && org ? orgsOf(ents, org) : null;
     return rows<ERow>(
       "select e.id, e.date, e.hours, e.description, e.ticket, e.type, e.reported_by, j.number job, j.name job_name, j.customer, p.title project from time_entries e join jobs j on j.id = e.job_id left join projects p on p.id = e.project_id where e.date >= ? and e.date <= ? order by e.date",
       fromOf(f),
       toOf(f),
     )
       .filter((r) => {
-        const project = str(f, "project");
+        // A project or an organisation: by its name in the entry, else by what the entities say (projectOf, the project's org).
+        const own = () => (ents ? ents.projectOf(`entry:${r.id}`) : null);
+        if (project && !has(r.project, project) && !(projects?.size && projects.has(own() ?? ""))) return false;
+        if (org && !has(r.customer, org) && !(ents && orgs && (orgs.names.includes(ents.normalizeOrgName(r.customer ?? "")) || projectForOrg(ents, own(), orgs.refs)))) return false;
+        return true;
+      })
+      .filter((r) => {
         const job = str(f, "job");
         const ticket = str(f, "ticket");
         const text = str(f, "text");
         const type = str(f, "type");
         const customer = str(f, "customer");
-        return (!project || has(r.project, project)) && (!job || has(`${r.job} ${r.job_name}`, job)) && (!ticket || (r.ticket ?? "").toUpperCase().startsWith(ticket.toUpperCase())) && (!text || has(r.description, text)) && (!type || r.type === type) && (!customer || has(r.customer, customer));
+        return (!job || has(`${r.job} ${r.job_name}`, job)) && (!ticket || (r.ticket ?? "").toUpperCase().startsWith(ticket.toUpperCase())) && (!text || has(r.description, text)) && (!type || r.type === type) && (!customer || has(r.customer, customer));
       })
       .map(
         (r): Item => ({
@@ -96,6 +148,8 @@ const bankTransactions: QueryView = {
     text: { type: "texts", description: "eines dieser Wörter in Gegenseite, Buchungstext oder Verwendungszweck" },
     direction: { type: "enum", values: ["in", "out"], description: "in: Eingänge, out: Ausgaben" },
     account: { type: "text", description: "Konto (Teil der Kennung)" },
+    org: { type: "text", description: "eine Organisation (Name, anderer Name oder Mail-Domain) als Gegenseite" },
+    project: { type: "text", description: "ein Projekt: die Zahlungen der Vorgänge, die zu ihm gehören" },
     minAmount: { type: "number", description: "Betrag (ohne Vorzeichen) mindestens" },
     maxAmount: { type: "number", description: "Betrag (ohne Vorzeichen) höchstens" },
   },
@@ -108,7 +162,20 @@ const bankTransactions: QueryView = {
     const account = str(f, "account");
     const min = typeof f.minAmount === "number" ? f.minAmount : null;
     const max = typeof f.maxAmount === "number" ? f.maxAmount : null;
+    const org = str(f, "org");
+    const project = str(f, "project");
+    const ents = org || project ? await entities() : null;
+    const orgs = ents && org ? orgsOf(ents, org) : null;
+    const projects = ents && project ? projectRefs(ents, project) : null;
+    // A payment matched to a case: the case's row — its project is the row's (projectOf a page).
+    const caseRow = (id: number) => rows<{ id: number }>("select id from ws_pages where archived_at is null and json_extract(props, '$.srcref') = ? limit 1", `case:${id}`)[0]?.id;
     const found = rows<TRow>("select id, account, date, amount, currency, text, counterparty, reference, case_id from bank_transactions where date >= ? and date <= ? order by date", fromOf(f), toOf(f))
+      .filter((r) => !org || has(r.counterparty, org) || (!!ents && !!orgs && orgs.names.some((n) => ents.normalizeOrgName(r.counterparty).includes(n))))
+      .filter((r) => {
+        if (!project) return true;
+        const row = r.case_id ? caseRow(r.case_id) : undefined;
+        return !!(ents && projects?.size && row && projects.has(ents.projectOf(`page:${row}`) ?? ""));
+      })
       .filter((r) => (!cp || hasAny(r.counterparty, cp)) && (!words || hasAny(`${r.counterparty} ${r.text} ${r.reference}`, words)) && (!dir || (dir === "in" ? r.amount > 0 : r.amount < 0)) && (!account || has(r.account, account)) && (min === null || Math.abs(r.amount) >= min) && (max === null || Math.abs(r.amount) <= max));
     // A payment matched to a case links to the case.
     const cases = new Map<number, string>();
@@ -389,7 +456,7 @@ const workspaceView: QueryView = {
   },
   dims: [],
   measures: {},
-  async items(f) {
+  async items(f, ctx) {
     const store = await import("@/plugins/workspace/store");
     const { cellText, dateRange } = await import("@/plugins/workspace/model");
     const ref = String(f.database ?? "").trim();
@@ -403,6 +470,12 @@ const workspaceView: QueryView = {
     if (!page || !d) {
       const { ValidationError } = await import("@/lib/errors");
       throw new ValidationError(`No Workspace database "${ref}".`);
+    }
+    // Its label (lib/boundaries) against who asks: a secret database for nobody, a personal one (a journal) for you and agents allowed it.
+    const label = labelResolver().database(page.id);
+    if (!allows(clearanceOf(ctx), label)) {
+      const { ValidationError } = await import("@/lib/errors");
+      throw new ValidationError(refusal(label, `The database “${page.title}”`));
     }
     const labels = store.labelFns(await store.labelsFor(d.schema, d.rows));
     const props = d.schema.properties;
@@ -446,9 +519,14 @@ const workspaceView: QueryView = {
   },
 };
 
-/** The Workspace's databases for the planner: id, title and properties (name:type) — the system's own left out. */
-export function workspaceDatabases(limit = 60): { id: number; title: string; props: string }[] {
+/**
+ * The Workspace's databases for the planner: id, title and properties (name:type) — the system's own left out, and those
+ * `ctx` may not read (a secret one for nobody: its name never goes to the AI; a personal one only with clearance).
+ */
+export function workspaceDatabases(limit = 60, ctx?: QueryContext): { id: number; title: string; props: string }[] {
   type W = { id: number; title: string; schema: string | null };
+  const clearance = clearanceOf(ctx);
+  const labels = labelResolver();
   return rows<W>("select id, title, schema from ws_pages where kind = 'database' and archived_at is null and template = 0 order by updated_at desc limit ?", limit * 2)
     .map((w) => {
       try {
@@ -458,7 +536,7 @@ export function workspaceDatabases(limit = 60): { id: number; title: string; pro
         return { id: w.id, title: w.title, props: "" };
       }
     })
-    .filter((w) => w.title && !/^(System|Prompts)$/i.test(w.title))
+    .filter((w) => w.title && !/^(System|Prompts)$/i.test(w.title) && allows(clearance, labels.database(w.id)))
     .slice(0, limit);
 }
 

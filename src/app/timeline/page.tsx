@@ -7,6 +7,7 @@ import { resolveQuery } from "@/plugins/timeline/refs";
 import { timelineSince } from "@/plugins/timeline/query";
 import { lastSeen, timelineStats } from "@/plugins/timeline/store";
 import { KIND_GROUPS, SOURCES } from "@/plugins/timeline/shared";
+import { timelineHealthNote } from "@/plugins/timeline/health-note";
 import { TimelineList } from "@/plugins/timeline/ui/TimelineList";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -15,7 +16,8 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * The Timeline: everything that happened, newest first, by day — filtered by kind, source and entity (a person, a ticket, a page …
- * by its name or ref) — with a line where your last visit was, and beside it what changed since then, by entity.
+ * by its name or ref) — with a line where your last visit was, and beside it what changed since then, by entity; a line when a
+ * source it reads isn't well (stale, silent, failing — source health).
  */
 export default async function TimelinePage({ searchParams }: { searchParams: Promise<{ ref?: string; kind?: string; source?: string }> }) {
   await connection();
@@ -28,6 +30,14 @@ export default async function TimelinePage({ searchParams }: { searchParams: Pro
   const seen = lastSeen("all");
   const since = timelineSince({ since: seen ?? "7d", limit: 12, perGroup: 1 });
   const stats = timelineStats();
+  // A source it reads that isn't well (source health): one line — the timeline may miss what it brought.
+  let healthNote: string | null = null;
+  try {
+    const { sourceHealth } = await import("@/lib/sync/source-health");
+    healthNote = timelineHealthNote(await sourceHealth(), sources.length ? sources : Object.keys(stats.sources));
+  } catch {
+    healthNote = null;
+  }
   return (
     <div className="page">
       <div className="page-aside space-y-4">
@@ -35,6 +45,11 @@ export default async function TimelinePage({ searchParams }: { searchParams: Pro
           <h1 className="text-lg font-semibold">{t("Timeline")}</h1>
           <p className="text-sm text-zinc-500">{t("What happened across your sources — mails, chats, tickets, appointments, time, todos, rows, payments, documents — and with whom. Read after every sync, by rule.")}</p>
           <p className="text-xs text-zinc-400">{t("{n} events", { n: stats.total })}</p>
+          {healthNote && (
+            <p className="text-xs text-amber-700 dark:text-amber-400">
+              ⚠ {healthNote}
+            </p>
+          )}
         </div>
         <form method="get" className="space-y-1">
           <label className="label" htmlFor="tl-ref">

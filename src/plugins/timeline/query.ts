@@ -1,9 +1,11 @@
 /**
  * The timeline as callers ask for it (the Timeline plugin) — the API methods, the MCP tools and the pages share these: an entity's
- * events by its ref or by a name ("Julia", "PROJ-12"), and what changed since a time, grouped by entity, with labels and links.
- * Server only.
+ * events by its ref or by a name ("Julia", "PROJ-12"), and what changed since a time, grouped by entity, with labels and links —
+ * each without what the reader may not see (boundaries.ts: secret sources and databases for nobody, personal ones only with
+ * clearance). Server only.
  */
 import { changesSince, eventsBetween, eventsFor, lastSeen, type ChangeGroup, type TimelineEvent } from "./store";
+import { eventFilter, visibleEvents } from "./boundaries";
 import { hrefOf, labelOf, refsOfRow, resolveQuery } from "./refs";
 
 /** "7d", "24h", "2w", a day (YYYY-MM-DD, its start in local time) or an ISO time → ISO; null when it is none of these. */
@@ -54,7 +56,8 @@ export function timelineFor(q: ForQuery): ForResult {
   }
   const since = q.since ? (parseSince(q.since) ?? undefined) : undefined;
   const until = q.until ? (parseSince(q.until) ?? undefined) : undefined;
-  const events = eventsFor(refs, { since, until, kinds: q.kinds, sources: q.sources, limit: q.limit ?? 50, before: q.before });
+  // What the reader may not see (a secret source or database; personal data without clearance) is left out.
+  const events = visibleEvents((page) => eventsFor(refs, { since, until, kinds: q.kinds, sources: q.sources, ...page }), q.limit ?? 50, { before: q.before });
   return { ok: true, refs, label, events: withEntities(events, refs), lastSeen: lastSeen(refs[0]) };
 }
 
@@ -65,13 +68,15 @@ export function timelineSince(q: { since: string; until?: string; kinds?: string
   const since = parseSince(q.since);
   if (!since) return { ok: false, error: `“${q.since}” is no time — give a day (2026-10-01), an ISO time or a span back (24h, 7d, 2w).` };
   const until = q.until ? (parseSince(q.until) ?? undefined) : undefined;
-  const groups = changesSince(since, { until, kinds: q.kinds, sources: q.sources, refKinds: q.refKinds, limit: q.limit ?? 30, perGroup: q.perGroup ?? 5 });
+  const groups = changesSince(since, { until, kinds: q.kinds, sources: q.sources, refKinds: q.refKinds, limit: q.limit ?? 30, perGroup: q.perGroup ?? 5, keep: eventFilter() });
   return { ok: true, since, groups: groups.map((g) => ({ ...g, label: labelOf(g.ref), href: hrefOf(g.ref), events: withEntities(g.events, [g.ref]) })) };
 }
 
 /** The whole timeline (the Timeline page): newest first, filtered — paged by the last event shown. */
 export function timelineAll(q: { since?: string; until?: string; kinds?: string[]; sources?: string[]; limit?: number; before?: { at: string; id: number } }): ShownEvent[] {
-  return withEntities(eventsBetween(q.since ? parseSince(q.since) : null, q.until ? parseSince(q.until) : null, { kinds: q.kinds, sources: q.sources, limit: q.limit ?? 100, before: q.before }));
+  const from = q.since ? parseSince(q.since) : null;
+  const to = q.until ? parseSince(q.until) : null;
+  return withEntities(visibleEvents((page) => eventsBetween(from, to, { kinds: q.kinds, sources: q.sources, ...page }), q.limit ?? 100, { before: q.before }));
 }
 
 /** Events as lines for an agent: day and time, kind, source, title, a short summary, the entities, the link. */

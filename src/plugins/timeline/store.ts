@@ -170,10 +170,11 @@ export type ChangeGroup = { ref: string; count: number; last: string; kinds: Rec
 
 /**
  * What changed since a time, by the entity it concerns: each entity with how many events, of which kinds, its newest first (at most
- * `perGroup` of them) — the entities with most going on first. An event concerning two entities counts for both.
+ * `perGroup` of them) — the entities with most going on first. An event concerning two entities counts for both. `keep`: only
+ * the events a reader may see (the data boundaries, timeline/boundaries.ts).
  */
-export function changesSince(since: string, opts: { kinds?: string[]; sources?: string[]; refKinds?: string[]; limit?: number; perGroup?: number; until?: string } = {}): ChangeGroup[] {
-  const events = eventsBetween(since, opts.until ?? null, { kinds: opts.kinds, sources: opts.sources, limit: 1000 });
+export function changesSince(since: string, opts: { kinds?: string[]; sources?: string[]; refKinds?: string[]; limit?: number; perGroup?: number; until?: string; keep?: (e: TimelineEvent) => boolean } = {}): ChangeGroup[] {
+  const events = eventsBetween(since, opts.until ?? null, { kinds: opts.kinds, sources: opts.sources, limit: 1000 }).filter(opts.keep ?? (() => true));
   const wanted = new Set(opts.refKinds?.length ? opts.refKinds : ENTITY_KINDS);
   const groups = new Map<string, ChangeGroup>();
   for (const e of events) {

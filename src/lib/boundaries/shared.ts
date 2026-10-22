@@ -76,7 +76,9 @@ export function refSourceKey(ref: string): string | null {
   const head = i > 0 ? ref.slice(0, i) : "";
   const rest = i > 0 ? ref.slice(i + 1) : ref;
   if (head === "mail") return mailSource(rest);
-  const byHead: Record<string, string> = { teams: "teams", gitlab: "gitlab", "jira-comment": "jira", context: "notes", fact: "facts", doc: "documents", person: "people" };
+  // The shared entity refs too: a chat or Teams message by its source ("msg:whatsapp:…"), a time entry, a bank transaction …
+  if (head === "msg") return rest.slice(0, Math.max(0, rest.indexOf(":"))) || null;
+  const byHead: Record<string, string> = { teams: "teams", gitlab: "gitlab", "jira-comment": "jira", context: "notes", fact: "facts", doc: "documents", person: "people", entry: "time", tx: "bank", todo: "todos", ticket: "jira", event: "calendar" };
   if (byHead[head]) return byHead[head];
   if (/^T-\d+$/.test(ref)) return "todos";
   if (/^[A-Z][A-Z0-9]+-\d+$/.test(ref)) return "jira";
