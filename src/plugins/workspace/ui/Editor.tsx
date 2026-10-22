@@ -448,50 +448,67 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
         </FloatingMenu>
       )}
       {editable && (
-        <BubbleMenu editor={editor} options={{ placement: "top" }} shouldShow={({ editor: e, state: s }) => e.isEditable && !s.selection.empty && !e.isActive("image") && !e.isActive("codeBlock") && !e.isActive("zeffRef")}>
-          <div className="ws-bubble">
-            {[
-              { k: "bold", l: "B", title: t("Bold"), run: () => editor.chain().focus().toggleBold().run(), cls: "font-bold" },
-              { k: "italic", l: "I", title: t("Italic"), run: () => editor.chain().focus().toggleItalic().run(), cls: "italic" },
-              { k: "underline", l: "U", title: t("Underline"), run: () => editor.chain().focus().toggleUnderline().run(), cls: "underline" },
-              { k: "strike", l: "S", title: t("Strikethrough"), run: () => editor.chain().focus().toggleStrike().run(), cls: "line-through" },
-              { k: "code", l: "</>", title: t("Code"), run: () => editor.chain().focus().toggleCode().run(), cls: "font-mono text-xs" },
-              { k: "highlight", l: "▮", title: t("Highlight"), run: () => editor.chain().focus().toggleHighlight().run(), cls: "" },
-            ].map((b) => (
-              <button key={b.k} type="button" title={b.title} aria-label={b.title} data-active={editor.isActive(b.k)} className={b.cls} onClick={b.run}>
-                {b.l}
+        <BubbleMenu editor={editor} options={{ placement: "top", offset: 8, flip: { padding: { top: 72 } }, shift: { padding: 8 } }} shouldShow={({ editor: e, state: s }) => e.isEditable && !s.selection.empty && !e.isActive("image") && !e.isActive("codeBlock") && !e.isActive("zeffRef")}>
+          {/* A small card: formatting on top, the AI's actions below in two columns, translating last. */}
+          <div className="ws-bubble ws-bubble-card">
+            <div className="ws-bubble-row">
+              {[
+                { k: "bold", l: "B", title: t("Bold"), run: () => editor.chain().focus().toggleBold().run(), cls: "font-bold" },
+                { k: "italic", l: "I", title: t("Italic"), run: () => editor.chain().focus().toggleItalic().run(), cls: "italic" },
+                { k: "underline", l: "U", title: t("Underline"), run: () => editor.chain().focus().toggleUnderline().run(), cls: "underline" },
+                { k: "strike", l: "S", title: t("Strikethrough"), run: () => editor.chain().focus().toggleStrike().run(), cls: "line-through" },
+                { k: "code", l: "</>", title: t("Code"), run: () => editor.chain().focus().toggleCode().run(), cls: "font-mono text-xs" },
+                { k: "highlight", l: "▮", title: t("Highlight"), run: () => editor.chain().focus().toggleHighlight().run(), cls: "" },
+              ].map((b) => (
+                <button key={b.k} type="button" title={b.title} aria-label={b.title} data-active={editor.isActive(b.k)} className={b.cls} onClick={b.run}>
+                  {b.l}
+                </button>
+              ))}
+              <button
+                type="button"
+                title={t("Link")}
+                aria-label={t("Link")}
+                data-active={editor.isActive("link")}
+                onClick={() => {
+                  const prev = editor.getAttributes("link").href as string | undefined;
+                  const url = window.prompt(t("Link address"), prev ?? "https://");
+                  if (url === null) return;
+                  if (url.trim() === "") editor.chain().focus().extendMarkRange("link").unsetLink().run();
+                  else editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
+                }}
+              >
+                🔗
               </button>
-            ))}
-            <button
-              type="button"
-              title={t("Link")}
-              aria-label={t("Link")}
-              data-active={editor.isActive("link")}
-              onClick={() => {
-                const prev = editor.getAttributes("link").href as string | undefined;
-                const url = window.prompt(t("Link address"), prev ?? "https://");
-                if (url === null) return;
-                if (url.trim() === "") editor.chain().focus().extendMarkRange("link").unsetLink().run();
-                else editor.chain().focus().extendMarkRange("link").setLink({ href: url.trim() }).run();
-              }}
-            >
-              🔗
-            </button>
-            <span className="mx-0.5 h-4 w-px bg-zinc-300 dark:bg-zinc-600" />
-            {([
-              ["improve", t("Improve")],
-              ["fix", t("Fix spelling")],
-              ["shorter", t("Shorter")],
-              ["longer", t("Longer")],
-              ["explain", t("Explain")],
-              ["translate_en", "EN"],
-              ["translate_de", "DE"],
-              ["translate_es", "ES"],
-            ] as [AiMode, string][]).map(([mode, label]) => (
-              <button key={mode} type="button" disabled={aiBusy} title={`✨ ${label}`} className="text-xs text-violet-700 dark:text-violet-300" onClick={() => void runAi(mode)}>
-                ✨{label}
-              </button>
-            ))}
+            </div>
+            <div className="ws-bubble-ai" role="group" aria-label={t("AI")}>
+              {([
+                ["improve", "✨", t("Improve")],
+                ["fix", "✓", t("Spelling")],
+                ["shorter", "↘", t("Shorter")],
+                ["longer", "↗", t("Longer")],
+                ["explain", "?", t("Explain")],
+              ] as [AiMode, string, string][]).map(([mode, icon, label]) => (
+                <button key={mode} type="button" disabled={aiBusy} onClick={() => void runAi(mode)}>
+                  <span aria-hidden className="w-4 text-center text-violet-500">
+                    {icon}
+                  </span>
+                  {label}
+                </button>
+              ))}
+            </div>
+            <div className="ws-bubble-row">
+              <span className="px-1 text-[11px] text-zinc-500">{t("Translate")}</span>
+              {([
+                ["translate_de", "DE"],
+                ["translate_en", "EN"],
+                ["translate_es", "ES"],
+              ] as [AiMode, string][]).map(([mode, label]) => (
+                <button key={mode} type="button" disabled={aiBusy} title={t("Translate")} className="text-xs font-medium text-violet-700 dark:text-violet-300" onClick={() => void runAi(mode)}>
+                  {label}
+                </button>
+              ))}
+              {aiBusy && <span className="ml-auto animate-pulse px-1 text-[11px] text-violet-600">…</span>}
+            </div>
           </div>
         </BubbleMenu>
       )}
