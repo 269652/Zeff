@@ -6,14 +6,13 @@ import { toast } from "@/components/Toaster";
 import { initials } from "@/plugins/workspace/widget-shared";
 import { CIRCLES, circleLabels, type Circle } from "../shared";
 import type { PeopleTool, PersonCardInfo } from "../tools";
+import { agoText, type CardPerson } from "../view-data";
 
 /**
  * A person on the people overview: who they are (initials, name, star, circle, role), when you were last in touch, what is
  * open between you (one click shows it, one more ticks it), the next date and the todos — and on hover what to do: write,
  * add a todo, pay, set the circle; on their birthday a greeting to draft.
  */
-
-export type CardPerson = { id: number; personId: number | null; name: string; starred: boolean; next: string | null; nextKind: string; context: string; todos: number; tickets: number };
 
 const TONES = ["bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300", "bg-emerald-100 text-emerald-700 dark:bg-emerald-950 dark:text-emerald-300", "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300", "bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300", "bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300", "bg-violet-100 text-violet-700 dark:bg-violet-950 dark:text-violet-300"];
 /** A name's colour: always the same one for the same name. */
@@ -29,16 +28,6 @@ const CIRCLE_TONE: Record<Circle, string> = {
 
 const chip = "rounded px-1.5 py-0.5";
 const grey = `${chip} bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300`;
-
-/** "today", "yesterday", "5 days ago", "3 weeks ago", "4 months ago". */
-export function agoText(t: ReturnType<typeof useT>, iso: string, now: number): string {
-  const days = Math.max(0, Math.floor((now - Date.parse(iso)) / 864e5));
-  if (days === 0) return t("today");
-  if (days === 1) return t("yesterday");
-  if (days < 14) return t("{n} days ago", { n: days });
-  if (days < 61) return t("{n} weeks ago", { n: Math.floor(days / 7) });
-  return t("{n} months ago", { n: Math.floor(days / 30) });
-}
 
 export function PersonCard({ p, info, now, soonUntil, weeks, open, run }: { p: CardPerson; info: PersonCardInfo | undefined; now: number; soonUntil: string; weeks: number; open: () => void; run: (tool: PeopleTool, key: string) => Promise<{ ok: boolean; draft?: string }> }) {
   const t = useT();
