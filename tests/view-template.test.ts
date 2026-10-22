@@ -177,3 +177,11 @@ test("a database keeps its rows' page template (a text) — none: the plugin's",
   assert.equal(normalizeSchema({ titleName: "Name", properties: [], views: [newView("T")], rowTemplate: "<b>{{ title }}</b>" }).rowTemplate, "<b>{{ title }}</b>");
   assert.equal("rowTemplate" in normalizeSchema({ titleName: "Name", properties: [], views: [newView("T")], rowTemplate: "  " }), false);
 });
+
+test("an object of the app is there or not ({{#if app.creditor}}); crossed out; a section's heading with something on the right", () => {
+  const r = renderView(`{{#if app.creditor}}da{{#else}}weg{{/if}} {{#if app.none}}da{{#else}}weg{{/if}} <strike>erledigt</strike><section title="Mails" aside="7 Mails · 1 Brief">x</section>`, data({ app: { creditor: { name: "SKP" }, none: null } }), { parts });
+  assert.deepEqual(r.errors, []);
+  assert.match(vnodeToString(r.nodes), /^da weg /);
+  assert.equal(find(r.nodes, "strike").length, 1);
+  assert.equal(find(r.nodes, "section")[0].a.aside, "7 Mails · 1 Brief");
+});

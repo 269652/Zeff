@@ -66,14 +66,13 @@ const template = (t: T) => `{{#if app.loading}}
       <list source="app.todos" spacing=compact empty="${t("No todo names this case.")}">
         <row gap=2 align=baseline wrap=false>
           <mono><button action="url" href="{{ href }}" label="{{ ref }}" variant=link/></mono>
-          <col gap=0 fill=true>{{#if done}}<muted>✓ {{ text }}</muted>{{#else}}<text>{{ text }}</text>{{/if}}</col>
+          <col gap=0 fill=true>{{#if done}}<strike>{{ text }}</strike>{{#else}}<text>{{ text }}</text>{{/if}}</col>
           {{#if due}}<small><muted>{{ due }}</muted></small>{{/if}}
         </row>
       </list>
     </section>
 
-    <section title="${t("Mails and letters")}">
-      <small><muted>${t("{m} mails · {d} letters", { m: "{{ app.mails }}", d: "{{ app.letters }}" })}</muted></small>
+    <section title="${t("Mails and letters")}" aside="${t("{m} mails · {d} letters", { m: "{{ app.mails }}", d: "{{ app.letters }}" })}">
       {{#if app.hasSources}}
         <part name="case.sources"/>
       {{#else}}

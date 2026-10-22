@@ -143,6 +143,12 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
             {kids(n.c)}
           </span>
         );
+      case "strike":
+        return (
+          <s key={key} className="text-zinc-400">
+            {kids(n.c)}
+          </s>
+        );
       case "mono":
         return (
           <span key={key} className="font-mono text-xs" title={a.tip || undefined}>
@@ -195,7 +201,12 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
           </details>
         ) : (
           <section key={key} className="space-y-2 break-inside-avoid">
-            {a.title && <h2 className="text-sm font-semibold">{a.title}</h2>}
+            {(a.title || a.aside) && (
+              <div className="flex flex-wrap items-baseline justify-between gap-2">
+                <h2 className="text-sm font-semibold">{a.title}</h2>
+                {a.aside && <span className="text-xs text-zinc-500">{a.aside}</span>}
+              </div>
+            )}
             <div className="space-y-3" style={scrolls(a)}>
               {kids(n.c)}
             </div>

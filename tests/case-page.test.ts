@@ -87,7 +87,7 @@ test("summed up, with an account: the header, four figures, todos, sources, paym
   assert.equal(todos.c.length, 2);
   assert.deepEqual(urls.filter((b) => b.a.href.startsWith("/t/")).map((b) => [b.a.label, b.a.href]), [["T-5", "/t/5"], ["T-6", "/t/6"]]);
   assert.match(text(todos.c.slice(0, 1)), /Rate überweisen.*15\.11\.2026/);
-  assert.match(text(todos.c.slice(1)), /✓/);
+  assert.match(vnodeToString(todos.c.slice(1) as never), /<strike>Antrag stellen<\/strike>/, "a done one crossed out");
   assert.match(all, /2 mails · 1 letters/);
   // Paid: newest first.
   const paid = find(r.nodes, "list")[1];
