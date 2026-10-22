@@ -462,6 +462,8 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
       const r = await (await import("@/plugins/people/normalize")).normalizePeople();
       // The circles by rule, the summaries out of date compiled (in the background) — a failure there doesn't fail the step.
       await (await import("@/plugins/people/pulse")).afterBriefing().catch((e) => console.error("[people] after the briefing:", e));
+      // The AI's few points before the meetings of the next hours ("What you should know" — it checks its plugin and switch; again only when something changed).
+      await (await import("@/plugins/know/summary")).prepareMeetingBriefs().catch((e) => console.error("[know] before meetings:", e));
       return r.ok ? { ok: true, message: t("{a} aliases, {c} new, {m} merged, {r} relations", { a: r.aliases, c: r.created, m: r.merged, r: r.relations }) } : { ok: false, message: r.error ?? t("Failed.") };
     },
     busy: () => flag("__zeffPeopleNormalize"),
