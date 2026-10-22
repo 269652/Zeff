@@ -24,10 +24,14 @@ export type SyncView = {
   nextAt: string | null;
   /** When it may run by itself, if not always (e.g. "workdays 7–20"). */
   window: string | null;
+  /** It runs by itself on workdays only. */
+  workdays?: boolean;
 };
 
 export type SyncOverview = {
   /** "Sync all" going: the step it's on. */
   all: { running: boolean; step: SyncKey | null };
   steps: SyncView[];
+  /** The steps that aren't well (source health: failing, the app changed, not running, silent), with why — the menu's dots. */
+  health?: { key: SyncKey; state: "stale" | "silent" | "failing" | "drift"; reason: string }[];
 };

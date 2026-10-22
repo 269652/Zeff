@@ -68,10 +68,10 @@ export async function openInAutomationChrome(url: string, label: string): Promis
   }
 }
 
-/** Something that needs you: a service to sign in to, an agent's question. */
+/** Something that needs you: a service to sign in to, an agent's question, a source that isn't well (source health). */
 export type Attention = {
   key: string;
-  kind: "login" | "question";
+  kind: "login" | "question" | "source";
   title: string;
   body: string;
   at: string;
@@ -79,6 +79,8 @@ export type Attention = {
   service?: ServiceId;
   /** Where to answer (a todo). */
   href?: string;
+  /** source: the sync step (it can be run again). */
+  step?: string;
 };
 
 const state = globalThis as { __zeffAttention?: Map<string, Attention> };
@@ -150,7 +152,21 @@ export async function listAttention(): Promise<Attention[]> {
     if (v.live.waiting !== null && v.session.conversation) return [{ key: `session-turn:${runId}:${(v.live.waiting ?? "").length}:${(v.live.waiting ?? "").slice(-40)}`, kind: "question", title: `${workRef(runId)} is waiting for you`, body: (v.live.waiting || "Its turn is done.").slice(-300), at: new Date().toISOString(), href: `/work?run=${runId}` }];
     return [];
   });
+  // Sources that aren't well (silent, not running, failing, their app changed): one item per incident — its key stays
+  // while the incident lasts, so a notification is sent once (src/lib/sync/source-health.ts keeps them).
+  const { sourceIncidents } = await import("@/lib/sync/source-health");
+  const { healthLabel } = await import("@/lib/sync/source-health-shared");
+  // (A failing one that asks for a sign-in is told by its sign-in request already.)
+  const sources = sourceIncidents().filter((i) => !(i.state === "failing" && store.has(`login:${i.key}`))).map((i): Attention => ({
+    key: i.id,
+    kind: "source",
+    step: i.key,
+    title: t("{source}: {state}", { source: i.label, state: healthLabel(t, i.state) }),
+    body: i.reason || t("See the sync menu."),
+    at: i.openedAt,
+    href: i.href,
+  }));
   // Sign-ins only for what's installed (an uninstalled plugin's request is moot).
   const { serviceAvailable } = await import("@/plugins/state");
-  return [...[...store.values()].filter((a) => !a.service || serviceAvailable(a.service)), ...questions, ...live, ...claude];
+  return [...[...store.values()].filter((a) => !a.service || serviceAvailable(a.service)), ...questions, ...live, ...claude, ...sources];
 }

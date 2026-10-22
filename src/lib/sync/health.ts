@@ -1,5 +1,6 @@
 import { getPref, setPref } from "@/lib/prefs";
 import type { SyncKey, SyncView } from "./shared";
+import { FAIL_HOURS, FAIL_RUNS } from "./source-health-shared";
 
 /**
  * How the syncs hold up over time — not just their last run: since when one fails, how often in a
@@ -11,6 +12,9 @@ type Health = { failures: number; failingSince: string | null; lastOkAt: string 
 const PREF = "sync-health";
 
 const read = () => getPref<Partial<Record<SyncKey, Health>>>(PREF, {});
+
+/** Every step's record of how its runs went over time (failures in a row, since when, the last good run). */
+export const syncHealthRecords = (): Partial<Record<SyncKey, Health>> => read();
 
 /** A step's run, as it went. */
 export function noteSyncResult(key: SyncKey, ok: boolean, message: string | null, at = new Date().toISOString()): void {
@@ -35,8 +39,8 @@ export function problemKind(message: string): ProblemKind {
 }
 
 /** Failing this many runs in a row, or for this long, is a problem — once is a blip. */
-const RUNS = 2;
-const HOURS = 12;
+const RUNS = FAIL_RUNS;
+const HOURS = FAIL_HOURS;
 
 /** The syncs that keep failing (of the steps there are, not running right now): longest first. */
 export function syncProblems(steps: Pick<SyncView, "key" | "label" | "href" | "running">[], now = Date.now()): SyncProblem[] {

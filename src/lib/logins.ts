@@ -73,6 +73,26 @@ function classify(out: unknown): { state: LoginState; detail: string } {
   return { state: "unknown", detail: text };
 }
 
+/**
+ * WhatsApp's and Signal's status checks their contract too (linked): what it found is kept for the source health — a
+ * drift shows on the sync menu and Heute until a clean check.
+ */
+function noteContractCheck(service: ServiceId, out: unknown): void {
+  if (service !== "whatsapp" && service !== "signal") return;
+  let o: unknown = out;
+  if (typeof out === "string" && out.trim().startsWith("{")) {
+    try {
+      o = JSON.parse(out);
+    } catch {
+      return;
+    }
+  }
+  if (!o || typeof o !== "object") return;
+  const x = o as { linked?: boolean; drift?: { ok: boolean; summary: string } };
+  if (!x.linked) return; // not looked at
+  void import("@/lib/sync/source-health").then((m) => m.noteDrift(service, x.drift ? { ok: !!x.drift.ok, summary: String(x.drift.summary ?? "") } : null)).catch(() => {});
+}
+
 async function chromeUp(): Promise<boolean> {
   return automationUp(undefined, 2500);
 }
@@ -94,6 +114,7 @@ export async function checkLogin(service: ServiceId): Promise<{ state: LoginStat
         45000,
       );
       r = classify(out);
+      noteContractCheck(service, out);
     } catch (e) {
       r = classify(errorMessage(e));
     }

@@ -300,6 +300,31 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "source_health",
+    {
+      title: "Which of Zeff's sources are stale — before you rely on their data",
+      description:
+        "How each of Zeff's sources (sync steps: mail, Teams, WhatsApp, Signal, Jira, GitLab, Google Keep, the calendars, news …) holds up, judged from its data: " +
+        "ok, failing (its runs keep failing), drift (the app changed, its driver may break), stale (no run though one was due) or silent " +
+        "(its runs say ok but nothing new came for clearly longer than usual — a site that changed). With when its newest item came. " +
+        "Check it before you draw conclusions from a source's data (\"nobody wrote\", \"no new tickets\"): a silent or stale source may just not have brought them.",
+      inputSchema: z.object({
+        source: z.string().optional().describe("One step's key or name (e.g. whatsapp, Teams); all when left out."),
+      }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        const { sourceHealth, sourceHealthText } = await import("@/lib/sync/source-health");
+        const all = await sourceHealth();
+        const want = args.source?.trim().toLowerCase();
+        const list = want ? all.filter((h) => h.key.toLowerCase() === want || h.label.toLowerCase() === want) : all;
+        if (want && !list.length) return fail(`No source "${args.source}". There are: ${all.map((h) => h.key).join(", ")}.`);
+        return ok(sourceHealthText(list));
+      }),
+  );
+
+  server.registerTool(
     "zeff_actions",
     {
       title: "What Zeff can be told to do — and what is set now",

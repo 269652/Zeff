@@ -1,3 +1,4 @@
+import { SourceHealthLine } from "@/components/SourceHealthLine";
 import { EmptyState } from "@/components/EmptyState";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
@@ -87,6 +88,17 @@ async function heuteData() {
   const { syncOverview } = await import("@/lib/sync/registry");
   const { syncProblems } = await import("@/lib/sync/health");
   const problems = syncProblems(syncOverview().steps, now);
+  // Sources that aren't well though their runs may say ok — silent, not running, their app changed (the failing ones are above).
+  let sourceIssues: import("@/components/SourceHealthLine").SourceIssue[] = [];
+  try {
+    const { sourceHealth } = await import("@/lib/sync/source-health");
+    const { healthLabel, healthReason } = await import("@/lib/sync/source-health-shared");
+    sourceIssues = (await sourceHealth()).flatMap((h) =>
+      h.state === "stale" || h.state === "silent" || h.state === "drift" ? [{ key: h.key, label: h.label, href: h.href, state: h.state, word: healthLabel(t, h.state), reason: healthReason(t, h) }] : [],
+    );
+  } catch (e) {
+    console.error("[heute] source health", e);
+  }
 
   // Birthdays and other dates of your people, inside their reminder (Personen plugin).
   let reminders: import("@/plugins/people/shared").Upcoming[] = [];
@@ -136,7 +148,7 @@ async function heuteData() {
     t,
   });
 
-  return { run, open, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, commitments, next, today, now };
+  return { run, open, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, sourceIssues, reminders, commitments, next, today, now };
 }
 
 const NEXT_TONE: Record<import("@/lib/heute-next").NextTone, string> = {
@@ -225,7 +237,7 @@ function Card({ id, title, href, count, tone = "zinc", children }: { id?: string
 export default async function HeutePage() {
   await connection();
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
-  const { run, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, reminders, commitments, next, today, now } = await heuteData();
+  const { run, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, sourceIssues, reminders, commitments, next, today, now } = await heuteData();
 
   const problem = problemLabels();
   const phase = phaseOf(now);
@@ -312,6 +324,8 @@ export default async function HeutePage() {
           </ul>
         </section>
       )}
+
+      <SourceHealthLine issues={sourceIssues} />
 
       {/* The hero: the sky of the hour, the one thing to start with, the day as two rings. */}
       <section className={`relative overflow-hidden rounded-2xl bg-gradient-to-br p-5 shadow-sm sm:p-7 ${SKY[phase]}`}>

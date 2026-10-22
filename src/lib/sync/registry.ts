@@ -539,6 +539,7 @@ export function syncOverview(): SyncOverview {
       everyMinutes: sched?.everyMinutes ?? 0,
       nextAt: sched ? nextRun(sched.everyMinutes, sched.lastAt, !!sched.workdays) : null,
       window: sched?.window ?? null,
+      workdays: !!sched?.workdays,
     };
   });
   return { all: { running: l.all !== undefined, step: l.all ?? null }, steps };

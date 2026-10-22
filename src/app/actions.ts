@@ -930,7 +930,17 @@ export async function saveSyncIntervalAction(key: string, minutes: number): Prom
 /** Every sync step: running?, how it last went, when it runs next by itself. */
 export async function syncOverviewAction(): Promise<import("@/lib/sync/shared").SyncOverview> {
   const { syncOverview } = await import("@/lib/sync/registry");
-  return syncOverview();
+  const overview = syncOverview();
+  // How each source holds up (cached a minute): a dot and why on the steps that aren't well.
+  try {
+    const { sourceHealth } = await import("@/lib/sync/source-health");
+    const { healthReason } = await import("@/lib/sync/source-health-shared");
+    const health = (await sourceHealth()).flatMap((h) => (h.state === "ok" ? [] : [{ key: h.key, state: h.state, reason: healthReason(t, h) }]));
+    return { ...overview, health };
+  } catch (e) {
+    console.error("[sync] source health", e);
+    return overview;
+  }
 }
 
 /** One step, started in the background (the menu follows it). */
