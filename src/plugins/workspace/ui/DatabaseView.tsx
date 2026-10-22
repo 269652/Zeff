@@ -9,6 +9,7 @@ import { templateParamsAction, addRowAction, archivePageAction, savePageAction, 
 import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
+import { useProgressive } from "./progressive";
 import { RowPeek } from "./RowPeek";
 import { GalleryView } from "./gallery";
 import { BulkBar } from "./bulk";
@@ -1083,6 +1084,11 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   });
   const groups = view.groupBy ? groupRows(rows, view.groupBy, schema.properties, labels) : [{ key: "", label: "", color: undefined as string | undefined, rows }];
   const [folded, setFolded] = useState<Set<string>>(new Set());
+  // Drawn in steps (a table of 1,200 rows): the first rows at once, more as you scroll — each group starts where the ones before it
+  // ended; the sums, counts and "select all" go by every row.
+  const open = groups.map((g) => (folded.has(g.key) ? 0 : g.rows.length));
+  const starts = open.map((_, i) => open.slice(0, i).reduce((a, b) => a + b, 0));
+  const { limit: drawn, more: undrawn, marker: drawMore } = useProgressive(open.reduce((a, b) => a + b, 0));
   // The columns in the view's order - the title is one of them and may sit anywhere (drag a header to move it).
   const cols = columnOrder(view, schema).filter((id) => id === TITLE || visible.some((p) => p.id === id));
   const byId = new Map(visible.map((p) => [p.id, p]));
@@ -1305,7 +1311,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
               </tr>
             )}
             {!folded.has(g.key) &&
-              g.rows.map((r) => (
+              g.rows.slice(0, Math.max(0, drawn - starts[groups.indexOf(g)])).map((r) => (
                 <tr key={r.id} className={`group/row ${hiddenIds.has(r.id) ? "ws-row-hidden" : ""}`}>
                   <td className="w-14 text-center align-middle">
                     <span className="inline-flex items-center gap-1">
@@ -1352,6 +1358,15 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
             )}
           </tbody>
         ))}
+        {undrawn > 0 && (
+          <tbody aria-hidden>
+            <tr ref={drawMore}>
+              <td colSpan={visible.length + 3} className="py-3 text-center text-xs text-zinc-400">
+                …
+              </td>
+            </tr>
+          </tbody>
+        )}
         {fill && (
           <tbody aria-hidden>
             <tr ref={filler} className="ws-filler">
@@ -1471,25 +1486,62 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
   );
 }
 
-/** Whose rows: "Mine", then a chip per person with their count (and nobody), several at once — as Kanban's person chips. */
+/** How many people show as chips in the bar — the rest are in its "+N" menu. */
+const PEOPLE_SHOWN = 6;
+
+/**
+ * Whose rows: "Mine", then a chip per person with their count (and nobody), several at once — as Kanban's person chips. One
+ * quiet line: those with the most rows (and the ones picked), long names cut short; everyone else in a "+N" menu with a search.
+ */
 function PeopleBar({ chips, picked, onPick, onAll, mine, onMine }: { chips: { key: string; label: string; count: number }[]; picked: Set<string>; onPick: (key: string) => void; onAll: () => void; mine: boolean; onMine?: () => void }) {
   const t = useT();
+  const [q, setQ] = useState("");
   if (chips.length < 2 && !onMine) return null;
-  const chip = (on: boolean) => `rounded-full border px-2.5 py-0.5 text-xs ${on ? "border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "border-zinc-200 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"}`;
+  const name = (c: { key: string; label: string }) => (c.key ? c.label : `— ${t("Nobody")}`);
+  const byCount = [...chips].sort((a, b) => b.count - a.count || name(a).localeCompare(name(b)));
+  const top = new Set(byCount.slice(0, PEOPLE_SHOWN).map((c) => c.key));
+  const shown = byCount.filter((c) => top.has(c.key) || picked.has(c.key));
+  const rest = byCount.filter((c) => !shown.includes(c));
+  const chip = (on: boolean) => `inline-flex max-w-44 shrink-0 items-center gap-1 rounded-full px-2 py-0.5 text-xs transition ${on ? "bg-indigo-600 text-white dark:bg-indigo-500" : "bg-zinc-100 text-zinc-600 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300 dark:hover:bg-zinc-700"}`;
+  const w = q.trim().toLowerCase();
   return (
-    <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("Filter by person")}>
+    <div className="flex min-w-0 items-center gap-1 overflow-hidden" role="group" aria-label={t("Filter by person")}>
       {onMine && (
         <button type="button" className={chip(mine)} aria-pressed={mine} onClick={onMine}>
           ★ {t("Mine")}
         </button>
       )}
-      {chips.map((c) => (
-        <button key={c.key || "none"} type="button" className={chip(picked.has(c.key))} aria-pressed={picked.has(c.key)} onClick={() => onPick(c.key)}>
-          {c.key ? c.label : `— ${t("Nobody")}`} <span className="text-zinc-400">{c.count}</span>
-        </button>
-      ))}
+      {shown.map((c) => {
+        const on = picked.has(c.key);
+        return (
+          <button key={c.key || "none"} type="button" className={chip(on)} aria-pressed={on} onClick={() => onPick(c.key)} title={`${name(c)} · ${c.count}`}>
+            <span className="truncate">{name(c)}</span>
+            <span className={`tabular-nums ${on ? "text-indigo-100" : "text-zinc-400"}`}>{c.count}</span>
+          </button>
+        );
+      })}
+      {rest.length > 0 && (
+        <details className="relative shrink-0">
+          <summary className={`${chip(false)} cursor-pointer list-none`}>+{rest.length}</summary>
+          <div className="absolute left-0 z-30 mt-1 w-64 rounded-lg border border-zinc-200 bg-white p-1.5 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+            <input className="input mb-1 h-7 w-full text-xs" placeholder={t("Search people …")} value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+            <ul className="max-h-64 overflow-y-auto">
+              {rest
+                .filter((c) => !w || name(c).toLowerCase().includes(w))
+                .map((c) => (
+                  <li key={c.key || "none"}>
+                    <button type="button" className="flex w-full items-center gap-2 rounded px-2 py-1 text-left text-xs hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => onPick(c.key)}>
+                      <span className="min-w-0 flex-1 truncate">{name(c)}</span>
+                      <span className="text-zinc-400 tabular-nums">{c.count}</span>
+                    </button>
+                  </li>
+                ))}
+            </ul>
+          </div>
+        </details>
+      )}
       {(picked.size > 0 || mine) && (
-        <button type="button" className="px-1 text-xs text-zinc-500 hover:underline" onClick={onAll}>
+        <button type="button" className="shrink-0 px-1 text-xs text-zinc-500 hover:underline" onClick={onAll}>
           {t("all")}
         </button>
       )}

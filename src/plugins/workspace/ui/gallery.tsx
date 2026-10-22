@@ -10,6 +10,8 @@ import { splitPinned, type Property, type Row } from "../model";
 import { RowCard } from "./cards";
 import type { CellCtx } from "./cells";
 import { WS_CHANGED } from "./ChatPanel";
+import { useProgressive } from "./progressive";
+
 
 /**
  * The gallery as Keep shows notes: "Write a note …" on top, the pinned ones apart, cards in columns of their own height
@@ -31,7 +33,11 @@ export function GalleryView({ rows, visible, ctx, openRow, add, locked, template
   const tags = schema.properties.find((p) => p.type === "multi_select");
   const [picked, setPicked] = useState<Set<string>>(new Set());
   const shownRows = picked.size && tags ? rows.filter((r) => [...picked].every((id) => ((r.cells[tags.id] as string[] | undefined) ?? []).includes(id))) : rows;
-  const { pinned, others } = pinnable ? splitPinned(shownRows) : { pinned: [], others: shownRows };
+  const split = pinnable ? splitPinned(shownRows) : { pinned: [], others: shownRows };
+  // Drawn in steps (a gallery of 1,200 notes): the pinned and the first others at once, more as you scroll.
+  const { limit, more, marker } = useProgressive(split.pinned.length + split.others.length);
+  const pinned = split.pinned.slice(0, limit);
+  const others = split.others.slice(0, Math.max(0, limit - pinned.length));
   // The card shows what the gallery is for: not the pin and the colour as values (they're the card itself).
   const cardProps = visible.filter((p) => p.id !== PINNED && p.id !== COLOR && p.id !== IMAGE);
   const used = tags ? (tags.options ?? []).filter((o) => rows.some((r) => ((r.cells[tags.id] as string[] | undefined) ?? []).includes(o.id))) : [];
@@ -70,6 +76,7 @@ export function GalleryView({ rows, visible, ctx, openRow, add, locked, template
           {grid(others)}
         </section>
       )}
+      {more > 0 && <div ref={marker} className="py-4 text-center text-xs text-zinc-400" aria-hidden>…</div>}
       {!shownRows.length && <p className="text-sm text-zinc-500">{rows.length ? t("No note matches.") : t("Nothing here yet.")}</p>}
     </div>
   );
