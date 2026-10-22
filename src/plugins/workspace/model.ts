@@ -118,6 +118,8 @@ export type View = {
   calcs?: Record<string, CalcFn>;
   /** The database's hidden rows shown too (set back) — a switch in the view's menu. */
   showHidden?: boolean;
+  /** An app's view (or a "template" view of any table): its own template (view-template.ts) — none: the app's default. */
+  template?: string;
 };
 /** A table column's width in pixels: what a drag may make it, and what "fit to content" may. */
 export const WIDTH_MIN = 60;

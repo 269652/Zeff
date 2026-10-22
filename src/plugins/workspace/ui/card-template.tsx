@@ -9,18 +9,21 @@ import { Tag } from "./cells";
  * ever put in as HTML, a text is a text, an address is checked once more here.
  */
 
-const INLINE = new Set(["b", "i", "small", "muted", "code", "chip", "badge", "a", "grow"]);
+const INLINE = new Set(["b", "i", "small", "muted", "code", "chip", "badge", "a", "grow", "button", "field"]);
 const isInline = (n: VNode) => typeof n === "string" || INLINE.has(n.t);
 
+/** More tags drawn by whoever uses these nodes (a view's: buttons, lists, parts …) — undefined: not one of them. */
+export type DrawExt = (n: Extract<VNode, object>, key: number, kids: (nodes: VNode[]) => ReactNode) => ReactNode | undefined;
+
 /** The nodes of one level: runs of inline things (text, chips, bold …) share a wrapping line, blocks (row, col, bar …) stand alone. */
-function Level({ nodes }: { nodes: VNode[] }) {
+export function Level({ nodes, ext }: { nodes: VNode[]; ext?: DrawExt }) {
   const out: ReactNode[] = [];
   let run: VNode[] = [];
   const flush = (key: string) => {
     if (run.some((n) => typeof n !== "string" || n.trim())) {
       out.push(
         <div key={key} className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
-          {run.map((n, i) => draw(n, i))}
+          {run.map((n, i) => draw(n, i, ext))}
         </div>,
       );
     }
@@ -30,7 +33,7 @@ function Level({ nodes }: { nodes: VNode[] }) {
     if (isInline(n)) run.push(n);
     else {
       flush(`r${i}`);
-      out.push(draw(n, i));
+      out.push(draw(n, i, ext));
     }
   });
   flush("end");
@@ -40,9 +43,13 @@ function Level({ nodes }: { nodes: VNode[] }) {
 const gap = (a: Record<string, string>): CSSProperties => (a.gap ? { gap: `${Number(a.gap) * 4}px` } : {});
 const textOf = (c: VNode[]): string => c.map((n) => (typeof n === "string" ? n : textOf(n.c))).join("");
 
-function draw(n: VNode, key: number): ReactNode {
+export function draw(n: VNode, key: number, ext?: DrawExt): ReactNode {
   if (typeof n === "string") return n;
-  const kids = n.c.map((c, i) => draw(c, i));
+  if (ext) {
+    const own = ext(n, key, (nodes) => <Level nodes={nodes} ext={ext} />);
+    if (own !== undefined) return own;
+  }
+  const kids = n.c.map((c, i) => draw(c, i, ext));
   switch (n.t) {
     case "row":
       return (
@@ -57,7 +64,7 @@ function draw(n: VNode, key: number): ReactNode {
     case "col":
       return (
         <div key={key} className="flex flex-col gap-1" style={gap(n.a)}>
-          <Level nodes={n.c} />
+          <Level nodes={n.c} ext={ext} />
         </div>
       );
     case "grow":

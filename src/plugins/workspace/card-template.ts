@@ -16,8 +16,8 @@ import { cellText, COLORS, noLabels, type Labels, type Property, type Row } from
 export type VNode = string | { t: string; a: Record<string, string>; c: VNode[] };
 export type TplError = { line: number; message: string };
 
-type FilterCall = { name: string; args: (string | number)[] };
-type TNode =
+export type FilterCall = { name: string; args: (string | number)[] };
+export type TNode =
   | { k: "text"; v: string }
   | { k: "out"; expr: string; filters: FilterCall[]; line: number }
   | { k: "tag"; name: string; attrs: [string, string][]; kids: TNode[]; line: number }
@@ -31,7 +31,11 @@ export const MAX_TEMPLATE = 8000;
 // ---------------------------------------------------------------------------
 
 /** Which tags there are, what they take (attribute → how it is checked) and whether they are empty (no closing tag). */
-const TAGS: Record<string, { void?: boolean; attrs: Record<string, "int" | "url" | "color" | "num" | { oneOf: string[] }> }> = {
+/** A tag's definition: whether it is empty, and what each attribute may be. */
+export type TagDef = { void?: boolean; attrs: Record<string, AttrKind> };
+/** "text": any words (a label, a name), "list": an expression giving rows or items (not interpolated), "any": every attribute let through as text. */
+export type AttrKind = "int" | "url" | "color" | "num" | "text" | "list" | { oneOf: string[] };
+export const CARD_TAGS: Record<string, TagDef> = {
   row: { attrs: { gap: "int", align: { oneOf: ["start", "center", "end", "baseline"] }, wrap: { oneOf: ["true", "false"] }, justify: { oneOf: ["start", "between", "end"] } } },
   col: { attrs: { gap: "int" } },
   grow: { void: true, attrs: {} },
@@ -55,7 +59,7 @@ function readMustache(src: string, i: number): { inner: string; end: number } | 
 }
 
 /** Splits `a | b(1, "x") | c` at the single bars (not inside quotes, brackets or parentheses, and not `||`). */
-function splitPipes(s: string): string[] {
+export function splitPipes(s: string): string[] {
   const parts: string[] = [];
   let cur = "";
   let depth = 0;
@@ -81,7 +85,7 @@ function splitPipes(s: string): string[] {
   return parts.map((p) => p.trim());
 }
 
-function parseFilter(src: string): FilterCall {
+export function parseFilter(src: string): FilterCall {
   const m = /^([A-Za-z]+)\s*(?:\(([\s\S]*)\))?$/.exec(src.trim());
   if (!m) throw new Error(`Not a filter: ${src}`);
   const args: (string | number)[] = [];
@@ -126,7 +130,8 @@ function parseAttrs(s: string): [string, string][] {
   return out;
 }
 
-export function parseTemplate(src: string): { nodes: TNode[]; errors: TplError[] } {
+/** A template's tree (and what is wrong with it) — of a card's tags, or (`tags`) of another set: a view's. */
+export function parseTemplate(src: string, tags: Record<string, TagDef> = CARD_TAGS): { nodes: TNode[]; errors: TplError[] } {
   const errors: TplError[] = [];
   const lineAt = (i: number) => src.slice(0, i).split("\n").length;
   const toks: Tok[] = [];
@@ -236,16 +241,16 @@ export function parseTemplate(src: string): { nodes: TNode[]; errors: TplError[]
         }
       }
     } else if (t.k === "open" || t.k === "self") {
-      const def = TAGS[t.name];
+      const def = tags[t.name];
       if (!def) {
-        errors.push({ line, message: `Unknown tag <${t.name}> — there are ${Object.keys(TAGS).map((x) => `<${x}>`).join(" ")}.` });
+        errors.push({ line, message: `Unknown tag <${t.name}> — there are ${Object.keys(tags).map((x) => `<${x}>`).join(" ")}.` });
         continue;
       }
       const node: TNode = { k: "tag", name: t.name, attrs: t.attrs, kids: [], line };
       add(node);
       if (t.k === "open" && !def.void) stack.push({ kind: "tag", name: t.name, at: t.at, list: node.kids, node });
     } else {
-      const def = TAGS[t.name];
+      const def = tags[t.name];
       if (!def) {
         errors.push({ line, message: `Unknown tag </${t.name}>.` });
       } else if (def.void) {
@@ -324,7 +329,7 @@ export function cardScope(v: { row: Row; props: Property[]; titleName: string; k
 // Expressions: the formulas' language, with the names of properties written as they are (or [in brackets] when they have spaces)
 // ---------------------------------------------------------------------------
 
-const KEYWORDS = new Set(["true", "false", "null", "and", "or", "not"]);
+export const KEYWORDS = new Set(["true", "false", "null", "and", "or", "not"]);
 
 function toFormula(expr: string): string {
   let out = "";
@@ -354,7 +359,7 @@ function toFormula(expr: string): string {
   return out;
 }
 
-type Ctx = { scope: CardScope; locals: Map<string, Field>; errors: TplError[] };
+export type Ctx = { scope: CardScope; locals: Map<string, Field>; errors: TplError[] };
 const lookup = (ctx: Ctx, name: string): Field | undefined => ctx.locals.get(norm(name)) ?? ctx.scope.get(name);
 
 function evaluate(expr: string, ctx: Ctx, line: number): unknown {
@@ -387,10 +392,10 @@ function first(expr: string, ctx: Ctx, line: number): unknown {
 // Filters
 // ---------------------------------------------------------------------------
 
-const isField = (v: unknown): v is Field => !!v && typeof v === "object" && "prop" in (v as object) && "text" in (v as object);
-const isNode = (v: unknown): v is VNode => typeof v === "string" || (!!v && typeof v === "object" && "t" in (v as object));
-const textOf = (v: unknown): string => (v === null || v === undefined ? "" : isField(v) ? v.text : typeof v === "string" ? v : Array.isArray(v) ? v.map(textOf).join(", ") : typeof v === "object" ? "" : String(v));
-const numOf = (v: unknown): number | null => {
+export const isField = (v: unknown): v is Field => !!v && typeof v === "object" && "prop" in (v as object) && "text" in (v as object);
+export const isNode = (v: unknown): v is VNode => typeof v === "string" || (!!v && typeof v === "object" && "t" in (v as object));
+export const textOf = (v: unknown): string => (v === null || v === undefined ? "" : isField(v) ? v.text : typeof v === "string" ? v : Array.isArray(v) ? v.map(textOf).join(", ") : typeof v === "object" ? "" : String(v));
+export const numOf = (v: unknown): number | null => {
   const x = isField(v) ? v.value : v;
   const n = typeof x === "number" ? x : typeof x === "string" && x.trim() !== "" ? Number(x) : NaN;
   return Number.isNaN(n) ? null : n;
@@ -406,7 +411,7 @@ function dayOf(v: unknown): Date | null {
   return m ? new Date(Number(m[1]), Number(m[2]) - 1, Number(m[3])) : null;
 }
 
-const FILTERS: Record<string, (v: unknown, a: (string | number)[], ctx: Ctx) => unknown> = {
+export const FILTERS: Record<string, (v: unknown, a: (string | number)[], ctx: Ctx) => unknown> = {
   chip: (v) => {
     const f = isField(v) ? v : null;
     return listOf(v).map((x) => {
@@ -480,8 +485,9 @@ function interpolate(raw: string, ctx: Ctx, line: number): string {
   });
 }
 
-function checkAttr(kind: "int" | "url" | "color" | "num" | { oneOf: string[] }, v: string): string | null {
+export function checkAttr(kind: AttrKind, v: string): string | null {
   const s = v.trim();
+  if (kind === "text" || kind === "list") return s.slice(0, 500);
   if (kind === "int") return /^\d{1,3}$/.test(s) ? s : null;
   if (kind === "num") return s !== "" && Number.isFinite(Number(s)) ? s : null;
   if (kind === "color") return (COLORS as readonly string[]).includes(s) ? s : null;
@@ -524,7 +530,7 @@ function drawList(list: TNode[], ctx: Ctx): VNode[] {
         out.push(...drawList(n.body, { ...ctx, locals }));
       }
     } else {
-      const def = TAGS[n.name];
+      const def = CARD_TAGS[n.name];
       const a: Record<string, string> = {};
       for (const [k, raw] of n.attrs) {
         const kind = def.attrs[k];

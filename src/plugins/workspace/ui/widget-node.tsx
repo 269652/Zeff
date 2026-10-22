@@ -405,3 +405,34 @@ export const ZeffWidget = Node.create({
     return ReactNodeViewRenderer(WidgetView);
   },
 });
+
+/** A widget shown by itself (a view template's <widget id=… />): read when shown and when the workspace changes; its actions work. */
+export function WidgetBlock({ id, config, title }: { id: string; config: Record<string, unknown>; title?: string }) {
+  const configKey = JSON.stringify(config);
+  const [data, setData] = useState<WidgetData | null>(null);
+  const [busy, setBusy] = useState(false);
+  useEffect(() => {
+    let live = true;
+    const load = () => void widgetDataAction(id, JSON.parse(configKey)).then((r) => live && setData(r.ok ? r.data : { kind: "error", message: r.error }));
+    load();
+    window.addEventListener(WS_CHANGED, load);
+    return () => {
+      live = false;
+      window.removeEventListener(WS_CHANGED, load);
+    };
+  }, [id, configKey]);
+  const act = async (action: string, itemId: string) => {
+    setBusy(true);
+    const r = await widgetActAction(id, action, { id: itemId }, JSON.parse(configKey));
+    setBusy(false);
+    if (!r.ok) return void toast(r.error, { tone: "error" });
+    setData(r.data);
+    window.dispatchEvent(new Event(WS_CHANGED));
+  };
+  return (
+    <div className="space-y-2">
+      {title && <h3 className="text-sm font-semibold">{title}</h3>}
+      {data ? <WidgetBody data={data} busy={busy} act={(a, i) => void act(a, i)} /> : <Skeleton />}
+    </div>
+  );
+}

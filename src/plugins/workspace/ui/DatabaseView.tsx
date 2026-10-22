@@ -22,7 +22,10 @@ import { CardEditor } from "./card-editor";
 import { FilterEditor, PropertiesMenu, SchemaModal, SortEditor } from "./db-menus";
 import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
 import { PipelineEditor, PipelineSummaries } from "./pipeline";
-import { AppViewHost } from "./app-view";
+import { AppViewHost, appAvailable, type RowOps } from "./app-view";
+import { ViewCode } from "./view-code";
+import { viewAppMeta, TEMPLATE_VIEW } from "../view-apps";
+import type { TplError } from "../view-template";
 import { CalcCell, usePublished } from "./calc-row";
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
@@ -306,6 +309,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   // How many of its rows the database hides.
   const hiddenCount = data?.schema.hiddenRows?.length ? data.rows.filter((r) => data.schema.hiddenRows!.includes(r.id)).length : 0;
 
+  // An app's view as code (its template being written — the view shows the draft), and what is wrong with the draft.
+  const [code, setCode] = useState<{ viewId: string; draft: string } | null>(null);
+  const [codeErrors, setCodeErrors] = useState<TplError[]>([]);
   // An app's view can take "New" over (its own form for a new row — the debts overview's).
   const appNew = useRef<(() => void) | null>(null);
   const setAppNew = useCallback((fn: (() => void) | null) => void (appNew.current = fn), []);
@@ -380,13 +386,21 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         ].join(" · ");
 
   // Where a new row can be named in place: a table (an app's view without its app is one) — anywhere else it opens.
-  const inPlace = !!view && (view.type === "table" || (view.type === "app" && !data?.extras?.appViews?.some((a) => a.id === view.app)));
+  const inPlace = !!view && !!data && (view.type === "table" || (view.type === "app" && !appAvailable(data, view)));
   const newRow = async (cells: Record<string, unknown> = {}, templateId?: number, open = false, params?: Record<string, string>) => {
     const id = await api.addRow(cells, "", templateId, params);
     if (!id) return;
     // A row from a template opens as a page; a plain one is named in place.
     if (open) openRow(id);
     else setJustAdded(id);
+  };
+
+  // What a view's buttons do to rows (a template's new, delete, duplicate, hide).
+  const rowOps: RowOps = {
+    add: (cells) => api.addRow(cells, ""),
+    remove: (id) => api.removeRow(id),
+    duplicate: (id) => api.duplicateRow(id),
+    hide: (id) => api.changeSchema((s) => hideRows(s, [id], true)),
   };
 
   // A narrow toolbar keeps the views, the search, "New" and "⋯" - filter, sort, grouping, the date field and the properties go into one "View" menu.
@@ -545,6 +559,16 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                     </MenuItem>,
                   ]
                 : []),
+              // A view of any table built from its template (written by hand or by the AI).
+              <MenuItem
+                key="app-template"
+                onClick={() => {
+                  addView("app", { id: "template", label: t("Template") });
+                  close();
+                }}
+              >
+                🧩 {t("Template (code / AI)")}
+              </MenuItem>,
               ...(data.extras?.appViews ?? []).map((a) => (
                 <MenuItem
                   key={`app-${a.id}`}
@@ -605,6 +629,19 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                 </MenuItem>
               )}
               {/* The rows hidden in the database: shown too (set back), or left out again. */}
+              {view.type === "app" && appAvailable(data, view) && (
+                <>
+                  {/* The app's view as code: its template (written by hand or by the AI), drawn live. */}
+                  <MenuItem checked={code?.viewId === view.id} onClick={() => (close(), setCode(code?.viewId === view.id ? null : { viewId: view.id, draft: view.template ?? viewAppMeta(view.app!)?.defaultTemplate ?? "" }))}>
+                    &lt;/&gt; {t("Code")}
+                  </MenuItem>
+                  {view.template && (
+                    <MenuItem onClick={() => (close(), window.confirm(t("Back to the default view? Your changes are gone.")) && (setView({ ...view, template: undefined }), setCode(null)))}>
+                      ↺ {t("Reset to default")}
+                    </MenuItem>
+                  )}
+                </>
+              )}
               <MenuItem checked={!!view.showHidden} onClick={() => (close(), setView({ ...view, showHidden: !view.showHidden }))}>
                 👁 {hiddenCount ? t("Show hidden rows ({n})", { n: hiddenCount }) : t("Show hidden rows")}
               </MenuItem>
@@ -762,7 +799,29 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
 
       {data.extras?.running && <p className="text-sm text-indigo-600 dark:text-indigo-400" data-running>✨ {t("The AI is going through the rows — they change as it writes them …")}</p>}
       <PipelineSummaries pipeline={schema.pipeline} />
-      {view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} onNew={setAppNew} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
+      {view.type === "app" && code?.viewId === view.id && (
+        <ViewCode
+          view={view}
+          dbId={dbId}
+          meta={viewAppMeta(view.app ?? "") ?? TEMPLATE_VIEW}
+          draft={code.draft}
+          setDraft={(draft) => setCode({ viewId: view.id, draft })}
+          errors={codeErrors}
+          onClose={() => setCode(null)}
+          onSave={(template) => {
+            setView({ ...view, template: template ?? undefined });
+            setCode(null);
+            toast(template ? t("The view is saved.") : t("The view is back to its default."), { tone: "ok" });
+          }}
+          onNewView={(template, name) => {
+            const v = { ...newView(name || t("New view"), "app"), app: view.app, template };
+            api.changeSchema((s) => ({ ...s, views: [...s.views, v] }));
+            setCode({ viewId: v.id, draft: template });
+            pick(v.id);
+          }}
+        />
+      )}
+      {view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} onNew={setAppNew} ctx={ctx} rowOps={rowOps} src={code?.viewId === view.id ? code.draft : undefined} onErrors={code?.viewId === view.id ? setCodeErrors : undefined} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
       {view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} onHide={(hide) => (api.changeSchema((s) => hideRows(s, [...picked], hide)), setPicked(new Set()))} />}
       {view.type === "table" && <TableView fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
