@@ -241,6 +241,8 @@ export const personForPulse = (id: number) => getPerson(id);
  * and how many are compiled.
  */
 export async function afterBriefing(now = new Date()): Promise<{ circles: number; compiling: number }> {
+  // Their dates: a birthday the facts or the knowledge know goes in by itself.
+  await (await import("./dates")).datesAfterBriefing(now).catch((e) => console.error("[people] dates after the briefing:", e));
   if (!isInstalled("llm")) return { circles: 0, compiling: 0 };
   const circles = (await (await import("./classify")).classifyContacts({ myName: myName() || undefined })).changed;
   const ids = staleForCompile(now, await lastContactsAll(listPeople(), now));
