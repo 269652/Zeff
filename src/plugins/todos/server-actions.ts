@@ -65,9 +65,16 @@ export async function setTodoTextAction(id: number, text: string): Promise<Actio
 export async function setTodoStatusAction(id: number, status: "open" | "done" | "dismissed"): Promise<ActionState> {
   try {
     if (!Number.isInteger(id) || !["open", "done", "dismissed"].includes(status)) return { ok: false, error: t("Unknown todo.") };
-    const { setTodoStatus } = await import("@/lib/boards/store");
+    const { getTodo, setTodoStatus } = await import("@/lib/boards/store");
     const { attributed } = await import("@/lib/boards/activity");
+    const before = getTodo(id);
     attributed("you", () => setTodoStatus(id, status, status === "open" ? null : undefined));
+    // A "done" someone suggested (a worker, an agent, a review), confirmed by you: a verdict for the ledger.
+    if (status === "done" && before?.workerDone && before.status === "open") {
+      const { recordFeedback } = await import("@/lib/learning/ledger");
+      const { workerDoneFeedback } = await import("@/lib/learning/sources");
+      recordFeedback(workerDoneFeedback(before, "accepted"));
+    }
     // A step ticked off brings the next one (a delivery): its actions from git, at once — no AI.
     if (status === "done") void import("@/lib/boards/delivery-ops").then((m) => m.attachOpenMrOps()).then(() => revalidateAll()).catch(() => {});
     revalidateAll();
@@ -87,7 +94,15 @@ export async function searchTodosAction(q: string): Promise<import("@/lib/boards
 export async function runTodoOpsAction(todoId: number, only?: number[]): Promise<ActionState> {
   try {
     const { runTodoOpsNow } = await import("@/lib/ops");
+    const { getTodo } = await import("@/lib/boards/store");
+    const proposed = getTodo(Number(todoId));
     const r = await runTodoOpsNow(Number(todoId), { only: Array.isArray(only) ? only.map(Number).filter(Number.isInteger) : undefined });
+    // The auto-actions' proposal, run by you: a verdict for the ledger.
+    if (proposed?.autoOpsWhy) {
+      const { recordFeedback } = await import("@/lib/learning/ledger");
+      const { autoActionsFeedback } = await import("@/lib/learning/sources");
+      recordFeedback(autoActionsFeedback(proposed, "accepted"));
+    }
     revalidateAll();
     return { ok: true, message: `${r.done.join(" · ")}${r.settled ? ` — ${t("done.")}` : ""}` };
   } catch (err) {
@@ -509,6 +524,11 @@ export async function doneBrowserOpAction(todoId: number, index: number): Promis
     const op = todo?.ops[Number(index)];
     if (!todo || !op || !actionHref(op)) return { ok: false, error: t("That action isn't on the todo (any more).") };
     const left = todo.ops.filter((_, i) => i !== Number(index));
+    if (todo.autoOpsWhy) {
+      const { recordFeedback } = await import("@/lib/learning/ledger");
+      const { autoActionsFeedback } = await import("@/lib/learning/sources");
+      recordFeedback(autoActionsFeedback(todo, "rejected", op));
+    }
     getDb().update(schema.todos).set({ ops: JSON.stringify(left) }).where(eq(schema.todos.id, todo.id)).run();
     const { formatDayTime: when } = await import("@/lib/format");
     const what =

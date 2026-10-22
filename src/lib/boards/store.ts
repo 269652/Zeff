@@ -14,6 +14,8 @@ import type { BoardRun, BoardSettings, Todo } from "@/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { runTodoDoneHooks } from "./done-hooks";
+import { recordFeedback } from "@/lib/learning/ledger";
+import { autoActionsFeedback, workerDoneFeedback } from "@/lib/learning/sources";
 import { resolveRefs, unresolveRefs } from "@/lib/resolved";
 import { cleanOps, cleanPlan, DELIVERY_OP_TYPES, dueDay, isTodoKind, parseTodoRef, todoRef, type BoardResult, type BoardRunView, type BoardTicket, type TodoOp, type TodoPath, type TodoStatus, type TodoStep, type TodoView } from "./shared";
 
@@ -1151,6 +1153,8 @@ export function suggestDone(id: number, by: string, note?: string | null): TodoV
 
 /** Not done after all: the worker's or the AI's word on it taken back — the todo stays open, as it was. */
 export function clearWorkerDone(id: number): void {
+  const before = getTodo(id);
+  if (before?.workerDone) recordFeedback(workerDoneFeedback(before, "rejected"));
   getDb().update(todos).set({ workerDone: null }).where(eq(todos.id, id)).run();
   emitChange("todos");
 }
@@ -1162,6 +1166,7 @@ export function clearWorkerDone(id: number): void {
 export function dropProposedOps(id: number): void {
   const t = getTodo(id);
   if (!t?.autoOpsWhy) return;
+  recordFeedback(autoActionsFeedback(t, "rejected"));
   getDb().update(todos).set({ ops: "[]", autoOpsWhy: null, actionsReviewedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
   emitChange("todos");
 }

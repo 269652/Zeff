@@ -19,6 +19,11 @@ import { isInstalled } from "@/plugins/state";
 import { isoDate } from "@/lib/week";
 import { pushTo } from "@/lib/collections";
 import { isChatFolder, sourceOn } from "@/lib/mail/shared";
+import { mustDo } from "./must-do";
+import { STEPS } from "@/lib/learning/ledger";
+import { learnedRules, mailRuleFor } from "@/lib/learning/rules";
+
+export { mustDo };
 
 const { emails } = schema;
 
@@ -157,25 +162,6 @@ export function notForReview(m: { fromEmail: string | null; subject: string; pre
   if (AUTO_REPLY.test(m.subject)) return true;
   // A merge request or issue (its link in the mail) — not GitLab's other mails (a token running out, a failed pipeline).
   return gitlab && /\/-\/(merge_requests|issues)\/\d+/.test(m.preview);
-}
-
-/** A training or course (in German or English). */
-const TRAINING = /(pflicht|compliance|mandatory|required|obligatory|verpflichtend)[\s\S]{0,80}(schulung|training|kurs|course|e-?learning|modul|module)|(schulung|training|kurs|course|e-?learning)[\s\S]{0,80}(pflicht|mandatory|required|obligatory|verpflichtend)|course pending|kurs ausstehend|not yet completed the (mandatory )?(course|training)/i;
-/** …asked of you: a reminder, a deadline, overdue, still to do. */
-const DUE = /(reminder|erinnerung|frist|deadline|due|overdue|überfällig|fällig|pending|ausstehend|not yet completed|noch nicht (abgeschlossen|absolviert|erledigt)|please complete|bitte (absolvieren|abschließen))/i;
-/** A document waiting for your signature. */
-const SIGNATURE = /(warten auf (deine|ihre) (signatur|unterschrift)|waiting for (your )?signature|bitte (signiere|unterschreibe|unterzeichne)|please (sign|review and sign)|signatur(anfrage)? (angefordert|erforderlich)|signature (requested|required)|docusign|acrobat sign|adobe ?sign)/i;
-
-/**
- * A mail you must act on — a mandatory training or course with a reminder or deadline, a document
- * waiting for your signature: never left without a todo (the AI is told so, and Zeff makes one when
- * it doesn't). Recognized by its words, not by the AI.
- */
-export function mustDo(m: { fromName: string | null; fromEmail: string | null; subject: string; preview: string; folder: string }): boolean {
-  if (isChatFolder(m.folder)) return false;
-  const text = `${m.subject}\n${m.preview}`;
-  if (TRAINING.test(text) && DUE.test(text)) return true;
-  return SIGNATURE.test(`${m.fromName ?? ""} ${m.fromEmail ?? ""}\n${text}`) && /(sign|signatur|unterschr|unterzeichn)/i.test(text);
 }
 
 /** A mail as the review's prompt lists it — a must-do one marked. */
@@ -333,7 +319,12 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     const cited = new Set(listTodos({ status: "all" }).flatMap((t) => t.refs.filter((r) => r.startsWith("mail:")).map((r) => r.slice(5))));
     // The Lage's (they name its tickets) and those a todo has already: gone through.
     const gitlab = isInstalled("gitlab");
-    const theirs = rows.filter((m) => cited.has(m.key) || namesTicket(tickets, `${m.subject} ${m.preview}`) || notForReview(m, gitlab));
+    // And those a rule you confirmed leaves alone (the same kind from the same sender, dropped again and again) — never a
+    // must-do mail, a chat, a question or a conversation you take part in (src/lib/learning/rules.ts).
+    const learned = learnedRules({ status: "confirmed", step: STEPS.mailReview });
+    const theirs = rows.filter(
+      (m) => cited.has(m.key) || namesTicket(tickets, `${m.subject} ${m.preview}`) || notForReview(m, gitlab) || (learned.length > 0 && !!mailRuleFor(m, learned, { youWrote: mineIn.has(m.convId) })),
+    );
     markReviewed(theirs.map((m) => m.key));
     // A chat's messages (WhatsApp, Signal) together, in order (a conversation — your reply after a
     // request tells it's settled); the mails by time.
