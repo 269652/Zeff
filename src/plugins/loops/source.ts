@@ -88,7 +88,8 @@ export function laterMessages(src: SourceMessage, at: string, me: Set<string>): 
         ref: `teams:${m.key}`,
         at: m.sent_at,
         from: m.sender_name ?? "",
-        mine: me.has((m.sender_name ?? "").trim().toLowerCase()) || (m.kind !== "pm" && m.kind !== "mention" && !!m.sender_id && !theirs.has(m.sender_id)),
+        // You by your name; without one known, Teams's own hint: a chat line not from the other side of a 1:1 chat.
+        mine: me.size ? me.has((m.sender_name ?? "").trim().toLowerCase()) : m.kind !== "pm" && m.kind !== "mention" && !!m.sender_id && !theirs.has(m.sender_id),
         text: m.text,
         attachment: false,
         pm: m.kind === "pm",
@@ -112,4 +113,14 @@ export function ticketDoneSince(key: string, at: string): string | null {
   const t = one<{ status: string; status_category: string; updated_at: string | null }>("select status, status_category, updated_at from jira_tickets where key = ?", key);
   // Jira's times are local ("… 16:27:04 Mitteleuropäische Sommerzeit"): compared as ISO.
   return t && t.status_category === "done" && (toIso(t.updated_at) ?? "") > (toIso(at) ?? at) ? t.status : null;
+}
+
+/** Who besides you wrote in a thread (their names, lower case) — more than one: many people talk there. */
+export function threadSenders(src: SourceMessage, me: Set<string>): Set<string> {
+  const names = (rows: { n: string | null }[]) => new Set(rows.map((r) => (r.n ?? "").trim().toLowerCase()).filter((n) => n && !me.has(n)));
+  if (!src.thread) return new Set();
+  if (src.kind === "mail") return names(all<{ n: string | null }>("select distinct coalesce(from_email, from_name) n from emails where conv_id = ? and coalesce(from_name, '') != 'Ich'", src.thread));
+  if (src.kind === "teams") return names(all<{ n: string | null }>("select distinct sender_name n from teams_messages where conversation_id = ?", src.thread));
+  if (src.kind === "jira") return names(all<{ n: string | null }>("select distinct author n from jira_comments where ticket = ?", src.thread));
+  return new Set();
 }

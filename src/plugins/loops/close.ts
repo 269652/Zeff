@@ -1,10 +1,12 @@
 /**
- * Closing open loops (the loops plugin). By rule, no AI: a promise read from a message is kept when the right side wrote again in
- * the same chat, thread or ticket after it — you for yours, they for theirs — with an attachment or with words that aren't a "later"
- * ("mach ich morgen") or a question back; a promise made in a Jira comment, too, when its ticket is done since. By the AI (with the
- * People plugin's step after the briefing): for the promises still open, what came from those people since — the AI names a message
- * that shows it kept, with a quote that must stand in it; that is a proposal you confirm. A closing you took back is not made or
- * proposed again. Server only.
+ * Closing open loops (the loops plugin). By rule, no AI — only where the sources leave no doubt: a promise made in a Jira comment
+ * when its ticket is done since; a promise to send something when the right side (you for yours, they for theirs) sent an attachment
+ * in the same chat or thread after it. A reply about it (words of substance they share) or an answer to its question (in a chat of
+ * the two of you; not a "later", an "ok" or a question back) is a proposal you confirm — a chat goes on about many things, and a
+ * loop closed wrongly is a loop lost. By the AI (with the People
+ * plugin's step after the briefing): for the promises still open, what came from those people since — the AI names a message that
+ * shows it kept, with a quote that must stand in it; a proposal too. A closing you took back is not made or proposed again.
+ * Server only.
  */
 import { getSqlite } from "@/db";
 import { runAi } from "@/lib/ai";
@@ -12,10 +14,11 @@ import { emitChange } from "@/lib/events";
 import { errorMessage } from "@/lib/errors";
 import { promptText } from "@/lib/prompts";
 import { isInstalled } from "@/plugins/state";
+import { getPerson, namesOf } from "@/plugins/people/store";
 import { makeResolver } from "@/plugins/timeline/refs";
 import { whoAmI } from "./detect";
-import { isDeferral, isQuestion } from "./shared";
-import { laterMessages, sourceMessage, ticketDoneSince, type LaterMessage } from "./source";
+import { isDeferral, isQuestion, isSendPromise, sharesTopic } from "./shared";
+import { laterMessages, sourceMessage, threadSenders, ticketDoneSince, type LaterMessage } from "./source";
 import { allStates, putState, stateOf } from "./state";
 
 type CRow = { id: number; person_id: number; text: string; evidence: string; source_ref: string; direction: string; created_at: string };
@@ -49,33 +52,49 @@ export function closeClaim(id: number, by: "rule" | "ai", closeRef: string, quot
   }
 }
 
-/** Whether a later message delivers: the right side wrote it, and it isn't a "later" or a question back (an attachment always is). */
-const delivers = (m: LaterMessage, direction: string, personMatch: (from: string) => boolean): boolean => {
-  const right = direction === "mine" ? m.mine : !m.mine && personMatch(m.from);
-  if (!right) return false;
-  if (m.attachment) return true;
-  return !isDeferral(m.text) && !isQuestion(m.text) && m.text.trim().length > 0;
-};
+type Claim = { direction: string; text: string; evidence: string };
 
-/** Every open promise whose thread shows it kept, closed. How many. */
-export function closeByRule(): { closed: number } {
+/**
+ * What a later message says of a promise: "close" (an attachment after a promise to send), "propose" (the answer to a question, in a
+ * chat of the two of you; a reply about it — words of substance they share, people's names left out) or nothing. Only the right
+ * side's message counts (where many people talk — a group, a channel, a ticket — theirs by name), never a "later", an "ok" or a
+ * question back.
+ */
+function verdictOf(m: LaterMessage, c: Claim, personMatch: (from: string) => boolean, names: string[], many: boolean): "close" | "propose" | null {
+  const right = c.direction === "mine" ? m.mine : !m.mine && personMatch(m.from);
+  if (!right) return null;
+  const promise = `${c.text} ${c.evidence}`;
+  if (m.attachment && isSendPromise(promise)) return "close";
+  if (isDeferral(m.text) || isQuestion(m.text) || !m.text.trim()) return null;
+  // The answer to a question of the promise, in a chat of the two of you — or a reply about it: maybe kept, you say.
+  if (!many && isQuestion(c.evidence)) return "propose";
+  return sharesTopic(promise, m.text, names) ? "propose" : null;
+}
+
+/** Every open promise whose ticket or thread shows it kept, closed — a reply about it proposed. How many of each. */
+export function closeByRule(): { closed: number; proposed: number } {
   const claims = openClaims();
-  if (!claims.length) return { closed: 0 };
+  if (!claims.length) return { closed: 0, proposed: 0 };
   const states = allStates();
   const me = whoAmI();
   const meSet = new Set([...me.names, ...me.handles]);
   const r = makeResolver();
+  // Names say nothing about what was promised: everyone's (yours too) left out of the topic words.
+  const names = [...r.people.flatMap((p) => namesOf(p)), ...me.names];
   let closed = 0;
+  let proposed = 0;
   for (const c of claims) {
     const src = sourceMessage(c.source_ref);
     if (src.kind === "other") continue;
     const at = src.at ?? c.created_at;
-    const rejected = new Set(states.get(`claim:${c.id}`)?.rejected ?? []);
-    // Theirs: a message from them (in a 1:1 chat or Teams chat anyone but you is them; in a group, their name).
+    const st = states.get(`claim:${c.id}`);
+    const rejected = new Set(st?.rejected ?? []);
+    const many = src.group || src.kind === "jira" || threadSenders(src, meSet).size > 1;
+    // Theirs: a message from them (in a chat of the two of you anyone but you is them; where many talk, their name).
     const personMatch = (from: string) => {
       const id = r.person(from);
       if (id) return id === c.person_id;
-      return src.kind === "mail" ? !src.group : src.kind === "teams";
+      return !many;
     };
     if (src.kind === "jira") {
       const done = ticketDoneSince(src.thread, at);
@@ -86,12 +105,22 @@ export function closeByRule(): { closed: number } {
         continue;
       }
     }
-    const hit = laterMessages(src, at, meSet).find((m) => !rejected.has(m.ref) && delivers(m, c.direction, personMatch));
-    if (!hit) continue;
-    closeClaim(c.id, "rule", hit.ref, `${hit.attachment ? "📎 " : ""}${hit.text}`, src.href);
-    closed++;
+    const later = laterMessages(src, at, meSet).filter((m) => !rejected.has(m.ref));
+    const verdicts = later.map((m) => ({ m, v: verdictOf(m, c, personMatch, names, many) }));
+    const close = verdicts.find((x) => x.v === "close");
+    if (close) {
+      closeClaim(c.id, "rule", close.m.ref, `${close.m.attachment ? "📎 " : ""}${close.m.text}`, src.href);
+      closed++;
+      continue;
+    }
+    const maybe = verdicts.find((x) => x.v === "propose");
+    if (maybe && !st?.proposal) {
+      putState(`claim:${c.id}`, { proposal: { ref: maybe.m.ref, quote: clip(maybe.m.text, 400), href: src.href, at: maybe.m.at, by: "rule" } });
+      proposed++;
+    }
   }
-  return { closed };
+  if (proposed) emitChange("todos");
+  return { closed, proposed };
 }
 
 // ---------------------------------------------------------------------------
@@ -144,7 +173,6 @@ export async function closeByAi(opts: { ask?: CloseDeps["ask"] } = {}): Promise<
     const states = allStates();
     const loops: { id: string; claim: CRow; events: { id: string; ev: { id: number; at: string; title: string; summary: string; url: string; kind: string } }[] }[] = [];
     const evIds = new Map<number, string>();
-    const { getPerson } = await import("@/plugins/people/store");
     for (const c of openClaims()) {
       if (loops.length >= MAX_LOOPS) break;
       const st = states.get(`claim:${c.id}`);
@@ -193,7 +221,7 @@ export async function closeByAi(opts: { ask?: CloseDeps["ask"] } = {}): Promise<
       if (!norm(`${ev.title} ${ev.summary}`).includes(norm(quote))) continue;
       const ref = `claim:${loop.claim.id}`;
       if (stateOf(ref)?.proposal) continue;
-      putState(ref, { proposal: { ref: `tl:${ev.id}`, quote, href: ev.url, at: ev.at } });
+      putState(ref, { proposal: { ref: `tl:${ev.id}`, quote, href: ev.url, at: ev.at, by: "ai" } });
       done.add(loop.id);
       proposed++;
     }

@@ -45,8 +45,8 @@ export type Loop = {
   /** What closed it (a closing message's words), or what the AI proposes closes it. */
   closeQuote: string;
   closeRef: string;
-  /** The AI thinks this closes it — you confirm (null: no proposal). */
-  proposal: { quote: string; ref: string; href: string; at: string } | null;
+  /** A message that may close it — read by rule (a reply about it) or by the AI — you confirm (null: no proposal). */
+  proposal: { quote: string; ref: string; href: string; at: string; by: "rule" | "ai" } | null;
   snoozedUntil: string | null;
 };
 
@@ -72,9 +72,40 @@ const REQUEST = [
 ];
 export const isRequest = (text: string): boolean => REQUEST.some((r) => r.test(String(text ?? "")));
 
-/** A reply that puts it off ("mach ich morgen", "later") — no delivery, so it doesn't close a promise. */
-const DEFERRAL = /\b(morgen|übermorgen|später|nachher|gleich|bald|demnächst|noch nicht|komme? (noch )?nicht dazu|nächste woche|tomorrow|later|soon|not yet|next week)\b/i;
-export const isDeferral = (text: string): boolean => DEFERRAL.test(String(text ?? ""));
+/** A reply that puts it off ("mach ich morgen", "later") or promises it once more ("mach ich", "kümmere mich") — no delivery. */
+const DEFERRAL = /\b(morgen|übermorgen|später|nachher|gleich|bald|demnächst|noch nicht|komme? (noch )?nicht dazu|nächste woche|mach ich|mache ich|kümmere mich|schau ich|schaue ich|erledige ich|tomorrow|later|soon|not yet|next week|will do|i'll)\b/i;
+/** A short acknowledgment ("Ja gerne", "ok", "Jap") — no delivery either. */
+const ACK = /^\s*(ja|jap|jo|jup|yes|ok|okay|oki|gerne|klar|passt|super|danke|alles klar|top|cool|perfekt|gut|sure|thanks)\b[^\n]{0,20}$/i;
+const ACK_EMOJI = /^\s*(👍|🙏|👌|✅)+\s*$/u;
+export const isDeferral = (text: string): boolean => {
+  const s = String(text ?? "");
+  return DEFERRAL.test(s) || ACK.test(s) || ACK_EMOJI.test(s);
+};
+
+/** Words that say nothing about what was promised (German and English filler, days, "send", "promised" …). */
+const FILLER = new Set(
+  "aber alle alles also auch bitte dann dass dein deine denn dich dies diese dieser doch eine einen einem einer etwas euch gerne gern habe haben hast heute hier ihnen ihre jetzt kann kannst klar machen mache mal mich mein meine mir morgen nach noch nicht oder schon sein seine sich sind soll sollen über uns unser vielleicht viel von wann warum weil wenn werde werden wieder will wird wollte zeit zugesagt zusagen schicke schickt schicken schick senden sende sendet geben gibt bekommt bekommen liefert liefern zurück zurückzuschicken bringt bringen fragt fragen frage montag dienstag mittwoch donnerstag freitag samstag sonntag woche nächste nächsten erledigt danke about after again also been from have just later more need only please send sent some soon that then there this today tomorrow will with would your"
+    .split(" "),
+);
+
+const words = (s: string, skip: Set<string>): string[] =>
+  (String(s ?? "").toLowerCase().match(/[\p{L}\p{N}]{4,}/gu) ?? []).filter((w) => !FILLER.has(w) && !skip.has(w));
+
+/**
+ * Whether a reply is about the promise: words of substance they share — two of them, or one long one (eight letters and more) — the
+ * same word or the same first six letters ("Unterlagen" / "Unterlage"); names (`skip`: the people's) and filler left out.
+ */
+export function sharesTopic(promise: string, reply: string, skip: string[] = []): boolean {
+  const no = new Set(skip.flatMap((n) => n.toLowerCase().split(/\s+/)));
+  const a = [...new Set(words(promise, no))];
+  const b = new Set(words(reply, no));
+  const stems = new Set([...b].filter((w) => w.length >= 6).map((w) => w.slice(0, 6)));
+  const shared = a.filter((w) => b.has(w) || (w.length >= 6 && stems.has(w.slice(0, 6))));
+  return shared.length >= 2 || shared.some((w) => w.length >= 8);
+}
+
+/** A promise to send something — an attachment sent after it is its delivery. */
+export const isSendPromise = (text: string): boolean => /\b(schick|send|anhang|datei|foto|bild|unterlage|dokument|liste|link|pdf|rechnung|angebot|attach|file)/i.test(String(text ?? ""));
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 

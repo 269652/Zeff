@@ -54,6 +54,15 @@ async function seed(): Promise<Seeded> {
   // A promise of mine in Anna's chat, then the photos sent — closed by the source.
   const promise = mail("wa:Anna", "Ich", "Ich schick dir morgen die Fotos vom Fest", dayAgo(5));
   mail("wa:Anna", "Ich", "Hier sind die Fotos", dayAgo(4), { att: true });
+  // Anna promised a recipe, then only said "Ja gerne" — an acknowledgment delivers nothing.
+  const rezept = mail("wa:Anna", "Anna", "Ich schick dir das Rezept noch", dayAgo(3));
+  mail("wa:Anna", "Anna", "Ja gerne", ago(30));
+  // … and wrote about something else: not the recipe either.
+  mail("wa:Anna", "Anna", "Bei uns war heute richtig schönes Wetter am See", ago(28));
+  // Julia's thread: my promise of the slides, then a word of mine about them (no attachment) — a proposal, not a close.
+  mail("gmail:t3", "Julia Freidank", "Denk an die Folien vom Workshop.", dayAgo(6), { email: "julia@kunde.de", subject: "Workshop" });
+  const folien = mail("gmail:t3", "Ich", "Mache ich, die Folien schicke ich dir am Montag", dayAgo(5), { subject: "Re: Workshop" });
+  mail("gmail:t3", "Ich", "Die Folien vom Workshop liegen jetzt im Drive: https://drive.example/f", dayAgo(2), { subject: "Re: Workshop" });
   // A promise of mine to Karl, then only "later" — still open.
   const karlPromise = mail("wa:Karl", "Ich", "Ich rufe dich wegen dem Umzug an", dayAgo(6));
   mail("wa:Karl", "Ich", "Melde mich morgen", dayAgo(5));
@@ -65,6 +74,10 @@ async function seed(): Promise<Seeded> {
   tm("c2|2", "c2", "chat", "Moritz Roessler", "me1", "Ja, erledigt", dayAgo(1));
   // Rico promised me the Figma nodes in Teams (a day long past) — no word from him since.
   tm("c3|1", "c3", "pm", "Rico Clemen", "r1", "Ich schicke dir die Figma-Nodes bis Montag", dayAgo(10));
+  // A group chat (Rico and Julia): my promise there, then a message of mine about something else — many people talk there: no close by rule.
+  tm("c4|1", "c4", "pm", "Rico Clemen", "r1", "Wer schickt mir den Link zum Staging?", dayAgo(4));
+  tm("c4|2", "c4", "pm", "Julia Freidank", "j1", "Ich nicht", dayAgo(4));
+  tm("c4|3", "c4", "chat", "Moritz Roessler", "me1", "Hier ist der Ablaufplan für morgen früh", dayAgo(3));
   // Jira: a comment addressed to me (open), one I answered after.
   const jc = (id: string, ticket: string, author: string, body: string, at: string) => db.insert(schema.jiraComments).values({ id, ticket, author, at, body } as never).run();
   db.insert(schema.jiraTickets).values({ key: "PC-2", summary: "Navigation", status: "In Arbeit", statusCategory: "inprogress", updatedAt: dayAgo(3) } as never).run();
@@ -80,6 +93,9 @@ async function seed(): Promise<Seeded> {
   addClaim({ personId: rico, kind: "commitment", text: "Rico schickt mir die Figma-Nodes", evidence: "Ich schicke dir die Figma-Nodes bis Montag", sourceRef: "teams:c3|1", confidence: 0.9, direction: "theirs", due: dayAgo(7).slice(0, 10) });
   addClaim({ personId: julia, kind: "commitment", text: "Julia liefert die Header-Texte", evidence: "Ich liefere die Texte für den Header.", sourceRef: "jira-comment:j4", confidence: 0.85, direction: "theirs" });
   addClaim({ personId: julia, kind: "commitment", text: "Ich schicke Julia das Angebot", evidence: "schicke dir das Angebot", sourceRef: "jira-comment:j1", confidence: 0.6, direction: "mine" });
+  addClaim({ personId: anna, kind: "commitment", text: "Anna schickt mir das Rezept", evidence: "Ich schick dir das Rezept noch", sourceRef: `mail:${rezept}`, confidence: 0.9, direction: "theirs" });
+  addClaim({ personId: rico, kind: "commitment", text: "Ich schicke Rico den Staging-Link", evidence: "Wer schickt mir den Link zum Staging?", sourceRef: "teams:c4|1", confidence: 0.7, direction: "mine" });
+  addClaim({ personId: julia, kind: "commitment", text: "Ich schicke Julia die Folien vom Workshop", evidence: "die Folien schicke ich dir am Montag", sourceRef: `mail:${folien}`, confidence: 0.9, direction: "mine" });
   const claims: Record<string, number> = {};
   for (const p of [anna, karl, rico, julia]) for (const c of claimsOf(p)) claims[c.text] = c.id;
   seeded = { anna, rico, julia, karl, claims };
@@ -96,6 +112,14 @@ test("the rules: a question, a request, a deferral, a text addressed to you, ove
   assert.ok(!s.isRequest("Das Wetter ist schön"));
   assert.ok(s.isDeferral("Melde mich morgen"));
   assert.ok(!s.isDeferral("Hier sind die Fotos"));
+  assert.ok(s.isDeferral("Ja gerne"));
+  assert.ok(s.sharesTopic("Ich schicke Anna die Fotos vom Fest", "Hier sind die Fotos vom Fest", ["anna"]));
+  assert.ok(!s.sharesTopic("Ich schicke Anna die Fotos vom Fest", "Schöne Fotos hast du da", ["anna"]), "one short word in common isn't enough");
+  assert.ok(s.sharesTopic("Johanna fragt, ob ich an die Caritas geschrieben habe", "ich hab der Caritas geschrieben", ["johanna"]));
+  assert.ok(!s.sharesTopic("Ich schicke Chris am Freitag 150 € zurück", "Was für ein Wetter heute", ["chris"]));
+  assert.ok(!s.sharesTopic("Ich schicke Anna morgen die Fotos", "Anna, bis morgen dann", ["anna"]), "names and filler words don't count");
+  assert.ok(s.isDeferral("Mach ich"));
+  assert.ok(!s.isDeferral("Ja, die Liste ist im Anhang und der Link auch drin"));
   assert.ok(s.addressedTo("Hi Moritz, schau mal", ["moritz roessler"]));
   assert.ok(s.addressedTo("@morrossl kannst du", [], ["morrossl"]));
   assert.ok(s.addressedTo("[~morrossl] bitte", [], ["morrossl"]));
@@ -142,12 +166,13 @@ test("by rule: questions and requests to you nobody answered, yours without an a
   for (const l of loops) assert.equal(l.origin, "rule");
 });
 
-test("closed by the source: a later message of the right side closes a promise (an attachment, not a 'later'); a ticket done closes its comment's", async () => {
+test("closed by the source only where it leaves no doubt (an attachment after a promise to send, a ticket done); a reply about it is a proposal; a 'later', an 'ok', other news or a group's chatter nothing", async () => {
   const s = await seed();
   const { closeByRule } = await import("@/plugins/loops/close");
   const { listLoops } = await import("@/plugins/loops/query");
   const r = closeByRule();
   assert.equal(r.closed, 2, "the photos sent, the header ticket done");
+  assert.equal(r.proposed, 1, "the slides: a word of mine about them — proposed, you confirm");
   assert.equal(closeByRule().closed, 0, "once");
   const closed = listLoops({ view: "closed" });
   const fotos = closed.find((l) => l.ref === `claim:${s.claims["Ich schicke Anna die Fotos vom Fest"]}`)!;
@@ -158,6 +183,12 @@ test("closed by the source: a later message of the right side closes a promise (
   const open = listLoops({}).map((l) => l.ref);
   assert.ok(open.includes(`claim:${s.claims["Ich rufe Karl wegen dem Umzug an"]}`), "a 'morgen' doesn't close it");
   assert.ok(open.includes(`claim:${s.claims["Rico schickt mir die Figma-Nodes"]}`));
+  assert.ok(open.includes(`claim:${s.claims["Anna schickt mir das Rezept"]}`), "a 'Ja gerne' or other news don't deliver");
+  assert.ok(open.includes(`claim:${s.claims["Ich schicke Rico den Staging-Link"]}`), "a group: my next message there isn't the delivery");
+  const slides = listLoops({}).find((l) => l.ref === `claim:${s.claims["Ich schicke Julia die Folien vom Workshop"]}`)!;
+  assert.equal(slides.state, "open");
+  assert.equal(slides.proposal?.by, "rule");
+  assert.match(slides.proposal?.quote ?? "", /liegen jetzt im Drive/);
   // The people's own list no longer has it open either.
   const { openCommitments } = await import("@/plugins/people/graph");
   assert.ok(!openCommitments().some((c) => c.id === s.claims["Ich schicke Anna die Fotos vom Fest"]));
@@ -202,7 +233,13 @@ test("your decisions: dismiss, close, confirm, reopen — each in the feedback l
   const fotos = `claim:${s.claims["Ich schicke Anna die Fotos vom Fest"]}`;
   assert.equal(decideLoop(fotos, "reopen").ok, true);
   assert.ok(listLoops({}).some((l) => l.ref === fotos), "open again");
+  const slides = `claim:${s.claims["Ich schicke Julia die Folien vom Workshop"]}`;
+  assert.equal(decideLoop(slides, "reject-close").ok, true);
+  assert.equal(listLoops({}).find((l) => l.ref === slides)!.proposal, null);
+  const { closeByRule } = await import("@/plugins/loops/close");
+  assert.equal(closeByRule().proposed, 0, "a proposal you rejected isn't made again");
   const fb = listFeedback({ step: "open-loops" });
+  assert.deepEqual(fb.filter((f) => f.itemRef === slides).map((f) => `${f.verdict}:${f.kind}`), ["rejected:close:rule"]);
   const of = (ref: string) => fb.filter((f) => f.itemRef === ref).map((f) => `${f.verdict}:${f.kind}`);
   assert.deepEqual(of(kuchen.ref), ["rejected:question:mine"]);
   assert.deepEqual(of(figmaRef).sort(), ["accepted:commitment:theirs", "accepted:commitment:theirs"]);

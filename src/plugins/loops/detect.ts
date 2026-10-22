@@ -115,7 +115,8 @@ function fromTeams(r: Resolver, since: string, now: Date, me: Set<string>): Loop
   const out: Loop[] = [];
   for (const msgs of byThread.values()) {
     const theirIds = new Set(msgs.filter((m) => m.kind === "pm" && m.sender_id).map((m) => m.sender_id!));
-    const mine = (m: M) => me.has((m.sender_name ?? "").trim().toLowerCase()) || (m.kind !== "pm" && m.kind !== "mention" && !!m.sender_id && !theirIds.has(m.sender_id));
+    // You by your name; without one known, Teams's own hint: a chat line not from the other side of a 1:1 chat.
+    const mine = (m: M) => (me.size ? me.has((m.sender_name ?? "").trim().toLowerCase()) : m.kind !== "pm" && m.kind !== "mention" && !!m.sender_id && !theirIds.has(m.sender_id));
     let lastMine = -1;
     msgs.forEach((m, i) => mine(m) && (lastMine = i));
     const asked: Loop[] = [];

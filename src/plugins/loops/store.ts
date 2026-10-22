@@ -5,7 +5,8 @@
  * - dismiss: not a loop (a promise: rejected in the People plugin as well) — rejected;
  * - confirm: a promise the AI read is real — accepted;
  * - reopen: not kept after all — a closing by rule or the AI taken back (rejected, "close:rule" / "close:ai"), and not made again;
- * - accept-close / reject-close: the AI's proposal to close it — accepted / rejected ("close:ai");
+ * - accept-close / reject-close: a proposal to close it (a reply about it, or the AI's reading) — accepted / rejected ("close:rule" /
+ *   "close:ai");
  * - later: off the Today page for a few days (no verdict).
  * Server only.
  */
@@ -68,15 +69,15 @@ export function decideLoop(ref: string, op: LoopOp, now = new Date()): { ok: tru
     case "accept-close": {
       const p = st?.proposal;
       if (!p) return { ok: false, error: "no proposal" };
-      recordFeedback(loopFeedback(loop, "accepted", "accept-close", "close:ai", { closeQuote: p.quote, closeRef: p.ref }));
-      if (id) closeClaim(id, "ai", p.ref, p.quote, p.href);
-      else putState(ref, { state: "closed", closedBy: "ai", closeRef: p.ref, closeQuote: p.quote, closedAt: at, proposal: null, snapshot: snapshotOf(loop) });
+      recordFeedback(loopFeedback(loop, "accepted", "accept-close", `close:${p.by}`, { closeQuote: p.quote, closeRef: p.ref }));
+      if (id) closeClaim(id, p.by, p.ref, p.quote, p.href);
+      else putState(ref, { state: "closed", closedBy: p.by, closeRef: p.ref, closeQuote: p.quote, closedAt: at, proposal: null, snapshot: snapshotOf(loop) });
       break;
     }
     case "reject-close": {
       const p = st?.proposal;
       if (!p) return { ok: false, error: "no proposal" };
-      recordFeedback(loopFeedback(loop, "rejected", "reject-close", "close:ai", { closeQuote: p.quote, closeRef: p.ref }));
+      recordFeedback(loopFeedback(loop, "rejected", "reject-close", `close:${p.by}`, { closeQuote: p.quote, closeRef: p.ref }));
       putState(ref, { proposal: null, rejected: [...(st?.rejected ?? []), p.ref] });
       break;
     }
