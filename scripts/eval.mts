@@ -114,7 +114,7 @@ try {
       const ask = fake
         ? fake
         : async (prompt: string, schema: object, o: { task: string }) => {
-            const answer = await runAi<unknown>(prompt, schema, { task: o.task as never, timeoutMs: 10 * 60000, maxBudgetUsd: adapter.costUsd });
+            const answer = await runAi<unknown>(prompt, schema, { task: o.task as never, timeoutMs: 10 * 60000, maxBudgetUsd: adapter.costUsd, fresh: true });
             if (!answer.output) throw new Error("Die KI hat nichts Lesbares geantwortet.");
             return answer.output;
           };
