@@ -4,6 +4,8 @@ import { DOCUMENTS_VIEW } from "@/plugins/documents/view-template.meta";
 import { DEBTS_VIEW } from "@/plugins/finances/view-template.meta";
 import { CHAT_VIEW, INBOX_VIEW, MAIL_VIEW } from "@/plugins/mail-client/view-template.meta";
 import { PEOPLE_VIEW } from "@/plugins/people/view-template.meta";
+import { CASE_PAGE } from "@/plugins/cases/row-template.meta";
+import { PERSON_PAGE } from "@/plugins/people/row-template.meta";
 import type { T } from "@/lib/i18n/shared";
 import type { ActionMeta, PartMeta } from "./view-template";
 
@@ -41,3 +43,7 @@ export const TEMPLATE_VIEW: ViewAppMeta = {
 const ALL: ViewAppMeta[] = [TEMPLATE_VIEW, DEBTS_VIEW, CASES_VIEW, PEOPLE_VIEW, CALENDAR_VIEW, DOCUMENTS_VIEW, MAIL_VIEW, CHAT_VIEW, INBOX_VIEW];
 
 export const viewAppMeta = (app: string): ViewAppMeta | undefined => ALL.find((m) => m.app === app);
+
+/** The rows' own pages drawn from a template (a person's, a case's) — by the row view's id (row-views.ts). */
+const PAGES: ViewAppMeta[] = [PERSON_PAGE, CASE_PAGE];
+export const rowViewMeta = (id: string): ViewAppMeta | undefined => PAGES.find((m) => m.app === id);

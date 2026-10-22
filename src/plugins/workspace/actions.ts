@@ -1213,7 +1213,21 @@ export async function rowViewAction(rowId: number) {
     const row = store.getPage(Number(rowId));
     const db = row?.dbId ? store.getDatabase(row.dbId) : null;
     const view = (await import("./row-views")).rowViewOf(db?.schema.dataType);
-    return { view: view?.id ?? null };
+    // What its page's template is drawn of: the row (computed, as its database's views see it), the database's schema, its own template.
+    const data = view && row?.dbId ? store.rowsOf(row.dbId) : null;
+    const current = data?.rows.find((r) => r.id === Number(rowId)) ?? null;
+    return { view: view?.id ?? null, dbId: row?.dbId ?? null, title: db?.page.title ?? "", schema: db?.schema ?? null, row: current };
+  });
+}
+
+/** A database's rows' page as your template (null: back to the plugin's). */
+export async function setRowTemplateAction(dbId: number, template: string | null) {
+  return run(async () => {
+    const db = store.getDatabase(Number(dbId));
+    if (!db) throw new Error(t("The database is gone."));
+    const { rowTemplate: _was, ...rest } = db.schema;
+    store.saveSchema(db.page.id, template?.trim() ? { ...rest, rowTemplate: template } : rest, t("Relation"));
+    return {};
   });
 }
 

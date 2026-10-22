@@ -163,3 +163,17 @@ test("an app list's items are picked by their id (select), the pick drawn from t
   assert.deepEqual(find(r.nodes, "list")[0].c.map((i) => (typeof i === "string" ? i : i.a.row)), ["41", "42"]);
   assert.equal(r.state.selected, "42");
 });
+
+test("a row's own page: its fields are names at the top, its buttons and parts act on it", () => {
+  const r = renderView('<heading>{{ title }}</heading> {{ [Pro Monat] | euro }} <button action="set" prop="Status" value="Gekündigt" label="Kündigen"/><part name="debts.table"/>', data({ current: rows[0] }), { parts });
+  assert.deepEqual(r.errors, []);
+  assert.match(vnodeToString(r.nodes), /Miete.*600,00\s€/);
+  assert.equal(find(r.nodes, "button")[0].a.row, "1");
+  assert.equal(find(r.nodes, "part")[0].a.row, "1");
+});
+
+test("a database keeps its rows' page template (a text) — none: the plugin's", async () => {
+  const { normalizeSchema, newView } = await import("../src/plugins/workspace/model");
+  assert.equal(normalizeSchema({ titleName: "Name", properties: [], views: [newView("T")], rowTemplate: "<b>{{ title }}</b>" }).rowTemplate, "<b>{{ title }}</b>");
+  assert.equal("rowTemplate" in normalizeSchema({ titleName: "Name", properties: [], views: [newView("T")], rowTemplate: "  " }), false);
+});

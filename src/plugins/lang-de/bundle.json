@@ -6839,5 +6839,8 @@
   "The view is saved.": "Die Ansicht ist gespeichert.",
   "What should the view show or do?": "Was soll die Ansicht zeigen oder können?",
   "Writing the view …": "Schreibe die Ansicht …",
-  "Dates & to check": "Termine & Prüfen"
+  "Dates & to check": "Termine & Prüfen",
+  "Detail page": "Detailseite",
+  "This page as code (for all rows of “{db}”)": "Diese Seite als Code (für alle Zeilen von „{db}“)",
+  "The database is gone.": "Die Datenbank ist weg."
 }

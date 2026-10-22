@@ -38,6 +38,8 @@ export type ViewData = {
   labels?: Labels;
   /** How numbers and money are written (default de-DE). */
   locale?: string;
+  /** A row's own page: the row it is — its fields are names, its buttons and parts act on it. */
+  current?: Row;
 };
 
 export const MAX_VIEW_TEMPLATE = 20000;
@@ -620,7 +622,7 @@ export function parseView(src: string): ReturnType<typeof parseTemplate> {
  */
 export function renderView(src: string, data: ViewData, opts: { parts?: PartMeta[]; actions?: ActionMeta[] } = {}): { nodes: VNode[]; errors: TplError[]; state: Record<string, string> } {
   const parsed = parseView(src);
-  const ctx: Ctx = { data, state: { ...data.state }, row: null, item: null, locals: new Map(), errors: [], parts: new Set((opts.parts ?? []).map((p) => p.name)), actions: new Set((opts.actions ?? []).map((a) => a.name)), scopes: new Map() };
+  const ctx: Ctx = { data, state: { ...data.state }, row: data.current ?? null, item: null, locals: new Map(), errors: [], parts: new Set((opts.parts ?? []).map((p) => p.name)), actions: new Set((opts.actions ?? []).map((a) => a.name)), scopes: new Map() };
   const nodes = drawList(parsed.nodes, ctx);
   const seen = new Set<string>();
   const errors = [...parsed.errors, ...ctx.errors].filter((e) => (seen.has(`${e.line}:${e.message}`) ? false : (seen.add(`${e.line}:${e.message}`), true)));

@@ -21,18 +21,20 @@ const SCHEMA = {
   required: ["template", "note"],
 };
 
-export async function viewTemplateAiAction(v: { dbId: number; app: string; current: string; request: string; history?: ViewChatTurn[] }): Promise<Result<{ template: string; note: string; errors: TplError[] }>> {
+export async function viewTemplateAiAction(v: { dbId: number; app: string; current: string; request: string; history?: ViewChatTurn[]; /** A row's own page: the row it is about. */ row?: number }): Promise<Result<{ template: string; note: string; errors: TplError[] }>> {
   try {
     const { getDatabase, rowsOf } = await import("./store");
-    const { viewAppMeta, TEMPLATE_VIEW } = await import("./view-apps");
+    const { viewAppMeta, rowViewMeta, TEMPLATE_VIEW } = await import("./view-apps");
     const { renderView, viewReference } = await import("./view-template");
     const { cellText } = await import("./model");
     const db = getDatabase(Number(v.dbId));
     if (!db) throw new Error("The database is gone.");
     const data = rowsOf(db.page.id);
-    const rows = data?.rows ?? [];
+    const all = data?.rows ?? [];
+    const current = v.row ? all.find((r) => r.id === Number(v.row)) : undefined;
+    const rows = current ? [current] : all;
     const schema = db.schema;
-    const meta = viewAppMeta(String(v.app)) ?? TEMPLATE_VIEW;
+    const meta = (v.row ? rowViewMeta(String(v.app)) : viewAppMeta(String(v.app))) ?? TEMPLATE_VIEW;
     const widgets = await (async () => {
       try {
         return (await import("./widgets")).widgetCatalog();
@@ -50,7 +52,9 @@ export async function viewTemplateAiAction(v: { dbId: number; app: string; curre
     const serverT = (await import("@/lib/i18n/server")).t;
     const prompt = (extra = "") =>
       [
-        "Du schreibst die Vorlage einer Ansicht einer Datenbank in Zeff (einer persönlichen Arbeits-App) — in der Vorlagensprache unten, nichts sonst.",
+        current
+          ? "Du schreibst die Vorlage der eigenen Seite einer Zeile (die Detailseite — sie gilt für alle Zeilen dieser Datenbank) in Zeff (einer persönlichen Arbeits-App) — in der Vorlagensprache unten, nichts sonst. Die Eigenschaften der Zeile sind direkt Namen ({{ title }}, {{ [Eigenschaft] }}), Buttons und Teile wirken auf sie."
+          : "Du schreibst die Vorlage einer Ansicht einer Datenbank in Zeff (einer persönlichen Arbeits-App) — in der Vorlagensprache unten, nichts sonst.",
         "Antworte mit der VOLLSTÄNDIGEN Vorlage (nicht nur dem geänderten Teil) und einer kurzen Notiz, was du getan hast.",
         "Halte dich streng an die Tags, Filter und Aktionen der Referenz. Beschriftungen in der Sprache des Nutzers (meist Deutsch). Nutze die Teile (parts) der App, wo sie passen; baue Neues aus den Tags.",
         "Gute Ansichten: oben das Wichtigste (Kennzahlen als <tile> in einem <grid>), dann die Zeilen (Liste, Karten oder Tabelle), Aktionen als Buttons; auf dem Handy gut lesbar (grid passt sich an).",
@@ -65,7 +69,7 @@ export async function viewTemplateAiAction(v: { dbId: number; app: string; curre
         sample || "(keine)",
         "",
         `DIE VORLAGE JETZT${v.current.trim() ? "" : " (leer — baue eine neue)"}:`,
-        v.current.trim() || meta.defaultTemplate(serverT),
+        v.current.trim() || (current && schema.rowTemplate) || meta.defaultTemplate(serverT),
         "",
         ...(v.history?.length ? ["BISHERIGES GESPRÄCH:", ...v.history.slice(-8).map((h) => `${h.role === "user" ? "Nutzer" : "Du"}: ${h.text}`), ""] : []),
         `WUNSCH DES NUTZERS: ${v.request}`,
@@ -73,7 +77,7 @@ export async function viewTemplateAiAction(v: { dbId: number; app: string; curre
       ].join("\n");
     const { runAi } = await import("@/lib/ai");
     const check = (template: string) =>
-      renderView(template, { rows, props: schema.properties, titleName: schema.titleName, state: {}, app: {}, db: { id: db.page.id, title: db.page.title } }, { parts: meta.parts, actions: meta.actions }).errors;
+      renderView(template, { rows, props: schema.properties, titleName: schema.titleName, state: {}, app: {}, db: { id: db.page.id, title: db.page.title }, current }, { parts: meta.parts, actions: meta.actions }).errors;
     let r = (await runAi<{ template: string; note: string }>(prompt(), SCHEMA, { task: "general" })).output;
     let errors = check(r.template ?? "");
     if (errors.length) {

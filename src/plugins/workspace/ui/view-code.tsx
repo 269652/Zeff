@@ -12,7 +12,7 @@ import { viewReference, type TplError } from "../view-template";
  * A view's template as code (the view drawn from it shows below, live): written by hand — with its errors by line and the language's
  * reference — or by the AI in a chat ("put the fixed costs on top"); saved for the view, or as a new view; back to the app's default.
  */
-export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, onNewView, onClose }: { view: View; dbId: number; meta: ViewAppMeta; draft: string; setDraft: (s: string) => void; errors: TplError[]; onSave: (template: string | null) => void; onNewView: (template: string, name: string) => void; onClose: () => void }) {
+export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, onNewView, onClose, rowId }: { view: View; dbId: number; meta: ViewAppMeta; draft: string; setDraft: (s: string) => void; errors: TplError[]; onSave: (template: string | null) => void; /** None: no new view from here (a row's own page). */ onNewView?: (template: string, name: string) => void; onClose: () => void; /** A row's own page: the row it is about. */ rowId?: number }) {
   const t = useT();
   const area = useRef<HTMLTextAreaElement>(null);
   const gutter = useRef<HTMLDivElement>(null);
@@ -40,14 +40,14 @@ export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, on
     const history = [...chat, { role: "user" as const, text: request }];
     setChat(history);
     setAsk("");
-    const r = await viewTemplateAiAction({ dbId, app: view.app ?? "template", current: asNew ? "" : draft, request, history: chat });
+    const r = await viewTemplateAiAction({ dbId, app: view.app ?? "template", current: asNew ? "" : draft, request, history: chat, ...(rowId ? { row: rowId } : {}) });
     setBusy(false);
     if (!r.ok) {
       setChat([...history, { role: "assistant", text: `⚠ ${r.error}` }]);
       return void toast(r.error, { tone: "error" });
     }
     setChat([...history, { role: "assistant", text: r.note + (r.errors.length ? ` (${t("{n} errors left", { n: r.errors.length })})` : "") }]);
-    if (asNew) {
+    if (asNew && onNewView) {
       onNewView(r.template, request.slice(0, 40));
       setAsNew(false);
     } else setDraft(r.template);
@@ -154,10 +154,12 @@ export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, on
               className="input w-full resize-none text-sm"
             />
             <div className="flex items-center gap-2">
-              <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
-                <input type="checkbox" className="accent-indigo-600" checked={asNew} onChange={(e) => setAsNew(e.target.checked)} />
-                {t("as a new view")}
-              </label>
+              {onNewView && (
+                <label className="flex items-center gap-1.5 text-xs text-zinc-600 dark:text-zinc-300">
+                  <input type="checkbox" className="accent-indigo-600" checked={asNew} onChange={(e) => setAsNew(e.target.checked)} />
+                  {t("as a new view")}
+                </label>
+              )}
               <span className="flex-1" />
               <button className="btn btn-primary btn-sm" disabled={busy || !ask.trim()}>
                 {busy ? "…" : t("Send")}

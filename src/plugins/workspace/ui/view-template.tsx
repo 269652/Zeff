@@ -18,7 +18,7 @@ import { WidgetBlock } from "./widget-node";
  * here; what the app loads (app.*) comes from its hook.
  */
 
-type Props = AppViewProps & { src: string; onErrors?: (errors: { line: number; message: string }[]) => void; module: ViewAppModule; meta: ViewAppMeta };
+type Props = AppViewProps & { src: string; onErrors?: (errors: { line: number; message: string }[]) => void; module: ViewAppModule; meta: ViewAppMeta; /** A row's own page: the row it is. */ current?: Row };
 
 const TONE: Record<string, string> = { good: "text-emerald-700 dark:text-emerald-400", warn: "text-amber-700 dark:text-amber-400", bad: "text-red-600 dark:text-red-400", muted: "text-zinc-500" };
 const BOX_TONE: Record<string, string> = { muted: "bg-zinc-50 dark:bg-zinc-900/40", good: "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20", warn: "border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20", bad: "border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20" };
@@ -30,7 +30,7 @@ const json = <T,>(s: string | undefined, fallback: T): T => {
   }
 };
 
-export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
+export function TemplateView({ src, onErrors, module, meta, current, ...props }: Props) {
   const t = useT();
   const router = useRouter();
   const schema = props.data.schema;
@@ -41,8 +41,8 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
   const app = module.useAppData(props, state);
   const labels: Labels = useMemo(() => ({ person: (id) => props.data.labels.people[id] ?? `#${id}`, page: (id) => props.data.labels.pages[id]?.title ?? `#${id}`, todo: (id) => props.data.labels.todos[id] ?? `T-${id}` }), [props.data.labels]);
   const r = useMemo(
-    () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE" }, { parts: meta.parts, actions: meta.actions }),
-    [src, props.rows, schema, state, app.data, props.data.id, props.data.title, labels, meta],
+    () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE", current }, { parts: meta.parts, actions: meta.actions }),
+    [src, props.rows, schema, state, app.data, props.data.id, props.data.title, labels, meta, current],
   );
   // The toolbar's New, when the app takes it over: run with the view as it is at the click.
   const envRef = useRef<ActionEnv | null>(null);
