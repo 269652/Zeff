@@ -6980,5 +6980,7 @@
   "The app changed, it still works through a fallback — {summary}": "Die App hat sich geändert, es geht noch über einen Ausweichweg — {summary}",
   "No run for {span} though it runs every {every} min — is it stopped (Chrome, Signal not running)?": "Seit {span} kein Lauf, obwohl er alle {every} Min. läuft — angehalten (Chrome, Signal läuft nicht)?",
   "Runs say ok, but nothing new for {span} (usual at most {usual}) — the site may have changed": "Läufe melden ok, aber seit {span} nichts Neues (üblich höchstens {usual}) — die Seite hat sich vielleicht geändert",
-  "Runs say ok, but only {recent} a day lately (usual {usual}) — the site may have changed": "Läufe melden ok, aber zuletzt nur {recent} am Tag (üblich {usual}) — die Seite hat sich vielleicht geändert"
+  "Runs say ok, but only {recent} a day lately (usual {usual}) — the site may have changed": "Läufe melden ok, aber zuletzt nur {recent} am Tag (üblich {usual}) — die Seite hat sich vielleicht geändert",
+  "must": "Pflicht",
+  "negative": "negativ"
 }
