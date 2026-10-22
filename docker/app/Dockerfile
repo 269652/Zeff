@@ -27,6 +27,8 @@ RUN node scripts/integrations.mjs \
 # The sync host runs from a build folder of its own (what `npm run deploy` does): a copy without the cache.
 RUN mkdir .next-sync \
  && for f in $(ls -A .next | grep -v -e '^cache$' -e '^dev$'); do cp -r ".next/$f" ".next-sync/$f"; done
+# The builds' caches only speed up the next build — not in the image (over a GB).
+RUN rm -rf .next/cache knowledge/.next/cache
 
 FROM node:${NODE_VERSION}-bookworm AS run
 RUN apt-get update \
