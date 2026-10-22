@@ -91,7 +91,7 @@ function describeView(v: QueryView): string {
 export function planPrompt(question: string, history: { role: string; text: string }[], ctx: QueryContext, retry?: string): string {
   const views = listViews(ctx);
   const today = ctx.now ?? new Date();
-  const dbs = views.some((v) => v.name === "workspace") ? workspaceDatabases() : [];
+  const dbs = views.some((v) => v.name === "workspace") ? workspaceDatabases(60, ctx) : [];
   return [
     promptText("questions-plan", PLAN_INSTRUCTIONS),
     "",

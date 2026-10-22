@@ -1,5 +1,6 @@
 import { ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
+import { allows, refLabels, sourceLabel } from "@/lib/boundaries";
 import { isInstalled } from "@/plugins/state";
 import type { QueryGroup, QueryResultView, QueryRow } from "./shared";
 
@@ -9,29 +10,47 @@ import type { QueryGroup, QueryResultView, QueryRow } from "./shared";
  * description, its typed filters, what it can be grouped by and what it can add up — and reads its items itself, with
  * the filters bound as values (never SQL from outside). A query names a view, filters, a grouping and an aggregation as
  * JSON; it is checked against the view here before anything runs, and the aggregation over the items is done here too,
- * the same for every view. Other plugins add views with registerView (the timeline does, once it is there). Server only.
+ * the same for every view. Other plugins add views through the point `questionViews` (view-point.ts — the timeline does), or
+ * with registerView. Server only.
  */
 
 export type { QueryContext, Aggregate, FilterType, FilterSpec, Item, Condition, Filters, QueryView, Query } from "./view-types";
-export { AGGREGATES, TIME_DIMS, has, hasAny } from "./view-types";
-import { AGGREGATES, TIME_DIMS, type Aggregate, type Condition, type Filters, type Item, type Query, type QueryContext, type QueryView } from "./view-types";
+export { AGGREGATES, TIME_DIMS, clearanceOf, has, hasAny } from "./view-types";
+import { AGGREGATES, TIME_DIMS, clearanceOf, type Aggregate, type Condition, type Filters, type Item, type Query, type QueryContext, type QueryView } from "./view-types";
 import { BUILTIN_VIEWS } from "./builtin-views";
+import { questionViews } from "./view-point";
+import "@/plugins/contributions";
 
 // ---------------------------------------------------------------------------
 // Sensitivity
 // ---------------------------------------------------------------------------
 
+/** The views that read one source as a whole: they follow its label (the others go by their items' labels). */
+const VIEW_SOURCES: Record<string, string> = { time_entries: "time", bank_transactions: "bank", todos: "todos", calendar_events: "calendar" };
+
 /**
- * ⚠ THE SENSITIVITY HOOK — whether `context` may see a view (`ref` unset) or one of its items (`ref`: entry:12, page:4,
+ * The sensitivity hook as a predicate for one batch (one reader, one run): a view by the source it reads, an item by its
+ * ref's label — a page's by its databases', a mail's or message's by its source's (WhatsApp, Signal: personal by default),
+ * a time entry's, a transaction's, a todo's by theirs; other refs (the timeline's own, a test's) are open. The same rules
+ * as the MCP guard: secret for nobody, personal for you and agents allowed personal data.
+ */
+export function sensitivityGate(context: QueryContext): (viewName: string, ref?: string) => boolean {
+  const clearance = clearanceOf(context);
+  const labelOf = refLabels();
+  return (viewName, ref) => {
+    const source = VIEW_SOURCES[viewName];
+    if (source && !allows(clearance, sourceLabel(source))) return false;
+    return !ref || allows(clearance, labelOf(ref));
+  };
+}
+
+/**
+ * THE SENSITIVITY HOOK — whether `context` may see a view (`ref` unset) or one of its items (`ref`: entry:12, page:4,
  * mail:… — the shared entity refs). Asked for every view offered and run, and for every item before it is counted or
- * shown. Everything is allowed for now; the sensitivity labels (open / personal / secret) plug in here at merge time:
- * an agent over the MCP sees only what its label allows, the user's own chat everything.
+ * shown: the data boundaries' labels (open / personal / secret) against the caller's clearance (see sensitivityGate).
  */
 export function allowedFor(viewName: string, context: QueryContext, ref?: string): boolean {
-  void viewName;
-  void context;
-  void ref;
-  return true;
+  return sensitivityGate(context)(viewName, ref);
 }
 
 // ---------------------------------------------------------------------------
@@ -49,7 +68,10 @@ export function registerView(view: QueryView): void {
 
 /** The views `ctx` may ask, their plugins installed. */
 export function listViews(ctx: QueryContext): QueryView[] {
-  return [...registry.values()].filter((v) => (!v.plugin || isInstalled(v.plugin)) && allowedFor(v.name, ctx));
+  const allowed = sensitivityGate(ctx);
+  const byName = new Map<string, QueryView>(registry);
+  for (const c of questionViews.list()) for (const v of c.impl) if (!byName.has(v.name)) byName.set(v.name, v);
+  return [...byName.values()].filter((v) => (!v.plugin || isInstalled(v.plugin)) && allowed(v.name));
 }
 
 // ---------------------------------------------------------------------------
@@ -251,7 +273,8 @@ export async function runQuery(raw: unknown, ctx: QueryContext): Promise<QueryRe
   const v = validateQuery(raw, ctx);
   if (!v.ok) throw new ValidationError(v.error);
   const { query: q, view } = v;
-  const items = (await view.items(q.filters, ctx)).filter((i) => allowedFor(view.name, ctx, i.ref));
+  const allowed = sensitivityGate(ctx);
+  const items = (await view.items(q.filters, ctx)).filter((i) => allowed(view.name, i.ref));
   if (view.dynamic) {
     const known = new Set([...view.dims, ...items.flatMap((i) => Object.keys(i.dims))]);
     const nums = new Set([...Object.keys(view.measures), ...items.flatMap((i) => Object.keys(i.values))]);

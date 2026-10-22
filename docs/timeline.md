@@ -93,10 +93,21 @@ MCP (agents; in the "Search what Zeff knows" tool group): `timeline_for { ref, s
 and `timeline_since { since, until?, kinds?, sources?, refKinds?, limit?, perGroup? }` — answers as lines
 `YYYY-MM-DD HH:MM | kind (source) | title — summary | Label [ref], … | url`.
 
+Structured questions (the Questions plugin): the view `timeline` (`question-view.ts`, contributed through
+`questionViews` in `server.ts`) — events by `entity` (a name as `resolveQuery` and the Entities' `resolveEntity` read
+it), `kind` (prefixes), `source`, `text`, `from`/`to`; grouped by kind, source or day/week/month; `last` answers
+"Wann zuletzt mit Y gesprochen?".
+
+Data boundaries (`boundaries.ts`): an event carries its source's label (a mail its account's, a row's change its
+database's, a payment matched to a case also the case row's). `timelineFor`, `timelineSince`, `timelineAll` — and so
+the pages, the API, `timeline_for` / `timeline_since` and the questions' view — leave out what the reader may not see:
+secret for nobody, personal only for you and agents whose routine may read personal data.
+
 ## UI
 
 - The Timeline page `/timeline`: filters by kind and source, an entity (`?ref=` a name or ref), "since your last
-  visit" by entity beside it, the line of your last visit in the list.
+  visit" by entity beside it, the line of your last visit in the list; one line when a source it reads isn't well
+  (stale, silent, failing — source health, `health-note.ts`).
 - A page block `:::block timeline {"ref":"person:3","limit":20}` (slash menu "Timeline"); no ref: the page's own (a
   row: the row, the person or case it stands for, the ticket it names); `"all"`: everything.
 - A detail module `timeline` (rows of Jira databases show it by default; any database can add it).

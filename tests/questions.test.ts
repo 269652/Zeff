@@ -163,10 +163,10 @@ test("Workspace databases through their own rows: a number summed per option, a 
   await assert.rejects(runQuery({ view: "workspace", aggregate: "sum", measure: "Gehalt", filters: { database: "Ausgaben" } }, ctx), /Betrag/);
 });
 
-test("the sensitivity hook allows everything until the labels come; a view another plugin registers is offered and runs like the built-in ones", async () => {
+test("the sensitivity hook lets work data through (the labels: tests/intel-glue.test.ts); a view another plugin registers is offered and runs like the built-in ones", async () => {
   await setup();
   const v = await import("@/plugins/questions/views");
-  assert.equal(v.allowedFor("time_entries", ctx), true, "everything allowed until the sensitivity labels come");
+  assert.equal(v.allowedFor("time_entries", ctx), true, "time entries are open data");
   assert.ok(v.listViews(ctx).some((x) => x.name === "time_entries"));
   v.registerView({ name: "secret_test", description: "x", filters: {}, dims: [], measures: {}, items: () => [{ at: "2026-01-01", title: "geheim", ref: "x:1", values: {}, dims: {} }] });
   assert.ok(v.listViews(ctx).some((x) => x.name === "secret_test"), "a registered view is offered");

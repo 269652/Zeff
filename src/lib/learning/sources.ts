@@ -62,13 +62,16 @@ export const bookingFeedback = (r: SuggestionRow, verdict: Verdict, at?: string,
 
 type TodoLike = { id: number; text: string; ops: { type: string }[]; autoOpsWhy?: string | null; workerDone?: { by: string; note: string | null } | null };
 
-/** The actions the auto-actions proposed on a todo: run (accepted) or taken off (rejected) — all, or one of them. */
+/**
+ * The actions the auto-actions proposed on a todo: run (accepted) or taken off (rejected) — all, or one of them (`one`:
+ * the verdict is on that action only, not on the todo getting actions at all — the evals tell them apart).
+ */
 export const autoActionsFeedback = (todo: TodoLike, verdict: Verdict, op?: { type: string }): Feedback => ({
   step: STEPS.autoActions,
   itemRef: `todo:${todo.id}`,
   verdict,
   kind: (op ? [op] : todo.ops).map((o) => o.type).join("+") || null,
-  detail: { text: todo.text, why: todo.autoOpsWhy ?? "", ops: (op ? [op] : todo.ops).map((o) => o.type) },
+  detail: { text: todo.text, why: todo.autoOpsWhy ?? "", ops: (op ? [op] : todo.ops).map((o) => o.type), ...(op ? { one: true } : {}) },
 });
 
 /** A worker's, an agent's or a review's "done" on a todo: confirmed by you, or not. */

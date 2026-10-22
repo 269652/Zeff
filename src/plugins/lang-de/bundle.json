@@ -7187,5 +7187,6 @@
   "The hours booked (get_weekly_report), if there is time tracking.": "Die gebuchten Stunden (get_weekly_report), wenn es eine Zeiterfassung gibt.",
   "What is still open and why — the overdue first.": "Was noch offen ist und warum — das Überfällige zuerst.",
   "Three suggestions for next week.": "Drei Vorschläge für nächste Woche.",
-  "Write the weekly review": "Wochenrückblick schreiben"
+  "Write the weekly review": "Wochenrückblick schreiben",
+  "{sources} — the timeline may miss what they brought lately.": "{sources} — der Zeitleiste fehlt womöglich, was sie zuletzt gebracht hätten."
 }

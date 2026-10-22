@@ -199,3 +199,23 @@ test("CLI: npm run eval -- mail with a golden set and a fake AI — a mail lost 
   assert.equal(dry.status, 0, dry.stdout + dry.stderr);
   assert.match(dry.stdout, /3 KI-Aufrufe/);
 });
+
+test("auto-actions × ledger: a todo whose proposed actions you took off all at once is frozen too — the ledger's verdicts make it a negative", async () => {
+  await seed();
+  const { getDb, schema } = await import("@/db");
+  const { eq } = await import("drizzle-orm");
+  const { addManualTodo, dropProposedOps } = await import("@/lib/boards/store");
+  const x5 = addManualTodo({ ticket: "", text: "Carla wegen dem Umzug schreiben" });
+  getDb().update(schema.todos).set({ ops: JSON.stringify([{ type: "teams-message", to: "Carla", body: "Hi" }]), autoOpsWhy: "Weil." }).where(eq(schema.todos.id, x5.id)).run();
+  dropProposedOps(x5.id);
+  const { autoActionsAdapter } = await import("@/lib/evals/adapters/auto-actions");
+  const { ledgerVerdicts } = await import("@/lib/evals/ledger");
+  const { applyVerdicts } = await import("@/lib/evals/golden");
+  const cases = await autoActionsAdapter.build();
+  const labels = labelsOf(cases);
+  assert.equal(labels[`todo:${x5.id}`], "open", "in the set, not judged by the adapter itself");
+  assert.equal(labels[`todo:${x5.id}:teams-message`], "open");
+  const judged = labelsOf(applyVerdicts(cases, ledgerVerdicts().verdicts("auto-actions"), "auto-actions").cases);
+  assert.equal(judged[`todo:${x5.id}`], "negative");
+  assert.equal(judged[`todo:${x5.id}:teams-message`], "negative");
+});

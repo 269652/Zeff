@@ -44,7 +44,7 @@ built-in instructions at the base ref and in the working tree.
 | `mail` | Mail-Durchsicht | `src/lib/boards/mail-todos.ts` | a mail | a todo of it you did; every must-do mail (training, signature) | a todo of it you dropped | its todo still open |
 | `notes` | Notiz-Durchsicht | `src/plugins/keep/note-review.ts` | a note | its todo you did | its todo you dropped | its todo open |
 | `people` | Personen-Extraktion | `src/plugins/people/extract.ts` | person + message (`<personId>@<ref>`) | a claim/link you confirmed | rejected | still proposed |
-| `auto-actions` | Auto-Aktionen | `src/plugins/auto-actions/review.ts` | `todo:<id>` (gets ≥ 1 valid action), `todo:<id>:<type>` | a todo with proposed actions you did | — (the ai_feedback ledger will say) | open todo; each kind of action it has |
+| `auto-actions` | Auto-Aktionen | `src/plugins/auto-actions/review.ts` | `todo:<id>` (gets ≥ 1 valid action), `todo:<id>:<type>` | a todo with proposed actions you did; an action you ran (ledger) | an action you took off; all of them: the todo too (ledger) | open todo; each kind of action it has |
 
 Each case is frozen as the step would see it, through the step's own prompt builder (`mailReviewPrompt`,
 `noteReviewPrompt`, `extractPrompt`, `autoActionsPrompt`) and its own checks of the answer (the must-do safety net,
@@ -61,9 +61,12 @@ Without a golden set, a step's cases come straight from the current data (as `--
 data moves, so build the set before you start changing a prompt.
 
 Other records of your decisions plug into the builder as a `VerdictSource` (`src/lib/evals/golden.ts`): its verdicts
-(`{ step, item, label }`, items named as above) override the derived labels of the items a case has. The
-`ai_feedback` ledger is meant to come in that way (accepted → must, rejected → negative), e.g. auto-actions you
-removed as negatives.
+(`{ step, item, label }`, items named as above) override the derived labels of the items a case has. `build` lays the
+`ai_feedback` ledger over them that way (`src/lib/evals/ledger.ts`, accepted → must, rejected → negative): the
+auto-actions you ran are musts, those you took off negatives — one action (`todo:<id>:<type>`), or all of them (the
+todo too; such a todo keeps no proposal, so the adapter freezes it from the ledger's). The other steps' ledger rows
+are what their adapters already read from the same tables, so they don't come in (they would override the adapters'
+merges: a mail with one todo done and one dropped stays a must).
 
 ## Costs
 

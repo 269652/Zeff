@@ -1,7 +1,16 @@
 /** Structured questions: the shapes of the query layer's views and queries (views.ts), and the views' text helpers. Server only. */
 
-/** Who asks — the knowledge chat, an agent over the MCP, a test. Handed to the sensitivity hook and to every view. */
-export type QueryContext = { via: "chat" | "mcp" | "ui" | "test"; agent?: string; now?: Date };
+import { currentClearance, type Clearance } from "@/lib/boundaries";
+
+/**
+ * Who asks — the knowledge chat, an agent over the MCP, a test. Handed to the sensitivity hook and to every view. Its
+ * clearance (lib/boundaries): what it may read — set here, or else the clearance of the code running (the MCP server sets
+ * an agent's per request; you and Zeff's own steps: personal).
+ */
+export type QueryContext = { via: "chat" | "mcp" | "ui" | "test"; agent?: string; now?: Date; clearance?: Clearance };
+
+/** What `ctx` may read: open data only, or personal too (secret never). */
+export const clearanceOf = (ctx: QueryContext | undefined): Clearance => ctx?.clearance ?? currentClearance();
 
 export const AGGREGATES = ["count", "sum", "avg", "min", "max", "first", "last", "count_days", "list"] as const;
 export type Aggregate = (typeof AGGREGATES)[number];
