@@ -1,5 +1,7 @@
 import { t } from "@/lib/i18n/server";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property, type View } from "./model";
+import { isInstalled } from "@/plugins/state";
+import { CONTRACT } from "./contract-fields";
 import { addRow, createPage, getDatabase, updateSchema } from "./store";
 
 /**
@@ -182,7 +184,14 @@ export function instalmentPlansDatabase(parentId: number | null): number {
  * published as "Fixkosten" (when that name is free) — the Finances plugin's overview counts it in.
  */
 export function contractsDatabase(parentId: number | null): number {
-  const monthly = euro(t("Per month"));
+  // With the Finances plugin the recurring payments of your statements come in by themselves (its source "recurring" fills the
+  // fields of fixed id); what you add — the kind, the provider, when to cancel by — is yours.
+  const fromBank = isInstalled("finances");
+  const monthly = { ...euro(t("Per month")), id: CONTRACT.monthly };
+  const amount = { ...euro(t("Per payment")), id: CONTRACT.amount };
+  const rhythm = { ...select(t("Rhythm"), [t("Monthly"), t("Quarterly"), t("Yearly")], ["blue", "violet", "amber"]), id: CONTRACT.rhythm };
+  const last = { ...newProperty(t("Last paid"), "date"), id: CONTRACT.last };
+  const next = { ...newProperty(t("Next payment"), "date"), id: CONTRACT.next };
   const yearly = { ...euro(t("Per year")), type: "formula" as const, formula: `prop(${JSON.stringify(monthly.name)}) * 12` };
   const until = newProperty(t("Runs until"), "date");
   const cancel = newProperty(t("Cancel by"), "date");
@@ -197,7 +206,8 @@ export function contractsDatabase(parentId: number | null): number {
   const running = view(t("Running"), "table", { filter: notDone(st), sorts: [{ prop: cancel.id, dir: "asc" }], calcs: { [monthly.id]: "sum", [yearly.id]: "sum" } });
   const schema: DbSchema = {
     titleName: t("Contract"),
-    properties: [st, kind, provider, monthly, yearly, cancel, until, customer],
+    properties: [st, kind, provider, monthly, yearly, amount, rhythm, next, last, cancel, until, customer],
+    ...(fromBank ? { pipeline: { steps: [{ id: "srecurring", kind: "source" as const, from: "ext" as const, ext: "recurring" }], everyMinutes: 360 } } : {}),
     views: [
       running,
       view(t("By kind"), "board", { groupBy: kind.id, filter: notDone(st), card }),
@@ -206,8 +216,11 @@ export function contractsDatabase(parentId: number | null): number {
     ],
   };
   const id = createPage({ parentId, title: t("Contracts"), icon: "📜", kind: "database", schema });
-  addRow(id, { title: t("Example: mobile phone"), cells: { [st.id]: st.options[0].id, [kind.id]: kind.options![3].id, [monthly.id]: 15, [cancel.id]: day(45) } });
-  addRow(id, { title: t("Example: streaming"), cells: { [st.id]: st.options[0].id, [kind.id]: kind.options![1].id, [monthly.id]: 13.99 } });
+  if (fromBank) void import("./pipeline").then((p) => p.runPipeline(id, { ai: false })).catch(() => undefined);
+  else {
+    addRow(id, { title: t("Example: mobile phone"), cells: { [st.id]: st.options[0].id, [kind.id]: kind.options![3].id, [monthly.id]: 15, [cancel.id]: day(45) } });
+    addRow(id, { title: t("Example: streaming"), cells: { [st.id]: st.options[0].id, [kind.id]: kind.options![1].id, [monthly.id]: 13.99 } });
+  }
   void import("./values").then((v) => {
     // (A source beside the others: every contracts database adds its running contracts to the fixed costs.)
     v.publishValue({ label: "Fixkosten", dbId: id, viewId: running.id, propId: monthly.id, fn: "sum" });

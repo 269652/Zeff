@@ -37,3 +37,35 @@ test("the recipient as compared: without numbers and the bank's words", () => {
   assert.equal(recipientKey({ text: "Zahlung an Stadtwerke 4711 Ref 2026-10", counterparty: "" }), "stadtwerke ref");
   assert.equal(recipientKey({ text: "x", counterparty: "To Max Muster" }), "max muster");
 });
+
+test("contracts from the statements: with the Finances plugin the template's database follows the recurring payments — a row each, its figures the bank's (locked), the running ones summed as fixed costs", async () => {
+  const { setupTempData } = await import("./helpers");
+  setupTempData();
+  const { setInstalled } = await import("@/plugins/state");
+  for (const p of ["workspace", "people", "cases", "finances"]) setInstalled(p, true);
+  await import("@/plugins/contributions");
+  const { addBookings } = await import("@/plugins/cases/bank");
+
+  const back = (m: number, d: number) => {
+    const x = new Date();
+    x.setUTCDate(1);
+    x.setUTCMonth(x.getUTCMonth() - m);
+    x.setUTCDate(d);
+    return x.toISOString().slice(0, 10);
+  };
+  addBookings([0, 1, 2, 3].map((m) => ({ date: back(m, 1), amount: -15, currency: "EUR", text: `To Handyvertrag ${m}`, counterparty: "", iban: "", reference: "" })), "Revolut");
+
+  const { fromTemplate } = await import("@/plugins/workspace/templates");
+  const id = await fromTemplate("contracts", null);
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  await runPipeline(id, { ai: false });
+  const { rawRows, setCell } = await import("@/plugins/workspace/store");
+  const { CONTRACT } = await import("@/plugins/workspace/contract-fields");
+  const row = rawRows(id).find((r) => r.cells.srcref === "recurring:handyvertrag")!;
+  assert.ok(row, "the phone contract came by itself");
+  assert.equal(row.cells[CONTRACT.monthly], 15);
+  assert.throws(() => setCell(row.id, CONTRACT.monthly, 1), /source|isn't changed/i, "the bank's figure");
+  assert.ok(!rawRows(id).some((r) => /Beispiel|Example/.test(r.title)), "no example rows — the real ones");
+  const { namedValue } = await import("@/plugins/workspace/values");
+  assert.ok((namedValue("Fixkosten")?.value ?? 0) >= 15, "in the fixed costs");
+});

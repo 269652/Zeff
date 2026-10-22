@@ -6910,5 +6910,12 @@
   "Run a command: syncs, agents, automations, jobs": "Befehl ausführen: Syncs, Agenten, Automationen, Aufträge",
   "Search commands": "Befehle suchen",
   "Run a command: sync, agent, automation, job …": "Befehl ausführen: Sync, Agent, Automation, Auftrag …",
-  "{n} commands — ↑↓ to choose, Enter to run, Esc to close": "{n} Befehle — ↑↓ wählen, Enter ausführen, Esc schließen"
+  "{n} commands — ↑↓ to choose, Enter to run, Esc to close": "{n} Befehle — ↑↓ wählen, Enter ausführen, Esc schließen",
+  "Per payment": "Pro Zahlung",
+  "Rhythm": "Rhythmus",
+  "Quarterly": "Vierteljährlich",
+  "Yearly": "Jährlich",
+  "Last paid": "Zuletzt bezahlt",
+  "Recurring payments": "Wiederkehrende Zahlungen",
+  "What goes out regularly to the same recipient — contracts and subscriptions read off your bank statements.": "Was regelmäßig an denselben Empfänger geht — Verträge und Abos aus deinen Kontoauszügen."
 }
