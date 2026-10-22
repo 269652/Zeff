@@ -4,6 +4,7 @@ import { registerReportTool } from "@/plugins/workspace/mcp-report";
 import { registerGmailTools } from "@/plugins/gmail/mcp";
 import { registerWorkspaceTools } from "@/plugins/workspace/mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
+import { registerTimelineTools } from "@/plugins/timeline/mcp";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ConflictError, NotFoundError, ValidationError, errorMessage } from "@/lib/errors";
@@ -1038,4 +1039,6 @@ export function registerZeffTools(server: McpServer): void {
   registerWebSearchTools(server, { run, ok, fail } as never);
   registerGmailTools(server, { run, ok, fail } as never);
   registerReportTool(server, { run, ok, fail } as never);
+  // What happened with someone or something, and what changed since (the Timeline plugin).
+  registerTimelineTools(server, { run, ok, fail } as never);
 }

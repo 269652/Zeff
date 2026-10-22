@@ -567,6 +567,11 @@ async function runStep(key: SyncKey): Promise<void> {
     const { isInstalled } = await import("@/plugins/state");
     if (isInstalled("workspace")) await (await import("@/plugins/workspace/pipeline")).runPipelinesAfterSync().catch((e) => console.error("[workspace] the pipelines failed", e));
   }
+  // What it brought, into the timeline (by rule, no AI — cheap; the minute's tick catches up on what is left).
+  if (outcome?.ok) {
+    const { isInstalled } = await import("@/plugins/state");
+    if (isInstalled("timeline")) await (await import("@/plugins/timeline/indexer")).indexTimeline().catch((e) => console.error("[timeline] the indexer failed", e));
+  }
   // Whatever the step brought (mails, chats, tickets, news …) is in the data now: the open pages read it again — the sync host tells the web server.
   emitChange("sync");
   // Over time (since when it fails): a stop isn't a failure. Steps with a record of their own: as they kept it.
