@@ -30,6 +30,7 @@ export function stepLabel(step: string): string {
     [STEPS.wsAiFilter]: t("Workspace: AI filter"),
     [STEPS.wsAiField]: t("Workspace: AI fields"),
     [STEPS.todoDone]: t("Done? (suggested by workers and reviews)"),
+    [STEPS.openLoops]: t("Open loops"),
   };
   return labels[step] ?? step;
 }

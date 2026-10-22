@@ -24,6 +24,23 @@ export const claimFeedback = (r: ClaimRow, verdict: Verdict, at?: string): Feedb
   key: `people-claim:${r.id}:${verdict}`,
 });
 
+type LoopLike = { ref: string; kind: string; direction: string; origin: string; text: string; quote: string; who: string; sourceRef: string };
+
+/**
+ * Your word on an open loop (the loops plugin): closed or confirmed (accepted — it was one), dismissed (rejected — not a loop), a
+ * close by rule or the AI taken back or confirmed. `kind`: what was judged — "<loop kind>:<direction>" for the loop itself,
+ * "close:rule" / "close:ai" for a closing. No key: a loop may be decided again (reopened, closed once more).
+ */
+export const loopFeedback = (l: LoopLike, verdict: Verdict, op: string, kind = `${l.kind}:${l.direction}`, detail: Record<string, unknown> = {}): Feedback => ({
+  step: STEPS.openLoops,
+  itemRef: l.ref,
+  verdict,
+  sourceRef: l.sourceRef || null,
+  sender: l.who || null,
+  kind,
+  detail: { op, origin: l.origin, text: l.text, quote: l.quote, ...detail },
+});
+
 /** A link the AI made (who is connected to what), confirmed or rejected. */
 export const linkFeedback = (r: LinkRow, verdict: Verdict, at?: string): Feedback => ({
   step: STEPS.peopleLink,

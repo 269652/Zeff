@@ -10,7 +10,7 @@ export type ToolGroup = { id: string; label: string; hint: string; tools: string
 export const AGENT_TOOL_GROUPS: ToolGroup[] = [
   { id: "todos.read", label: "Read todos", hint: "List todos and read their context and attachments", tools: ["list_todos", "todo_context", "todo_attachment"], default: true },
   { id: "todos.work", label: "Work on todos", hint: "Start, report progress and time on, ask about, and finish todos", tools: ["start_todo", "todo_progress", "todo_time", "todo_needs_input", "finish_todo", "complete_todo", "add_todo", "todo_note"], default: true },
-  { id: "knowledge.read", label: "Search what Zeff knows", hint: "The knowledge base, mails, messages and notes", tools: ["search_knowledge", "search_context", "zeff_actions", "source_health", "timeline_for", "timeline_since", "meeting_brief", "context_brief"], default: true },
+  { id: "knowledge.read", label: "Search what Zeff knows", hint: "The knowledge base, mails, messages and notes", tools: ["search_knowledge", "search_context", "zeff_actions", "source_health", "timeline_for", "timeline_since", "meeting_brief", "context_brief", "open_loops"], default: true },
   { id: "knowledge.write", label: "Write to the knowledge base", hint: "Add what it learned as knowledge", tools: ["add_knowledge"], default: true },
   { id: "time.read", label: "Read jobs and time entries", hint: "Jobs, projects, the weekly report and booked time (booking stays closed to agents)", tools: ["list_jobs", "list_projects", "get_weekly_report", "list_time_entries"], default: true },
   { id: "merge.read", label: "Read merge-request comments", hint: "Comments and discussions on a merge request", tools: ["mr_comments"], default: true },

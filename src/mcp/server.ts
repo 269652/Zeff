@@ -10,6 +10,7 @@ import { registerEntityTools } from "@/plugins/entities/mcp";
 import { registerQuestionTools } from "@/plugins/questions/mcp";
 import { registerTimelineTools } from "@/plugins/timeline/mcp";
 import { registerKnowTools } from "@/plugins/know/mcp";
+import { registerLoopTools } from "@/plugins/loops/mcp";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ConflictError, NotFoundError, ValidationError, errorMessage } from "@/lib/errors";
@@ -1082,4 +1083,6 @@ export function registerZeffTools(server: McpServer): void {
   registerTimelineTools(server, { run, ok, fail } as never);
   // What you should know before a meeting, and about anyone or anything (the know plugin).
   registerKnowTools(server, { run, ok, fail } as never);
+  // What is owed, by whom: promises, unanswered questions, requests (the Open loops plugin).
+  registerLoopTools(server, { run, ok, fail } as never);
 }

@@ -192,7 +192,7 @@ export function mailsForTickets(keys: string[], days = MAIL_CONTEXT_DAYS, perTic
 }
 
 /** WhatsApp's own lines in a chat — not something a person wrote you. */
-const WA_SYSTEM = /^\u202a?\s*(\+?[\d\s]+ wurde in \+?[\d\s]+ geändert|\+?[\d\s]+ changed (their phone number|to \+?[\d\s]+)|\d+ (ungelesene Nachricht(en)?|unread messages?)\b|.{0,80} hat (dich|die Gruppe|den Gruppennamen|das Gruppenbild)|.{0,80} (added you|created group|changed the group)|Nachrichten und Anrufe sind Ende-zu-Ende-verschlüsselt|Messages and calls are end-to-end encrypted|Deine Sicherheitsnummer|Your security code)/i;
+export const WA_SYSTEM = /^\u202a?\s*(\+?[\d\s]+ wurde in \+?[\d\s]+ geändert|\+?[\d\s]+ changed (their phone number|to \+?[\d\s]+)|\d+ (ungelesene Nachricht(en)?|unread messages?)\b|.{0,80} hat (dich|die Gruppe|den Gruppennamen|das Gruppenbild)|.{0,80} (added you|created group|changed the group)|Nachrichten und Anrufe sind Ende-zu-Ende-verschlüsselt|Messages and calls are end-to-end encrypted|Deine Sicherheitsnummer|Your security code)/i;
 
 /** A chat (WhatsApp, Signal) waiting for your answer: who, what since your last word, since when. */
 export type ChatWaiting = { convId: string; key: string; who: string; text: string; count: number; since: string; lastAt: string; group: boolean };
