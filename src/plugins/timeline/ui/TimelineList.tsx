@@ -54,9 +54,8 @@ export function TimelineList({ entity, row, limit = 30, filters = true, sources:
   const chip = (on: boolean) => `rounded-full border px-2 py-0.5 text-xs ${on ? "border-indigo-400 bg-indigo-50 text-indigo-700 dark:border-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "border-zinc-200 text-zinc-600 hover:bg-zinc-100 dark:border-zinc-700 dark:text-zinc-400 dark:hover:bg-zinc-800"}`;
 
   if (off && hideWhenOff) return null;
-  return (
-    <div className="space-y-2">
-      {title && <h2 className="text-sm font-semibold">{title}</h2>}
+  const chips = (
+    <>
       {filters && (
         <div className="flex flex-wrap gap-1" role="group" aria-label={t("Kinds")}>
           {KIND_GROUPS.map((k) => (
@@ -74,6 +73,25 @@ export function TimelineList({ entity, row, limit = 30, filters = true, sources:
             </button>
           ))}
         </div>
+      )}
+    </>
+  );
+  const picked = kinds.length + sources.length;
+  return (
+    <div className="space-y-2">
+      {title && <h2 className="text-sm font-semibold">{title}</h2>}
+      {(filters || withSources) && (
+        <>
+          {/* The filters as chips on a wide screen; folded on a phone (twenty chips came before the first event). */}
+          <div className="space-y-2 max-sm:hidden">{chips}</div>
+          <details className="sm:hidden">
+            <summary className="cursor-pointer text-sm text-zinc-500">
+              {t("Filter")}
+              {picked ? ` · ${picked}` : ""}
+            </summary>
+            <div className="space-y-2 pt-2">{chips}</div>
+          </details>
+        </>
       )}
       {error ? <p className="text-sm text-red-600">{error}</p> : events === null ? <p className="text-sm text-zinc-400">…</p> : <TimelineView events={events} lastSeen={lastSeen ?? null} compact={compact} />}
       {more && events && (

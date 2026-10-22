@@ -446,7 +446,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
             disabled={a.disabled === "true"}
             title={a.tip || (a.keys ? `${a.label ?? a.action} (${a.keys})` : undefined)}
             aria-keyshortcuts={a.keys || undefined}
-            className={`${variant} ${a.wide === "true" ? "w-full justify-center" : ""} ${a.print === "true" ? "" : "print:hidden"}`}
+            className={`${variant} ${a.wide === "true" ? "w-full justify-center" : ""} ${a.print === "true" ? "" : "print:hidden"} ${a.action === "print" ? "max-sm:hidden" : ""}`}
             onClick={(e) => (e.stopPropagation(), void run(a))}
           >
             {a.label ?? a.action}

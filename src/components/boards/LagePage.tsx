@@ -89,7 +89,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           {shown && (
             <>
               <p className="text-xs text-zinc-500">{t("As of: {when}", { when: when(shown.finishedAt ?? shown.startedAt) })}</p>
-              <p className="flex flex-wrap gap-1 text-[11px] text-zinc-500 dark:text-zinc-400">
+              <p className="flex flex-wrap gap-1 text-[11px] text-zinc-500 max-sm:hidden dark:text-zinc-400">
                 {[analyzed === 1 ? t("1 ticket analyzed") : t("{n} tickets analyzed", { n: analyzed }), shown.model, shown.durationMs ? minutes(shown.durationMs) : null, shown.costUsd != null ? `≈ ${formatUsd(shown.costUsd)}` : null]
                   .filter(Boolean)
                   .map((x) => (

@@ -29,16 +29,17 @@ const template = (t: T) => `<state name="view" value="week"/>
     <button action="state" state="day" value="{{ app.prev }}" label="‹"/>
     <button action="state" state="day" value="{{ app.next }}" label="›"/>
   </row>
-  <heading level=2>{{ app.title }}</heading>
+  <heading level=2 phone="hide">{{ app.title }}</heading>
+  <heading level=3 phone="only">{{ app.title }}</heading>
   <grow/>
   {{#if state.saving}}<muted>${t("Saving…")}</muted>{{/if}}
   <tabs bind="view" options="day:${t("Day")}, week:${t("Week")}, month:${t("Month")}, agenda:${t("Agenda")}"/>
-  {{#if app.canSync}}<button action="calendar.sync" label="⟳ ${t("Sync")}"/>{{/if}}
+  {{#if app.canSync}}<button action="calendar.sync" label="⟳ ${t("Sync")}" phone="hide"/>{{/if}}
 </row>
 
 <row gap=6 align=start>
   <col gap=4>
-    <button action="calendar.new" label="+ ${t("New event")}" variant=primary/>
+    <button action="calendar.new" label="+ ${t("New event")}" variant=primary phone="hide"/>
     <section title="${t("Calendars & date")}" collapsible=true open=wide>
       <part name="calendar.minimonth"/>
       {{#each app.groups}}

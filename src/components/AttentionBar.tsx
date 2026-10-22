@@ -5,6 +5,7 @@ import { useEffect, useRef, useSyncExternalStore, useTransition } from "react";
 import { dismissAttentionAction, openServiceLoginAction, retryServiceAction, runSyncAction } from "@/app/actions";
 import type { Attention } from "@/lib/attention";
 import { toast } from "./Toaster";
+import { sourceToasts } from "@/lib/sync/source-toasts";
 import { useT } from "@/components/I18nProvider";
 
 const NOTIFIED_KEY = "zeff-notified";
@@ -79,13 +80,18 @@ export function AttentionBar({ items }: { items: Attention[] }) {
     } catch {
       seen = [];
     }
-    for (const a of sources) {
-      if (seen.includes(a.key)) continue;
-      seen.push(a.key);
-      toast(`${a.title} — ${a.body}`, {
+    const fresh = sources.filter((a) => !seen.includes(a.key));
+    seen.push(...fresh.map((a) => a.key));
+    // Several at once: one notice naming them (not a stack of red toasts over half the screen).
+    for (const n of sourceToasts(fresh.map((a) => ({ key: a.key, title: a.title, body: a.body, step: a.step! })), t)) {
+      const { action } = n;
+      toast(n.text, {
         tone: "error",
         ms: 20000,
-        action: { label: t("Sync now"), run: () => void runSyncAction(a.step!).then((r) => toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" })) },
+        action:
+          action.kind === "sync"
+            ? { label: t("Sync now"), run: () => void runSyncAction(action.step).then((r) => toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" })) }
+            : { label: t("Details"), run: () => void (window.location.href = "/diagnostics#sources") },
       });
     }
     try {

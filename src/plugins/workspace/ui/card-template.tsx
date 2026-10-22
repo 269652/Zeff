@@ -43,7 +43,20 @@ export function Level({ nodes, ext }: { nodes: VNode[]; ext?: DrawExt }) {
 const gap = (a: Record<string, string>): CSSProperties => (a.gap ? { gap: `${Number(a.gap) * 4}px` } : {});
 const textOf = (c: VNode[]): string => c.map((n) => (typeof n === "string" ? n : textOf(n.c))).join("");
 
+/**
+ * A node drawn — and phone="hide" (not on a phone) or phone="only" (only there) on any element: in a box that takes no room
+ * of its own (display: contents), hidden by the screen's width.
+ */
 export function draw(n: VNode, key: number, ext?: DrawExt): ReactNode {
+  if (typeof n === "string" || (n.a.phone !== "hide" && n.a.phone !== "only")) return drawNode(n, key, ext);
+  return (
+    <div key={key} className={`contents ${n.a.phone === "hide" ? "max-sm:hidden" : "sm:hidden"}`}>
+      {drawNode(n, 0, ext)}
+    </div>
+  );
+}
+
+function drawNode(n: VNode, key: number, ext?: DrawExt): ReactNode {
   if (typeof n === "string") return n;
   if (ext) {
     const own = ext(n, key, (nodes) => <Level nodes={nodes} ext={ext} />);

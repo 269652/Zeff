@@ -38,12 +38,25 @@ export default async function TimelinePage({ searchParams }: { searchParams: Pro
   } catch {
     healthNote = null;
   }
+  const sinceList = (
+    <ul className="space-y-0.5 text-sm">
+      {since.ok &&
+        since.groups.map((g) => (
+          <li key={g.ref} className="flex items-baseline gap-2">
+            <a href={`/timeline?ref=${encodeURIComponent(g.ref)}`} className="min-w-0 flex-1 truncate hover:underline">
+              {g.label}
+            </a>
+            <span className="text-xs text-zinc-400 tabular-nums">{g.count}</span>
+          </li>
+        ))}
+    </ul>
+  );
   return (
     <div className="page">
       <div className="page-aside space-y-4">
         <div className="space-y-1">
           <h1 className="text-lg font-semibold">{t("Timeline")}</h1>
-          <p className="text-sm text-zinc-500">{t("What happened across your sources — mails, chats, tickets, appointments, time, todos, rows, payments, documents — and with whom. Read after every sync, by rule.")}</p>
+          <p className="text-sm text-zinc-500 max-lg:hidden">{t("What happened across your sources — mails, chats, tickets, appointments, time, todos, rows, payments, documents — and with whom. Read after every sync, by rule.")}</p>
           <p className="text-xs text-zinc-400">{t("{n} events", { n: stats.total })}</p>
           {healthNote && (
             <p className="text-xs text-amber-700 dark:text-amber-400">
@@ -67,19 +80,19 @@ export default async function TimelinePage({ searchParams }: { searchParams: Pro
           )}
         </form>
         {since.ok && since.groups.length > 0 && (
-          <section className="space-y-1">
-            <h2 className="label">{seen ? t("Since your last visit") : t("The last 7 days")}</h2>
-            <ul className="space-y-0.5 text-sm">
-              {since.groups.map((g) => (
-                <li key={g.ref} className="flex items-baseline gap-2">
-                  <a href={`/timeline?ref=${encodeURIComponent(g.ref)}`} className="min-w-0 flex-1 truncate hover:underline">
-                    {g.label}
-                  </a>
-                  <span className="text-xs text-zinc-400 tabular-nums">{g.count}</span>
-                </li>
-              ))}
-            </ul>
-          </section>
+          <>
+            {/* Beside the list on a wide screen; folded on a phone (the events come first). */}
+            <section className="space-y-1 max-lg:hidden">
+              <h2 className="label">{seen ? t("Since your last visit") : t("The last 7 days")}</h2>
+              {sinceList}
+            </section>
+            <details className="lg:hidden">
+              <summary className="label cursor-pointer">
+                {seen ? t("Since your last visit") : t("The last 7 days")} · {since.groups.length}
+              </summary>
+              <div className="pt-1">{sinceList}</div>
+            </details>
+          </>
         )}
       </div>
       <div>

@@ -123,3 +123,8 @@ test("a starter template is made of the database's own properties and parses cle
   assert.deepEqual(out.errors, []);
   assert.match(vnodeToString(out.nodes), /In Arbeit/);
 });
+
+test("phone=hide|only is kept on any tag (a card's too); other values are dropped", () => {
+  const { nodes } = render('<row phone="hide">a</row><b phone="only">b</b><i phone="sometimes">c</i>');
+  assert.deepEqual(nodes.map((n) => (typeof n === "string" ? n : n.a.phone ?? null)), ["hide", "only", null]);
+});

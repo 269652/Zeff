@@ -36,6 +36,8 @@ export const MAX_TEMPLATE = 8000;
 export type TagDef = { void?: boolean; attrs: Record<string, AttrKind> };
 /** "text": any words (a label, a name), "list": an expression giving rows or items (not interpolated), "any": every attribute let through as text. */
 export type AttrKind = "int" | "url" | "color" | "paint" | "num" | "text" | "list" | { oneOf: string[] };
+/** On any tag: phone="hide" (not on a phone) or phone="only" (only there) — drawn in a box that takes no room (ui/card-template.tsx). */
+export const ANY_TAG_ATTRS: Record<string, AttrKind> = { phone: { oneOf: ["hide", "only"] } };
 export const CARD_TAGS: Record<string, TagDef> = {
   row: { attrs: { gap: "int", align: { oneOf: ["start", "center", "end", "baseline"] }, wrap: { oneOf: ["true", "false"] }, justify: { oneOf: ["start", "between", "end"] } } },
   col: { attrs: { gap: "int" } },
@@ -541,7 +543,7 @@ function drawList(list: TNode[], ctx: Ctx): VNode[] {
       const def = CARD_TAGS[n.name];
       const a: Record<string, string> = {};
       for (const [k, raw] of n.attrs) {
-        const kind = def.attrs[k];
+        const kind = def.attrs[k] ?? ANY_TAG_ATTRS[k];
         if (!kind) continue; // (not on the tag's list: dropped)
         const ok = checkAttr(kind, interpolate(raw, ctx, n.line));
         if (ok !== null) a[k] = ok;

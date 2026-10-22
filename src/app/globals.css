@@ -67,6 +67,12 @@ body {
   .page > .page-aside + * {
     @apply lg:mt-0;
   }
+  /* A phone whose page aside is folded away entirely (the Workspace tree behind the page bar's ☰): no gap for it. */
+  @media (width < 64rem) {
+    .page > .page-aside:has(> [data-aside-folded]) + * {
+      margin-top: 0;
+    }
+  }
   /* Full screen (FocusToggle): no app header, no page sidebar — the page has the whole window. */
   html[data-focus] .site-header,
   html[data-focus] .page > .page-aside {

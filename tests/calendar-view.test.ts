@@ -105,3 +105,12 @@ test("the items shown: the calendars switched on (the view's own switch over the
   assert.equal(items.find((i) => i.title === "Angebot schreiben")!.editable, true, "a proposal of a calendar action can be dragged");
   assert.equal(calendarItems(d.events, d.proposed, d.calendars, () => true, true, { e1: { start: "2026-10-21T19:00", end: "2026-10-21T20:00" } })[0].start, "2026-10-21T19:00", "moved here, until the server has it");
 });
+
+test("on a phone the calendar leaves out what the toolbar does already (its + makes an appointment, the header syncs): phone=hide", () => {
+  const r = draw({ view: "week", day: "2026-10-22" }, data("week", "2026-10-22"));
+  const buttons = find(r.nodes as VNode[], "button");
+  assert.equal(buttons.find((b) => b.a.action === "calendar.new")?.a.phone, "hide");
+  assert.equal(buttons.find((b) => b.a.action === "calendar.sync")?.a.phone, "hide");
+  const headings = find(r.nodes as VNode[], "heading");
+  assert.deepEqual(headings.map((h) => [h.a.level, h.a.phone]), [["2", "hide"], ["3", "only"]], "a smaller date heading on a phone");
+});

@@ -278,14 +278,17 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const lastPicked = useRef<number | null>(null);
   // A narrow toolbar keeps the views, the search, "New" and "⋯": the rest goes into one "View" menu (the toolbar below says when).
   const [narrow, setNarrow] = useState(false);
-  const bar = useRef<HTMLDivElement>(null);
+  // (The toolbar is there only once the data is: watched from when it is drawn — a ref read in an effect missed it, so a
+  // phone got the whole desktop toolbar.)
+  const [bar, setBar] = useState<HTMLDivElement | null>(null);
   useEffect(() => {
-    const el = bar.current;
-    if (!el || typeof ResizeObserver === "undefined") return;
+    if (!bar || typeof ResizeObserver === "undefined") return;
     const watch = new ResizeObserver(([e]) => setNarrow(e.contentRect.width < 780));
-    watch.observe(el);
+    watch.observe(bar);
     return () => watch.disconnect();
-  }, [data]);
+  }, [bar]);
+  // Narrow: the search behind 🔍 until it is opened (or has a text).
+  const [searchOpen, setSearchOpen] = useState(false);
   // A row opens over the database (?row=<id> — a link to it opens it again); the full page is a click further.
   const [peek, setPeek] = useState<number | null>(() => Number(search.get("row")) || null);
   // The panel is drawn in the browser only (a portal): the server's HTML has none, so nothing to mismatch.
@@ -548,10 +551,11 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
 
   return (
     <div className="space-y-2">
-      <div ref={bar} className="flex flex-wrap items-center gap-1">
-        <div className="flex min-w-0 flex-wrap items-center gap-0.5" role="tablist" aria-label={t("Views")}>
+      <div ref={setBar} className={`flex items-center gap-1 ${narrow ? "flex-nowrap" : "flex-wrap"}`}>
+        {/* Narrow (a phone): one row — the views scroll sideways instead of wrapping into rows of their own. */}
+        <div className={`flex min-w-0 items-center gap-0.5 ${narrow ? "flex-1 flex-nowrap overflow-x-auto [scrollbar-width:none]" : "flex-wrap"}`} role="tablist" aria-label={t("Views")}>
           {schema.views.map((v) => (
-            <button key={v.id} type="button" role="tab" aria-selected={v.id === view.id} onClick={() => pick(v.id)} className={`rounded-md px-2 py-1 text-sm ${v.id === view.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
+            <button key={v.id} type="button" role="tab" aria-selected={v.id === view.id} onClick={() => pick(v.id)} className={`shrink-0 rounded-md px-2 py-1 text-sm whitespace-nowrap ${v.id === view.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
               {v.type === "app" ? (data.extras?.appViews?.find((a) => a.id === v.app)?.icon ?? VIEW_ICON.app) : VIEW_ICON[v.type]} {v.name}
             </button>
           ))}
@@ -607,11 +611,17 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             }
           </Dropdown>
         </div>
-        <span className="flex-1" />
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search …")} aria-label={t("Search the rows")} className="input w-36 text-sm" />
+        {!narrow && <span className="flex-1" />}
+        {!narrow || searchOpen || q ? (
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => !q && setSearchOpen(false)} autoFocus={narrow && searchOpen} placeholder={t("Search …")} aria-label={t("Search the rows")} className={`input text-sm ${narrow ? "w-28 shrink-0" : "w-36"}`} />
+        ) : (
+          <button type="button" className="icon-btn shrink-0" title={t("Search the rows")} aria-label={t("Search the rows")} onClick={() => setSearchOpen(true)}>
+            🔍
+          </button>
+        )}
         {!narrow && controlsNode}
         {narrow && viewMenu}
-        {schema.pipeline?.steps.some((s) => s.kind === "source") && !data.extras?.source && (
+        {!narrow && schema.pipeline?.steps.some((s) => s.kind === "source") && !data.extras?.source && (
           <button
             type="button"
             className="btn btn-sm"
@@ -629,14 +639,29 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           </button>
         )}
         {!narrow && propsDropdown}
-        {(view.type === "board" || view.type === "gallery") && (
+        {!narrow && (view.type === "board" || view.type === "gallery") && (
           <button type="button" className={`btn btn-sm ${view.card ? "text-indigo-600 dark:text-indigo-400" : ""}`} title={t("How the cards look — a card template")} onClick={() => setCardOpen(true)}>
             {t("Card")}
           </button>
         )}
-        <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm">
+        <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm shrink-0">
           {(close) => (
             <>
+              {/* Narrow: what the toolbar left out — the refresh from the sources, the card template. */}
+              {narrow && schema.pipeline?.steps.some((s) => s.kind === "source") && !data.extras?.source && (
+                <MenuItem
+                  onClick={async () => {
+                    close();
+                    const r = await refreshPipelineAction(dbId);
+                    await api.reload();
+                    if (!r.ok) return void toast(r.error, { tone: "error" });
+                    toast(ranText(r, r.syncing), { tone: "ok" });
+                  }}
+                >
+                  ↻ {t("Refresh from the sources")}
+                </MenuItem>
+              )}
+              {narrow && (view.type === "board" || view.type === "gallery") && <MenuItem onClick={() => (close(), setCardOpen(true))}>🃏 {t("Card")}</MenuItem>}
               {/* Its sidebar beside the view or in the tree — an app's (its plugin brings it) or a template's <nav>. */}
               {view.type === "app" && (data.extras?.appViews?.find((a) => a.id === view.app)?.nav || /<nav[\s>]/.test(view.template ?? viewAppMeta(view.app ?? "")?.defaultTemplate(t) ?? "")) && (
                 <>
@@ -808,9 +833,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             </>
           )}
         </Dropdown>
-        <div className={`flex ${data.locked || data.noNewRows ? "hidden" : ""}`}>
-          <button type="button" className="btn btn-primary btn-sm rounded-r-none" onClick={() => (view.type === "app" && appNew.current ? appNew.current() : void newRow({}, undefined, !inPlace))}>
-            {t("New")}
+        <div className={`flex shrink-0 ${data.locked || data.noNewRows ? "hidden" : ""}`}>
+          <button type="button" className="btn btn-primary btn-sm rounded-r-none" title={t("New")} aria-label={t("New")} onClick={() => (view.type === "app" && appNew.current ? appNew.current() : void newRow({}, undefined, !inPlace))}>
+            {narrow ? "+" : t("New")}
           </button>
           <Dropdown label="▾" align="right" title={t("New from a template")} wrapClassName="relative flex" className="btn btn-primary btn-sm h-auto rounded-l-none border-l border-indigo-400 px-1.5">
             {(close) => (

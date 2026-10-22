@@ -164,9 +164,9 @@ export function useSortable(onMove: (from: string, to: string, after: boolean) =
 }
 
 /** A row of a dropdown. */
-export function MenuItem({ onClick, children, danger = false, disabled = false, checked }: { onClick: () => void; children: ReactNode; danger?: boolean; disabled?: boolean; checked?: boolean }) {
+export function MenuItem({ onClick, children, danger = false, disabled = false, checked, className = "" }: { onClick: () => void; children: ReactNode; danger?: boolean; disabled?: boolean; checked?: boolean; /** E.g. "sm:hidden": an item only a phone shows (what its toolbar folded away). */ className?: string }) {
   return (
-    <button type="button" role="menuitem" disabled={disabled} onClick={onClick} className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800 ${danger ? "text-red-600 dark:text-red-400" : ""}`}>
+    <button type="button" role="menuitem" disabled={disabled} onClick={onClick} className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-zinc-100 disabled:opacity-40 dark:hover:bg-zinc-800 ${danger ? "text-red-600 dark:text-red-400" : ""} ${className}`}>
       {checked !== undefined && <span className="w-4 text-center text-xs">{checked ? "✓" : ""}</span>}
       {children}
     </button>

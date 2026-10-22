@@ -126,6 +126,16 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
   const [locked, setLocked] = useState(page.locked);
   const [status, setStatus] = useState<SaveState>("saved");
   const [history, setHistory] = useState(false);
+  // While a page is open, its bar has the tree's ☰ (a phone): the tree's own full-width "Pages" button stands back (MobileAside).
+  useEffect(() => {
+    const g = window as { __wsPageBars?: number };
+    g.__wsPageBars = (g.__wsPageBars ?? 0) + 1;
+    window.dispatchEvent(new Event("ws:pagebar"));
+    return () => {
+      g.__wsPageBars = Math.max(0, (g.__wsPageBars ?? 1) - 1);
+      window.dispatchEvent(new Event("ws:pagebar"));
+    };
+  }, []);
   const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
 
@@ -216,8 +226,12 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
 
   return (
     <div className="space-y-3">
-      <div className="flex flex-wrap items-center gap-2 text-sm">
-        <nav aria-label={t("Breadcrumbs")} className="flex min-w-0 flex-wrap items-center gap-1 text-zinc-500">
+      {/* A phone: one row — the tree's ☰, the path (cut short), ★, focus and ⋯ (the history and the save state go in there). */}
+      <div className="flex items-center gap-2 text-sm max-sm:gap-1 sm:flex-wrap">
+        <button type="button" className="icon-btn shrink-0 lg:hidden" title={t("Pages")} aria-label={t("Pages")} onClick={() => window.dispatchEvent(new Event("ws:pages"))}>
+          ☰
+        </button>
+        <nav aria-label={t("Breadcrumbs")} className="flex min-w-0 items-center gap-1 text-zinc-500 max-sm:flex-1 max-sm:overflow-hidden max-sm:whitespace-nowrap sm:flex-wrap">
           <Link href="/workspace" className="hover:underline">
             {t("Workspace")}
           </Link>
@@ -230,8 +244,8 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
             </span>
           ))}
         </nav>
-        <span className="flex-1" />
-        <span className={`text-xs ${status === "error" || status === "conflict" ? "text-red-600" : "text-zinc-400"}`} role="status">
+        <span className="flex-1 max-sm:hidden" />
+        <span className={`text-xs ${status === "error" || status === "conflict" ? "text-red-600" : "text-zinc-400"} ${status === "saving" || status === "error" || status === "conflict" ? "" : "max-sm:hidden"}`} role="status">
           {status === "saving" ? t("Saving …") : status === "error" ? t("Not saved") : status === "conflict" ? t("Conflict") : t("Saved")}
         </span>
         <button
@@ -246,13 +260,16 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
         >
           {favorite ? "★" : "☆"}
         </button>
-        <button type="button" className="btn btn-sm" onClick={() => setHistory(true)}>
+        <button type="button" className="btn btn-sm max-sm:hidden" onClick={() => setHistory(true)}>
           🕘 {t("History")}
         </button>
         <FocusToggle />
-        <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm">
+        <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm shrink-0">
           {(close) => (
             <>
+              <MenuItem className="sm:hidden" onClick={() => (close(), setHistory(true))}>
+                🕘 {t("History")}
+              </MenuItem>
               <MenuItem checked={fullWidth} onClick={() => (setFullWidth(!fullWidth), void patch({ fullWidth: !fullWidth }), close())}>
                 {t("Full width")}
               </MenuItem>
