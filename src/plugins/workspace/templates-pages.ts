@@ -20,6 +20,11 @@ const columns = (...cols: (string | [number, string])[]): DocNode => ({
     return { type: "flexBox", attrs: { dir: "col", gap: "sm", span }, content: md(text) };
   }),
 });
+/** Blocks side by side, each column its blocks (empty columns left out — a widget of a plugin not installed). */
+const row = (...cols: DocNode[][]): DocNode[] => {
+  const content = cols.filter((c) => c.length).map((c): DocNode => ({ type: "flexBox", attrs: { dir: "col", gap: "md", span: null }, content: c }));
+  return content.length ? [{ type: "flexBox", attrs: { dir: "row", gap: "lg" }, content }] : [];
+};
 const widget = (id: string, config: Record<string, unknown> = {}): DocNode[] => (widgetCatalog().some((w) => w.id === id) ? [{ type: "zeffWidget", attrs: { widget: id, config: JSON.stringify(config), title: "" } }] : []);
 const today = () => formatDate(new Date(), { year: true });
 
@@ -32,6 +37,8 @@ function make(parentId: number | null, title: string, icon: string, content: Doc
 export function meetingPage(parentId: number | null): number {
   return make(parentId, t("Meeting"), "🗓️", [
     ...md(`:::callout 🗓️ blue\n**${t("Date")}:** ${today()} · **${t("Attendees")}:** ${t("type @ to add people")}\n\n${t("Goal of the meeting, in one sentence.")}\n:::`),
+    // Before it: who you meet, when you last met, what is open between you.
+    ...widget("people.briefs", { limit: 4 }),
     columns(`## ${t("Agenda")}\n\n1. \n2. \n3. `, [2, `## ${t("Notes")}\n\n- `]),
     ...md(`## ${t("Decisions")}\n\n:::callout ✅ green\n- \n:::\n\n## ${t("Action items")}\n\n- [ ] ${t("Who does what — by when")}\n- [ ] \n\n:::toggle ${t("Parking lot — for another time")}\n- \n:::`),
   ]);
@@ -41,6 +48,8 @@ export function oneOnOnePage(parentId: number | null): number {
   return make(parentId, t("1:1"), "🤝", [
     ...md(`:::callout 🤝 gray\n${t("A conversation that repeats. Keep the open points at the top; move what is done into the log below.")}\n:::`),
     columns(`## ${t("Their topics")}\n\n- `, `## ${t("My topics")}\n\n- `),
+    // What is open between you (their name in the widget's settings).
+    ...widget("people.owed", { who: "all", person: "", limit: 6 }),
     ...md(`## ${t("Wins since last time")}\n\n- \n\n## ${t("Blockers")}\n\n- \n\n## ${t("Next steps")}\n\n- [ ] \n\n:::toggle ${t("Feedback (both ways)")}\n- \n:::\n\n:::toggle ${t("Log of earlier conversations")}\n**${today()}** — \n:::`),
   ]);
 }
@@ -61,7 +70,8 @@ export function weeklyReviewPage(parentId: number | null): number {
     [
       ...md(`:::callout 🔁 gray\n${t("Fifteen minutes on Friday: what the week brought, what is left, what changes next week. The figures above are live.")}\n:::`),
       ...widget("workspace.overview"),
-      columns(`## ✅ ${t("Done")}\n\n- `, `## ⏳ ${t("Not done — and why")}\n\n- `, `## 🎯 ${t("Next week")}\n\n- [ ] `),
+      ...row(widget("todos.done", { since: "week", limit: 10 }), [...md(`## ⏳ ${t("Not done — and why")}\n\n- `), ...md(`## 🎯 ${t("Next week")}\n\n- [ ] `)]),
+      ...row(widget("calendar.agenda"), widget("people.upcoming", { days: 10, limit: 5 })),
       ...md(`## ${t("One thing to change")}\n\n\n:::toggle ${t("Energy and mood (1–5)")}\n- \n:::`),
     ],
     true,
@@ -82,19 +92,28 @@ export function wikiHomePage(parentId: number | null): number {
   );
 }
 
+/** With the Finances plugin: your debts and claims as figures and the payments ahead (both ways), the deadlines from your letters; without it: the cases' figures. */
 export function financesPage(parentId: number | null): number {
+  const finances = widgetCatalog().some((w) => w.id === "finances.figures");
   return make(
     parentId,
     t("Finances"),
     "💶",
-    [
-      ...md(`:::callout 💶 blue\n${t("Your cases at a glance: what is open, what is due, what you owe. The figures are live — a payment opens its case with the GiroCode.")}\n:::`),
-      ...widget("cases.figures"),
-      ...widget("cases.due", { days: 30, limit: 10 }),
-      ...widget("cases.open", { limit: 10 }),
-      ...widget("people.owed", { who: "mine", limit: 8 }),
-      ...md(`:::toggle ${t("Budget notes")}\n- \n:::`),
-    ],
+    finances
+      ? [
+          ...md(`:::callout 💶 blue\n${t("Your money at a glance: what is open, what runs a month, when you are debt-free and what is left. Live — a payment leads to its debt, the overview has the plans and charts.")}\n:::`),
+          ...widget("finances.figures", { dir: "owe" }),
+          ...row(widget("finances.payments", { dir: "owe", days: 45, limit: 8 }), widget("finances.payments", { dir: "owed", days: 90, limit: 6 })),
+          ...widget("cases.due", { days: 30, limit: 8 }),
+          ...md(`:::toggle ${t("Budget notes")}\n- \n:::`),
+        ]
+      : [
+          ...md(`:::callout 💶 blue\n${t("Your cases at a glance: what is open, what is due, what you owe. The figures are live — a payment opens its case with the GiroCode.")}\n:::`),
+          ...widget("cases.figures"),
+          ...widget("cases.due", { days: 30, limit: 10 }),
+          ...widget("cases.open", { limit: 10 }),
+          ...md(`:::toggle ${t("Budget notes")}\n- \n:::`),
+        ],
     true,
   );
 }

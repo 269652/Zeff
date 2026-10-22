@@ -16,7 +16,7 @@ test("templates: Finances and Who owes whom are pages of live widgets; an author
   for (const k of ["finances", "who-owes", "authority", "installment-plan", "contracts"]) assert.ok(keys.includes(k), k);
 
   const widgetsOf = (id: number) => JSON.stringify(getPage(id)!.content).match(/"widget":"[a-z.]+"/g) ?? [];
-  assert.deepEqual(widgetsOf(await fromTemplate("finances", null)), ['"widget":"cases.figures"', '"widget":"cases.due"', '"widget":"cases.open"', '"widget":"people.owed"']);
+  assert.deepEqual(widgetsOf(await fromTemplate("finances", null)), ['"widget":"cases.figures"', '"widget":"cases.due"', '"widget":"cases.open"'], "without the Finances plugin: the cases' figures");
   assert.equal(widgetsOf(await fromTemplate("who-owes", null)).length, 2);
   assert.ok(getPage(await fromTemplate("authority", null)));
 
