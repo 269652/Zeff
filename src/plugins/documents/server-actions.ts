@@ -145,3 +145,15 @@ export async function saveDocumentSettingsAction(v: { transcriber: string; autoI
     return t("Saved.");
   });
 }
+
+/** The documents app's search: the ids of the documents holding every word typed — in their whole text, not only the name. */
+export async function documentsMatchingAction(q: string): Promise<number[]> {
+  if (off()) return [];
+  return (await import("./fulltext")).documentsMatching(String(q ?? "").slice(0, 300));
+}
+
+/** A document's whole text and its summary, for its detail. */
+export async function documentTextAction(id: number): Promise<{ text: string; summary: string } | null> {
+  if (off()) return null;
+  return (await import("./fulltext")).documentText(Number(id));
+}

@@ -107,7 +107,7 @@ const template = (t: T) => `<state name="scope" value="inbox"/>
           {{#if docfrom}}${fact(t("From"), "{{ docfrom }}")}{{/if}}
           ${fact(t("State"), "{{ app.picked.state }}")}
         </col>
-        {{#if app.picked.abstract}}<section title="${t("Abstract")}"><text>{{ app.picked.abstract }}</text></section>{{/if}}
+        <part name="documents.text"/>
         {{#if app.picked.concepts}}<row gap=1>{{#each app.picked.concepts}}<button action="documents.find" value="{{ this }}" label="{{ this }}" variant=quiet/>{{/each}}</row>{{/if}}
       </box>
     </selected>
@@ -124,6 +124,7 @@ export const DOCUMENTS_VIEW: ViewAppMeta = {
     { name: "documents.pdf", description: "A PDF shown in a frame (the preview)" },
     { name: "documents.file", description: "Open (the file in a new tab — it is read then) and Download" },
     { name: "documents.check", description: "The box to tick a document (several: shift-click ticks the ones between) — state.checked" },
+    { name: "documents.text", description: "The picked document's summary and its whole text (what was read from it, word for word), the text a click away" },
   ],
   actions: [
     { name: "documents.read", description: "mark read: the row (in a row), else the ones ticked" },

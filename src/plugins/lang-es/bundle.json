@@ -7187,5 +7187,7 @@
   "The hours booked (get_weekly_report), if there is time tracking.": "Las horas registradas (get_weekly_report), si hay registro de tiempo.",
   "What is still open and why — the overdue first.": "Lo que sigue pendiente y por qué — lo vencido primero.",
   "Three suggestions for next week.": "Tres sugerencias para la próxima semana.",
-  "Write the weekly review": "Escribir el repaso semanal"
+  "Write the weekly review": "Escribir el repaso semanal",
+  "Full text": "Texto completo",
+  "No text read from it yet.": "Aún no se ha leído texto."
 }

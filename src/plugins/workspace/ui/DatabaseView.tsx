@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { templateParamsAction, discardIfUntouchedAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { templateParamsAction, discardIfUntouchedAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -250,6 +250,19 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const { data } = api;
   const [current, setCurrent] = useState(viewId ?? "");
   const [q, setQ] = useState("");
+  // What was typed found on the rows' pages too (a document's whole text, a mail's body) — the server's answer, a moment later.
+  const [pageHits, setPageHits] = useState<{ q: string; ids: Set<number> } | null>(null);
+  useEffect(() => {
+    const w = q.trim();
+    if (!w) return;
+    let gone = false;
+    const timer = setTimeout(() => void rowsMatchingAction(dbId, w).then((ids) => !gone && setPageHits({ q: w, ids: new Set(ids) })), 250);
+    return () => {
+      gone = true;
+      clearTimeout(timer);
+    };
+  }, [q, dbId]);
+  const onPage = q.trim() && pageHits?.q === q.trim() ? pageHits.ids : undefined;
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
   const search = useSearchParams();
@@ -304,9 +317,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     const onlyMine = mine || !!view.mine;
     if (personProp && (onlyMine || people.size)) r = filterByPeople(r, personProp, onlyMine ? mineKeys(personProp, data.extras?.me ?? { names: [], ids: [] }) : people);
     const w = q.trim().toLowerCase();
-    if (w) r = r.filter((x) => x.title.toLowerCase().includes(w) || props.some((p) => cellText(p, x.cells[p.id], labels).toLowerCase().includes(w)));
+    if (w) r = r.filter((x) => x.title.toLowerCase().includes(w) || props.some((p) => cellText(p, x.cells[p.id], labels).toLowerCase().includes(w)) || !!onPage?.has(x.id));
     return sortRows(r, view.sorts, props);
-  }, [data, view, q, labels, personProp, mine, people]);
+  }, [data, view, q, labels, personProp, mine, people, onPage]);
   // How many of its rows the database hides.
   const hiddenCount = data?.schema.hiddenRows?.length ? data.rows.filter((r) => data.schema.hiddenRows!.includes(r.id)).length : 0;
 

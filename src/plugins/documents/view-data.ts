@@ -26,7 +26,7 @@ const optionLabel = (s: string) => s.replace(/[,:]/g, " ").trim();
 export const scopeTab = (id: string) => id.replace(/^kind:/, "kind-");
 export const scopeOf = (s: string | undefined) => (s || "inbox").replace(/^kind-/, "kind:");
 
-export function documentsAppData(rows: Row[], v: { state: Record<string, string>; previews?: Record<number, PreviewLine[]>; t: T; now: number; inTree?: boolean; locale?: string }): Record<string, unknown> {
+export function documentsAppData(rows: Row[], v: { state: Record<string, string>; previews?: Record<number, PreviewLine[]>; t: T; now: number; inTree?: boolean; locale?: string; /** The documents (their ids) whose whole text holds what was searched — the server's answer. */ matches?: Set<number> }): Record<string, unknown> {
   const { t, state, now } = v;
   const docs = rows.filter((r) => docIdOf(r) > 0);
   const scope = scopeOf(state.scope);
@@ -43,7 +43,7 @@ export function documentsAppData(rows: Row[], v: { state: Record<string, string>
     size: (a, b) => size(b) - size(a),
     unread: (a, b) => Number(unread(b)) - Number(unread(a)) || added(b).localeCompare(added(a)),
   };
-  const shown = docs.filter((r) => inScope(factsOf(r.cells), scope, now) && (!w || hay(r).includes(w))).sort(cmp[sort] ?? cmp.newest);
+  const shown = docs.filter((r) => inScope(factsOf(r.cells), scope, now) && (!w || hay(r).includes(w) || !!v.matches?.has(docIdOf(r)))).sort(cmp[sort] ?? cmp.newest);
   const nav = docNav(docs.map((r) => factsOf(r.cells)), t, now);
   const picked = shown.find((r) => String(r.id) === state.selected) ?? null;
   const ids = new Set(docs.map((r) => r.id));

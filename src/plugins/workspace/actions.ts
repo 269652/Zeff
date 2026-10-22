@@ -1518,3 +1518,8 @@ export async function activityAction(pageId: number, limit = 30) {
 export async function belongsAction(pageId: number) {
   return run(async () => ({ belongs: await (await import("./belongs")).belongsTo(Number(pageId)) }));
 }
+
+/** The search box over a database: its rows whose pages say what was typed (a document's text, a mail's body) — the cells it searches itself. */
+export async function rowsMatchingAction(dbId: number, q: string): Promise<number[]> {
+  return (await import("./row-search")).rowsMatching(Number(dbId), String(q ?? "").slice(0, 300));
+}

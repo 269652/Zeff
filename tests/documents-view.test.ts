@@ -134,7 +134,7 @@ test("the preview: the PDF in a frame (else the picture), the file's buttons, th
   assert.deepEqual(buttons.filter((b) => b.a.action === "documents.find").map((b) => b.a.value), ["Mahnung", "Inkasso"]);
   const text = vnodeToString(sel.c);
   assert.match(text, /Read and compiled/);
-  assert.match(text, /Zahlungserinnerung/);
+  assert.match(text, /<part name=documents.text/, "the summary and the whole text: a part that loads them");
   const image = find(draw({ scope: "all", selected: "2" }).nodes, "selected")[0];
   assert.deepEqual(find(image.c, "part").filter((p) => p.a.name === "documents.thumb").map((p) => p.a.big), ["true"]);
   assert.ok(find(image.c, "button").some((b) => b.a.action === "documents.unread"), "read: mark unread");

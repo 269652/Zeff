@@ -10,7 +10,7 @@ import type { Row } from "@/plugins/workspace/model";
 import type { ActionEnv, AppViewProps, PartProps, ViewAppModule } from "@/plugins/workspace/ui/app-view";
 import { uploadDocuments } from "../DocumentsApp";
 import { DOC_KINDS_NAV } from "../nav";
-import { deleteDocumentAction } from "../server-actions";
+import { deleteDocumentAction, documentsMatchingAction, documentTextAction } from "../server-actions";
 import { checkedIds, docIdOf, documentsAppData, scopeOf, scopeTab } from "../view-data";
 
 /**
@@ -28,9 +28,22 @@ function useDocumentsData(props: AppViewProps, state: Record<string, string>) {
   // ("This week" is the week of when the view was opened.)
   const [now] = useState(() => Date.now());
   const previews = props.data.extras?.previews;
+  // What is searched, in the documents' whole text too (the server's answer, a moment after typing).
+  const q = (state.q ?? "").trim();
+  const [found, setFound] = useState<{ q: string; ids: Set<number> } | null>(null);
+  useEffect(() => {
+    if (!q) return;
+    let gone = false;
+    const timer = setTimeout(() => void documentsMatchingAction(q).then((ids) => !gone && setFound({ q, ids: new Set(ids) })), 250);
+    return () => {
+      gone = true;
+      clearTimeout(timer);
+    };
+  }, [q]);
+  const matches = q && found?.q === q ? found.ids : undefined;
   const data = useMemo(
-    () => documentsAppData(props.rows, { state: inTree ? { ...state, scope: scopeTab(asked ?? "inbox") } : state, previews, t, now, inTree, locale: typeof navigator !== "undefined" ? navigator.language : undefined }),
-    [props.rows, state, inTree, asked, previews, t, now],
+    () => documentsAppData(props.rows, { state: inTree ? { ...state, scope: scopeTab(asked ?? "inbox") } : state, previews, t, now, inTree, locale: typeof navigator !== "undefined" ? navigator.language : undefined, matches }),
+    [props.rows, state, inTree, asked, previews, t, now, matches],
   );
   // (t: for the buttons' own texts — the actions are no components.)
   return { data: useMemo(() => ({ ...data, t }), [data, t]), reload: props.reload };
@@ -201,6 +214,46 @@ function Thumb({ row, big }: { row: Row; big: boolean }) {
 
 const FRAME = "aspect-[4/3] w-full overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800";
 
+/**
+ * The picked document's summary and its whole text (what was read from it, word for word) — the summary shown, the text a click
+ * away; loaded when it is picked.
+ */
+function TextPart(p: PartProps) {
+  const t = useT();
+  const row = rowOf(p);
+  const id = row ? docIdOf(row) : 0;
+  const [got, setGot] = useState<{ id: number; text: string; summary: string } | null>(null);
+  useEffect(() => {
+    if (!id) return;
+    let gone = false;
+    void documentTextAction(id).then((r) => !gone && r && setGot({ id, ...r }));
+    return () => {
+      gone = true;
+    };
+  }, [id]);
+  if (!id || got?.id !== id) return null;
+  return (
+    <div className="space-y-2 text-sm">
+      {got.summary && (
+        <section>
+          <h4 className="mb-0.5 text-xs font-semibold text-zinc-500">{t("Summary")}</h4>
+          <p className="whitespace-pre-wrap">{got.summary}</p>
+        </section>
+      )}
+      {got.text ? (
+        <details open={!got.summary}>
+          <summary className="cursor-pointer text-xs font-semibold text-zinc-500">
+            {t("Full text")} <span className="font-normal">· {t("{n} characters", { n: got.text.length.toLocaleString() })}</span>
+          </summary>
+          <p className="mt-1 max-h-[60vh] overflow-auto rounded-md bg-zinc-50 p-2 text-[13px] leading-relaxed whitespace-pre-wrap dark:bg-zinc-900">{got.text}</p>
+        </details>
+      ) : (
+        <p className="text-xs text-zinc-500">{t("No text read from it yet.")}</p>
+      )}
+    </div>
+  );
+}
+
 function ThumbPart(p: PartProps) {
   const row = rowOf(p);
   if (!row || !docIdOf(row)) return null;
@@ -287,6 +340,7 @@ const view: ViewAppModule = {
     "documents.pdf": PdfPart,
     "documents.file": FilePart,
     "documents.check": CheckPart,
+    "documents.text": TextPart,
   },
   useAppData: useDocumentsData,
   actions: {
