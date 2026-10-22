@@ -29,15 +29,14 @@ const template = (t: T) => `<state name="paying" value=""/>
   <tile label="${t("Overdue")}" value="{{ app.overdue }}" tone="{{ app.overdue > 0 ? 'bad' : 'plain' }}"/>
 </grid>
 
-<list source="app.cases" empty="${t("No case running.")}">
+<list source="app.cases" spacing=roomy empty="${t("No case running.")}">
   <row gap=4 align=baseline>
-    {{#if label}}<muted>{{ label }}</muted>{{/if}}
-    <col gap=0>
-      {{#if rowId}}<button action="open" row="{{ rowId }}" label="{{ name }}" variant=link/><printonly><b>{{ name }}</b></printonly>{{#else}}<b>{{ name }}</b>{{/if}}
-      {{#if sub}}<muted>{{ sub }}</muted>{{/if}}
+    {{#if label}}<mono>{{ label }}</mono>{{/if}}
+    <col gap=0 fill=true>
+      <truncate>{{#if rowId}}<button action="open" row="{{ rowId }}" label="{{ name }}" variant=link print=true/>{{#else}}<b>{{ name }}</b>{{/if}}</truncate>
+      {{#if sub}}<truncate><muted>{{ sub }}</muted></truncate>{{/if}}
     </col>
-    <grow/>
-    {{ open | euro | default('—') }}
+    <b tip="${t("From the case's letters and mails")}">{{ open | euro | default('—') }}</b>
   </row>
   <row gap=3>
     {{#if hasDue}}
