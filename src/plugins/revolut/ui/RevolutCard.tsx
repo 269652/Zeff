@@ -7,13 +7,13 @@ import { qrMatrix, qrPath } from "@/lib/girocode";
 import { revolutLink } from "../actions";
 
 /**
- * A payment by RevTag, in its todo's card: a QR code of their revolut.me page — scanned with the phone it opens the payment in
- * the Revolut app, like a GiroCode does in a banking app (a GiroCode itself needs an IBAN) — and beside it what to copy: the
- * tag, the amount, the note.
+ * A payment by RevTag, in its todo's card: a QR code of their revolut.me page with the amount and the note in it — scanned with
+ * the phone it opens the payment in the Revolut app, filled in, like a GiroCode does in a banking app (a GiroCode itself needs an
+ * IBAN) — and beside it the same to copy.
  */
 export function RevolutCard({ op }: { op: { name: string; revtag: string; amount: string; note: string } }) {
   const t = useT();
-  const url = revolutLink(op.revtag, op.amount);
+  const url = revolutLink(op.revtag, op.amount, op.note);
   const m = useMemo(() => {
     try {
       return qrMatrix(url);
@@ -49,7 +49,6 @@ export function RevolutCard({ op }: { op: { name: string; revtag: string; amount
             <path d={qrPath(m)} fill="#000" />
           </svg>
           <span className="block text-xs text-zinc-500">{t("Scan with your phone — opens Revolut")}</span>
-          {op.note && <span className="block max-w-40 text-xs text-zinc-400">{t("The note isn't taken along — copy it")}</span>}
         </a>
       )}
     </span>

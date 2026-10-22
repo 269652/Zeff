@@ -74,8 +74,9 @@ test("the Revolut action: a payment by RevTag opens their revolut.me page — ne
   const a = REVOLUT_ACTIONS[0];
   const op = a.clean({ name: "Chris Ballhaus", revtag: "@ChrisB93", amount: "150 €", note: "Zurück, danke!" }, { ticket: "" })!;
   assert.deepEqual(op, { type: "revolut-pay", name: "Chris Ballhaus", revtag: "chrisb93", amount: "150.00", note: "Zurück, danke!" });
-  assert.equal(a.href!(op), "https://revolut.me/chrisb93/150", "the amount in the link");
-  assert.equal(a.href!({ ...op, amount: "" }), "https://revolut.me/chrisb93");
+  assert.equal(a.href!(op), "https://revolut.me/chrisb93?currency=EUR&amount=15000&note=Zur%C3%BCck%2C%20danke%21", "amount (in cents) and note in the link");
+  assert.equal(a.href!({ ...op, amount: "", note: "" }), "https://revolut.me/chrisb93?currency=EUR");
+  assert.equal(new URL(a.href!({ ...op, note: "x".repeat(80) })).searchParams.get("note")!.length, 64, "the note at most 64 characters");
   assert.match(a.title(op), /150,00 €.*Chris Ballhaus/);
   assert.equal(a.clean({ name: "Chris", revtag: "" }, { ticket: "" }), null);
   assert.equal(revtagOf("revolut.me/chrisb93?x=1"), "chrisb93");

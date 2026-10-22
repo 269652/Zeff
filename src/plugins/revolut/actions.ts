@@ -25,8 +25,18 @@ function amountOf(v: unknown): string {
   return Number.isFinite(n) && n > 0 && n < 1e7 ? n.toFixed(2) : "";
 }
 
-/** Their revolut.me link, the amount in it when there is one ("150", "12.5") — a note can't be put in it. */
-export const revolutLink = (revtag: string, amount = "") => `https://revolut.me/${encodeURIComponent(revtag)}${amount && Number(amount) > 0 ? `/${Number(amount)}` : ""}`;
+/**
+ * Their revolut.me link, prefilled: ?currency=EUR&amount=<cents>&note=<at most 64 characters> (what Revolut's payment page
+ * reads — not a documented API; a blank amount or note left out).
+ */
+export function revolutLink(revtag: string, amount = "", note = ""): string {
+  const q = new URLSearchParams({ currency: "EUR" });
+  const cents = Math.round(Number(amount) * 100);
+  if (amount && cents > 0) q.set("amount", String(cents));
+  const n = [...note.trim()].slice(0, 64).join("");
+  if (n) q.set("note", n);
+  return `https://revolut.me/${encodeURIComponent(revtag)}?${q.toString().replace(/\+/g, "%20")}`;
+}
 
 const euro = (amount: string) => (amount ? `${Number(amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "");
 
@@ -42,7 +52,7 @@ export const REVOLUT_ACTIONS = [
         name: "die Person, wie sie heißt",
         revtag: "ihr RevTag, ohne @",
         amount: "der Betrag in Euro (z. B. 150) — leer, wenn er nicht feststeht",
-        note: "eine kurze Notiz für die Zahlung (wofür)",
+        note: "eine kurze Notiz für die Zahlung (wofür) — höchstens 64 Zeichen",
       },
       example: { type: "revolut-pay", name: "Chris Ballhaus", revtag: "chrisb", amount: "150", note: "Zurück, danke fürs Leihen!" },
     },
@@ -53,7 +63,7 @@ export const REVOLUT_ACTIONS = [
     },
     title: (op, t = EN) => (op.amount ? t("Pay {amount} to {name} with Revolut", { amount: euro(op.amount), name: op.name }) : t("Pay {name} with Revolut", { name: op.name })),
     note: (op, t = EN) => ({ heading: t("Pay {name} with Revolut", { name: op.name }), detail: [euro(op.amount), op.note].filter(Boolean).join(" · ") || null, body: `@${op.revtag} · revolut.me/${op.revtag}` }),
-    // Their revolut.me page (with the amount: revolut.me/<tag>/<amount>): on the phone it opens the Revolut app; you send the money yourself.
-    href: (op) => revolutLink(op.revtag, op.amount),
+    // Their revolut.me page with the amount and the note: on the phone it opens the Revolut app; you send the money yourself.
+    href: (op) => revolutLink(op.revtag, op.amount, op.note),
   }),
 ];
