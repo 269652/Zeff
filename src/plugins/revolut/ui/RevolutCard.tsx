@@ -4,24 +4,39 @@ import { Fragment, useMemo } from "react";
 import { useT } from "@/components/I18nProvider";
 import { CopyButton } from "@/components/CopyButton";
 import { qrMatrix, qrPath } from "@/lib/girocode";
-import { revolutLink } from "../actions";
+import { revolutLink, revolutPhoneLinks } from "../actions";
 
 /**
- * A payment by RevTag, in its todo's card: a QR code of their revolut.me page with the amount and the note in it — scanned with
- * the phone it opens the payment in the Revolut app, filled in, like a GiroCode does in a banking app (a GiroCode itself needs an
- * IBAN) — and beside it the same to copy.
+ * A payment by RevTag, in its todo's card: their revolut.me page with the amount and the note in it — a click here opens it; the
+ * phone gets a code of its own (iPhone, Android), which opens it in the phone's browser: the Revolut app would take the link and
+ * drop the amount and the note, the page fills both in. Beside it the same to copy.
  */
-export function RevolutCard({ op }: { op: { name: string; revtag: string; amount: string; note: string } }) {
-  const t = useT();
-  const url = revolutLink(op.revtag, op.amount, op.note);
+
+/** A QR code of `text`, small, with what it is for under it. */
+function Code({ text, label, title }: { text: string; label: string; title: string }) {
   const m = useMemo(() => {
     try {
-      return qrMatrix(url);
+      return qrMatrix(text);
     } catch {
       return null;
     }
-  }, [url]);
-  const n = (m?.length ?? 0) + 8;
+  }, [text]);
+  if (!m) return null;
+  const n = m.length + 8;
+  return (
+    <span className="block shrink-0 space-y-1 text-center" title={title}>
+      <svg viewBox={`0 0 ${n} ${n}`} width={128} height={128} shapeRendering="crispEdges" role="img" aria-label={title} className="rounded-md ring-1 ring-zinc-200 dark:ring-zinc-700">
+        <rect width={n} height={n} fill="#fff" />
+        <path d={qrPath(m)} fill="#000" />
+      </svg>
+      <span className="block text-xs font-medium text-zinc-600 dark:text-zinc-300">{label}</span>
+    </span>
+  );
+}
+export function RevolutCard({ op }: { op: { name: string; revtag: string; amount: string; note: string } }) {
+  const t = useT();
+  const url = revolutLink(op.revtag, op.amount, op.note);
+  const phone = revolutPhoneLinks(op.revtag, op.amount, op.note);
   const amount = op.amount ? Number(op.amount).toLocaleString("de-DE", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "";
   const fields = [
     { label: t("Recipient"), value: op.name, copy: op.name },
@@ -42,15 +57,16 @@ export function RevolutCard({ op }: { op: { name: string; revtag: string; amount
           </Fragment>
         ))}
       </dl>
-      {m && (
-        <a href={url} target="_blank" rel="noreferrer" className="shrink-0 space-y-1 text-center" title={t("Opens {name}'s Revolut page", { name: op.name })}>
-          <svg viewBox={`0 0 ${n} ${n}`} width={140} height={140} shapeRendering="crispEdges" role="img" aria-label={t("Revolut code")} className="rounded-md ring-1 ring-zinc-200 dark:ring-zinc-700">
-            <rect width={n} height={n} fill="#fff" />
-            <path d={qrPath(m)} fill="#000" />
-          </svg>
-          <span className="block text-xs text-zinc-500">{t("Scan with your phone — opens Revolut")}</span>
+      {/* A code per phone: each opens the page in that phone's browser (the Revolut app would drop the amount and the note). */}
+      <span className="flex shrink-0 flex-col items-center gap-1">
+        <span className="flex gap-3">
+          <Code text={phone.ios} label="iPhone" title={t("Scan with the iPhone's camera — opens in Safari with the amount and the note")} />
+          <Code text={phone.android} label="Android" title={t("Scan with the Android camera — opens in Chrome with the amount and the note")} />
+        </span>
+        <a href={url} target="_blank" rel="noreferrer" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+          {t("Opens {name}'s Revolut page", { name: op.name })} ↗
         </a>
-      )}
+      </span>
     </span>
   );
 }

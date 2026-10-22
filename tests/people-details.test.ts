@@ -81,3 +81,12 @@ test("the Revolut action: a payment by RevTag opens their revolut.me page — ne
   assert.equal(a.clean({ name: "Chris", revtag: "" }, { ticket: "" }), null);
   assert.equal(revtagOf("revolut.me/chrisb93?x=1"), "chrisb93");
 });
+
+test("the phones' codes: past the Revolut app (it drops the amount and the note) into the browser — Safari on an iPhone, Chrome on Android — with the same page", async () => {
+  const { revolutLink, revolutPhoneLinks } = await import("@/plugins/revolut/actions");
+  const web = revolutLink("chrisb93", "150.00", "Zurück, danke!");
+  const { ios, android } = revolutPhoneLinks("chrisb93", "150.00", "Zurück, danke!");
+  assert.equal(ios, `x-safari-${web}`);
+  assert.ok(android.startsWith(`intent://revolut.me/chrisb93?${web.split("?")[1]}#Intent;scheme=https;package=com.android.chrome;`));
+  assert.ok(android.endsWith(`S.browser_fallback_url=${encodeURIComponent(web)};end`), "no Chrome: the page as it is");
+});

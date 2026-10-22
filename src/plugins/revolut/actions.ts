@@ -38,6 +38,17 @@ export function revolutLink(revtag: string, amount = "", note = ""): string {
   return `https://revolut.me/${encodeURIComponent(revtag)}?${q.toString().replace(/\+/g, "%20")}`;
 }
 
+/**
+ * The same page for a phone's camera: the Revolut app claims every revolut.me link (its app-site association) and drops the amount
+ * and the note — these open the phone's browser instead, where the page fills both in. iPhone: x-safari-https (Safari, iOS 17+);
+ * Android: an intent for Chrome (without Chrome: the page as it is, which the app may take).
+ */
+export function revolutPhoneLinks(revtag: string, amount = "", note = ""): { ios: string; android: string } {
+  const web = revolutLink(revtag, amount, note);
+  const rest = web.replace(/^https:\/\//, "");
+  return { ios: `x-safari-${web}`, android: `intent://${rest}#Intent;scheme=https;package=com.android.chrome;S.browser_fallback_url=${encodeURIComponent(web)};end` };
+}
+
 const euro = (amount: string) => (amount ? `${Number(amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "");
 
 export const REVOLUT_ACTIONS = [

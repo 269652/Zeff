@@ -6854,5 +6854,7 @@
   "Opens {name}'s Revolut page": "Öffnet die Revolut-Seite von {name}",
   "Revolut code": "Revolut-Code",
   "Scan with your phone — opens Revolut": "Mit dem Handy scannen — öffnet Revolut",
-  "The note isn't taken along — copy it": "Die Notiz kommt nicht mit — kopier sie"
+  "The note isn't taken along — copy it": "Die Notiz kommt nicht mit — kopier sie",
+  "Scan with the iPhone's camera — opens in Safari with the amount and the note": "Mit der iPhone-Kamera scannen — öffnet in Safari mit Betrag und Notiz",
+  "Scan with the Android camera — opens in Chrome with the amount and the note": "Mit der Android-Kamera scannen — öffnet in Chrome mit Betrag und Notiz"
 }
