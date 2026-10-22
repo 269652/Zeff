@@ -5,6 +5,7 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { CALC_FNS, formatNumber, rollup, type CalcFn, type Property, type Row, type View } from "../model";
 import { publishValueAction, unpublishValueAction, valuesOfDbAction, type PublishedHere } from "../values-actions";
+import { Dropdown, MenuItem } from "./kit";
 
 /**
  * A table's sum row: under each number column a calculation — sum, average, min, max, count — over the rows the view shows,
@@ -33,7 +34,7 @@ export function CalcCell({ p, view, rows, dbId, setView, published }: { p: Prope
   const t = useT();
   const labels = useCalcLabels();
   const [naming, setNaming] = useState<string | null>(null);
-  if (!p || !NUMERIC.has(p.type)) return <td />;
+  if (!p || !NUMERIC.has(p.type)) return <td className="bg-zinc-50/80 dark:bg-zinc-900/40" />;
   const fn = view.calcs?.[p.id];
   const value = fn ? rollup(fn, p, rows.map((r) => r.cells[p.id])) : null;
   const shown = typeof value === "number" && Number.isFinite(value) ? (fn === "count" || fn === "count_values" ? String(value) : formatNumber(p, Math.round(value * 100) / 100)) : "";
@@ -53,17 +54,37 @@ export function CalcCell({ p, view, rows, dbId, setView, published }: { p: Prope
     published.reload();
   };
   return (
-    <td className="group/calc align-top text-xs">
-      <div className="flex flex-wrap items-center justify-end gap-1">
-        {fn && <span className="font-semibold text-zinc-700 tabular-nums dark:text-zinc-200">{shown || "—"}</span>}
-        <select className={`rounded bg-transparent text-[11px] text-zinc-400 hover:text-zinc-700 dark:hover:text-zinc-200 ${fn ? "" : "opacity-0 group-hover/calc:opacity-100 focus:opacity-100"}`} value={fn ?? ""} onChange={(e) => choose(e.target.value)} aria-label={t("Calculate")}>
-          <option value="">{fn ? t("None") : t("Calculate")}</option>
-          {CALC_FNS.map((f) => (
-            <option key={f} value={f}>
-              {labels[f]}
-            </option>
-          ))}
-        </select>
+    <td className="bg-zinc-50/80 px-2 py-1.5 align-top text-xs dark:bg-zinc-900/40">
+      {/* What is calculated, and its figure — a click picks another (or none). Always there: the row says what it can do. */}
+      <div className="flex justify-end">
+        <Dropdown
+          align="right"
+          title={t("Calculate")}
+          className="inline-flex items-baseline gap-1.5 rounded-md px-1.5 py-0.5 whitespace-nowrap hover:bg-zinc-200/70 dark:hover:bg-zinc-800"
+          label={
+            fn ? (
+              <>
+                <span className="text-[11px] text-zinc-500">{labels[fn]}</span>
+                <span className="text-sm font-semibold text-zinc-800 tabular-nums dark:text-zinc-100">{shown || "—"}</span>
+              </>
+            ) : (
+              <span className="text-zinc-400">{t("Calculate")} ▾</span>
+            )
+          }
+        >
+          {(close) => (
+            <>
+              <MenuItem checked={!fn} onClick={() => (close(), choose(""))}>
+                {t("None")}
+              </MenuItem>
+              {CALC_FNS.map((f) => (
+                <MenuItem key={f} checked={fn === f} onClick={() => (close(), choose(f))}>
+                  {labels[f]}
+                </MenuItem>
+              ))}
+            </>
+          )}
+        </Dropdown>
       </div>
       {fn && (
         <div className="mt-0.5 flex justify-end">
@@ -72,7 +93,7 @@ export function CalcCell({ p, view, rows, dbId, setView, published }: { p: Prope
               = {mine.label}
             </button>
           ) : naming === null ? (
-            <button type="button" className="text-[11px] text-indigo-600 opacity-0 group-hover/calc:opacity-100 hover:underline focus:opacity-100 dark:text-indigo-400" onClick={() => setNaming("")}>
+            <button type="button" className="px-1.5 text-[11px] text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setNaming("")}>
               {t("Make available …")}
             </button>
           ) : (

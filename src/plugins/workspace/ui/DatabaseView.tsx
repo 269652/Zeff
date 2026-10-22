@@ -1165,16 +1165,20 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
               ))}
             {!folded.has(g.key) && !ctx.data.noNewRows && (
               <tr>
-                <td colSpan={visible.length + 3}>
+                <td colSpan={visible.length + 3} className="px-2 py-1">
+                  {/* A button that looks like one: its own outline on hover, the plus in a small square. */}
                   <button
                     type="button"
-                    className="w-full px-3 py-1.5 text-left text-sm text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+                    className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm font-medium text-zinc-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700 focus-visible:bg-indigo-50 focus-visible:text-indigo-700 dark:hover:bg-indigo-950/60 dark:hover:text-indigo-300"
                     onClick={() => {
                       const gp = view.groupBy ? schema.properties.find((p) => p.id === view.groupBy) : undefined;
                       void api.addRow(gp && g.key ? { [gp.id]: gp.type === "multi_select" || gp.type === "person" || gp.type === "relation" ? [gp.type === "multi_select" ? g.key : Number(g.key)] : gp.type === "checkbox" ? g.key === "true" : g.key } : {});
                     }}
                   >
-                    + {t("New")}
+                    <span className="grid size-5 place-items-center rounded border border-current text-xs leading-none" aria-hidden>
+                      +
+                    </span>
+                    {t("New")}
                   </button>
                 </td>
               </tr>
