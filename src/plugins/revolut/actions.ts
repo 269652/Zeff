@@ -25,6 +25,9 @@ function amountOf(v: unknown): string {
   return Number.isFinite(n) && n > 0 && n < 1e7 ? n.toFixed(2) : "";
 }
 
+/** Their revolut.me link, the amount in it when there is one ("150", "12.5") — a note can't be put in it. */
+export const revolutLink = (revtag: string, amount = "") => `https://revolut.me/${encodeURIComponent(revtag)}${amount && Number(amount) > 0 ? `/${Number(amount)}` : ""}`;
+
 const euro = (amount: string) => (amount ? `${Number(amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €` : "");
 
 export const REVOLUT_ACTIONS = [
@@ -50,7 +53,7 @@ export const REVOLUT_ACTIONS = [
     },
     title: (op, t = EN) => (op.amount ? t("Pay {amount} to {name} with Revolut", { amount: euro(op.amount), name: op.name }) : t("Pay {name} with Revolut", { name: op.name })),
     note: (op, t = EN) => ({ heading: t("Pay {name} with Revolut", { name: op.name }), detail: [euro(op.amount), op.note].filter(Boolean).join(" · ") || null, body: `@${op.revtag} · revolut.me/${op.revtag}` }),
-    // Their revolut.me page: on the phone it opens the Revolut app; you send the money yourself.
-    href: (op) => `https://revolut.me/${encodeURIComponent(op.revtag)}`,
+    // Their revolut.me page (with the amount: revolut.me/<tag>/<amount>): on the phone it opens the Revolut app; you send the money yourself.
+    href: (op) => revolutLink(op.revtag, op.amount),
   }),
 ];

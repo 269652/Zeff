@@ -4,6 +4,7 @@ import { Fragment, useMemo } from "react";
 import { useT } from "@/components/I18nProvider";
 import { CopyButton } from "@/components/CopyButton";
 import { qrMatrix, qrPath } from "@/lib/girocode";
+import { revolutLink } from "../actions";
 
 /**
  * A payment by RevTag, in its todo's card: a QR code of their revolut.me page — scanned with the phone it opens the payment in
@@ -12,7 +13,7 @@ import { qrMatrix, qrPath } from "@/lib/girocode";
  */
 export function RevolutCard({ op }: { op: { name: string; revtag: string; amount: string; note: string } }) {
   const t = useT();
-  const url = `https://revolut.me/${op.revtag}`;
+  const url = revolutLink(op.revtag, op.amount);
   const m = useMemo(() => {
     try {
       return qrMatrix(url);
@@ -48,6 +49,7 @@ export function RevolutCard({ op }: { op: { name: string; revtag: string; amount
             <path d={qrPath(m)} fill="#000" />
           </svg>
           <span className="block text-xs text-zinc-500">{t("Scan with your phone — opens Revolut")}</span>
+          {op.note && <span className="block max-w-40 text-xs text-zinc-400">{t("The note isn't taken along — copy it")}</span>}
         </a>
       )}
     </span>
