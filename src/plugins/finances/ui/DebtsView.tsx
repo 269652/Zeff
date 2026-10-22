@@ -229,7 +229,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
             {o.debts.map((d) => (
               <Fragment key={d.id}>
                 <tr className="group align-top transition-colors hover:bg-zinc-50/70 dark:hover:bg-zinc-900/40">
-                  <td className="max-w-80 min-w-48 px-3 py-3">
+                  <td className="max-w-72 min-w-44 px-3 py-3">
                     {/* The creditor's colour, as in the charts below. */}
                     <span className="flex items-center gap-2">
                       <span className="size-2.5 shrink-0 rounded-full" style={{ background: creditorOf[d.id]?.color }} aria-hidden />
@@ -261,7 +261,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
                   <td className="px-2 py-3 text-right tabular-nums">
                     <EditMoney readOnly={!d.manual} rowId={d.id} field="installment" value={d.installment} onSaved={load} />
                   </td>
-                  <td className={`max-w-52 px-2 py-3 ${d.plan.payments.some((p) => p.date < today) ? "font-medium text-red-600 dark:text-red-400" : ""}`}>
+                  <td className={`max-w-44 px-2 py-3 ${d.plan.payments.some((p) => p.date < today) ? "font-medium text-red-600 dark:text-red-400" : ""}`}>
                     <EditMoney readOnly={!d.manual} rowId={d.id} field="due" value={d.nextDue} onSaved={load} />
                     {d.nextWhat && (
                       <span className="block truncate text-xs font-normal text-zinc-500" title={d.nextWhat}>
@@ -281,7 +281,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
                     )}
                   </td>
                   <td className="px-3 py-2.5 print:hidden">
-                    <span className="flex min-w-24 items-center justify-end gap-1">
+                    <span className="flex items-center justify-end gap-1">
                       {owe && d.payment && (
                         <button type="button" className={`btn btn-sm ${paying === d.id ? "" : "btn-primary"}`} onClick={() => setPaying(paying === d.id ? null : d.id)}>
                           {paying === d.id ? t("Close") : t("Pay")}
@@ -323,7 +323,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
                 <td className="px-2 py-2.5 text-right tabular-nums">{euro(open)}</td>
                 <td className="px-2 py-2.5 text-right tabular-nums">
                   {euro(allRates)}
-                  {later > 0 && <span className="block text-xs font-normal text-zinc-500">{t("running now {amount}", { amount: euro(s.monthlyRates) })}</span>}
+                  {later > 0 && <span className="block text-xs font-normal whitespace-nowrap text-zinc-500">{t("running now {amount}", { amount: euro(s.monthlyRates) })}</span>}
                 </td>
                 <td colSpan={4} />
               </tr>
