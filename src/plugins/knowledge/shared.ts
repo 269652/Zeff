@@ -14,7 +14,16 @@ export type KnowledgePage = {
 };
 export type KnowledgeEntity = { id: number; name: string; type: string; summary: string; aliases: string[]; pages: number; related: { name: string; rel: string; dir: "out" | "in"; fact: string }[] };
 export type KnowledgeSource = { n: number; title: string; url: string; heading: string; excerpt: string };
-export type KnowledgeAnswer = { answer: string; sources: KnowledgeSource[]; entities: KnowledgeEntity[]; searchedFor: string; model: string | null; durationMs: number | null };
+export type KnowledgeAnswer = {
+  answer: string;
+  sources: KnowledgeSource[];
+  entities: KnowledgeEntity[];
+  searchedFor: string;
+  model: string | null;
+  durationMs: number | null;
+  /** Answered from Zeff's own data (the Structured questions plugin): the queries it was computed from — shown as "how it was computed". */
+  structured?: { queries: import("@/plugins/questions/shared").QueryResultView[] };
+};
 export type KnowledgeTurn = { role: "user" | "assistant"; text: string };
 export type KnowledgeStatus = {
   counts: { pages: number; compiled: number; chunks: number; entities: number; relations: number; spaces: number };

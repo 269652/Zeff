@@ -7135,5 +7135,15 @@
   "holds": "gilt",
   "disputed": "strittig",
   "superseded": "abgelöst",
-  "rejected": "abgelehnt"
+  "rejected": "abgelehnt",
+  "Structured questions": "Strukturierte Fragen",
+  "Questions about numbers and dates answered from your own data: “How much did I spend on craftsmen in 2026?”, “When did I last talk to Anna?”, “Which tickets cost me the most time?”. The AI picks a query over named, read-only views (time entries, bank transactions, calendar, todos, messages, Workspace databases), Zeff runs it and the AI answers with the numbers, the rows linked and the query shown. In the knowledge chat (questions about text still go to the knowledge) and for agents (MCP ask_structured).": "Fragen nach Zahlen und Daten, beantwortet aus deinen eigenen Daten: „Wie viel habe ich 2026 für Handwerker ausgegeben?“, „Wann habe ich zuletzt mit Anna gesprochen?“, „Welche Tickets haben mich am meisten Zeit gekostet?“. Die KI wählt eine Abfrage über benannte, nur lesende Sichten (Zeiteinträge, Kontobewegungen, Kalender, Todos, Nachrichten, Workspace-Datenbanken), Zeff führt sie aus, und die KI antwortet mit den Zahlen, den verlinkten Einträgen und der gezeigten Abfrage. Im Wissens-Chat (Fragen zu Texten gehen weiter an das Wissen) und für Agenten (MCP ask_structured).",
+  "Decides whether a question is about your data, plans the query over it and phrases the answer from the numbers.": "Entscheidet, ob eine Frage deine Daten betrifft, plant die Abfrage darüber und formuliert die Antwort aus den Zahlen.",
+  "How it was computed": "So gerechnet",
+  "no filters": "keine Filter",
+  "… and {n} more": "… und {n} weitere",
+  "Structured questions: the query": "Strukturierte Fragen: die Abfrage",
+  "Structured questions: the answer": "Strukturierte Fragen: die Antwort",
+  "Whether a question is about your data, and the query over it": "Ob eine Frage deine Daten betrifft, und die Abfrage darüber",
+  "The answer phrased from the query's numbers": "Die Antwort, aus den Zahlen der Abfrage formuliert"
 }

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { askKnowledgeAction } from "@/plugins/knowledge/server-actions";
 import { useT } from "@/components/I18nProvider";
 import type { KnowledgeAnswer, KnowledgeTurn } from "./shared";
+import type { QueryResultView } from "@/plugins/questions/shared";
 
 type Msg = { role: "user"; text: string } | { role: "assistant"; text: string; answer: KnowledgeAnswer };
 
@@ -33,9 +34,40 @@ function Cited({ text, answer }: { text: string; answer: KnowledgeAnswer }) {
   );
 }
 
+/** Under an answer from your data: the queries it was computed from — each in one line, its total and its first groups. */
+function HowComputed({ queries }: { queries: QueryResultView[] }) {
+  const t = useT();
+  return (
+    <details className="border-t border-zinc-100 pt-2 text-xs text-zinc-500 dark:border-zinc-800">
+      <summary className="cursor-pointer select-none">{t("How it was computed")}</summary>
+      <ul className="mt-1 space-y-2">
+        {queries.map((q, i) => (
+          <li key={i} className="space-y-0.5">
+            <code className="block break-words rounded bg-zinc-50 px-1.5 py-1 text-[11px] text-zinc-600 dark:bg-zinc-800/60 dark:text-zinc-300">{q.explain}</code>
+            <div>
+              {t("Total")}: <span className="font-medium text-zinc-700 dark:text-zinc-200">{String(q.total.value ?? "—")}</span> · {t("{n} rows", { n: q.total.count })}
+            </div>
+            {q.groups.length > 0 && (
+              <ul className="pl-3">
+                {q.groups.slice(0, 8).map((g) => (
+                  <li key={g.key}>
+                    {g.key}: <span className="text-zinc-700 dark:text-zinc-200">{String(g.value ?? "—")}</span> ({g.count})
+                  </li>
+                ))}
+                {q.groupsTotal > 8 && <li>{t("… and {n} more", { n: q.groupsTotal - 8 })}</li>}
+              </ul>
+            )}
+          </li>
+        ))}
+      </ul>
+    </details>
+  );
+}
+
 /**
  * Asking the knowledge base: a conversation — each answer from the Confluence pages the search
- * found, citing them; the sources and the entities it touched below it. Kept in this browser.
+ * found, citing them; the sources and the entities it touched below it. A question about numbers and dates in your own
+ * data is answered from it instead (Structured questions), with how it was computed below. Kept in this browser.
  */
 export function KnowledgeChat() {
   const t = useT();
@@ -106,6 +138,7 @@ export function KnowledgeChat() {
                   ))}
                 </ol>
               )}
+              {m.answer.structured && m.answer.structured.queries.length > 0 && <HowComputed queries={m.answer.structured.queries} />}
               {m.answer.entities.length > 0 && (
                 <div className="flex flex-wrap gap-1">
                   {m.answer.entities.map((e) => (

@@ -7135,5 +7135,15 @@
   "holds": "vigente",
   "disputed": "en disputa",
   "superseded": "sustituido",
-  "rejected": "rechazado"
+  "rejected": "rechazado",
+  "Structured questions": "Preguntas estructuradas",
+  "Questions about numbers and dates answered from your own data: “How much did I spend on craftsmen in 2026?”, “When did I last talk to Anna?”, “Which tickets cost me the most time?”. The AI picks a query over named, read-only views (time entries, bank transactions, calendar, todos, messages, Workspace databases), Zeff runs it and the AI answers with the numbers, the rows linked and the query shown. In the knowledge chat (questions about text still go to the knowledge) and for agents (MCP ask_structured).": "Preguntas sobre cifras y fechas respondidas a partir de tus propios datos: «¿Cuánto gasté en 2026 en artesanos?», «¿Cuándo hablé por última vez con Anna?», «¿Qué tickets me costaron más tiempo?». La IA elige una consulta sobre vistas con nombre de solo lectura (entradas de tiempo, movimientos bancarios, calendario, tareas, mensajes, bases de datos del Workspace), Zeff la ejecuta y la IA responde con las cifras, las filas enlazadas y la consulta mostrada. En el chat de conocimiento (las preguntas sobre textos siguen yendo al conocimiento) y para agentes (MCP ask_structured).",
+  "Decides whether a question is about your data, plans the query over it and phrases the answer from the numbers.": "Decide si una pregunta trata de tus datos, planifica la consulta sobre ellos y formula la respuesta a partir de las cifras.",
+  "How it was computed": "Así se calculó",
+  "no filters": "sin filtros",
+  "… and {n} more": "… y {n} más",
+  "Structured questions: the query": "Preguntas estructuradas: la consulta",
+  "Structured questions: the answer": "Preguntas estructuradas: la respuesta",
+  "Whether a question is about your data, and the query over it": "Si una pregunta trata de tus datos, y la consulta sobre ellos",
+  "The answer phrased from the query's numbers": "La respuesta formulada a partir de las cifras de la consulta"
 }

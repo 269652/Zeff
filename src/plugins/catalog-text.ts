@@ -85,6 +85,8 @@ export const catalogTexts = (t: T) => [
   t("the knowledge server — the launcher (Zeff.exe) starts it; every further account with this plugin gets its own, with its own database"),
   t("Chat"),
   t("Knowledge matching"),
+  t("Structured questions"),
+  t("Questions about numbers and dates answered from your own data: “How much did I spend on craftsmen in 2026?”, “When did I last talk to Anna?”, “Which tickets cost me the most time?”. The AI picks a query over named, read-only views (time entries, bank transactions, calendar, todos, messages, Workspace databases), Zeff runs it and the AI answers with the numbers, the rows linked and the query shown. In the knowledge chat (questions about text still go to the knowledge) and for agents (MCP ask_structured)."),
   t("A step after every briefing: for each new or changed todo the AI checks the knowledge base's hits and keeps only what really fits — the “Knowledge” toggle then shows exactly that."),
   t("People"),
   t("A profile for everyone who matters to you: your notes, their dates (birthday, anniversaries, whatever you want to remember) with a reminder — on the Today page and as a desktop notification — plus what Zeff knows about them: the knowledge (with the Knowledge plugin), their latest messages (WhatsApp, mail), the todos they appear in. Zeff finds dates in your facts and — with the LLM plugin — the AI finds them in knowledge and messages; you confirm them."),
