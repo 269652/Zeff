@@ -11,6 +11,7 @@ import { toast } from "../Toaster";
 import { CheckIcon, CloseIcon, PencilIcon } from "../icons";
 import { useT } from "@/components/I18nProvider";
 import { TransferCard } from "@/plugins/cases/ui/TransferCard";
+import { RevolutCard } from "@/plugins/revolut/ui/RevolutCard";
 
 /** A todo's operations (what "Run" runs), as notes. */
 export function OpChips({
@@ -66,10 +67,13 @@ function OpChip({
   const look = opLook(op.type);
   // A transfer: its fields and its GiroCode right in the card — no window to open, no text to edit.
   const transfer = op.type === "bank-transfer" ? op : null;
+  // A payment by RevTag: its code (revolut.me) and what to copy, in the card too.
+  const revolut = op.type === "revolut-pay" ? op : null;
+  const pay = transfer ?? revolut;
   const [more, setMore] = useState(false);
   const tools = (
     <>
-      {body !== null && !transfer && todoId !== undefined && !editing && (
+      {body !== null && !pay && todoId !== undefined && !editing && (
         <button
           type="button"
           className={TOOL_BUTTON}
@@ -96,7 +100,7 @@ function OpChip({
               router.refresh();
             })
           }
-          title={op.type === "calendar-event" ? t("Done: the meeting is created in Outlook — note it on the todo") : transfer ? t("Done: the money is sent — note it, the todo is done") : t("Done: the mail is sent — note it on the todo")}
+          title={op.type === "calendar-event" ? t("Done: the meeting is created in Outlook — note it on the todo") : pay ? t("Done: the money is sent — note it, the todo is done") : t("Done: the mail is sent — note it on the todo")}
           aria-label={t("Done")}
         >
           <CheckIcon className="size-3.5" />
@@ -139,7 +143,8 @@ function OpChip({
   return (
     <ActionCard tone={look.tone} icon={look.icon} title={heading} detail={detailNode} action={action} tools={tools}>
       {transfer && <TransferCard op={transfer} todoId={todoId} index={index} />}
-      {href && !transfer && (
+      {revolut && <RevolutCard op={revolut} />}
+      {href && !pay && (
         <a
           href={href}
           target="_blank"
@@ -168,7 +173,7 @@ function OpChip({
         </details>
       )}
       {body !== null &&
-        !transfer &&
+        !pay &&
         (editing ? (
           <span className="mt-1 block space-y-1">
             <textarea

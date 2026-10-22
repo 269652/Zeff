@@ -6850,5 +6850,8 @@
   "Paid {name} with Revolut.": "{name} mit Revolut bezahlt.",
   "Pay {amount} to {name} with Revolut": "{amount} an {name} mit Revolut zahlen",
   "Pay {name} with Revolut": "{name} mit Revolut zahlen",
-  "Pay with Revolut": "Mit Revolut zahlen"
+  "Pay with Revolut": "Mit Revolut zahlen",
+  "Opens {name}'s Revolut page": "Öffnet die Revolut-Seite von {name}",
+  "Revolut code": "Revolut-Code",
+  "Scan with your phone — opens Revolut": "Mit dem Handy scannen — öffnet Revolut"
 }

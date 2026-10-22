@@ -206,7 +206,7 @@ export function TodoItem({
   const proposed = proposedAll && areaOn(off, "actions");
   // Several actions (a delivery's commit, push, MR, merge): all of them — each with its note and button, and the alternatives — fold behind the same toggle.
   // A transfer is a big card (its fields and GiroCode): folded too, even alone.
-  const foldable = (todo.ops.length > 1 || todo.ops.some((o) => o.type === "bank-transfer")) && !closed && !proposedAll;
+  const foldable = (todo.ops.length > 1 || todo.ops.some((o) => o.type === "bank-transfer" || o.type === "revolut-pay")) && !closed && !proposedAll;
   const cameFrom = sourcesOf(todo.refs, sources);
   // Where a todo without a ticket came from: WhatsApp (Signal) when its messages are all that app's chats.
   const msgs = cameFrom.filter((s) => s.source === "mail");
@@ -534,7 +534,7 @@ export function TodoItem({
             panel={quick}
             onToggle={setQuick}
             canReply={todo.owner === "me" && [...todo.refs, ...todo.mailRefs].some((r) => r.startsWith("mail:") || r.startsWith("teams:"))}
-            canPay={!todo.ops.some((o) => o.type === "bank-transfer") && (amountIn(todo.text) != null || ibansIn(`${todo.text} ${todo.note ?? ""}`).length > 0)}
+            canPay={!todo.ops.some((o) => o.type === "bank-transfer" || o.type === "revolut-pay") && (amountIn(todo.text) != null || ibansIn(`${todo.text} ${todo.note ?? ""}`).length > 0)}
             aiDisabled={!workOn ? t("Code isn't installed (Menu → Plugins)") : running || doing ? t("Being worked on — once the run is done") : undefined}
           />
         )}
