@@ -56,7 +56,7 @@ export type PlanSummary = {
   overdue: number;
   /** The next payment (the earliest due, overdue ones first). */
   next: { id: number; date: string; amount: number } | null;
-  /** The months ahead (from next month until debt-free, 60 at most): what is to be paid in each. */
+  /** The months ahead (from next month until debt-free, however far): what is to be paid in each. */
   months: { month: string; amount: number; by: { id: number; amount: number }[] }[];
 };
 
@@ -78,7 +78,8 @@ export function summarize(plans: (Schedule & { id: number })[], today: string): 
   const next = all[0] ? { id: all[0].id, date: all[0].date, amount: all[0].amount } : null;
   const last = (debtFree ?? nextMonth).slice(0, 7);
   const months: PlanSummary["months"] = [];
-  for (let i = 0; i < 60; i++) {
+  // Until the last payment (a plan has MAX instalments at most — the bound only keeps a wrong date from running on).
+  for (let i = 0; i < 1200; i++) {
     const month = iso(ty, tm + i, 1).slice(0, 7);
     if (month > last) break;
     const by = new Map<number, number>();

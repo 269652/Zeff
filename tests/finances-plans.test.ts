@@ -48,3 +48,11 @@ test("the plans together: the monthly fixed costs (the instalments running this 
   assert.equal(s.overdue, 11.52 + 300, "due before today, not paid");
   assert.equal(s.next?.id, 3, "the next payment: the earliest — an overdue one first (the SWR rest, 15.10.)");
 });
+
+test("the months ahead go until debt-free, however far — a plan starting in ten years is in them", () => {
+  const plans = [{ id: 1, ...schedule({ open: 30000, installment: 250, nextDue: "2036-01-01" }, TODAY) }];
+  const s = summarize(plans, TODAY);
+  assert.equal(s.debtFree, "2045-12-01");
+  assert.equal(s.months.at(-1)!.month, "2045-12", "the chart reaches the last payment");
+  assert.equal(s.months.find((m) => m.month === "2036-01")!.amount, 250);
+});
