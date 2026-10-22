@@ -153,6 +153,18 @@ The instructions and numbers of the AI steps (Menu → Prompts: the briefing, th
 | `llm.steps.list` | `llm.read` | — | `{ id, label, extra, numbers }[]` |
 | `llm.steps.update` | `llm.write` | `step`*, `extra` (the whole new instruction text), `numbers` (`{ key: value }`, held to the step's limits) | `true` |
 
+### Timeline
+
+What happened with people, tickets, pages and projects (the Timeline plugin) — read-only. `docs/timeline.md` describes the
+events and refs.
+
+| Method | Permission | Params | Result |
+| --- | --- | --- | --- |
+| `timeline.for` | `timeline.read` | `ref` (`person:12`, `ticket:PROJ-7`, `page:31` …) or `q` (a name, a ticket key, a project), `since`, `until` (a day, an ISO time, `7d`, `24h`), `kinds`, `sources` (lists), `limit` | `{ ref, refs, label, lastSeen, events }` |
+| `timeline.since` | `timeline.read` | `since`*, `until`, `kinds`, `sources`, `refKinds` (`person`, `ticket`, `page` …), `limit`, `perGroup` | `{ since, groups: { ref, label, href, count, kinds, last, events }[] }` |
+
+`event`: `{ id, at, kind, source, sourceRef, title, summary, actorRef, url, data, refs, entities: { ref, label, href }[] }`.
+
 ### Workspace
 
 Pages and databases of the Workspace — by their names (or ids).

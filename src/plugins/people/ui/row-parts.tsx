@@ -11,6 +11,7 @@ import { personKnowledgeMergeAction, personWikiAction, type KnowledgeOfPerson } 
 import type { PersonOperation } from "../blocks";
 import { detailLabels, personPageData } from "../row-data";
 import { loadPerson, runPersonOp, usePersonEntry } from "./person-store";
+import { TimelineList } from "@/plugins/timeline/ui/TimelineList";
 
 /**
  * A person's own page, client side: what its template reads as app.* (their bundle and what the knowledge knows), its actions (a
@@ -57,6 +58,13 @@ const FIELDS = ["name", "aliases", "emails", "whatsapp", "jira"] as const;
 type ProfileField = (typeof FIELDS)[number];
 
 /** A line of the profile that saves itself: on leaving it (or Enter) when it changed — no Save button. */
+/** What happened with them (the Timeline plugin) — nothing while that plugin is off. */
+function TimelinePart(p: PartProps) {
+  const t = useT();
+  const row = rowOf(p);
+  return row ? <TimelineList row={row} limit={25} title={t("Timeline")} hideWhenOff /> : null;
+}
+
 function InputPart(p: PartProps) {
   const field = p.attrs.field as ProfileField;
   const profile = p.app.profile as Record<ProfileField, string> | undefined;
@@ -250,6 +258,7 @@ const knowledge = (what: "merge" | "dismiss") => async (env: ActionEnv) => {
 const page: ViewAppModule = {
   parts: {
     "person.input": InputPart,
+    "person.timeline": TimelinePart,
     "person.note": NotePart,
     "person.transfer": TransferPart,
     "person.addDetail": AddDetailPart,

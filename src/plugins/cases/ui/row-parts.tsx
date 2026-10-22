@@ -11,6 +11,7 @@ import type { CaseBundle, CaseOperation } from "../blocks";
 import type { PartyRole } from "../parties";
 import { caseAppData } from "../view-data";
 import { ContactField } from "./ContactField";
+import { TimelineList } from "@/plugins/timeline/ui/TimelineList";
 
 /**
  * A case's own page, client side: what its template reads as app.* (the case's bundle, read when the page opens and after each
@@ -59,6 +60,13 @@ const bundleOf = (p: PartProps) => (p.app.bundle as CaseBundle | undefined) ?? n
 const runOf = (p: PartProps) => p.app.run as Run;
 
 /** The status, saved at once. */
+/** What happened with the case (the Timeline plugin): its mails and letters, payments, todos, its row's changes — nothing while that plugin is off. */
+function TimelinePart(p: PartProps) {
+  const t = useT();
+  const row = p.rows[0]?.id;
+  return row ? <TimelineList row={row} limit={20} compact filters={false} title={t("Timeline")} hideWhenOff /> : null;
+}
+
 function StatusPart(p: PartProps) {
   const t = useT();
   const d = bundleOf(p);
@@ -123,7 +131,7 @@ function Note({ note, onSave }: { note: string; onSave: (note: string) => Promis
 }
 
 const page: ViewAppModule = {
-  parts: { "case.status": StatusPart, "case.sources": SourcesPart, "case.pay": PayPart, "case.contact": ContactPart, "case.note": NotePart },
+  parts: { "case.timeline": TimelinePart, "case.status": StatusPart, "case.sources": SourcesPart, "case.pay": PayPart, "case.contact": ContactPart, "case.note": NotePart },
   useAppData: useCaseData,
   actions: { "case.compile": (env) => void (env.app.run as Run | undefined)?.({ op: "compile" }) },
 };

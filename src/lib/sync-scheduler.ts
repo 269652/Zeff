@@ -146,6 +146,15 @@ export function startSyncScheduler(): void {
         } catch (e) {
           console.error("[agent jobs]", e);
         }
+        // The timeline: what came in since the last minute (todos, rows, entries made in Zeff itself too), and the backfill a bit further — by rule, no AI.
+        try {
+          if ((await import("@/plugins/state")).isInstalled("timeline")) {
+            const r = await (await import("@/plugins/timeline/indexer")).indexTimeline();
+            if (!r.ok && r.error !== "already running") console.warn(`[timeline] ${r.error}`);
+          }
+        } catch (e) {
+          console.error("[timeline]", e);
+        }
         // Today's and tomorrow's appointments as todos (calendars set so) — at any hour.
         try {
           await (await import("@/lib/calendar/todos")).calendarTodosWhenDue();

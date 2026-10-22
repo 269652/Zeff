@@ -222,6 +222,8 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
       return `:::block activity {"limit":${Number(n.attrs?.limit) || 12}}`;
     case "zeffBelongs":
       return ":::block belongs";
+    case "zeffTimeline":
+      return `:::block timeline ${JSON.stringify({ ...(n.attrs?.ref ? { ref: String(n.attrs.ref) } : {}), limit: Number(n.attrs?.limit) || 20 })}`;
     case "zeffTabs":
       return `:::tabs\n${kids.map((c) => block(c)).join("\n")}\n:::`;
     case "zeffTab":
@@ -382,7 +384,7 @@ export function markdownToDoc(md: string): Doc {
         continue;
       }
       // :::block metric {"dbId":12,"calc":"count"}  - a data block (figure, chart, events, tasks, document, people)
-      const blk = /^:::block\s+(metric|chart|events|tasks|document|people|activity|belongs)\s*(\{.*\})?\s*$/.exec(l);
+      const blk = /^:::block\s+(metric|chart|events|tasks|document|people|activity|belongs|timeline)\s*(\{.*\})?\s*$/.exec(l);
       if (blk) {
         let attrs: Record<string, unknown> = {};
         try {
@@ -391,6 +393,11 @@ export function markdownToDoc(md: string): Doc {
           attrs = {};
         }
         const type = Object.keys(DATA_BLOCK_TYPES).find((k) => DATA_BLOCK_TYPES[k] === blk[1])!;
+        if (!type && blk[1] === "timeline") {
+          out.push({ type: "zeffTimeline", attrs: { ref: typeof attrs.ref === "string" ? attrs.ref : "", limit: typeof attrs.limit === "number" ? attrs.limit : 20 } });
+          i++;
+          continue;
+        }
         if (!type) {
           out.push({ type: blk[1] === "activity" ? "zeffActivity" : "zeffBelongs", attrs: blk[1] === "activity" && typeof attrs.limit === "number" ? { limit: attrs.limit } : {} });
           i++;
@@ -542,6 +549,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffDocument: ["docId"],
   zeffActivity: ["limit"],
   zeffBelongs: [],
+  zeffTimeline: ["ref", "limit"],
   zeffTabs: ["active"],
   zeffTab: ["title"],
   zeffPeople: ["ids", "q", "limit", "title"],
@@ -558,9 +566,9 @@ const NODE_ATTRS: Record<string, string[]> = {
 export const DATA_BLOCK_TYPES: Record<string, string> = { zeffMetric: "metric", zeffChart: "chart", zeffEvents: "events", zeffTasks: "tasks", zeffDocument: "document", zeffPeople: "people" };
 
 /** The modules a page can hold as a block (what Zeff knows about a ticket — of its row, or the key given). */
-export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat", "properties", "subtasks", "suggested", "page"] as const;
+export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat", "properties", "subtasks", "suggested", "page", "timeline"] as const;
 /** The blocks about a row itself (its properties, subtasks, suggested actions, its own page) — in its detail view, or on its page. */
-export const ROW_MODULES = ["properties", "source", "subtasks", "suggested", "page"] as const;
+export const ROW_MODULES = ["properties", "source", "subtasks", "suggested", "page", "timeline"] as const;
 const MARKS: Record<string, string[]> = { bold: [], italic: [], strike: [], underline: [], code: [], highlight: ["color"], link: ["href", "target"] };
 const MAX_NODES = 40000;
 const MAX_DEPTH = 40;
@@ -657,6 +665,10 @@ export function sanitizeDoc(input: unknown): Doc {
       }
       if (o.type === "zeffTabs") attrs.active = Math.max(0, Math.min(40, Math.floor(Number(attrs.active)) || 0));
       if (o.type === "zeffTab") attrs.title = String(attrs.title ?? "").trim().slice(0, 60) || "Tab";
+      if (o.type === "zeffTimeline") {
+        attrs.limit = Math.max(1, Math.min(100, Math.floor(Number(attrs.limit)) || 20));
+        attrs.ref = String(attrs.ref ?? "").trim().slice(0, 200);
+      }
       if (o.type === "zeffActivity") attrs.limit = Math.max(1, Math.min(100, Math.floor(Number(attrs.limit)) || 12));
       if (o.type === "zeffButton") {
         if (!["set", "trash", "refresh"].includes(String(attrs.action))) attrs.action = "set";

@@ -79,6 +79,8 @@ const template = (t: T) => `{{#if app.loading}}
         <text tone=muted>${t("No mail or letter found for it yet.")}</text>
       {{/if}}
     </section>
+
+    <part name="case.timeline"/>
   </col>
 
   <col gap=5>
@@ -120,6 +122,7 @@ export const CASE_PAGE: ViewAppMeta = {
   app: "case",
   label: "Case",
   parts: [
+    { name: "case.timeline", description: "What happened with the case, by day: its mails and letters, payments, todos, changes to its row (the Timeline plugin; nothing while it is off) — under its own heading" },
     { name: "case.status", description: "The case's status as a dropdown (open, closed, not a case) — saved at once" },
     { name: "case.sources", description: "Its mails, letters and appointments as cards (by kind, the newest first, more behind Show more)" },
     { name: "case.pay", description: "The payment: the amount to change (the instalment, else what is open, to start with) and its GiroCode with recipient, IBAN, BIC, amount and purpose to copy" },

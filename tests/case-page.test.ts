@@ -71,7 +71,7 @@ test("summed up, with an account: the header, four figures, todos, sources, paym
   assert.notEqual(sum?.a.disabled, "true");
   assert.equal(sum?.a.row, "42", "acts on the page's row");
   const parts = find(r.nodes, "part").map((p) => p.a.name);
-  assert.deepEqual(parts, ["case.status", "case.sources", "case.pay", "case.contact", "case.contact", "case.contact", "case.note"]);
+  assert.deepEqual(parts, ["case.status", "case.sources", "case.timeline", "case.pay", "case.contact", "case.contact", "case.contact", "case.note"]);
   assert.deepEqual(find(r.nodes, "part").filter((p) => p.a.name === "case.contact").map((p) => p.a.role), ["creditor", "collector", "payee"]);
   // The layout: the main column and the payment beside it.
   const split = find(r.nodes, "split")[0];
@@ -114,7 +114,7 @@ test("not summed up yet: Sum up, the text that says so, no figures, no todos, no
   assert.match(all, /No mail or letter found for it yet\./);
   assert.match(all, /No account known for it yet — choose the person it is with\./);
   assert.equal(find(r.nodes, "section").some((s) => s.a.title === "Paid (bank)"), false);
-  assert.deepEqual(find(r.nodes, "part").map((p) => p.a.name), ["case.status", "case.contact", "case.contact", "case.contact", "case.note"]);
+  assert.deepEqual(find(r.nodes, "part").map((p) => p.a.name), ["case.status", "case.timeline", "case.contact", "case.contact", "case.contact", "case.note"]);
   assert.match(text(draw(data(bundle({ compiling: true }))).nodes), /Being summed up from its mails, letters and todos …/);
   assert.match(text(draw(data(bundle({ canCompile: false }))).nodes), /With the LLM plugin the AI sums the case up\./);
   assert.equal(find(draw(data(bundle({ canCompile: false }))).nodes, "button").some((b) => b.a.action === "case.compile"), false);

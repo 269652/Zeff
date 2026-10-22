@@ -51,6 +51,7 @@ is never granted, and a method or contribution that needs one fails or is skippe
 | `llm.write` | Change the instructions and numbers of the AI steps | `llm.steps.update` |
 | `kanban.read` | Read your Kanban boards and cards | `kanban.boards.list`, `kanban.boards.get` |
 | `kanban.write` | Add, change, move and archive Kanban cards | `kanban.cards.add`, `kanban.cards.update`, `kanban.cards.move`, `kanban.cards.archive`, `kanban.cards.unarchive` |
+| `timeline.read` | Read the timeline: what happened with people, tickets, pages and projects | `timeline.for`, `timeline.since` |
 | `workspace.write` | Add and change pages and rows of the Workspace | `workspace.rows.add`, `workspace.rows.update`, `workspace.pages.create`, `workspace.pages.append` |
 | `prompt` | Add rules to what Work's workers are told | `contributes.workerRules` |
 | `exec` | Run programs on this computer — **with your rights** | `contributes.hooks`, stdio entries of `contributes.workerMcpServers` |

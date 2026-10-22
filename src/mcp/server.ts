@@ -8,6 +8,7 @@ import { registerAiQualityTool } from "@/lib/learning/mcp";
 import { registerCorrelationTools } from "@/plugins/correlations/mcp";
 import { registerEntityTools } from "@/plugins/entities/mcp";
 import { registerQuestionTools } from "@/plugins/questions/mcp";
+import { registerTimelineTools } from "@/plugins/timeline/mcp";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ConflictError, NotFoundError, ValidationError, errorMessage } from "@/lib/errors";
@@ -1076,4 +1077,6 @@ export function registerZeffTools(server: McpServer): void {
   // How useful each AI step is, from the user's decisions (read-only).
   registerAiQualityTool(server, { run, ok, fail } as never);
   registerCorrelationTools(server, { run, ok, fail } as never);
+  // What happened with someone or something, and what changed since (the Timeline plugin).
+  registerTimelineTools(server, { run, ok, fail } as never);
 }
