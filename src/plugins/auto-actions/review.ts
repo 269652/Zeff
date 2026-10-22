@@ -270,6 +270,50 @@ function factsFor(t: TodoView, from: Parameters<typeof entityText>[0][]): string
 const sourceRef = (s: Parameters<typeof entityText>[0]) =>
   s.source === "teams" ? `teams:${s.teams.key}` : s.source === "mail" ? `mail:${s.mail.key}` : s.source === "jira-comment" ? `jira-comment:${s.comment.id}` : s.source === "gitlab" ? `gitlab:${s.gitlab.key}` : s.source === "fact" ? s.fact.ref : s.source === "document" ? s.doc.ref : s.source === "calendar" ? s.event.ref : s.source;
 
+/** The todos as the prompt shows them: each its block, with what exists in Zeff that an action may adjust (retrieved per todo). */
+export async function todoBlocks(
+  list: TodoView[],
+  sources: ReturnType<typeof todoSources>,
+  board: ReturnType<typeof lastGoodRun>,
+  offerContext: (v: { ticket: string; text: string }) => Promise<string[]>,
+): Promise<{ t: TodoView; text: string }[]> {
+  return Promise.all(
+    list.map(async (t) => {
+      const known = await offerContext({ ticket: t.ticket, text: plain(t.text, 400) });
+      return { t, text: todoBlock(t, sources, board) + (known.length ? ["", "Bestehendes in Zeff (für Aktionen, die etwas anpassen):", ...known].join("\n") : "") };
+    }),
+  );
+}
+
+/** My busy times as the prompt lists them (the first 40). */
+export const busyLinesOf = (busy: { start: Date; end: Date }[]): string[] =>
+  busy.slice(0, 40).map((b) => `- ${b.start.toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}–${b.end.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`);
+
+/** The auto-actions' prompt for one batch: the instructions (filled in), the actions' dictionary, the address book, the accounts, my busy times, the todos' blocks. */
+export function autoActionsPrompt(v: { instructions: string; dictionary: string; book: string[]; accounts: string[]; busyLines: string[]; todos: string }): string {
+  return [
+    v.instructions,
+    "",
+    v.dictionary,
+    "",
+    "# Adressbuch (Mail-Adressen aus meinen Mails)",
+    ...(v.book.length ? v.book : ["(keine passenden)"]),
+    "",
+    "# Konten meiner Kontakte (für bank-transfer / revolut-pay)",
+    ...(v.accounts.length ? v.accounts : ["(keins bekannt — bei einer Rückzahlung an eine Person die IBAN leer lassen)"]),
+    "",
+    "# Meine belegten Zeiten (nächste Tage)",
+    ...(v.busyLines.length ? v.busyLines : ["(keine bekannt)"]),
+    "",
+    "# Todos",
+    v.todos,
+  ].join("\n");
+}
+
+export const AUTO_ACTIONS_SCHEMA = SCHEMA;
+export type AutoActionsAnswer = Answer;
+export { accountsOf, addressBook, busyTimes };
+
 const state = globalThis as unknown as { __zeffAutoActions?: Promise<AutoActionsResult> | null };
 export type AutoActionsResult = { ok: boolean; reviewed: number; withActions: number; batches: number; error?: string };
 
@@ -328,17 +372,12 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
     const sources = todoSources(list, board?.tickets ?? []);
     // What exists now that an action may adjust (the current instructions of an AI step, the boards, what the knowledge base says): retrieved per todo.
     const { offerContext } = await import("@/plugins/actions/server");
-    const blocks = await Promise.all(
-      list.map(async (t) => {
-        const known = await offerContext({ ticket: t.ticket, text: plain(t.text, 400) });
-        return { t, text: todoBlock(t, sources, board) + (known.length ? ["", "Bestehendes in Zeff (für Aktionen, die etwas anpassen):", ...known].join("\n") : "") };
-      }),
-    );
+    const blocks = await todoBlocks(list, sources, board, offerContext);
     const me = myJiraName() ?? "";
     const today = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
     const dictionary = opsDictionary(opAvailable);
     const busy = busyTimes();
-    const busyLines = busy.slice(0, 40).map((b) => `- ${b.start.toLocaleString("de-DE", { weekday: "short", day: "numeric", month: "numeric", hour: "2-digit", minute: "2-digit" })}–${b.end.toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`);
+    const busyLines = busyLinesOf(busy);
     // The appointments placed so far in this review (and those already on todos): not on top of each other.
     const taken: { start: Date; end: Date }[] = [];
     const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
@@ -361,23 +400,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
       const text = batch.map((b) => b.text).join("\n\n");
       const book = addressBook(text);
       const accounts = await accountsOf(text);
-      const prompt = [
-        fillPrompt("auto-actions", INSTRUCTIONS, { me: me || "der Nutzer", today }) + extraBlock("autoactions"),
-        "",
-        dictionary,
-        "",
-        "# Adressbuch (Mail-Adressen aus meinen Mails)",
-        ...(book.length ? book : ["(keine passenden)"]),
-        "",
-        "# Konten meiner Kontakte (für bank-transfer / revolut-pay)",
-        ...(accounts.length ? accounts : ["(keins bekannt — bei einer Rückzahlung an eine Person die IBAN leer lassen)"]),
-        "",
-        "# Meine belegten Zeiten (nächste Tage)",
-        ...(busyLines.length ? busyLines : ["(keine bekannt)"]),
-        "",
-        "# Todos",
-        text,
-      ].join("\n");
+      const prompt = autoActionsPrompt({ instructions: fillPrompt("auto-actions", INSTRUCTIONS, { me: me || "der Nutzer", today }) + extraBlock("autoactions"), dictionary, book, accounts, busyLines, todos: text });
       try {
         return [{ batch, answer: (await runAi<Answer>(prompt, SCHEMA, { task: "auto-actions", timeoutMs: 10 * 60000, maxBudgetUsd: 1 })).output }];
       } catch (e) {

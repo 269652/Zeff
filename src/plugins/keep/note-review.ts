@@ -46,6 +46,8 @@ const SCHEMA = {
   },
   required: ["todos"],
 };
+export const NOTE_REVIEW_SCHEMA = SCHEMA;
+export type NoteReviewAnswer = Answer;
 type Answer = { todos?: { text?: string; kind?: string; owner?: string; ticket?: string; due?: string; refs?: string[] }[] };
 
 export const INSTRUCTIONS = `Du gehst meine Notizen durch (aus Google Keep und meinen eigenen Notiz-Boards) und findest, was ICH zu tun habe. Unten stehen Notizen (Kennung in eckigen Klammern, z. B. [keep:…], dann zuletzt bearbeitet, wo sie liegt, Titel und Text — Listen als „☐ …“ offen, „☑ …“ erledigt), meine Tickets und die Todos, die schon offen sind.
@@ -53,6 +55,34 @@ export const INSTRUCTIONS = `Du gehst meine Notizen durch (aus Google Keep und m
 Lege für jede Aufgabe, die eine Notiz enthält, ein Todo an: ein Satz, Verb zuerst, prüfbar, mit Frist, wenn die Notiz eine nennt (die Frist auch als Datum unter due, JJJJ-MM-TT) — z. B. „Steuererklärung 2025 bis 31.7. abgeben“, „Anna wegen der Fotos zurückrufen“, „Reifenwechsel-Termin vereinbaren“. Offene Listenpunkte, die zusammen eine Sache sind (eine Einkaufsliste, Packliste), sind EIN Todo („Einkauf: Milch, Brot, Kaffee besorgen“), nicht eines je Punkt. Zu jedem Todo unter refs die Kennungen der Notizen, aus denen es folgt. Gehört es zu einem meiner Tickets, gib dessen Schlüssel unter ticket an, sonst lass ticket leer. owner = other nur, wenn ich auf jemand anderen warte.
 
 KEINE Todos für: reine Infos, Ideen-Sammlungen ohne Auftrag, Zitate, Rezepte, Zugangsdaten, Erledigtes (☑), Notizen über Vergangenes — und nichts, was ein schon offenes Todo abdeckt. Gibt es nichts zu tun, ist die Liste leer.`;
+
+/** A note as the prompt lists it: its ref, when it was edited, where it is, its title and text (checklists as ☐ / ☑). */
+export function noteLine(n: Note): string {
+  return `- [${n.ref}] ${versionOf(n).slice(0, 16).replace("T", " ")} (${n.where}${n.labels.length ? `, Labels: ${n.labels.join(", ")}` : ""}) „${plain(n.title || "(ohne Titel)", 200)}“ — ${plain(n.text.replace(/^\s*[-*]\s\[ \]\s?/gm, "☐ ").replace(/^\s*[-*]\s\[[xX]\]\s?/gm, "☑ "), 1200)}`;
+}
+
+/** The Notiz-Durchsicht's prompt for one batch: the instructions, today, your tickets, the open todos, the notes (as noteLine lists them). */
+export function noteReviewPrompt(v: { instructions: string; ticketLines: string[]; open: { id: number; ticket: string; text: string }[]; lines: string[]; now?: Date }): string {
+  const now = v.now ?? new Date();
+  return [
+    v.instructions,
+    "",
+    `Heute ist ${now.toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${isoDate(now)}).`,
+    "",
+    "# Meine Tickets",
+    ...(v.ticketLines.length ? v.ticketLines : ["(keine)"]),
+    "",
+    "# Schon offene Todos",
+    ...v.open.slice(0, 60).map((t) => `- [${t.id}]${t.ticket ? ` ${t.ticket}` : ""}: ${plain(t.text, 160)}`),
+    "",
+    "# Notizen",
+    ...v.lines,
+  ].join("\n");
+}
+
+/** The notes a todo of the answer names, as refs of the batch (a bare id is a Google Keep note's). */
+export const noteRefsOf = (refs: unknown, known: Set<string>): string[] =>
+  (Array.isArray(refs) ? refs : []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (known.has(r) ? r : `keep:${r}`)).filter((r) => known.has(r));
 
 function db() {
   const d = getSqlite();
@@ -62,7 +92,7 @@ function db() {
 
 /** A note's version: when it was last edited (a later edit: read again). */
 /** A note: an item of a collection in the briefing (a Keep board, Google Keep, a database …), with where it is. */
-type Note = Item & { where: string };
+export type Note = Item & { where: string };
 
 const versionOf = (n: Note) => n.updatedAt ?? n.createdAt ?? "";
 
@@ -97,8 +127,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
 
     const tickets = lastGoodRun()?.tickets.map((t) => t.key) ?? [];
     const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
-    const line = (n: Note) =>
-      `- [${n.ref}] ${versionOf(n).slice(0, 16).replace("T", " ")} (${n.where}${n.labels.length ? `, Labels: ${n.labels.join(", ")}` : ""}) „${plain(n.title || "(ohne Titel)", 200)}“ — ${plain(n.text.replace(/^\s*[-*]\s\[ \]\s?/gm, "☐ ").replace(/^\s*[-*]\s\[[xX]\]\s?/gm, "☑ "), 1200)}`;
+    const line = noteLine;
     const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
     const batches: Note[][] = [];
     let size = 0;
@@ -120,20 +149,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
       const open = listTodos({ status: "open" });
       // What you dropped isn't proposed again.
       const dropped = droppedByYou();
-      const prompt = [
-        promptText("note-review", INSTRUCTIONS),
-        "",
-        `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })} (${isoDate(new Date())}).`,
-        "",
-        "# Meine Tickets",
-        ...(ticketLines.length ? ticketLines : ["(keine)"]),
-        "",
-        "# Schon offene Todos",
-        ...open.slice(0, 60).map((t) => `- [${t.id}]${t.ticket ? ` ${t.ticket}` : ""}: ${plain(t.text, 160)}`),
-        "",
-        "# Notizen",
-        ...batch.map(line),
-      ].join("\n");
+      const prompt = noteReviewPrompt({ instructions: promptText("note-review", INSTRUCTIONS), ticketLines, open, lines: batch.map(line) });
       const answer = await runAi<Answer>(prompt, SCHEMA, { task: "note-todos", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
         console.error("[note-todos]", errorMessage(e));
         failed++;
@@ -144,7 +160,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
       const known = new Set(batch.map((n) => n.ref));
       for (const td of answer.output?.todos ?? []) {
         const text = td.text?.trim();
-        const refs = (td.refs ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (known.has(r) ? r : `keep:${r}`)).filter((r) => known.has(r));
+        const refs = noteRefsOf(td.refs, known);
         if (!text || !refs.length) continue;
         const ticket = td.ticket?.trim().toUpperCase() ?? "";
         // One you dropped isn't made again; one that repeats an open todo is merged into it (the gate).
