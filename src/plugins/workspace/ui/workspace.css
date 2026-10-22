@@ -490,6 +490,27 @@
   overflow: hidden;
   text-overflow: ellipsis;
 }
+/* A view template's <list grid>: the rows share its columns — on a phone one column, a row's cells one under the other. */
+.ws-list-grid {
+  grid-template-columns: var(--cols);
+}
+@media (max-width: 639px) {
+  .ws-list-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  /* (Each cell as wide as the window, its text wrapping; what sat at the right edge starts at the left.) */
+  .ws-list-grid > li > * {
+    min-width: 0;
+    justify-self: stretch;
+    align-items: flex-start !important;
+    text-align: left !important;
+  }
+  .ws-list-grid .truncate {
+    white-space: normal;
+    overflow: visible;
+    min-width: 0;
+  }
+}
 /* tags (database options) */
 .ws-tag {
   display: inline-flex;

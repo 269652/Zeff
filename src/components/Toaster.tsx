@@ -56,19 +56,23 @@ export function Toaster() {
     () => NONE,
   );
   return (
-    <div className="pointer-events-none fixed inset-x-0 bottom-4 z-50 flex flex-col items-center gap-2 px-4" aria-live="polite" role="status">
-      {list.map((item) => (
+    // On a phone: above the tab bar, small (two lines each; the newest three) — the page stays in sight.
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-center gap-2 px-3 sm:bottom-4 sm:px-4" aria-live="polite" role="status">
+      {list.map((item, i) => (
+        // (On a phone only the newest three; the others come when those go.)
         <div
           key={item.id}
           onMouseEnter={() => hold(item.id)}
           onMouseLeave={() => item.tone === "ok" && arm(item.id, 4000)}
           onFocus={() => hold(item.id)}
           onBlur={() => item.tone === "ok" && arm(item.id, 4000)}
-          className={`pointer-events-auto flex max-w-full items-center gap-3 rounded-lg px-4 py-2.5 text-sm shadow-lg ${
+          className={`pointer-events-auto flex max-w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] leading-snug shadow-lg sm:gap-3 sm:px-4 sm:py-2.5 sm:text-sm ${i < list.length - 3 ? "max-sm:hidden" : ""} ${
             item.tone === "error" ? "bg-red-700 text-white" : "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
           }`}
         >
-          <span className="min-w-0">{item.text}</span>
+          <span className="line-clamp-2 min-w-0 sm:line-clamp-none" title={item.text}>
+            {item.text}
+          </span>
           {item.action && (
             <button
               type="button"

@@ -4,6 +4,7 @@ import { currentAccountId } from "@/db/accounts";
 import { setupOnce } from "@/lib/setup-once";
 import { installedPlugins, isInstalled } from "@/plugins/state";
 import { favorites, tree, unreadCounts } from "@/plugins/workspace/store";
+import { MobileAside } from "@/plugins/workspace/ui/MobileAside";
 import { Sidebar } from "@/plugins/workspace/ui/Sidebar";
 
 /** Workspace: pages and databases — the tree on the left, the page beside it. */
@@ -45,7 +46,9 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   return (
     <div className="page">
       <div className="page-aside">
-        <Sidebar appNav={await (await import("@/plugins/workspace/app-nav")).appNavs()} items={tree()} favorites={favorites()} unread={unreadCounts()} channels={(await import("@/plugins/workspace/derived")).channelKinds()} extSources={(await (await import("@/plugins/workspace/source-point")).extSources()).filter((x) => !x.relationOnly).map((x) => ({ id: x.id, label: x.label, icon: x.icon }))} />
+        <MobileAside>
+          <Sidebar appNav={await (await import("@/plugins/workspace/app-nav")).appNavs()} items={tree()} favorites={favorites()} unread={unreadCounts()} channels={(await import("@/plugins/workspace/derived")).channelKinds()} extSources={(await (await import("@/plugins/workspace/source-point")).extSources()).filter((x) => !x.relationOnly).map((x) => ({ id: x.id, label: x.label, icon: x.icon }))} />
+        </MobileAside>
       </div>
       <div className="min-w-0">{children}</div>
     </div>

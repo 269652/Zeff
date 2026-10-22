@@ -398,7 +398,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         const template = /^[\w\s().,%-]+$/.test(a.grid ?? "") ? a.grid : "";
         if (template)
           return (
-            <ul key={key} className="grid divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800" style={{ gridTemplateColumns: template }}>
+            // (On a phone one column: the cells of a row one under the other.)
+            <ul key={key} className="ws-list-grid grid divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800" style={{ "--cols": template } as CSSProperties}>
               {items.map((it, i) => {
                 const parts = it.c.filter((c) => typeof c !== "string" || c.trim());
                 const one = parts.length === 1 && typeof parts[0] !== "string" && parts[0].t === "row" ? parts[0] : null;
@@ -407,7 +408,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
                   <li
                     key={it.a.row ?? i}
                     className={`col-span-full grid items-start ${a.spacing === "roomy" ? "px-4 py-3" : "px-3 py-2"} text-sm ${active(it) ? "bg-indigo-50/70 dark:bg-indigo-950/40" : ""} ${clickable ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/50" : ""}`}
-                    style={{ gridTemplateColumns: "subgrid", columnGap: one ? (Number(one.a.gap) || 3) * 4 : 12 }}
+                    style={{ gridTemplateColumns: "subgrid", columnGap: one ? (Number(one.a.gap) || 3) * 4 : 12, rowGap: 6 }}
                     onClick={click(it)}
                   >
                     {kids(cells)}

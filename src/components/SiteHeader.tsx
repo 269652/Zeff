@@ -326,7 +326,7 @@ export function SiteHeader({
   return (
     <>
       <header className="site-header relative z-30 border-b border-zinc-200 bg-white/80 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/80">
-        <div className="mx-auto flex max-w-6xl items-center justify-between gap-3 px-4 py-3">
+        <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-3 px-4 py-3">
           <div className="flex shrink-0 items-center gap-2">
             {!bare && (
               <button
@@ -353,8 +353,8 @@ export function SiteHeader({
           </div>
           {!bare && (
             <div className="flex min-w-0 items-center gap-1 sm:gap-2">
-              {/* The tabs: on a narrow screen they scroll sideways — the page never gets wider than the window. */}
-              <nav className="flex min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none]" aria-label={t("Main")}>
+              {/* The tabs (on a phone they are the bar at the bottom, below). */}
+              <nav className="hidden min-w-0 items-center gap-1 overflow-x-auto [scrollbar-width:none] sm:flex" aria-label={t("Main")}>
                 {tabs.map((tab) => {
                   // A tab owns its page and what is below it ("/work" is not "/workspace").
                   const under = (base: string) => pathname === base || pathname.startsWith(base.endsWith("/") ? base : `${base}/`);
@@ -414,6 +414,22 @@ export function SiteHeader({
         </div>
       </header>
 
+      {/* On a phone: the tabs as a bar at the bottom, a thumb away — as an app has them. */}
+      {!bare && tabs.length > 0 && (
+        <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-zinc-200 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden dark:border-zinc-800 dark:bg-zinc-950/90" aria-label={t("Main")}>
+          {tabs.map((tab) => {
+            const under = (base: string) => pathname === base || pathname.startsWith(base.endsWith("/") ? base : `${base}/`);
+            const current = (tab.href === "/" ? pathname === "/" : under(tab.href)) || (tab.also ?? []).some(under);
+            return (
+              <Link key={tab.href} href={tab.href} aria-current={current ? "page" : undefined} className={`relative flex min-w-0 flex-1 flex-col items-center justify-center px-1 py-2.5 text-xs font-medium ${current ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-500 dark:text-zinc-400"}`}>
+                {current && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-indigo-600 dark:bg-indigo-400" aria-hidden />}
+                <span className="max-w-full truncate">{tab.label}</span>
+                {tab.href === "/todos" && <UnseenActivityBadge ids={activityIds} className="absolute top-1.5 right-[calc(50%-1.75rem)]" />}
+              </Link>
+            );
+          })}
+        </nav>
+      )}
       {!bare && <CommandPalette pages={palettePages} />}
       {/* The menu drawer (not while setting up: the assistant leads). */}
       {!bare && (
