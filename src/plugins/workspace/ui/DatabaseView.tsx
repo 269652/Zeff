@@ -779,7 +779,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         </div>
       </div>
 
-      {personProp && (
+      {/* Not over an app's view (the creditors overview, the cases): it has its own say of whom it shows. */}
+      {personProp && view.type !== "app" && (
         <PeopleBar
           chips={personChips(data.rows, personProp, (k) => labels.person(Number(k)))}
           picked={people}
