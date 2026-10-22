@@ -31,6 +31,8 @@ test("the database templates speak your language: the database, its fields, view
 
 test("contracts: the running ones' sum a month under the table — published as Fixkosten (the Finances overview reads it) unless that name is taken", async () => {
   await setup();
+  // Without the Finances plugin: its example rows (with it the statements' recurring payments come instead).
+  (await import("@/plugins/state")).setInstalled("finances", false);
   const { fromTemplate } = await import("@/plugins/workspace/templates");
   const { getDatabase } = await import("@/plugins/workspace/store");
   const id = await fromTemplate("contracts", null);
