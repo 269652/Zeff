@@ -197,17 +197,23 @@ export function contractsDatabase(parentId: number | null): number {
   const cancel = newProperty(t("Cancel by"), "date");
   const customer = newProperty(t("Customer number"), "text");
   const provider = newProperty(t("Provider"), "person");
-  const kind = select(t("Kind"), [t("Insurance"), t("Subscription"), t("Utilities"), t("Phone & internet"), t("Rent"), t("Other")]);
+  const kinds = [t("Insurance"), t("Subscription"), t("Utilities"), t("Phone & internet"), t("Rent"), t("Other")];
+  // From the statements: the AI tells what each recurring payment is — a transfer to a person or to an account of your own is
+  // no contract (it drops out of the running ones and the fixed costs). By hand: a choice of yours.
+  const notContract = t("Not a contract");
+  const kind: Property = fromBank
+    ? { ...newProperty(t("Kind"), "ai"), aiChoices: [...kinds, notContract], aiPrompt: t("What this regular payment is, by its recipient and amount: an insurance, a subscription, utilities (power, water, heating), phone & internet, rent, something other — or not a contract at all (money to a person, to an account or pocket of my own, savings, a loan paid out).") }
+    : select(t("Kind"), kinds);
   const st = status([
     [t("Active"), "green", "doing"],
     [t("Cancelled"), "gray", "done"],
   ]);
   const card = `<row><b>{{ title }}</b><grow/>{{ ${f(monthly.name)} | euro }}</row>\n<row gap=1>{{ ${f(kind.name)} | chip }}<grow/>{{#if ${f(cancel.name)}}}{{ ${f(cancel.name)} | relative | muted }}{{/if}}</row>`;
-  const running = view(t("Running"), "table", { filter: notDone(st), sorts: [{ prop: cancel.id, dir: "asc" }], calcs: { [monthly.id]: "sum", [yearly.id]: "sum" } });
+  const running = view(t("Running"), "table", { filter: fromBank ? { op: "and", rules: [...notDone(st).rules, { prop: kind.id, cond: "is_not", value: notContract }] } : notDone(st), sorts: [{ prop: cancel.id, dir: "asc" }], calcs: { [monthly.id]: "sum", [yearly.id]: "sum" } });
   const schema: DbSchema = {
     titleName: t("Contract"),
     properties: [st, kind, provider, monthly, yearly, amount, rhythm, next, last, cancel, until, customer],
-    ...(fromBank ? { pipeline: { steps: [{ id: "srecurring", kind: "source" as const, from: "ext" as const, ext: "recurring" }], everyMinutes: 360 } } : {}),
+    ...(fromBank ? { pipeline: { steps: [{ id: "srecurring", kind: "source" as const, from: "ext" as const, ext: "recurring" }], everyMinutes: 360 }, review: { on: true } } : {}),
     views: [
       running,
       view(t("By kind"), "board", { groupBy: kind.id, filter: notDone(st), card }),

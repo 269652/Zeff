@@ -67,5 +67,11 @@ test("contracts from the statements: with the Finances plugin the template's dat
   assert.throws(() => setCell(row.id, CONTRACT.monthly, 1), /source|isn't changed/i, "the bank's figure");
   assert.ok(!rawRows(id).some((r) => /Beispiel|Example/.test(r.title)), "no example rows — the real ones");
   const { namedValue } = await import("@/plugins/workspace/values");
-  assert.ok((namedValue("Fixkosten")?.value ?? 0) >= 15, "in the fixed costs");
+  const before = namedValue("Fixkosten")?.value ?? 0;
+  assert.ok(before >= 15, "in the fixed costs");
+  // What the AI says it is: "no contract" (a transfer to a person, an account of your own) drops out of the running ones.
+  const { getDatabase } = await import("@/plugins/workspace/store");
+  const kind = getDatabase(id)!.schema.properties.find((p) => p.type === "ai")!;
+  setCell(row.id, kind.id, kind.aiChoices!.at(-1)!);
+  assert.equal(namedValue("Fixkosten")!.value, before - 15, "not counted any more");
 });
