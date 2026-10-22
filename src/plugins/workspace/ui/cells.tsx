@@ -22,8 +22,8 @@ export type CellCtx = {
   editable: boolean;
   /** A formula column's formula changed (from one of its cells) — none: its cells only show. */
   setFormula?: (propId: string, formula: string) => void;
-  /** The columns a formula being edited names, with their colours (by name, lower-cased) — null: none any more. */
-  showRefs?: (refs: Record<string, string> | null) => void;
+  /** The cells a formula being edited names — in its row, their colours by property name (lower-cased) — null: none any more. */
+  showRefs?: (refs: { rowId: number; colors: Record<string, string> } | null) => void;
   /** Open a row of this database over it (a relation to the same database — a card's parent — opens there). */
   openRow?: (id: number) => void;
 };
@@ -203,12 +203,15 @@ export const needsRoom = (p: Property) => ["select", "status", "multi_select", "
 /** A panel under a cell (above it when there is no room below), over everything — the table's scrolling box doesn't cut it off. */
 function CellPanel({ anchor, children }: { anchor: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
   const [pos, setPos] = useState<React.CSSProperties | null>(null);
+  const box = useRef<HTMLDivElement>(null);
   useLayoutEffect(() => {
     const place = () => {
       const r = anchor.current?.getBoundingClientRect();
       if (!r) return;
       const width = Math.max(r.width, 260);
-      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+      // Kept in the window by the panel's own width (wider than the cell when its editor is).
+      const own = Math.max(width, box.current?.offsetWidth ?? 0);
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - own - 8));
       const below = window.innerHeight - r.bottom;
       setPos(below < 300 && r.top > below ? { left, bottom: window.innerHeight - r.top + 4, minWidth: width } : { left, top: r.bottom + 4, minWidth: width });
     };
@@ -221,7 +224,7 @@ function CellPanel({ anchor, children }: { anchor: React.RefObject<HTMLElement |
     };
   }, [anchor]);
   return createPortal(
-    <div className="fixed z-50 max-w-[min(28rem,calc(100vw-16px))] rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5 dark:border-zinc-700 dark:bg-zinc-900" style={pos ?? { opacity: 0, left: 0, top: 0 }}>
+    <div ref={box} className="fixed z-50 max-w-[min(28rem,calc(100vw-16px))] rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5 dark:border-zinc-700 dark:bg-zinc-900" style={pos ?? { opacity: 0, left: 0, top: 0 }}>
       {children}
     </div>,
     document.body,

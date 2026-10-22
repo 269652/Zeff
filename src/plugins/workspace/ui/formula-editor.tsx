@@ -63,12 +63,12 @@ export function FormulaEditor({ p, row, ctx, done }: { p: Property; row: Row; ct
   const offer = closed ? { from: caret, to: caret, items: [] } : formulaCompletions(src, caret, names);
   const at = Math.min(pick, Math.max(0, offer.items.length - 1));
 
-  // The columns it names, coloured in the table while it is open.
+  // The cells it names (in this row — a formula reads its own row), coloured in the table while it is open.
   const show = ctx.showRefs;
   const key = JSON.stringify(colors);
   useEffect(() => {
-    show?.(JSON.parse(key) as Record<string, string>);
-  }, [show, key]);
+    show?.({ rowId: row.id, colors: JSON.parse(key) as Record<string, string> });
+  }, [show, key, row.id]);
   useEffect(() => () => show?.(null), [show]);
 
   const take = (i: number) => {
