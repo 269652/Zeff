@@ -301,8 +301,9 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         const align = (c: { align?: string }) => (c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left");
         if (!rows.length) return a.empty ? <p key={key} className="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-400 dark:border-zinc-800">{a.empty}</p> : null;
         return (
-          <div key={key} className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 print:overflow-visible print:rounded-none print:border-0">
-            <table className="w-full border-collapse text-sm">
+          // (On a phone each row a card — its first column the head, the others "label … value" — see .ws-datatable.)
+          <div key={key} className="overflow-x-auto rounded-xl border border-zinc-200 max-sm:overflow-visible max-sm:border-0 dark:border-zinc-800 print:overflow-visible print:rounded-none print:border-0">
+            <table className="ws-datatable w-full border-collapse text-sm">
               <thead>
                 <tr className="border-b border-zinc-200 bg-zinc-50 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:bg-zinc-900/60">
                   {cols.map((c, i) => (
@@ -316,7 +317,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
                 {rows.map((tr, ri) => (
                   <tr key={tr.a.row ?? ri} className="group align-top transition-colors hover:bg-zinc-50/70 dark:hover:bg-zinc-900/40">
                     {tr.c.map((td, ci) => (
-                      <td key={ci} className={`px-3 py-3 ${align(cols[ci] ?? {})} ${cols[ci]?.nowrap === "true" ? "whitespace-nowrap" : ""}`}>
+                      <td key={ci} data-label={cols[ci]?.label || undefined} className={`px-3 py-3 ${align(cols[ci] ?? {})} ${cols[ci]?.nowrap === "true" ? "whitespace-nowrap" : ""}`}>
                         {typeof td === "string" ? td : <div className={`flex flex-col gap-0.5 ${cols[ci]?.align === "right" ? "items-end" : ""}`}><Level nodes={td.c} ext={ext} /></div>}
                       </td>
                     ))}
@@ -327,7 +328,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
                 <tfoot>
                   <tr className="border-t border-zinc-200 bg-zinc-50 font-semibold dark:border-zinc-800 dark:bg-zinc-900/60">
                     {cols.map((c, i) => (
-                      <td key={i} className={`px-3 py-2.5 whitespace-nowrap tabular-nums ${align(c)}`}>
+                      <td key={i} data-label={i > 0 && c.foot ? c.label || undefined : undefined} className={`px-3 py-2.5 whitespace-nowrap tabular-nums ${align(c)} ${c.foot ? "" : "max-sm:hidden"}`}>
                         {c.foot}
                       </td>
                     ))}

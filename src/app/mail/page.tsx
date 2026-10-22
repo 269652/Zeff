@@ -92,13 +92,14 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
 
 
       <div className="flex flex-wrap items-center justify-between gap-3">
-      <nav className="flex rounded-md border border-zinc-200 p-0.5 text-sm dark:border-zinc-700" aria-label={t("Folders")}>
+      {/* (On a phone the folders scroll sideways, each on one line.) */}
+      <nav className="flex max-w-full overflow-x-auto rounded-md border border-zinc-200 p-0.5 text-sm [scrollbar-width:none] dark:border-zinc-700" aria-label={t("Folders")}>
         {[undefined, ...Object.keys(counts)].map((f) => (
           <Link
             key={f ?? "all"}
             href={href(f)}
             aria-current={folder === f ? "page" : undefined}
-            className={`rounded px-3 py-1 ${folder === f ? "bg-zinc-200 font-medium dark:bg-zinc-700" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
+            className={`shrink-0 rounded px-3 py-1 whitespace-nowrap ${folder === f ? "bg-zinc-200 font-medium dark:bg-zinc-700" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
           >
             {f ?? t("All")} <span className="text-xs text-zinc-400">{f ? counts[f] : total}</span>
           </Link>
@@ -111,10 +112,10 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
       >
         {unreadOnly ? t("Unread only — show all") : t("Unread only")}
       </Link>
-      <form action="/mail" className="flex items-center justify-end gap-2">
+      <form action="/mail" className="flex flex-wrap items-center justify-end gap-2">
         {folder && <input type="hidden" name="folder" value={folder} />}
         {unreadOnly && <input type="hidden" name="unread" value="1" />}
-        <input name="q" defaultValue={q} className="input min-w-0 max-w-md flex-1" placeholder={t("Sender, subject, text…")} aria-label={t("Search messages")} />
+        <input name="q" defaultValue={q} className="input min-w-0 max-w-md flex-1 max-sm:max-w-none max-sm:basis-full" placeholder={t("Sender, subject, text…")} aria-label={t("Search messages")} />
         <button type="submit" className="btn shrink-0 whitespace-nowrap">{t("Search")}</button>
         {attachments?.enabled && <FetchAttachmentsButton className="btn shrink-0 whitespace-nowrap" short />}
         <SyncSplitButton

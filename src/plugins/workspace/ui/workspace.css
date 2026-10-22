@@ -511,6 +511,75 @@
     min-width: 0;
   }
 }
+/* A view template's <datatable> on a phone: each row a card — the first column its head, the others "label … value". */
+@media (max-width: 639px) {
+  .ws-datatable,
+  .ws-datatable tbody,
+  .ws-datatable tfoot,
+  .ws-datatable tr {
+    display: block;
+  }
+  .ws-datatable thead {
+    display: none;
+  }
+  .ws-datatable tbody {
+    border: 0 !important;
+  }
+  .ws-datatable tbody tr,
+  .ws-datatable tfoot tr {
+    margin-bottom: 0.6rem;
+    border: 1px solid var(--color-zinc-200, #e4e4e7);
+    border-radius: 0.75rem;
+    padding: 0.35rem 0.25rem;
+    background: var(--background);
+  }
+  .ws-datatable td {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 0.75rem;
+    padding: 0.3rem 0.6rem !important;
+    text-align: right !important;
+    white-space: normal !important;
+  }
+  .ws-datatable td:empty {
+    display: none;
+  }
+  .ws-datatable td::before {
+    content: attr(data-label);
+    flex-shrink: 0;
+    font-size: 0.72rem;
+    color: var(--color-zinc-500, #71717a);
+    text-align: left;
+  }
+  .ws-datatable td > div {
+    align-items: flex-end;
+  }
+  /* The first column: the row's head, as it is (no label). */
+  .ws-datatable tbody td:first-child {
+    display: block;
+    text-align: left !important;
+    padding-top: 0.5rem !important;
+    padding-bottom: 0.5rem !important;
+  }
+  .ws-datatable tbody td:first-child::before {
+    content: none;
+  }
+  .ws-datatable tbody td:first-child > div {
+    align-items: flex-start;
+  }
+  .ws-datatable tbody td:first-child * {
+    min-width: 0;
+    white-space: normal !important;
+    flex-wrap: wrap;
+  }
+}
+@media (max-width: 639px) and (prefers-color-scheme: dark) {
+  .ws-datatable tbody tr,
+  .ws-datatable tfoot tr {
+    border-color: var(--color-zinc-800, #27272a);
+  }
+}
 /* tags (database options) */
 .ws-tag {
   display: inline-flex;
