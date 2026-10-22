@@ -98,8 +98,9 @@ export type ExtractItem = Item;
 type Item = { id: string; ref: string; at: string; where: string; who: string; text: string; people: number[]; max?: number };
 
 const FIRST_RUN_DAYS = 14;
-const PER_BATCH = 40;
-const MAX_BATCHES = 3;
+/** Messages a call reads: few enough that each pair gets attention (40 left more unjudged). */
+export const PER_BATCH = 20;
+export const MAX_BATCHES = 6;
 
 function stateDb() {
   const d = getSqlite();
@@ -246,7 +247,7 @@ export function extractPrompt(v: { instructions: string; profiles: ExtractProfil
     "# Zu beurteilen",
     v.followUp
       ? "Diese Paare hast du noch nicht beurteilt (oder als gefunden markiert, ohne eine Aussage mit Zitat dazu). Lies jede dieser Nachrichten genau: Was sagt sie über die Person — eine Rolle, eine Zuständigkeit, eine Tatsache (auch Aktenzeichen, Kontaktdaten, Abwesenheit), eine Zusage, eine Verbindung zu einem Ticket, Projekt oder Thema? Gib jeden Fund mit Zitat aus und beurteile jedes Paar in checked."
-      : "Gehe die Nachrichten einzeln durch und beurteile JEDES Paar (Nachricht → Person) in checked: gefunden, wenn du dazu mindestens eine Aussage oder Verbindung mit Zitat ausgibst, sonst nichts. Lass kein Paar aus. Eine Nachricht, in der jemand etwas tut, sagt, zusagt, fragt oder über ein Ticket, Projekt oder Thema schreibt, sagt meist etwas über diese Person — im Zweifel ein Fund mit Zitat.",
+      : "Gehe die Nachrichten einzeln durch und beurteile JEDES Paar (Nachricht → Person) in checked: gefunden, wenn du dazu mindestens eine Aussage oder Verbindung mit Zitat ausgibst, sonst nichts. Lass kein Paar aus. Schreibt eine Person über ein Ticket, Projekt, Thema, System oder eine Aufgabe (auch nur kurz, auch technisch), ist das mindestens eine Verbindung knows-about zu diesem Ticket oder Thema (1–3 Wörter) mit Zitat — kein Ermessen; übernimmt sie etwas oder ist dafür zuständig, owns. Sagt, fragt oder sagt sie etwas zu, prüfe dazu die Aussagen (commitment, role, fact …). nichts nur, wenn die Nachricht über diese Person wirklich gar nichts sagt (ein bloßes „ok“, ein Gruß).",
     ...v.items.map((i) => `[${i.id}] → ${i.people.map((p) => `${p} ${name.get(p) ?? "?"}`).join(", ")}`),
   ].join("\n");
 }

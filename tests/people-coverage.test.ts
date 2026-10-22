@@ -89,3 +89,16 @@ test("nothing is asked again when every pair is judged; a follow-up that still l
   assert.equal(calls, 2, "asked once more, then it stops");
   assert.deepEqual(r2.open.sort(), ["1@m1", "1@m2", "2@m1", "2@m3"]);
 });
+
+test("a message where someone writes about a ticket, project, topic or task is at least a knows-about link — no judgment call", async () => {
+  const { extractPrompt } = await import("@/plugins/people/extract");
+  const p = extractPrompt({ instructions: "x", profiles, rejected: { claims: [], links: [] }, items: items() });
+  assert.match(p, /mindestens eine Verbindung knows-about/);
+  assert.match(p, /übernimmt.*owns/);
+});
+
+test("batches of 20 messages (more attention per pair); the eval cuts its cases the same", async () => {
+  const { PER_BATCH, MAX_BATCHES } = await import("@/plugins/people/extract");
+  assert.equal(PER_BATCH, 20);
+  assert.equal(PER_BATCH * MAX_BATCHES, 120, "as many messages a run as before");
+});

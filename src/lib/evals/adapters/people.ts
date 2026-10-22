@@ -11,12 +11,15 @@ import { getSqlite } from "@/db";
 import type { ExtractItem, ExtractProfile } from "@/plugins/people/extract";
 import type { EvalAdapter, EvalCase, Label } from "../harness";
 import { mergeLabel } from "../golden";
+import { PER_BATCH } from "@/plugins/people/extract";
 
 export type PeopleInput = { profiles: ExtractProfile[]; rejected: { claims: string[]; links: string[] }; items: ExtractItem[]; /** Every profile's id (a link to a person must name one). */ people: number[] };
 
-const PER_CASE = 40;
 /** The step reads back 14 days on its first run: a claim's message is at most that much older than the claim. */
 const LOOK_BACK_DAYS = 15;
+
+/** A case is a batch as the step cuts them. */
+const PER_CASE = PER_BATCH;
 
 const LABEL: Record<string, Label> = { confirmed: "must", rejected: "negative", proposed: "open" };
 
