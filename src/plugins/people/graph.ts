@@ -16,7 +16,8 @@ export const LINK_TYPES = ["reports-to", "manages", "works-with", "decides", "ow
 export type LinkType = (typeof LINK_TYPES)[number];
 export const TARGET_TYPES = ["person", "ticket", "repo", "project", "topic"] as const;
 export type TargetType = (typeof TARGET_TYPES)[number];
-export type Status = "proposed" | "confirmed" | "rejected";
+/** superseded: true once, no longer (a newer value took its place — see @/lib/trust); claims only. */
+export type Status = "proposed" | "confirmed" | "rejected" | "superseded";
 
 /** A claim of this kind is a snapshot that ages: it is asked about again after this many days. */
 const SHELF_LIFE: Partial<Record<ClaimKind, number>> = { role: 120, owns: 120, commitment: 45 };
@@ -82,7 +83,7 @@ const clip = (s: unknown, n: number) => String(s ?? "").trim().slice(0, n);
 type CRow = { id: number; person_id: number; kind: string; text: string; evidence: string; source_ref: string; confidence: number; status: string; direction: string; due: string; done_at: string | null; created_at: string; confirmed_at: string | null; expires_at: string | null };
 type LRow = { id: number; person_id: number; rel: string; target_type: string; target_ref: string; label: string; evidence: string; source: string; source_ref: string; confidence: number; status: string; created_at: string; confirmed_at: string | null; seen_at: string };
 
-const status = (v: string): Status => (v === "confirmed" || v === "rejected" ? v : "proposed");
+const status = (v: string): Status => (v === "confirmed" || v === "rejected" || v === "superseded" ? v : "proposed");
 const toClaim = (r: CRow): Claim => ({
   id: r.id,
   personId: r.person_id,
@@ -172,7 +173,7 @@ export function deleteClaim(id: number): void {
   if (db().prepare("delete from people_claims where id = ?").run(id).changes) changed();
 }
 
-export function reviewClaim(id: number, op: "confirm" | "reject" | "done" | "recheck"): void {
+export function reviewClaim(id: number, op: "confirm" | "reject" | "done" | "recheck" | "supersede"): void {
   const d = db();
   const row = d.prepare("select kind from people_claims where id = ?").get(id) as { kind: string } | undefined;
   if (!row) return;
@@ -180,9 +181,10 @@ export function reviewClaim(id: number, op: "confirm" | "reject" | "done" | "rec
   if (op === "confirm") d.prepare("update people_claims set status = 'confirmed', confirmed_at = ?, expires_at = ? where id = ?").run(now(), shelf ? days(shelf) : null, id);
   else if (op === "recheck") d.prepare("update people_claims set confirmed_at = ?, expires_at = ? where id = ?").run(now(), days(shelf ?? 120), id);
   else if (op === "done") d.prepare("update people_claims set done_at = ? where id = ?").run(now(), id);
+  else if (op === "supersede") d.prepare("update people_claims set status = 'superseded' where id = ?").run(id);
   else d.prepare("update people_claims set status = 'rejected' where id = ?").run(id);
-  // Confirmed: knowledge of their entity on the knowledge server (taken out again when rejected later).
-  if ((op === "confirm" || op === "reject") && claimReviewed(id)) flushSoon();
+  // Confirmed: knowledge of their entity on the knowledge server (taken out again when rejected or superseded later).
+  if ((op === "confirm" || op === "reject" || op === "supersede") && claimReviewed(id)) flushSoon();
   changed();
 }
 
@@ -317,7 +319,7 @@ export function whoKnows(text: string, opts: { ticket?: string; limit?: number }
     const t = l.targetRef.toLowerCase();
     if (topicIn(t)) add(l.personId, nameOf(l.personId), 2, `${l.targetRef}`);
   }
-  for (const c of db().prepare("select * from people_claims where status != 'rejected' and kind in ('role','owns','fact') and (status = 'confirmed' or confidence >= ?)").all(SHOW_FROM) as CRow[]) {
+  for (const c of db().prepare("select * from people_claims where status in ('proposed', 'confirmed') and kind in ('role','owns','fact') and (status = 'confirmed' or confidence >= ?)").all(SHOW_FROM) as CRow[]) {
     const t = c.text.toLowerCase();
     const hit = words.filter((w) => t.includes(w));
     if (hit.length) add(c.person_id, nameOf(c.person_id), Math.min(3, hit.length) * (c.kind === "fact" ? 0.6 : 1), clip(c.text, 80));

@@ -33,8 +33,12 @@ test("facts → people: a fact naming a profile (name, alias, address) becomes a
   assert.match(mine[0].text, /Nicht im Dienst bis 29\.10\.2026/);
   assert.equal((await factClaims(jens)).length, 0);
 
-  // The same subject, a newer text: its claim follows (no second one).
+  // The same subject, a newer text that contradicts it: it waits for you (trust in facts); taken, its claim follows (no second one).
   addFact({ subject: "Obergerichtsvollzieherin Nathanael Abwesenheit", text: "Nicht im Dienst bis 30.10.2026", refs: ["mail:m2"] });
+  assert.match((await factClaims(ogv))[0].text, /29\.10\.2026/, "not written over");
+  const { reviewAct, reviewItems } = await import("@/lib/review");
+  const changed = (await reviewItems()).items.find((i) => i.source === "trust-dispute")!;
+  await reviewAct(changed.key, "yes");
   mine = await factClaims(ogv);
   assert.equal(mine.length, 1);
   assert.match(mine[0].text, /30\.10\.2026/);

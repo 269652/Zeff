@@ -126,7 +126,9 @@ async function accountsOf(text: string): Promise<string[]> {
       const iban = p.details.find((d) => d.key === "iban")?.value;
       const bic = p.details.find((d) => d.key === "bic")?.value;
       const revtag = p.details.find((d) => d.key === "revtag")?.value;
-      const parts = [iban ? `IBAN ${iban}${bic ? ` (BIC ${bic})` : ""}` : "", revtag ? `RevTag ${revtag}` : ""].filter(Boolean);
+      // (Only what holds — a changed IBAN waits for you — with the day it was last confirmed.)
+      const since = p.details.find((d) => d.key === "iban")?.confirmedAt.slice(0, 10);
+      const parts = [iban ? `IBAN ${iban}${bic ? ` (BIC ${bic})` : ""}${since ? `, bestätigt ${since}` : ""}` : "", revtag ? `RevTag ${revtag}` : ""].filter(Boolean);
       return parts.length ? [`- ${p.name}: ${parts.join(" · ")}`] : [];
     });
 }
@@ -263,7 +265,7 @@ function factsFor(t: TodoView, from: Parameters<typeof entityText>[0][]): string
   return listFacts()
     .filter((f) => f.subject.split(/[\s:,–-]+/).some((w) => w.length > 3 && about.includes(w.toLowerCase())))
     .slice(0, 6)
-    .map((f) => `Bekannt: ${plain(f.subject, 80)} — ${plain(f.text, 200)}`);
+    .map((f) => `Bekannt (Stand ${f.updatedAt.slice(0, 10)}): ${plain(f.subject, 80)} — ${plain(f.text, 200)}`);
 }
 
 /** A source's ref, as the todo's refs name it. */
