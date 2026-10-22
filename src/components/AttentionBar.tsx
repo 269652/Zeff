@@ -2,12 +2,13 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useSyncExternalStore, useTransition } from "react";
-import { dismissAttentionAction, openServiceLoginAction, retryServiceAction } from "@/app/actions";
+import { dismissAttentionAction, openServiceLoginAction, retryServiceAction, runSyncAction } from "@/app/actions";
 import type { Attention } from "@/lib/attention";
 import { toast } from "./Toaster";
 import { useT } from "@/components/I18nProvider";
 
 const NOTIFIED_KEY = "zeff-notified";
+const TOASTED_SOURCES_KEY = "zeff-toasted-sources";
 const PERMISSION_EVENT = "zeff-notification-permission";
 
 const permission = (): NotificationPermission | "unsupported" => (typeof Notification === "undefined" ? "unsupported" : Notification.permission);
@@ -66,6 +67,31 @@ export function AttentionBar({ items }: { items: Attention[] }) {
         ms: 20000,
         action: { label: t("Open sign-in"), run: () => void openServiceLoginAction(a.service!).then((r) => toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" })) },
       });
+    }
+  }, [items, t]);
+  // A source that isn't well (silent, not running, failing, its app changed): a toast once per incident — in any tab, across reloads.
+  useEffect(() => {
+    const sources = items.filter((a) => a.kind === "source" && a.step);
+    if (!sources.length) return;
+    let seen: string[] = [];
+    try {
+      seen = JSON.parse(localStorage.getItem(TOASTED_SOURCES_KEY) ?? "[]") as string[];
+    } catch {
+      seen = [];
+    }
+    for (const a of sources) {
+      if (seen.includes(a.key)) continue;
+      seen.push(a.key);
+      toast(`${a.title} — ${a.body}`, {
+        tone: "error",
+        ms: 20000,
+        action: { label: t("Sync now"), run: () => void runSyncAction(a.step!).then((r) => toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" })) },
+      });
+    }
+    try {
+      localStorage.setItem(TOASTED_SOURCES_KEY, JSON.stringify(seen.slice(-100)));
+    } catch {
+      // toasted again next time, then
     }
   }, [items, t]);
   const logins = items.filter((a) => a.kind === "login");

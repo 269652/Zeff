@@ -93,6 +93,8 @@ export function startSyncScheduler(): void {
     const key = integrationServer(id)?.syncStep?.key as SyncKey | undefined;
     if (key) jobs.push({ name: key, settings: () => ({ syncMinutes: stepMinutes(key as OwnIntervalKey), lastSyncAt: lastSyncOf(key) }), run: whileChromeRuns(key) });
   }
+  let lastHealthCheck = 0;
+  let syncingAccount: string | null = null;
   const tick = async () => {
     const { activeAccountId, listAccounts, withAccount, accountsInstalled } = await import("@/db/accounts");
     // A backup when it's due (Settings → Backups) — at any hour, quiet ones too; each account's
@@ -155,7 +157,24 @@ export function startSyncScheduler(): void {
     // The syncs: the account you're in — for the whole turn, even if you switch meanwhile.
     try {
       (await import("@/db/accounts")).reloadAccounts(); // a switch made by the web server
+      // The account synced from now on (a switch, or the first turn): its steps weren't due before (the stale check).
+      if (activeAccountId() !== syncingAccount) {
+        syncingAccount = activeAccountId();
+        await withAccount(syncingAccount, async () => (await import("./sync/source-health")).noteSyncingSince());
+      }
       await withAccount(activeAccountId(), syncTurn);
+      // How the sources hold up (failing, not running, silent, their app changed) — every 5 minutes: a new incident
+      // is kept, and told once (the attention list: a notification, a toast).
+      if (Date.now() - lastHealthCheck >= 5 * 60000) {
+        lastHealthCheck = Date.now();
+        await withAccount(activeAccountId(), async () => {
+          try {
+            await (await import("./sync/source-health")).sourceHealth({ fresh: true });
+          } catch (e) {
+            console.error("[source health]", e);
+          }
+        });
+      }
     } finally {
       setTimeout(tick, 60000).unref();
     }

@@ -38,9 +38,13 @@ test("the report lists programs, plugins, sign-ins, syncs and the log ends — r
     syncs: [{ label: "Jira", lastAt: "2026-10-12T10:00:00Z", lastOk: false, lastMessage: "401 unauthorized" }],
     logins: [{ label: "Teams", state: "login" }],
     attention: ["Teams: sign-in needed"],
+    sources: [
+      { label: "WhatsApp", state: "silent", reason: "Runs say ok, but nothing new for 2 d", lastNewAt: "2026-10-10T08:00:00Z" },
+      { label: "Jira", state: "ok", reason: "ok", lastNewAt: null },
+    ],
     logDir: dir,
     now: new Date("2026-10-12T12:00:00Z"),
   });
-  for (const s of ["Zeff 1.2.3", "✓ Git", "✗ uv (uvx) — not found", "todos, jira", "Teams: login", "✗ Jira", "401 unauthorized", "Log: zeff.log", "boot ok"]) assert.ok(r.includes(s), s);
+  for (const s of ["Zeff 1.2.3", "✓ Git", "✗ uv (uvx) — not found", "todos, jira", "Teams: login", "✗ Jira", "401 unauthorized", "Log: zeff.log", "boot ok", "== Sources health ==", "! WhatsApp — silent — newest item 2026-10-10T08:00:00Z — Runs say ok, but nothing new for 2 d", "✓ Jira — ok"]) assert.ok(r.includes(s), s);
   assert.doesNotMatch(r, /mom@example|abcdef123456/);
 });

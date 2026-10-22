@@ -33,6 +33,9 @@ function until(t: T, isoTime: string): string {
 
 const every = (t: T, min: number) => (min % 60 === 0 ? t("every {n} h", { n: min / 60 }) : t("every {n} min", { n: min }));
 
+/** A step that isn't well (source health), and why. */
+type StepHealth = NonNullable<SyncOverview["health"]>[number];
+
 /** A ring filling up from the last run toward the next one by itself. */
 function NextRing({ s }: { s: SyncView }) {
   const start = s.lastAt ? new Date(s.lastAt).getTime() : now();
@@ -65,7 +68,7 @@ function StepMark({ s }: { s: SyncView }) {
 }
 
 /** One step in a sync list: its mark, name (to its page), how it last went, a button to run it now. */
-export function SyncStepRow({ s, disabled, onRun, onStop, onNavigate, running = s.running }: { s: SyncView; disabled?: boolean; onRun: () => void; onStop?: () => void; onNavigate?: () => void; running?: boolean }) {
+export function SyncStepRow({ s, disabled, onRun, onStop, onNavigate, running = s.running, health }: { s: SyncView; disabled?: boolean; onRun: () => void; onStop?: () => void; onNavigate?: () => void; running?: boolean; health?: StepHealth }) {
   const t = useT();
   return (
     <li className="flex items-center gap-2.5 px-3 py-2">
@@ -76,6 +79,9 @@ export function SyncStepRow({ s, disabled, onRun, onStop, onNavigate, running = 
         <Link href={s.href} className="text-sm font-medium hover:underline" onClick={onNavigate} title={s.what}>
           {s.label}
         </Link>
+        {health && !running && (
+          <span className={`ml-1.5 inline-block size-1.5 rounded-full align-middle ${health.state === "failing" ? "bg-red-500" : "bg-amber-500"}`} title={health.reason} aria-label={health.reason} />
+        )}
         <div className="truncate text-xs text-zinc-500" title={s.lastMessage ?? undefined}>
           {running ? (
             t("syncing…")
@@ -88,6 +94,11 @@ export function SyncStepRow({ s, disabled, onRun, onStop, onNavigate, running = 
             t("not synced yet")
           )}
         </div>
+        {health && !running && health.state !== "failing" && (
+          <div className="truncate text-xs text-amber-700 dark:text-amber-400" title={health.reason}>
+            {health.reason}
+          </div>
+        )}
       </div>
       {running && onStop ? (
         <button type="button" className="icon-btn text-red-600 dark:text-red-400" onClick={onStop} title={t("Cancel {step} — what it started ends with it", { step: s.label })} aria-label={t("Cancel {step}", { step: s.label })}>
@@ -123,6 +134,9 @@ export function SyncMenu() {
   const wasRunning = useRef(false);
   const running = !!data && (data.all.running || data.steps.some((s) => s.running));
   const failed = !!data && data.steps.some((s) => s.lastOk === false && !s.running);
+  // A source that isn't well though its last run may have said ok: silent, not running, its app changed.
+  const unwell = !failed && !!data?.health?.length;
+  const healthOf = new Map((data?.health ?? []).map((h) => [h.key, h]));
 
   // Follow the syncs: often while open or something runs, now and then otherwise (the button's state).
   useEffect(() => {
@@ -196,11 +210,12 @@ export function SyncMenu() {
         aria-expanded={open}
         aria-controls="sync-menu"
         onClick={() => setOpen(!open)}
-        title={running ? t("Syncing…") : failed ? t("Sync — one failed last time") : t("Sync")}
+        title={running ? t("Syncing…") : failed ? t("Sync — one failed last time") : unwell ? t("Sync — a source isn't well: {list}", { list: data!.health!.map((h) => data!.steps.find((x) => x.key === h.key)?.label ?? h.key).join(", ") }) : t("Sync")}
       >
         <SyncIcon className={`size-5 ${running ? "animate-spin [animation-duration:1.5s]" : ""}`} />
         <span className="hidden sm:inline">{t("Sync")}</span>
         {failed && <span className="absolute top-1.5 right-1 size-1.5 rounded-full bg-red-500" aria-hidden />}
+        {unwell && <span className="absolute top-1.5 right-1 size-1.5 rounded-full bg-amber-500" aria-hidden />}
       </button>
       {open && (
         <div id="sync-menu" role="dialog" aria-label={t("Sync")} className="absolute right-0 z-50 mt-2 flex max-h-[calc(100dvh-5rem)] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
@@ -224,7 +239,7 @@ export function SyncMenu() {
           {/* The steps scroll (there are many); the head and the links stay. */}
           <ul className="min-h-0 flex-1 divide-y divide-zinc-100 overflow-y-auto overscroll-contain dark:divide-zinc-900">
             {(data?.steps ?? []).map((s) => (
-              <SyncStepRow key={s.key} s={s} disabled={!!data?.all.running} onRun={() => go(() => runSyncAction(s.key))} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => {
+              <SyncStepRow key={s.key} s={s} health={healthOf.get(s.key)} disabled={!!data?.all.running} onRun={() => go(() => runSyncAction(s.key))} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => {
                 setOpen(false);
                 trigger.current?.focus();
               }} />

@@ -47,6 +47,8 @@ export type DiagnosticsInput = {
   syncs: { label: string; lastAt: string | null; lastOk: boolean | null; lastMessage: string | null }[];
   logins: { label: string; state: string }[];
   attention: string[];
+  /** Source health: each step's state, why, and when its newest item came. */
+  sources?: { label: string; state: string; reason: string; lastNewAt: string | null }[];
   logDir: string | null;
   now?: Date;
 };
@@ -70,6 +72,10 @@ export function buildReport(i: DiagnosticsInput): string {
   out.push(...(i.attention.length ? i.attention : ["(nothing)"]));
   h("Syncs");
   for (const s of i.syncs) out.push(`${s.lastOk === false ? "✗" : s.lastOk ? "✓" : "·"} ${s.label} — ${s.lastAt ?? "never"}${s.lastMessage ? ` — ${s.lastMessage.replace(/\s+/g, " ").slice(0, 300)}` : ""}`);
+  if (i.sources?.length) {
+    h("Sources health");
+    for (const s of i.sources) out.push(`${s.state === "ok" ? "✓" : "!"} ${s.label} — ${s.state}${s.lastNewAt ? ` — newest item ${s.lastNewAt}` : ""}${s.state === "ok" ? "" : ` — ${s.reason.replace(/\s+/g, " ").slice(0, 300)}`}`);
+  }
   if (i.logDir) {
     for (const f of ["launcher.log", "zeff.log", "knowledge.log", "work.log"]) {
       const t = tail(path.join(i.logDir, f));
@@ -101,6 +107,12 @@ export async function diagnosticsReport(): Promise<string> {
   };
   const logins = await safe(async () => (await listLogins()).logins.map((l) => ({ label: l.label, state: l.state })), []);
   const attention = await safe(async () => (await listAttention()).map((a) => `${a.title} — ${a.body}`.slice(0, 300)), []);
+  const sources = await safe(async () => {
+    const { sourceHealth } = await import("@/lib/sync/source-health");
+    const { healthReason } = await import("@/lib/sync/source-health-shared");
+    const { t } = await import("@/lib/i18n/server");
+    return (await sourceHealth({ fresh: true })).map((h) => ({ label: h.label, state: h.state, reason: healthReason(t, h), lastNewAt: h.lastNewAt }));
+  }, []);
   return buildReport({
     version: pkg.version ?? "?",
     data,
@@ -109,6 +121,7 @@ export async function diagnosticsReport(): Promise<string> {
     syncs: syncOverview().steps.map((s) => ({ label: s.label, lastAt: s.lastAt, lastOk: s.lastOk, lastMessage: s.lastMessage })),
     logins,
     attention,
+    sources,
     logDir: [path.join(data, "logs"), path.join(path.dirname(data), "logs")].find((d) => fs.existsSync(/*turbopackIgnore: true*/ d)) ?? null,
   });
 }
