@@ -338,6 +338,24 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
               <input type="checkbox" checked={!!p.includeTime} onChange={(e) => onChange({ ...p, includeTime: e.target.checked })} /> {t("Include the time")}
             </label>
           )}
+          {p.type === "date" && (
+            // A deadline: its rows in "Needs attention" so many days before (empty: never).
+            <label className="flex items-center gap-2">
+              {t("Remind")}
+              <input
+                type="number"
+                min={0}
+                max={365}
+                className="input h-7 w-16 text-sm"
+                value={p.remind ?? ""}
+                onChange={(e) => {
+                  const n = Math.round(Number(e.target.value));
+                  onChange({ ...p, remind: e.target.value === "" || !(n > 0) ? undefined : Math.min(365, n) });
+                }}
+              />
+              {t("days before")}
+            </label>
+          )}
           {p.type === "ai" && <textarea className="input w-full text-sm" rows={2} value={p.aiPrompt ?? ""} placeholder={t("What should the AI fill in? (e.g. “A one-line summary of the page”)")} onChange={(e) => onChange({ ...p, aiPrompt: e.target.value })} aria-label={t("Instruction")} />}
           {p.type === "ai" && (
             <input

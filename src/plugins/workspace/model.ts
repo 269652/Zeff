@@ -69,6 +69,8 @@ export type Property = {
   aiInstructions?: number[];
   format?: "number" | "percent" | "euro" | "dollar" | "hours";
   includeTime?: boolean;
+  /** Date: a deadline — its rows show in "Needs attention" so many days before it (and once it is past). */
+  remind?: number;
 };
 
 export type Cond =

@@ -6919,5 +6919,9 @@
   "Recurring payments": "Wiederkehrende Zahlungen",
   "What goes out regularly to the same recipient — contracts and subscriptions read off your bank statements.": "Was regelmäßig an denselben Empfänger geht — Verträge und Abos aus deinen Kontoauszügen.",
   "Not a contract": "Kein Vertrag",
-  "What this regular payment is, by its recipient and amount: an insurance, a subscription, utilities (power, water, heating), phone & internet, rent, something other — or not a contract at all (money to a person, to an account or pocket of my own, savings, a loan paid out).": "Was diese regelmäßige Zahlung ist, nach Empfänger und Betrag: eine Versicherung, ein Abo, Nebenkosten (Strom, Wasser, Heizung), Telefon & Internet, Miete, etwas anderes — oder gar kein Vertrag (Geld an eine Person, auf ein eigenes Konto oder Unterkonto, Sparen, ein ausgezahlter Kredit)."
+  "What this regular payment is, by its recipient and amount: an insurance, a subscription, utilities (power, water, heating), phone & internet, rent, something other — or not a contract at all (money to a person, to an account or pocket of my own, savings, a loan paid out).": "Was diese regelmäßige Zahlung ist, nach Empfänger und Betrag: eine Versicherung, ein Abo, Nebenkosten (Strom, Wasser, Heizung), Telefon & Internet, Miete, etwas anderes — oder gar kein Vertrag (Geld an eine Person, auf ein eigenes Konto oder Unterkonto, Sparen, ein ausgezahlter Kredit).",
+  "Navigation beside the view": "Navigation neben der Ansicht",
+  "No navigation": "Keine Navigation",
+  "Remind": "Erinnern",
+  "deadline": "Frist"
 }
