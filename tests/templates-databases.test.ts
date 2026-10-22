@@ -41,7 +41,11 @@ test("contracts: the running ones' sum a month under the table — published as 
   const { namedValue } = await import("@/plugins/workspace/values");
   const v = namedValue("Fixkosten");
   assert.ok(v, "published");
-  assert.equal(v!.value, 28.99, "15 + 13.99, the running contracts");
+  // A source beside the others (the first test made a contracts database too): each counts its running contracts.
+  const mine = v!.sources.find((s) => s.dbId === id);
+  assert.equal(mine?.value, 28.99, "15 + 13.99, the running contracts");
+  assert.equal(v!.agg, "sum");
+  assert.equal(v!.value, Math.round(v!.sources.reduce((n, s) => n + (s.value ?? 0), 0) * 100) / 100);
 });
 
 test("with the Finances plugin: its debts database is a template (made once — the same database again), the instalment plans of your own aren't offered", async () => {

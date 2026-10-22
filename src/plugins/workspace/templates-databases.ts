@@ -209,7 +209,8 @@ export function contractsDatabase(parentId: number | null): number {
   addRow(id, { title: t("Example: mobile phone"), cells: { [st.id]: st.options[0].id, [kind.id]: kind.options![3].id, [monthly.id]: 15, [cancel.id]: day(45) } });
   addRow(id, { title: t("Example: streaming"), cells: { [st.id]: st.options[0].id, [kind.id]: kind.options![1].id, [monthly.id]: 13.99 } });
   void import("./values").then((v) => {
-    if (!v.namedValue("Fixkosten")) v.publishValue({ label: "Fixkosten", dbId: id, viewId: running.id, propId: monthly.id, fn: "sum" });
+    // (A source beside the others: every contracts database adds its running contracts to the fixed costs.)
+    v.publishValue({ label: "Fixkosten", dbId: id, viewId: running.id, propId: monthly.id, fn: "sum" });
   });
   return id;
 }

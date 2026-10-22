@@ -6792,5 +6792,12 @@
   "{n} messages since": "{n} Nachrichten seitdem",
   "{n} open between you": "{n} offen zwischen euch",
   "{n} cases": "{n} Vorgänge",
-  "No appointments with your people in the next 24 hours.": "Keine Termine mit deinen Leuten in den nächsten 24 Stunden."
+  "No appointments with your people in the next 24 hours.": "Keine Termine mit deinen Leuten in den nächsten 24 Stunden.",
+  "Running costs a month": "Laufende Kosten im Monat",
+  "instalments {a} · fixed costs {b}": "Raten {a} · Fixkosten {b}",
+  "From: {sources}": "Aus: {sources}",
+  "This column now counts into “{name}”.": "Diese Spalte zählt jetzt zu „{name}“.",
+  "Counts into “{name}”": "Zählt zu „{name}“",
+  "{name} = {fn} over {n} columns: {value}": "{name} = {fn} über {n} Spalten: {value}",
+  "Take this column out of “{name}”": "Diese Spalte aus „{name}“ entfernen"
 }

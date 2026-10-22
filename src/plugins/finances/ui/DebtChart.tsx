@@ -5,16 +5,14 @@ import { useT } from "@/components/I18nProvider";
 import type { PlanSummary } from "../plans";
 import type { CreditorOf } from "./colors";
 
-/** The fixed costs' layer: a key no creditor has, a quiet grey. */
-const FIXED = -1e9;
-const FIXED_COLOR = "#a1a1aa";
+
 
 /**
  * What the debts' plans cost each month until you are debt-free: a bar a month, stacked by creditor — each in its colour,
  * the same as in "open by creditor", named in the legend under it — and your income as a line when known (the same unit, one
  * axis). Hover a month: what goes to whom.
  */
-export function DebtChart({ months, creditorOf, income, fixed = null }: { months: PlanSummary["months"]; creditorOf: CreditorOf; income: number | null; /** Your fixed costs a month, when they are counted in: a grey layer under every bar. */ fixed?: number | null }) {
+export function DebtChart({ months, creditorOf, income, fixed = null }: { months: PlanSummary["months"]; creditorOf: CreditorOf; income: number | null; /** Your fixed costs a month item by item, when they are counted in: their layers under every bar, in their colours. */ fixed?: { key: string; name: string; color: string; amount: number }[] | null }) {
   const t = useT();
   const [at, setAt] = useState<number | null>(null);
   if (!months.length) return null;
@@ -22,7 +20,8 @@ export function DebtChart({ months, creditorOf, income, fixed = null }: { months
   const W = 1100;
   const H = 220;
   const pad = { l: 44, r: 8, t: 8, b: 22 };
-  const base = fixed != null && fixed > 0 ? fixed : 0;
+  const fixedParts = (fixed ?? []).filter((f) => f.amount > 0);
+  const base = fixedParts.reduce((s, f) => s + f.amount, 0);
   const max = Math.max(...months.map((m) => m.amount + base), income ?? 0, 1);
   // A round top for the axis: 1, 2 or 5 times a power of ten.
   const step = (() => {
@@ -47,12 +46,12 @@ export function DebtChart({ months, creditorOf, income, fixed = null }: { months
       const had = by.get(c.key);
       by.set(c.key, { name: c.name, color: c.color, amount: (had?.amount ?? 0) + b.amount });
     }
-    const sorted = [...(base ? ([[FIXED, { name: t("Fixed costs"), color: FIXED_COLOR, amount: base }]] as const) : []), ...[...by].sort((a, b) => (order.indexOf(a[0]) + 1 || 999) - (order.indexOf(b[0]) + 1 || 999))];
+    const sorted: [number | string, { name: string; color: string; amount: number }][] = [...fixedParts.map((f) => [`fixed:${f.key}`, { name: f.name, color: f.color, amount: f.amount }] as [string, { name: string; color: string; amount: number }]), ...[...by].sort((a, b) => (order.indexOf(a[0]) + 1 || 999) - (order.indexOf(b[0]) + 1 || 999))];
     // Each part stands on the ones before it (the fixed costs, when counted in, at the bottom).
     return sorted.map(([key, v], i) => ({ key, ...v, from: sorted.slice(0, i).reduce((s, [, x]) => s + x.amount, 0) }));
   });
   // The legend: the creditors that are paid in these months, in their order.
-  const legend = [...(base ? [{ key: FIXED, name: t("Fixed costs"), color: FIXED_COLOR }] : []), ...order.filter((k) => parts.some((p) => p.some((x) => x.key === k))).map((k) => Object.values(creditorOf).find((c) => c.key === k)!)];
+  const legend = [...fixedParts.map((f) => ({ key: `fixed:${f.key}`, name: f.name, color: f.color })), ...order.filter((k) => parts.some((p) => p.some((x) => x.key === k))).map((k) => Object.values(creditorOf).find((c) => c.key === k)!)];
   const hover = at != null ? { month: months[at], parts: parts[at] } : null;
   return (
     <div className="relative space-y-2">

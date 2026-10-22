@@ -4,7 +4,7 @@ import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { CALC_FNS, formatNumber, rollup, type CalcFn, type Property, type Row, type View } from "../model";
-import { publishValueAction, unpublishValueAction, valuesOfDbAction, type PublishedHere } from "../values-actions";
+import { publishValueAction, removeValueSourceAction, setValueAggregateAction, valuesOfDbAction, type PublishedHere } from "../values-actions";
 import { Dropdown, MenuItem } from "./kit";
 
 /**
@@ -23,7 +23,6 @@ export function useCalcLabels(): Record<CalcFn, string> {
 /** The values published from this database, and the names to pick from — read once per table, again after a change. */
 export function usePublished(dbId: number) {
   const [state, setState] = useState<{ here: PublishedHere[]; names: { key: string; label: string; what: string; taken: boolean }[] }>({ here: [], names: [] });
-  const load = () => void valuesOfDbAction(dbId).then((r) => r.ok && setState({ here: r.here, names: r.names }));
   // eslint-disable-next-line react-hooks/set-state-in-effect -- read when shown (the state is set once the answer is there)
   useEffect(load, [dbId]);
   return { ...state, reload: load };
@@ -45,14 +44,17 @@ export function CalcCell({ p, view, rows, dbId, setView, published }: { p: Prope
     else delete calcs[p.id];
     setView({ ...view, calcs });
   };
+  // This column made a source of a type (beside the type's other sources); the type's aggregate a new one takes from here.
   const publish = async (label: string) => {
-    if (!fn || !label.trim()) return;
-    const r = await publishValueAction({ label, dbId, viewId: view.id, propId: p.id, fn });
+    if (!label.trim()) return;
+    const r = await publishValueAction({ label, dbId, viewId: view.id, propId: p.id, ...(fn ? { fn } : {}) });
     if (!r.ok) return void toast(r.error, { tone: "error" });
-    toast(t("“{name}” is now available in Zeff: {value}", { name: label.trim(), value: shown }));
+    toast(t("This column now counts into “{name}”.", { name: label.trim() }));
     setNaming(null);
     published.reload();
   };
+  const ref = { dbId, viewId: view.id, propId: p.id };
+  const typeValue = (v: number | null) => (v == null ? "—" : formatNumber(p, v));
   return (
     <td className="bg-zinc-50/80 px-2 py-1.5 align-top text-xs dark:bg-zinc-900/40">
       {/* What is calculated, and its figure — a click picks another (or none). Always there: the row says what it can do. */}
@@ -86,12 +88,32 @@ export function CalcCell({ p, view, rows, dbId, setView, published }: { p: Prope
           )}
         </Dropdown>
       </div>
-      {fn && (
+      {
         <div className="mt-0.5 flex justify-end">
           {mine ? (
-            <button type="button" className="rounded-full bg-emerald-50 px-1.5 text-[11px] text-emerald-700 hover:line-through dark:bg-emerald-950 dark:text-emerald-300" title={t("Available in Zeff as “{name}” — click to take it back", { name: mine.label })} onClick={() => void unpublishValueAction(mine.key).then(() => published.reload())}>
-              = {mine.label}
-            </button>
+            // The type this column counts into: its aggregate over all its sources, settable; this column taken out of it.
+            <Dropdown
+              align="right"
+              title={t("Counts into “{name}”", { name: mine.label })}
+              className="rounded-full bg-emerald-50 px-1.5 text-[11px] whitespace-nowrap text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950 dark:text-emerald-300"
+              label={<>→ {mine.label}</>}
+            >
+              {(close) => (
+                <>
+                  <div className="px-2 pt-1 pb-1.5 text-xs text-zinc-500">
+                    {t("{name} = {fn} over {n} columns: {value}", { name: mine.label, fn: labels[mine.agg], n: mine.sources, value: typeValue(mine.value) })}
+                  </div>
+                  {CALC_FNS.map((f) => (
+                    <MenuItem key={f} checked={mine.agg === f} onClick={() => (close(), void setValueAggregateAction(mine.key, f).then(() => published.reload()))}>
+                      {labels[f]}
+                    </MenuItem>
+                  ))}
+                  <MenuItem danger onClick={() => (close(), void removeValueSourceAction(mine.key, ref).then(() => published.reload()))}>
+                    {t("Take this column out of “{name}”", { name: mine.label })}
+                  </MenuItem>
+                </>
+              )}
+            </Dropdown>
           ) : naming === null ? (
             <button type="button" className="px-1.5 text-[11px] text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setNaming("")}>
               {t("Make available …")}
@@ -116,7 +138,7 @@ export function CalcCell({ p, view, rows, dbId, setView, published }: { p: Prope
             </form>
           )}
         </div>
-      )}
+      }
     </td>
   );
 }

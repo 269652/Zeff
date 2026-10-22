@@ -3,17 +3,24 @@ import { CALC_FNS, filterRows, rollup, type CalcFn } from "./model";
 import { getPage, rowsOf } from "./store";
 
 /**
- * Named values (the Workspace plugin): a column's calculation in a view of a database — the sum of "Betrag" over the running
- * rows of "Monatskosten" — published under a name ("Fixkosten") that every part of Zeff can read, live: the Finances plugin's
- * debt overview counts it in. One value per name; the name picked from those Zeff knows, or a new one. Server only.
+ * Value types (the Workspace plugin): a name every part of Zeff can read ("Fixkosten"), made of columns of databases —
+ * "Betrag" in the running rows of "Monatskosten", "Monatlich" in "Abos" — and an aggregate over all their rows (sum by
+ * default, settable): sum(Fixkosten). A type keeps only where its values come from (database, view, column), never the
+ * values: whoever reads it reads the rows there (the Finances plugin's debt overview lists the items itself). Server only.
  */
 
 export { CALC_FNS, type CalcFn };
 
-export type ValueSource = { label: string; dbId: number; viewId: string; propId: string; fn: CalcFn };
-export type NamedValue = { key: string; label: string; value: number | null; source: string; dbId: number; viewId: string; propId: string; fn: CalcFn };
+/** Where a type's values come from: a column of a database, over the rows a view of it shows (its filter applied). */
+export type ValueRef = { dbId: number; viewId: string; propId: string };
+type ValueType = { label: string; agg: CalcFn; sources: ValueRef[] };
 
-const PREF = "workspace.values";
+/** A type, read now: its aggregate over all its sources' rows, and each source with what it adds. */
+export type NamedValue = { key: string; label: string; agg: CalcFn; value: number | null; sources: (ValueRef & { text: string; value: number | null })[] };
+
+const PREF = "workspace.valueTypes";
+/** (Before types: one source per name, its own calculation.) */
+const OLD = "workspace.values";
 
 /** A name as the key it is kept and asked by: "Fixkosten" → "fixkosten". */
 export const valueKey = (label: string): string =>
@@ -27,12 +34,26 @@ export const valueKey = (label: string): string =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-|-$/g, "");
 
-/** The names other parts of Zeff read (the Finances plugin: Fixkosten, Einkommen) — offered first when a value is named. */
-const KNOWN: { label: string; what: string }[] = [
-  { label: "Fixkosten", what: "monthly fixed costs — the Finances plugin's debt overview counts them in" },
-  { label: "Einkommen", what: "monthly net income — the Finances plugin takes it before what it read off your statements" },
-  { label: "Sparrate", what: "what you put aside each month" },
+/** The types other parts of Zeff read (the Finances plugin: Fixkosten, Einkommen) — offered first, with their aggregate. */
+const KNOWN: { label: string; agg: CalcFn; what: string }[] = [
+  { label: "Fixkosten", agg: "sum", what: "monthly fixed costs — the Finances plugin's debt overview counts them in" },
+  { label: "Einkommen", agg: "sum", what: "monthly net income — the Finances plugin takes it before what it read off your statements" },
+  { label: "Sparrate", agg: "sum", what: "what you put aside each month" },
 ];
+
+/** The numbers of a column over the rows a view shows — each row with its title. Empty: no such database, view or column. */
+export function refRows(ref: ValueRef): { rowId: number; title: string; value: number }[] {
+  const d = rowsOf(ref.dbId);
+  const view = d?.schema.views.find((v) => v.id === ref.viewId);
+  if (!d || !view || !d.schema.properties.some((p) => p.id === ref.propId)) return [];
+  return filterRows(d.rows, view.filter, d.schema.properties).flatMap((r) => {
+    const v = r.cells[ref.propId];
+    const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
+    return Number.isFinite(n) ? [{ rowId: r.id, title: r.title, value: n }] : [];
+  });
+}
+
+const round = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.round(v * 100) / 100 : null);
 
 /** A column's calculation over the rows a view shows (its filter applied). Null: no such database, view or column. */
 export function viewCalc(dbId: number, viewId: string, propId: string, fn: CalcFn): number | null {
@@ -40,47 +61,100 @@ export function viewCalc(dbId: number, viewId: string, propId: string, fn: CalcF
   const view = d?.schema.views.find((v) => v.id === viewId);
   const prop = d?.schema.properties.find((p) => p.id === propId);
   if (!d || !view || !prop) return null;
-  const rows = filterRows(d.rows, view.filter, d.schema.properties);
-  const v = rollup(fn, prop, rows.map((r) => r.cells[propId]));
-  return typeof v === "number" && Number.isFinite(v) ? Math.round(v * 100) / 100 : null;
+  return round(rollup(fn, prop, filterRows(d.rows, view.filter, d.schema.properties).map((r) => r.cells[propId])));
 }
 
-const stored = (): Record<string, ValueSource> => getPref<Record<string, ValueSource>>(PREF, {});
+/** The types — the single-source values from before taken over as types with one source. */
+function stored(): Record<string, ValueType> {
+  const types = getPref<Record<string, ValueType>>(PREF, {});
+  const old = getPref<Record<string, { label: string; dbId: number; viewId: string; propId: string; fn: CalcFn }>>(OLD, {});
+  for (const [key, o] of Object.entries(old)) if (!types[key]) types[key] = { label: o.label, agg: o.fn, sources: [{ dbId: o.dbId, viewId: o.viewId, propId: o.propId }] };
+  return types;
+}
+const save = (types: Record<string, ValueType>) => {
+  setPref(PREF, types);
+  setPref(OLD, {});
+};
 
-/** A calculation published under a name — one per name: a new source for a name replaces the one before. */
-export function publishValue(v: ValueSource): string {
+const same = (a: ValueRef, b: ValueRef) => a.dbId === b.dbId && a.viewId === b.viewId && a.propId === b.propId;
+
+/**
+ * A column made a source of a type ("Fixkosten") — added to the sources it has (each column once). A new type gets its
+ * aggregate: the known type's, else `fn`, else sum. The key.
+ */
+export function publishValue(v: ValueRef & { label: string; fn?: CalcFn }): string {
   const key = valueKey(v.label);
   if (!key) throw new Error("A name, please.");
-  if (!(CALC_FNS as readonly string[]).includes(v.fn)) throw new Error("Unknown calculation.");
-  setPref(PREF, { ...stored(), [key]: { ...v, label: v.label.trim() } });
+  if (v.fn && !(CALC_FNS as readonly string[]).includes(v.fn)) throw new Error("Unknown calculation.");
+  const types = stored();
+  const ref: ValueRef = { dbId: Number(v.dbId), viewId: String(v.viewId), propId: String(v.propId) };
+  const had = types[key];
+  const known = KNOWN.find((k) => valueKey(k.label) === key);
+  types[key] = had ? { ...had, sources: had.sources.some((s) => same(s, ref)) ? had.sources : [...had.sources, ref] } : { label: known?.label ?? v.label.trim(), agg: known?.agg ?? v.fn ?? "sum", sources: [ref] };
+  save(types);
   return key;
 }
 
-export function unpublishValue(keyOrLabel: string): void {
-  const all = stored();
-  delete all[valueKey(keyOrLabel)];
-  setPref(PREF, all);
+/** A type's aggregate set (sum, average, max …). */
+export function setValueAggregate(keyOrLabel: string, fn: CalcFn): void {
+  if (!(CALC_FNS as readonly string[]).includes(fn)) throw new Error("Unknown calculation.");
+  const types = stored();
+  const key = valueKey(keyOrLabel);
+  if (!types[key]) throw new Error("No such value.");
+  types[key] = { ...types[key], agg: fn };
+  save(types);
 }
 
-const sourceText = (s: ValueSource): string => {
-  const d = rowsOf(s.dbId);
-  const view = d?.schema.views.find((v) => v.id === s.viewId);
-  const prop = d?.schema.properties.find((p) => p.id === s.propId);
-  return `${getPage(s.dbId)?.title || "?"} · ${view?.name ?? "?"} · ${s.fn}(${prop?.name ?? "?"})`;
+/** A column no longer a source of the type; its last one gone, the type goes. */
+export function removeValueSource(keyOrLabel: string, ref: ValueRef): void {
+  const types = stored();
+  const key = valueKey(keyOrLabel);
+  if (!types[key]) return;
+  const sources = types[key].sources.filter((s) => !same(s, ref));
+  if (sources.length) types[key] = { ...types[key], sources };
+  else delete types[key];
+  save(types);
+}
+
+/** The type gone, all its sources with it. */
+export function unpublishValue(keyOrLabel: string): void {
+  const types = stored();
+  delete types[valueKey(keyOrLabel)];
+  save(types);
+}
+
+/** Where a type's values come from — only the references; whoever reads it reads the rows there (refRows). */
+export const valueSources = (keyOrLabel: string): ValueRef[] => stored()[valueKey(keyOrLabel)]?.sources ?? [];
+
+/** The type's aggregate. */
+export const valueAggregate = (keyOrLabel: string): CalcFn | null => stored()[valueKey(keyOrLabel)]?.agg ?? null;
+
+const refText = (r: ValueRef): string => {
+  const d = rowsOf(r.dbId);
+  const view = d?.schema.views.find((v) => v.id === r.viewId);
+  const prop = d?.schema.properties.find((p) => p.id === r.propId);
+  return `${getPage(r.dbId)?.title || "?"} · ${view?.name ?? "?"} · ${prop?.name ?? "?"}`;
 };
 
-/** A published value, computed now (by its name or its key). Null: none under that name. */
+/** A type read now (by its name or key): its aggregate over all its sources' rows. Null: no such type. */
 export function namedValue(keyOrLabel: string): NamedValue | null {
   const key = valueKey(keyOrLabel);
-  const s = stored()[key];
-  if (!s) return null;
-  return { key, label: s.label, value: viewCalc(s.dbId, s.viewId, s.propId, s.fn), source: sourceText(s), dbId: s.dbId, viewId: s.viewId, propId: s.propId, fn: s.fn };
+  const ty = stored()[key];
+  if (!ty) return null;
+  const per = ty.sources.map((s) => ({ ...s, rows: refRows(s) }));
+  return {
+    key,
+    label: ty.label,
+    agg: ty.agg,
+    value: round(rollup(ty.agg, undefined, per.flatMap((s) => s.rows.map((r) => r.value)))),
+    sources: per.map(({ rows, ...s }) => ({ ...s, text: refText(s), value: round(rollup(ty.agg, undefined, rows.map((r) => r.value))) })),
+  };
 }
 
-/** Every published value, computed now. */
+/** Every type, read now. */
 export const listNamedValues = (): NamedValue[] => Object.keys(stored()).map((k) => namedValue(k)!).filter(Boolean);
 
-/** The names to pick from: the ones Zeff reads, then the ones already published — each with whether it is taken. */
+/** The names to pick from: the types Zeff reads, then the ones made — each with whether it has sources yet. */
 export function valueNameSuggestions(): { key: string; label: string; what: string; taken: boolean }[] {
   const have = stored();
   const out = KNOWN.map((k) => ({ key: valueKey(k.label), label: k.label, what: k.what, taken: !!have[valueKey(k.label)] }));

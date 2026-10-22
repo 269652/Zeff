@@ -114,7 +114,7 @@ test("fixed costs: the value published as Fixkosten (a sum in a database of your
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("workspace", true);
   const { fixedCosts } = await import("@/plugins/finances/fixed");
-  assert.deepEqual(fixedCosts(), { amount: null, source: null });
+  assert.deepEqual(fixedCosts(), { amount: null, agg: null, items: [] });
   const { createPage, addRow, getDatabase } = await import("@/plugins/workspace/store");
   const { newProperty, newView } = await import("@/plugins/workspace/model");
   const amount = newProperty("Betrag", "number");
@@ -125,5 +125,7 @@ test("fixed costs: the value published as Fixkosten (a sum in a database of your
   publishValue({ label: "Fixkosten", dbId: db, viewId: getDatabase(db)!.schema.views[0].id, propId: amount.id, fn: "sum" });
   const f = fixedCosts();
   assert.equal(f.amount, 665.5);
-  assert.match(f.source ?? "", /Monatskosten/);
+  // The items read from where the type says they are — each row with its database, a colour each.
+  assert.deepEqual(f.items.map((i) => [i.title, i.amount, i.source]), [["Miete", 650, "Monatskosten"], ["Handy", 15.5, "Monatskosten"]]);
+  assert.equal(new Set(f.items.map((i) => i.color)).size, 2);
 });

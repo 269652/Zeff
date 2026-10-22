@@ -40,9 +40,44 @@ test("a calculation published under a name (Fixkosten): read live anywhere in Ze
   assert.equal(namedValue("fixkosten")?.value, 745, "live");
   const listed = listNamedValues();
   assert.deepEqual(listed.map((v) => [v.key, v.label, v.value]), [["fixkosten", "Fixkosten", 745]]);
-  assert.match(listed[0].source, /Monatskosten/);
-  publishValue({ label: "Fixkosten", dbId: db, viewId: view.id, propId: amount.id, fn: "average" });
-  assert.equal(listNamedValues().length, 1, "one value per name: the new source replaces the old");
+  assert.match(listed[0].sources[0].text, /Monatskosten/);
   unpublishValue("fixkosten");
   assert.equal(namedValue("fixkosten"), null);
+});
+
+test("a value type: several apps' columns make it (sum(Fixkosten) over all their rows); its aggregate sum by default, settable; it keeps only where it comes from", async () => {
+  const { db, amount, view } = await monthlyCosts();
+  const { createPage, addRow, getDatabase } = await import("@/plugins/workspace/store");
+  const { newProperty, newView } = await import("@/plugins/workspace/model");
+  const fee = newProperty("Monatlich", "number");
+  const subs = createPage({ kind: "database", title: "Abos", schema: { titleName: "Abo", properties: [fee], views: [newView("Alle", "table")] } });
+  addRow(subs, { title: "Claude Max", cells: { [fee.id]: 200 } });
+  const subsView = getDatabase(subs)!.schema.views[0].id;
+  const { publishValue, namedValue, setValueAggregate, removeValueSource, valueSources } = await import("@/plugins/workspace/values");
+  publishValue({ label: "Fixkosten", dbId: db, viewId: view.id, propId: amount.id });
+  publishValue({ label: "Fixkosten", dbId: subs, viewId: subsView, propId: fee.id });
+  publishValue({ label: "Fixkosten", dbId: subs, viewId: subsView, propId: fee.id });
+  assert.deepEqual(valueSources("fixkosten"), [
+    { dbId: db, viewId: view.id, propId: amount.id },
+    { dbId: subs, viewId: subsView, propId: fee.id },
+  ], "only references — each column once");
+  const v = namedValue("fixkosten")!;
+  assert.equal(v.agg, "sum");
+  assert.equal(v.value, 865, "sum over both apps' rows (650 + 15 + 200)");
+  assert.deepEqual(v.sources.map((s) => s.value), [665, 200]);
+  setValueAggregate("fixkosten", "max");
+  assert.equal(namedValue("fixkosten")!.value, 650);
+  setValueAggregate("fixkosten", "sum");
+  removeValueSource("fixkosten", { dbId: subs, viewId: subsView, propId: fee.id });
+  assert.equal(namedValue("fixkosten")!.value, 665);
+  const { getPref } = await import("@/lib/prefs");
+  assert.doesNotMatch(JSON.stringify(getPref("workspace.valueTypes", {})), /Miete|650/, "no rows or figures kept — only where they come from");
+});
+
+test("the old single-source values come along as types with one source", async () => {
+  const { db, amount, view } = await monthlyCosts();
+  const { setPref } = await import("@/lib/prefs");
+  setPref("workspace.values", { sparrate: { label: "Sparrate", dbId: db, viewId: view.id, propId: amount.id, fn: "sum" } });
+  const { namedValue } = await import("@/plugins/workspace/values");
+  assert.equal(namedValue("sparrate")?.value, 665);
 });

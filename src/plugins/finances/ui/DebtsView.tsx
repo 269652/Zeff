@@ -33,6 +33,8 @@ export default function DebtsView({ openRow }: AppViewProps) {
   const [o, setO] = useState<FinancesOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState<number | null>(null);
+  // The form for a new debt, opened by "+ Debt" beside "Print".
+  const [adding, setAdding] = useState(false);
   // Only the latest load counts (a slower one before it doesn't put the old figures back); one that fails is tried once more.
   const seq = useRef(0);
   const load = useCallback(() => {
@@ -81,6 +83,8 @@ export default function DebtsView({ openRow }: AppViewProps) {
   // The fixed costs, when they are counted in (only what you owe: they are yours to pay).
   const fixed = owe && withFixed ? o.fixed.amount : null;
   const left = income != null ? income - s.monthlyRates - (fixed ?? 0) : null;
+  // The fixed costs' card beside "open by creditor": when there are any and they are counted in.
+  const fixedCard = owe && withFixed && o.fixed.items.length > 0;
   const open = o.debts.reduce((a, d) => a + d.open, 0);
   const total = o.debts.reduce((a, d) => a + (d.total ?? d.open), 0);
   const allRates = o.debts.reduce((a, d) => a + (d.plan.kind === "plan" ? (d.installment ?? 0) : 0), 0);
@@ -107,7 +111,10 @@ export default function DebtsView({ openRow }: AppViewProps) {
   );
   const tiles: { label: string; value: string; sub: ReactNode; tone?: "good" | "bad" }[] = [
     { label: owe ? t("Open in all") : t("Owed to you in all"), value: euro(open, 0), sub: t("of {amount} in all", { amount: euro(total, 0) }) },
-    { label: owe ? t("Instalments a month") : t("Coming back a month"), value: euro(s.monthlyRates, 0), sub: later > 0 ? t("running now — {amount} more starting later", { amount: euro(later, 0) }) : t("running now") },
+    // What goes out a month: the instalments — and the fixed costs, when they are counted in.
+    owe && fixed != null
+      ? { label: t("Running costs a month"), value: euro(s.monthlyRates + fixed, 0), sub: t("instalments {a} · fixed costs {b}", { a: euro(s.monthlyRates, 0), b: euro(fixed, 0) }) }
+      : { label: owe ? t("Instalments a month") : t("Coming back a month"), value: euro(s.monthlyRates, 0), sub: later > 0 ? t("running now — {amount} more starting later", { amount: euro(later, 0) }) : t("running now") },
     { label: owe ? t("Debt-free") : t("All back"), value: s.debtFree ? monthYear(s.debtFree, true) : "—", sub: s.debtFree ? `${months ? t("in {n} months", { n: months }) : ""}${s.unplanned > 0 ? ` · ${t("{amount} without a plan not in it", { amount: euro(s.unplanned, 0) })}` : ""}` : t("no plan yet") },
     owe
       ? left != null
@@ -176,6 +183,9 @@ export default function DebtsView({ openRow }: AppViewProps) {
         </div>
         <h2 className="hidden text-xl font-semibold print:block">{owe ? t("Creditors overview") : t("Debtors overview")}</h2>
         <span className="flex-1" />
+        <button type="button" className="btn btn-sm print:hidden" aria-expanded={adding} onClick={() => setAdding(true)}>
+          + {t("Debt")}
+        </button>
         <button type="button" className="btn btn-sm print:hidden" onClick={() => window.print()}>
           {t("Print / save as PDF")}
         </button>
@@ -192,7 +202,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
       </dl>
 
       <div className="print:hidden">
-        <AddDebt dir={dir} contacts={o.contacts} suggestions={o.suggestions} onDone={load} />
+        <AddDebt dir={dir} contacts={o.contacts} suggestions={o.suggestions} onDone={load} hideButton open={adding} onOpenChange={setAdding} />
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 print:overflow-visible print:rounded-none print:border-0">
@@ -303,7 +313,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
       {estimated && <p className="-mt-4 text-xs text-zinc-500">* {t("No due day known: the plan is taken to start next month — set the due day for the exact date.")}</p>}
 
       {s.months.some((m) => m.amount > 0) && (
-        <div className="grid gap-4 lg:grid-cols-2">
+        <div className={`grid gap-4 ${fixedCard ? "lg:grid-cols-3" : "lg:grid-cols-2"}`}>
           <section className="space-y-2 break-inside-avoid">
             <h2 className="text-sm font-semibold">{owe ? t("Open until debt-free") : t("Owed to you until all is back")}</h2>
             <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
@@ -316,12 +326,24 @@ export default function DebtsView({ openRow }: AppViewProps) {
               <ShareChart items={[...byWhom.values()]} colors={colors} />
             </div>
           </section>
-          <section className="space-y-2 break-inside-avoid lg:col-span-2">
+          {fixedCard && (
+            // The fixed costs, item by item — read from where the type "Fixkosten" says they are; their colours as in the bars.
+            <section className="space-y-2 break-inside-avoid">
+              <h2 className="text-sm font-semibold">
+                {t("Fixed costs")} <span className="font-normal text-zinc-500">· {euro(o.fixed.amount ?? 0, 0)}</span>
+              </h2>
+              <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
+                <ShareChart items={o.fixed.items.map((x, i) => ({ id: i, name: x.title, amount: x.amount }))} colors={Object.fromEntries(o.fixed.items.map((x, i) => [i, x.color]))} />
+                <p className="mt-2 text-xs text-zinc-500">{t("From: {sources}", { sources: [...new Set(o.fixed.items.map((x) => x.source))].join(", ") })}</p>
+              </div>
+            </section>
+          )}
+          <section className={`space-y-2 break-inside-avoid ${fixedCard ? "lg:col-span-3" : "lg:col-span-2"}`}>
             <div className="flex flex-wrap items-baseline justify-between gap-2">
               <h2 className="text-sm font-semibold">{owe ? t("Monthly payments until debt-free") : t("Coming back a month until all is back")}</h2>
               {owe &&
                 (o.fixed.amount != null ? (
-                  <label className="flex items-center gap-1.5 text-xs text-zinc-600 print:hidden dark:text-zinc-300" title={o.fixed.source ?? ""}>
+                  <label className="flex items-center gap-1.5 text-xs text-zinc-600 print:hidden dark:text-zinc-300">
                     <input type="checkbox" className="accent-indigo-600" checked={withFixed} onChange={(e) => toggleFixed(e.target.checked)} />
                     {t("Count in fixed costs ({amount})", { amount: euro(o.fixed.amount, 0) })}
                   </label>
@@ -330,7 +352,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
                 ))}
             </div>
             <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-              <DebtChart months={s.months} creditorOf={creditorOf} income={owe ? income : null} fixed={fixed} />
+              <DebtChart months={s.months} creditorOf={creditorOf} income={owe ? income : null} fixed={fixed != null ? o.fixed.items.map((x) => ({ key: x.id, name: x.title, color: x.color, amount: x.amount })) : null} />
             </div>
           </section>
         </div>
