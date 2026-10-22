@@ -133,3 +133,18 @@ test("tooltips (tip), monospace, a box taking the room left (fill) with text cut
   const b = find(r.nodes, "button")[0];
   assert.deepEqual([b.a.print, b.a.tip], ["true", "Als PDF"]);
 });
+
+test("a part holding template content; a side column of a fixed width; buttons disabled, wide, with keys; tab counts; a section that scrolls", () => {
+  const r = renderView(`<split side=right width=352><col>a</col><col>b</col></split>
+<part name="debts.table"><b>{{ db.title }}</b></part>
+<button action="reload" label="Neu laden" disabled="{{ state.busy == 'true' }}" wide=true keys="R"/>
+<tabs bind="c" options="all:Alle:12, fam:Familie:3"/>
+<section title="Prüfen" scroll=20>x</section>`, data({ state: { busy: "true" } }), { parts });
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(find(r.nodes, "split")[0].a, { side: "right", width: "352" });
+  assert.match(vnodeToString(find(r.nodes, "part")[0].c), /Verträge/, "a part's content drawn");
+  const b = find(r.nodes, "button")[0];
+  assert.deepEqual([b.a.disabled, b.a.wide, b.a.keys], ["true", "true", "R"]);
+  assert.deepEqual(JSON.parse(find(r.nodes, "tabs")[0].a.options), [["all", "Alle", "12"], ["fam", "Familie", "3"]]);
+  assert.equal(find(r.nodes, "section")[0].a.scroll, "20");
+});

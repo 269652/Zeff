@@ -71,8 +71,8 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   b: T({ tip: "text" }),
   small: T({ tip: "text" }),
   muted: T({ tip: "text" }),
-  section: T({ title: "text", collapsible: { oneOf: ["true", "false"] }, open: { oneOf: ["true", "false"] } }),
-  box: T({ title: "text", tone: { oneOf: ["plain", "muted", "good", "warn", "bad"] } }),
+  section: T({ title: "text", collapsible: { oneOf: ["true", "false"] }, open: { oneOf: ["true", "false"] }, scroll: "int" }),
+  box: T({ title: "text", tone: { oneOf: ["plain", "muted", "good", "warn", "bad"] }, scroll: "int" }),
   heading: T({ level: { oneOf: ["1", "2", "3"] } }),
   text: T({ tone: { oneOf: ["plain", "muted", "good", "warn", "bad"] }, tip: "text" }),
   tile: T({ label: "text", value: "text", sub: "text", tone: { oneOf: ["plain", "good", "warn", "bad"] }, tip: "text" }),
@@ -84,18 +84,18 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   column: T({ label: "text", align: { oneOf: ["left", "right", "center"] }, foot: "text", nowrap: { oneOf: ["true", "false"] }, width: "int" }),
   state: T({ name: "text", value: "text" }, true),
   tabs: T({ bind: "text", options: "text" }, true),
-  split: T({ ratio: { oneOf: ["1:1", "1:2", "2:3", "1:3"] } }),
+  split: T({ ratio: { oneOf: ["1:1", "1:2", "2:1", "2:3", "3:2", "1:3", "3:1"] }, side: { oneOf: ["left", "right"] }, width: "int" }),
   list: T({ spacing: { oneOf: ["compact", "roomy"] }, source: "list", select: { oneOf: ["true", "false"] }, open: { oneOf: ["true", "false"] }, empty: "text" }),
   cards: T({ spacing: { oneOf: ["compact", "roomy"] }, source: "list", cols: "int", open: { oneOf: ["true", "false"] }, select: { oneOf: ["true", "false"] }, empty: "text" }),
   table: T({ source: "list", columns: "text", sum: "text", empty: "text" }, true),
   chart: T({ source: "list", kind: { oneOf: ["bar", "column", "line", "pie"] }, group: "text", value: "text", calc: { oneOf: ["count", "sum", "avg"] } }, true),
   selected: T({ empty: "text" }),
-  button: T({ action: "text", label: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text" }, true),
+  button: T({ action: "text", label: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text" }, true),
   search: T({ bind: "text", placeholder: "text" }, true),
   select: T({ bind: "text", options: "text", label: "text" }, true),
   toggle: T({ bind: "text", label: "text" }, true),
   field: T({ name: "text" }, true),
-  part: T(ANY, true),
+  part: T(ANY),
   widget: T(ANY, true),
 };
 
@@ -377,15 +377,18 @@ function interpolate(raw: string, ctx: Ctx, line: number): string {
 // Drawing
 // ---------------------------------------------------------------------------
 
-/** "a:Label A, b:Label B" (or "a, b") as [value, label] pairs. */
-const optionPairs = (s: string): [string, string][] =>
+/** "a:Label A, b:Label B" (or "a, b") as [value, label] pairs — "a:Label A:12": with a count shown beside the label. */
+const optionPairs = (s: string): ([string, string] | [string, string, string])[] =>
   s
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean)
     .map((x) => {
       const i = x.indexOf(":");
-      return i < 0 ? [x, x] : [x.slice(0, i).trim(), x.slice(i + 1).trim()];
+      if (i < 0) return [x, x];
+      const rest = x.slice(i + 1).trim();
+      const n = /^(.*):\s*(\d+)$/.exec(rest);
+      return n ? [x.slice(0, i).trim(), n[1].trim(), n[2]] : [x.slice(0, i).trim(), rest];
     });
 
 /** A property's value as stored: an option's name → its id. */
@@ -617,18 +620,18 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     "",
     "NAMES: rows (the view's rows — a collection), a row's properties by name ([Name with spaces]) inside a row (a list's item, {{#each rows}}, <selected>), title, id, state.<name> (the view's state), app.<path> (the app's data), db.title, now, this (the current item).",
     "",
-    "LAYOUT: <row gap=2 align=center justify=between wrap=true fill=true>, <col gap=2 fill=true> (fill: takes the room left in a row), <grid cols=3 gap=3 min=220>, <section title=\"…\" collapsible=true open=false>, <box title=\"…\" tone=muted|good|warn|bad>, <heading level=1|2|3>, <text tone=muted>, <split ratio=1:2> (two children side by side), <hr/>, <grow/>.",
+    "LAYOUT: <row gap=2 align=center justify=between wrap=true fill=true>, <col gap=2 fill=true> (fill: takes the room left in a row), <grid cols=3 gap=3 min=220>, <section title=\"…\" collapsible=true open=false scroll=20> (scroll: at most 20rem high), <box title=\"…\" tone=muted|good|warn|bad>, <heading level=1|2|3>, <text tone=muted>, <split ratio=1:2> or <split side=right width=352> (two children side by side — a side column of a fixed width; stacked on a phone), <hr/>, <grow/>.",
     "TEXT: <b> <i> <small> <muted> <code> <mono> <truncate> (one line, cut) — tip=\"…\" on text, tiles, buttons, rows: a tooltip; <clamp lines=3> <chip color=…> <badge color=…> <bar value= max= fill=\"#hex\"/> <dot color=\"#hex or name\"/> <img src= h=/> <a href=…>, <printonly>…</printonly> (only on paper), <noprint>…</noprint>.",
     "FIGURES: <tile label=\"…\" value=\"{{ … }}\" sub=\"…\" tone=good|warn|bad/> — or <tile …>content under the value (text, a part)</tile>.",
     "DATA: <list source=\"rows | …\" select=true open=true spacing=roomy empty=\"…\">item template</list>, <cards source=\"…\" cols=3>item template</cards>, <table source=\"rows | …\" columns=\"title, Status, [Due]\" sum=\"Amount\" empty=\"…\"/>, <chart kind=bar|column|line|pie source=\"rows\" group=\"Status\" value=\"Amount\" calc=count|sum|avg/>, <selected empty=\"…\">template of the row picked (a list with select=true picks)</selected>, <field name=\"Status\"/> (a row's property, editable), <datatable source=\"app.list | …\" empty=\"…\"><column label=\"…\" align=right nowrap=true foot=\"{{ … }}\">cell template (the item's fields by name)</column>…</datatable> (a table of any list).",
-    "STATE: <state name=\"dir\" value=\"owe\"/> (a default), <tabs bind=\"dir\" options=\"owe:Label, owed:Label\"/>, <select bind=… options=… label=…/>, <search bind=\"q\" placeholder=…/> (use it: rows | search(state.q)), <toggle bind=\"done\" label=…/> (state.done is \"true\"/\"\").",
-    `BUTTONS: <button action=… label=\"…\" row=\"{{ id }}\" (the row it acts on, outside a row) variant=primary|plain|quiet|danger|link confirm=\"…\" print=true (also on paper)/> — actions: ${Object.entries(ACTIONS)
+    "STATE: <state name=\"dir\" value=\"owe\"/> (a default), <tabs bind=\"dir\" options=\"owe:Label, owed:Label:3\"/> (:3 — a count beside the label), <select bind=… options=… label=…/>, <search bind=\"q\" placeholder=…/> (use it: rows | search(state.q)), <toggle bind=\"done\" label=…/> (state.done is \"true\"/\"\").",
+    `BUTTONS: <button action=… label=\"…\" row=\"{{ id }}\" (the row it acts on, outside a row) variant=primary|plain|quiet|danger|link confirm=\"…\" print=true (also on paper) disabled=\"{{ … }}\" wide=true keys=\"N\" (its key, shown in the tooltip)/> — actions: ${Object.entries(ACTIONS)
       .map(([k, v]) => `${k} (${v.what}${v.row ? "; in a row" : ""})`)
       .join(", ")}${actions.length ? `, ${actions.map((x) => `${x.name} (${x.description})`).join(", ")}` : ""}.`,
     "FILTERS for collections: where(\"Field\", \"value\") or where(\"Field\", \">\", 5) (=, !=, >, <, >=, <=, contains, empty, filled), sort(\"Field\", \"desc\"), limit(5), search(state.q), count, sum(\"Field\"), avg(\"Field\"), min(\"Field\"), max(\"Field\"), pluck(\"Field\").",
     "FILTERS for values: euro (euro(0): whole euros), number(2), percent, hours, date, relative, chip, upper, lower, truncate(40), clamp(3), default(\"—\"), join(\", \"), first, last, count, check, bold, muted, small, code, link, img(80), bar(max), initials.",
     "WIDGETS: <widget id=\"plugin.widget\" setting=value/> — a plugin's widget (as on pages).",
-    parts.length ? `PARTS of this app (its own blocks): ${parts.map((p) => `<part name="${p.name}"${Object.entries(p.attrs ?? {}).map(([k, v]) => ` ${k}="${v}"`).join("")}/> — ${p.description}`).join("; ")}.` : "PARTS: none (a view of any table: build it from the tags above).",
+    parts.length ? `PARTS of this app (its own blocks; <part name=…>template content</part> where a part shows content): ${parts.map((p) => `<part name="${p.name}"${Object.entries(p.attrs ?? {}).map(([k, v]) => ` ${k}="${v}"`).join("")}/> — ${p.description}`).join("; ")}.` : "PARTS: none (a view of any table: build it from the tags above).",
     "",
     "Expressions: app.owe ? 'A' : 'B', a == 3, a > b and not c — texts in '…' inside an attribute.",
     "",

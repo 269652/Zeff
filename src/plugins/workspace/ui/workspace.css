@@ -1101,3 +1101,14 @@
 .ws-table tr.ws-row-hidden:hover > td {
   opacity: 0.8;
 }
+/* A view template's <split>: one under the other on a phone, side by side from a laptop on (its columns in --split). */
+.ws-split {
+  display: grid;
+  gap: 1rem;
+  grid-template-columns: minmax(0, 1fr);
+}
+@media (min-width: 1024px) {
+  .ws-split {
+    grid-template-columns: var(--split);
+  }
+}

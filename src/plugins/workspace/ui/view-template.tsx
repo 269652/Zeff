@@ -87,7 +87,8 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
         case "select":
           return void (rowId && setState("selected", String(rowId)));
         case "url":
-          return void (a.href && (a.href.startsWith("/") ? router.push(a.href) : window.open(a.href, "_blank", "noopener")));
+          // Zeff's own pages in place, a mail written in the mail program, anything else in a new tab.
+          return void (a.href && (a.href.startsWith("/") ? router.push(a.href) : a.href.startsWith("mailto:") ? (window.location.href = a.href) : window.open(a.href, "_blank", "noopener")));
         case "print":
           return window.print();
         case "reload":
@@ -95,7 +96,7 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
           return app.reload();
         default: {
           const fn = module.actions?.[a.action];
-          if (fn) fn({ props, state, setState, app: app.data, reloadApp: app.reload, rowId, attrs: a });
+          if (fn) fn({ props, state, setState, app: app.data, reloadApp: app.reload, rowId, attrs: a, t });
         }
       }
     } catch (e) {
@@ -145,6 +146,23 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
             {draw({ ...n, a: { ...a, tip: "" } }, key, ext)}
           </span>
         );
+      case "split": {
+        // Two side by side (on a phone one under the other): in a ratio, or a side column of a fixed width.
+        const w = Number(a.width) || 0;
+        const fr: Record<string, string> = { "1:1": "1fr 1fr", "1:2": "1fr 2fr", "2:1": "2fr 1fr", "2:3": "2fr 3fr", "3:2": "3fr 2fr", "1:3": "1fr 3fr", "3:1": "3fr 1fr" };
+        const columns = w ? (a.side === "left" ? `${w}px minmax(0,1fr)` : `minmax(0,1fr) ${w}px`) : (fr[a.ratio ?? ""] ?? "1fr 2fr").replace(/(\d)fr/g, "minmax(0,$1fr)");
+        return (
+          <div key={key} className="ws-split" style={{ "--split": columns } as CSSProperties}>
+            {n.c
+              .filter((c) => typeof c !== "string" || c.trim())
+              .map((c, i) => (
+                <div key={i} className="min-w-0">
+                  {draw(c, i, ext)}
+                </div>
+              ))}
+          </div>
+        );
+      }
       case "grid":
         return (
           <div key={key} className="grid" style={cols(a)}>
@@ -159,17 +177,21 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
         return a.collapsible === "true" ? (
           <details key={key} open={a.open !== "false"} className="group space-y-2">
             <summary className="cursor-pointer text-sm font-semibold select-none">{a.title}</summary>
-            <div className="space-y-3 pt-2">{kids(n.c)}</div>
+            <div className="space-y-3 pt-2" style={scrolls(a)}>
+              {kids(n.c)}
+            </div>
           </details>
         ) : (
           <section key={key} className="space-y-2 break-inside-avoid">
             {a.title && <h2 className="text-sm font-semibold">{a.title}</h2>}
-            <div className="space-y-3">{kids(n.c)}</div>
+            <div className="space-y-3" style={scrolls(a)}>
+              {kids(n.c)}
+            </div>
           </section>
         );
       case "box":
         return (
-          <div key={key} className={`space-y-2 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800 ${BOX_TONE[a.tone ?? ""] ?? ""}`}>
+          <div key={key} className={`space-y-2 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800 ${BOX_TONE[a.tone ?? ""] ?? ""}`} style={scrolls(a)}>
             {a.title && <h3 className="text-sm font-semibold">{a.title}</h3>}
             {kids(n.c)}
           </div>
@@ -269,12 +291,13 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
         );
       }
       case "tabs": {
-        const opts = json<[string, string][]>(a.options, []);
+        const opts = json<[string, string, string?][]>(a.options, []);
         return (
           <div key={key} className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-zinc-100 p-0.5 print:hidden dark:bg-zinc-800/70" role="tablist">
-            {opts.map(([v, label]) => (
+            {opts.map(([v, label, count]) => (
               <button key={v} type="button" role="tab" aria-selected={a.current === v} className={`rounded-md px-3 py-1 text-sm font-medium transition ${a.current === v ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100" : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"}`} onClick={() => setState(a.bind, v)}>
                 {label}
+                {count !== undefined && <span className="ml-1 text-xs font-normal text-zinc-400 tabular-nums">{count}</span>}
               </button>
             ))}
           </div>
@@ -344,7 +367,15 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
       case "button": {
         const variant = a.variant === "link" ? "truncate text-left font-medium hover:underline" : a.variant === "primary" ? "btn btn-primary btn-sm" : a.variant === "danger" ? "btn btn-sm btn-danger" : a.variant === "quiet" ? "rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800" : "btn btn-sm";
         return (
-          <button key={key} type="button" title={a.tip || undefined} className={`${variant} ${a.print === "true" ? "" : "print:hidden"}`} onClick={(e) => (e.stopPropagation(), void run(a))}>
+          <button
+            key={key}
+            type="button"
+            disabled={a.disabled === "true"}
+            title={a.tip || (a.keys ? `${a.label ?? a.action} (${a.keys})` : undefined)}
+            aria-keyshortcuts={a.keys || undefined}
+            className={`${variant} ${a.wide === "true" ? "w-full justify-center" : ""} ${a.print === "true" ? "" : "print:hidden"}`}
+            onClick={(e) => (e.stopPropagation(), void run(a))}
+          >
             {a.label ?? a.action}
           </button>
         );
@@ -439,6 +470,8 @@ function RowsTable({ columns, rows, sum, empty, props }: { columns: string[]; ro
   );
 }
 
+/** A section or box at most `scroll` rem high — what is more scrolls in it. */
+const scrolls = (a: Record<string, string>): CSSProperties | undefined => (a.scroll ? { maxHeight: `${Number(a.scroll)}rem`, overflowY: "auto" } : undefined);
 /** A template's colour: #hex as it is, a name as the chips' colours. */
 const paint = (c: string | undefined) => (!c ? "#a1a1aa" : c.startsWith("#") ? c : (CHART_COLORS[c] ?? "#a1a1aa"));
 const CHART_COLORS: Record<string, string> = { gray: "#a1a1aa", brown: "#a16207", orange: "#f97316", yellow: "#eab308", green: "#22c55e", blue: "#3b82f6", purple: "#a855f7", pink: "#ec4899", red: "#ef4444" };

@@ -42,7 +42,7 @@ export type PartProps = AppViewProps & {
 };
 
 /** What an app's own button action gets. */
-export type ActionEnv = { props: AppViewProps; state: Record<string, string>; setState: (name: string, value: string) => void; app: Record<string, unknown>; reloadApp: () => void; rowId: number | null; attrs: Record<string, string> };
+export type ActionEnv = { props: AppViewProps; state: Record<string, string>; setState: (name: string, value: string) => void; app: Record<string, unknown>; reloadApp: () => void; rowId: number | null; attrs: Record<string, string>; /** The texts in the language shown. */ t: import("@/lib/i18n/shared").T };
 
 /** An app's view, client side: its parts (components by name), the data its template reads as app.* (a hook), its own actions. */
 export type ViewAppModule = {
