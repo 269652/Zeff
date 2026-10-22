@@ -10,6 +10,7 @@ import { financesOverviewAction, setIncomeAction, type FinancesOverview } from "
 import { AddDebt } from "./AddDebt";
 import { BalanceChart } from "./BalanceChart";
 import { DebtChart } from "./DebtChart";
+import { creditorColors, type CreditorOf } from "./colors";
 import { DeleteDebt } from "./DeleteDebt";
 import { EditMoney } from "./EditMoney";
 import { InlineAmount } from "./InlineAmount";
@@ -116,6 +117,9 @@ export default function DebtsView({ openRow }: AppViewProps) {
     const x = byWhom.get(k) ?? { id: k, name: d.creditor, amount: 0 };
     byWhom.set(k, { ...x, amount: x.amount + d.open });
   }
+  // A colour per creditor, the most open first — the same in both charts; each debt row knows its creditor's.
+  const colors = creditorColors([...byWhom.values()].sort((a, b) => b.amount - a.amount).map((x) => x.id));
+  const creditorOf: CreditorOf = Object.fromEntries(o.debts.map((d) => [d.id, { key: d.creditorId ?? -d.id, name: d.creditor, color: colors[d.creditorId ?? -d.id] }]));
   const estimated = o.debts.some((d) => d.plan.estimatedStart);
   const contactLine = (d: FinancesOverview["debts"][number]) => {
     const c = d.contact.startsWith(d.creditor) ? d.contact.slice(d.creditor.length).replace(/^\s*·\s*/, "") : d.contact;
@@ -276,13 +280,13 @@ export default function DebtsView({ openRow }: AppViewProps) {
           <section className="space-y-2 break-inside-avoid">
             <h2 className="text-sm font-semibold">{owe ? t("Open by creditor") : t("Owed by debtor")}</h2>
             <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-              <ShareChart items={[...byWhom.values()]} />
+              <ShareChart items={[...byWhom.values()]} colors={colors} />
             </div>
           </section>
           <section className="space-y-2 break-inside-avoid lg:col-span-2">
             <h2 className="text-sm font-semibold">{owe ? t("Monthly payments until debt-free") : t("Coming back a month until all is back")}</h2>
             <div className="rounded-xl border border-zinc-200 p-4 dark:border-zinc-800">
-              <DebtChart months={s.months} names={Object.fromEntries(o.debts.map((d) => [d.id, d.creditor]))} income={owe ? income : null} />
+              <DebtChart months={s.months} creditorOf={creditorOf} income={owe ? income : null} />
             </div>
           </section>
         </div>
