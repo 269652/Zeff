@@ -245,7 +245,7 @@ test("over the full width: messages, todos, appointments, cases, letters, pages,
 
 test("the page's parts and actions are the ones the meta names", () => {
   const names = PERSON_PAGE.parts.map((p) => p.name).sort();
-  assert.deepEqual(names, ["person.addDate", "person.addDetail", "person.addRelation", "person.input", "person.note", "person.remind", "person.transfer"]);
+  assert.deepEqual(names, ["person.addDate", "person.addDetail", "person.addRelation", "person.input", "person.note", "person.remind", "person.timeline", "person.transfer"]);
   const acts = PERSON_PAGE.actions.map((a) => a.name);
   for (const a of ["person.star", "person.compile", "person.findDates", "person.right", "person.wrong", "person.done", "person.dateRight", "person.dateWrong", "person.copy", "person.call", "person.removeDetail", "person.removeRelation", "person.merge", "person.delete", "person.knowledgeMerge", "person.knowledgeDismiss"]) assert.ok(acts.includes(a), a);
   assert.ok(PERSON_PAGE.appData.includes("app.known"));

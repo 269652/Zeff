@@ -214,6 +214,15 @@ export const slashItems = (t: T): SlashItem[] => [
     keywords: ["belongs", "related", "links", "backlinks", "everything", "dazugehört", "verknüpft", "zusammenhang"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffBelongs" }).run(),
   },
+  {
+    key: "timeline",
+    title: t("Timeline"),
+    hint: t("What happened with this entry — mails, messages, ticket changes, todos, time — by day (or someone else's: a name or ref)"),
+    icon: "🕰️",
+    group: t("Entry"),
+    keywords: ["timeline", "zeitleiste", "verlauf", "history", "events", "ereignisse", "what happened", "chronik"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffTimeline", attrs: { ref: "", limit: 20 } }).run(),
+  },
   // Blocks that show what Zeff holds - read when the page is shown, never stored in it.
   ...(
     [

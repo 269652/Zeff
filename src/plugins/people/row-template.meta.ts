@@ -239,6 +239,8 @@ const template = (t: T) => `<state name="keep" value=""/>
   </list>
 </section>
 
+<part name="person.timeline"/>
+
 <section title="${t("Todos they appear in")}">
   <list source="app.todos" empty="${t("No open todo names them.")}">
     <row gap=2 align=baseline wrap=false><button action="url" href="{{ href }}" label="{{ ref }}" variant=quiet/><col fill=true>{{ text }}</col>{{#if due}}<muted>{{ due }}</muted>{{/if}}</row>
@@ -307,6 +309,7 @@ export const PERSON_PAGE: ViewAppMeta = {
   label: "Person",
   parts: [
     { name: "person.input", description: "A line of the profile, saved on leaving it (or Enter) — “Saved ✓” for a moment (state.saved)", attrs: { field: "name | aliases | emails | whatsapp | jira", label: "its label", placeholder: "a hint in it" } },
+    { name: "person.timeline", description: "What happened with them, by day: mails, chats, Teams, comments, appointments, todos, payments, documents — with the kinds to filter by and a line where your last visit was (the Timeline plugin; nothing while it is off) — under its own heading" },
     { name: "person.note", description: "Your notes on them, saved while you write and on leaving it", attrs: { placeholder: "a hint in it" } },
     { name: "person.transfer", description: "“Transfer money”: a dialog with the amount and purpose, and the GiroCode of the transfer to their account (app.canPay)" },
     { name: "person.addDetail", description: "The form to add a detail: its kind (IBAN, BIC, bank, address, phone, office hours) and value" },
