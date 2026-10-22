@@ -3,7 +3,7 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 
 /**
- * The database "Cases" ("Vorgänge") of the Workspace: one row per case, its page the case's view (CaseView). Made once
+ * The database "Cases" ("Vorgänge") of the Workspace: one row per case, its page the case's view (row-template.meta.ts). Made once
  * (a gone one isn't made again), its rows read from the plugin's tables by the pipeline.
  */
 
