@@ -489,7 +489,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
                 ["explain", "?", t("Explain")],
               ] as [AiMode, string, string][]).map(([mode, icon, label]) => (
                 <button key={mode} type="button" disabled={aiBusy} onClick={() => void runAi(mode)}>
-                  <span aria-hidden className="w-4 text-center text-violet-500">
+                  <span aria-hidden className="w-3.5 shrink-0 text-center text-violet-500">
                     {icon}
                   </span>
                   {label}
