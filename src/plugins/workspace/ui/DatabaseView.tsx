@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter, useSearchParams } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -35,6 +35,8 @@ const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart
 const countRules = (f: View["filter"]): number => f.rules.reduce((n, r) => n + ("rules" in r ? countRules(r) : 1), 0);
 /** The table's first column: a row's checkbox and its menu (w-14). */
 const SELECT_COLUMN = 56;
+/** The last column's room for its + (a new property). */
+const ADD_COLUMN = 44;
 
 /** The views' state and the changes to the database: shared by the page and the blocks. */
 function useDatabase(initial: DatabaseData | null, dbId: number) {
@@ -307,7 +309,6 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const schema = data.schema;
   // A locked database (one a sync keeps, as Jira's) is shown, not changed: its cells, cards and columns stay as they are.
   const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: !data.locked, openRow: (id) => openRow(id) };
-  void embedded;
   const withRow = (id: number | null) => {
     const u = new URL(window.location.href);
     if (id) u.searchParams.set("row", String(id));
@@ -751,7 +752,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       <PipelineSummaries pipeline={schema.pipeline} />
       {view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
       {view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} />}
-      {view.type === "table" && <TableView sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
+      {view.type === "table" && <TableView fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
       {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} locked={!!data.locked || !!data.noNewRows} template={view.card} />}
@@ -962,8 +963,39 @@ function TitleCell({ row, ctx, openRow, autoEdit = false, onEdited }: { row: Row
   );
 }
 
-function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, setView, onSchema, justAdded, onEdited, sel }: ViewProps & { setView: (v: View) => void; onSchema: () => void; justAdded: number | null; onEdited: () => void; sel?: Selection }) {
+function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, setView, onSchema, justAdded, onEdited, sel, fill = false }: ViewProps & { setView: (v: View) => void; onSchema: () => void; justAdded: number | null; onEdited: () => void; sel?: Selection; /** A database page of its own: the table as high as the window has room for. */ fill?: boolean }) {
   const t = useT();
+  // As high as the window has room for (the line under it counted): the head on top, the sum row at the bottom, + New
+  // right after the last row — an empty row between takes up the rest; more rows than room: it scrolls in itself.
+  const box = useRef<HTMLDivElement>(null);
+  const filler = useRef<HTMLTableRowElement>(null);
+  const [height, setHeight] = useState<number | null>(null);
+  useLayoutEffect(() => {
+    if (!fill) return;
+    const room = () => {
+      const top = box.current?.getBoundingClientRect().top;
+      // Below the fold (a phone: the page list above it): most of a screen.
+      if (top !== undefined) setHeight(Math.max(240, Math.round(top > window.innerHeight * 0.6 ? window.innerHeight - 140 : window.innerHeight - top - 40)));
+    };
+    room();
+    window.addEventListener("resize", room);
+    return () => window.removeEventListener("resize", room);
+  }, [fill]);
+  useLayoutEffect(() => {
+    const el = box.current;
+    const table = el?.querySelector("table");
+    const f = filler.current;
+    if (!fill || !el || !table || !f) return;
+    const size = () => {
+      const rest = el.clientHeight - (table.offsetHeight - f.offsetHeight);
+      f.style.height = `${Math.max(0, rest)}px`;
+    };
+    size();
+    const ro = new ResizeObserver(size);
+    ro.observe(el);
+    ro.observe(table);
+    return () => ro.disconnect();
+  });
   const groups = view.groupBy ? groupRows(rows, view.groupBy, schema.properties, labels) : [{ key: "", label: "", color: undefined as string | undefined, rows }];
   const [folded, setFolded] = useState<Set<string>>(new Set());
   // The columns in the view's order - the title is one of them and may sit anywhere (drag a header to move it).
@@ -986,8 +1018,30 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   // Column widths: a drag on the head's right edge (live while dragging, kept with the view), a double-click or the menu fits one to its content.
   const tableRef = useRef<HTMLTableElement>(null);
   const [live, setLive] = useState<Record<string, number> | null>(null);
-  const widths = live ?? view.widths ?? null;
+  // Widths never set: each column fitted to its content when it is first shown (not kept with the view).
+  const [auto, setAuto] = useState<{ key: string; widths: Record<string, number> } | null>(null);
+  const colsKey = cols.join(",");
+  const widths = live ?? view.widths ?? (auto?.key === colsKey ? auto.widths : null);
   const fixed = !!widths && Object.keys(widths).length > 0;
+  // The room there is: the columns share what is wider than their widths (the + column stays narrow).
+  const [room, setRoom] = useState(0);
+  useLayoutEffect(() => {
+    const el = box.current;
+    if (!el) return;
+    // The room the page gives (the box itself ends with its table).
+    const host = el.parentElement ?? el;
+    const ro = new ResizeObserver(() => setRoom(host.clientWidth - 2));
+    ro.observe(host);
+    return () => ro.disconnect();
+  }, []);
+  const sum = fixed ? cols.reduce((n, id) => n + (widths![id] ?? DEFAULT_COLUMN), 0) : 0;
+  const free = room - SELECT_COLUMN - ADD_COLUMN;
+  // At most half as wide again (an ultra-wide screen: the table ends, the rest stays free — no stretched columns).
+  const GROW_MAX = 1.5;
+  const grow = fixed && sum > 0 ? Math.min(GROW_MAX, Math.max(1, free / sum)) : 1;
+  // Rounded down — what that leaves to the last column, so the table ends where the box does.
+  const rest = grow > 1 && grow < GROW_MAX ? free - cols.reduce((n, id) => n + Math.floor((widths![id] ?? DEFAULT_COLUMN) * grow), 0) : 0;
+  const shownWidth = (id: string) => Math.floor((widths![id] ?? DEFAULT_COLUMN) * grow) + (id === cols[cols.length - 1] ? rest : 0);
   /** Every column's width as it is laid out now (so fixing one doesn't make the others jump). */
   const measure = (): Record<string, number> => {
     const out: Record<string, number> = {};
@@ -1020,11 +1074,16 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
     window.addEventListener("pointermove", move);
     window.addEventListener("pointerup", up);
   };
-  /** Columns fitted to their widest content (the head counts too). */
+  /** Columns fitted to their widest content (the head counts too) — kept with the view. */
   const fit = (ids: string[]) => {
+    const next = fitted(ids);
+    if (next) setView(withWidths(view, { ...measure(), ...(view.widths ?? {}), ...next }));
+  };
+  /** The widths the columns' content wants. */
+  const fitted = (ids: string[]): Record<string, number> | null => {
     const table = tableRef.current;
-    if (!table) return;
-    const next: Record<string, number> = { ...measure(), ...(view.widths ?? {}) };
+    if (!table) return null;
+    const next: Record<string, number> = {};
     const natural = (el: HTMLElement | null): number => {
       if (!el) return 0;
       const was = [el.style.width, el.style.maxWidth, el.style.flex];
@@ -1046,8 +1105,15 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
       });
       next[id] = fitWidth(content, natural(th.firstElementChild as HTMLElement | null) + 24);
     }
-    setView(withWidths(view, next));
+    return next;
   };
+  useLayoutEffect(() => {
+    if (view.widths || auto?.key === colsKey) return;
+    const next = fitted(cols);
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- measured from the cells as laid out (once per set of columns)
+    if (next) setAuto({ key: colsKey, widths: next });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- fitted/cols follow colsKey
+  }, [view.widths, colsKey, auto?.key]);
   // The sum row: the values published from this database (their columns marked), the names to pick from.
   const published = usePublished(ctx.data.id);
   const numeric = visible.some((p) => p.type === "number" || p.type === "formula" || p.type === "rollup");
@@ -1113,25 +1179,28 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
           </th>
           );
         })}
-        <th className="w-8">
-          <button type="button" className="icon-btn" onClick={onSchema} aria-label={t("Add a property")} title={t("Add a property")}>
-            +
-          </button>
+        <th className="ws-add-col align-middle" style={{ width: ADD_COLUMN }}>
+          <span className="flex justify-center">
+            <button type="button" className="grid size-6 place-items-center rounded-md border border-dashed border-zinc-300 text-sm leading-none text-zinc-400 transition-colors hover:border-indigo-400 hover:bg-indigo-50 hover:text-indigo-600 focus-visible:border-indigo-400 focus-visible:text-indigo-600 dark:border-zinc-700 dark:hover:bg-indigo-950/50 dark:hover:text-indigo-300" onClick={onSchema} aria-label={t("Add a property")} title={t("Add a property")}>
+              +
+            </button>
+          </span>
         </th>
       </tr>
     </thead>
   );
   return (
-    <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-      <table ref={tableRef} className={`ws-table${fixed ? " ws-fixed" : ""}`} style={fixed ? { tableLayout: "fixed", width: SELECT_COLUMN + 32 + cols.reduce((n, id) => n + (widths![id] ?? DEFAULT_COLUMN), 0) } : undefined}>
+    <div ref={box} className={`${fill ? "overflow-auto" : "overflow-x-auto"} w-fit max-w-full rounded-lg border border-zinc-200 dark:border-zinc-800`} style={fill && height ? { height } : undefined}>
+      <table ref={tableRef} className={`ws-table${fixed ? " ws-fixed" : ""}${fill ? " ws-fill" : ""}`} style={fixed ? { tableLayout: "fixed", width: SELECT_COLUMN + ADD_COLUMN + cols.reduce((n, id) => n + shownWidth(id), 0) } : undefined}>
         {fixed && (
           <colgroup>
             {/* The row's checkbox and menu: as wide as they are (not squashed when the widths are fixed). */}
             <col style={{ width: SELECT_COLUMN }} />
             {cols.map((id) => (
-              <col key={id} style={{ width: widths![id] ?? DEFAULT_COLUMN }} />
+              <col key={id} style={{ width: shownWidth(id) }} />
             ))}
-            <col style={{ width: 32 }} />
+            {/* The + column: as wide as its button. */}
+            <col style={{ width: ADD_COLUMN }} />
           </colgroup>
         )}
         {header}
@@ -1171,7 +1240,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                       </td>
                     );
                   })}
-                  <td />
+                  <td className="ws-add-col" />
                 </tr>
               ))}
             {!folded.has(g.key) && !ctx.data.noNewRows && (
@@ -1196,6 +1265,13 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
             )}
           </tbody>
         ))}
+        {fill && (
+          <tbody aria-hidden>
+            <tr ref={filler} className="ws-filler">
+              <td colSpan={visible.length + 3} />
+            </tr>
+          </tbody>
+        )}
         {numeric && rows.length > 0 && (
           <tfoot className="border-t border-zinc-200 dark:border-zinc-800">
             <tr>
@@ -1203,7 +1279,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
               {cols.map((id) => (
                 <CalcCell key={id} p={byId.get(id)} view={view} rows={rows} dbId={ctx.data.id} setView={setView} published={published} />
               ))}
-              <td />
+              <td className="ws-add-col" />
             </tr>
           </tfoot>
         )}
