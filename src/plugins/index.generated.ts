@@ -20,6 +20,7 @@ import p_jira_lage from "./jira-lage/plugin";
 import p_kanban from "./kanban/plugin";
 import p_keep from "./keep/plugin";
 import p_keep_write from "./keep-write/plugin";
+import p_know from "./know/plugin";
 import p_knowledge from "./knowledge/plugin";
 import p_lang_de from "./lang-de/plugin";
 import p_lang_en from "./lang-en/plugin";
@@ -48,4 +49,4 @@ import p_workspace from "./workspace/plugin";
 import p_zeiterfassung from "./zeiterfassung/plugin";
 
 /** Every built-in plugin's manifest (unsorted; plugins/catalog.ts orders them). */
-export const BUILTIN_MANIFESTS = [p_accounts, p_auto_actions, p_backup, p_calendar, p_cases, p_claude_cli, p_codex_cli, p_copilot_cli, p_correlations, p_documents, p_entities, p_finances, p_gitlab, p_gmail, p_google_calendar, p_google_drive, p_jira, p_jira_lage, p_kanban, p_keep, p_keep_write, p_knowledge, p_lang_de, p_lang_en, p_lang_es, p_llm, p_mail_client, p_monthly_report, p_news, p_notes, p_outlook_calendar, p_outlook_mail, p_people, p_questions, p_revolut, p_signal, p_teams, p_tickets, p_timeline, p_todos, p_web_search, p_weekly_report, p_whatsapp, p_work, p_work_elevated, p_workspace, p_zeiterfassung] as const;
+export const BUILTIN_MANIFESTS = [p_accounts, p_auto_actions, p_backup, p_calendar, p_cases, p_claude_cli, p_codex_cli, p_copilot_cli, p_correlations, p_documents, p_entities, p_finances, p_gitlab, p_gmail, p_google_calendar, p_google_drive, p_jira, p_jira_lage, p_kanban, p_keep, p_keep_write, p_know, p_knowledge, p_lang_de, p_lang_en, p_lang_es, p_llm, p_mail_client, p_monthly_report, p_news, p_notes, p_outlook_calendar, p_outlook_mail, p_people, p_questions, p_revolut, p_signal, p_teams, p_tickets, p_timeline, p_todos, p_web_search, p_weekly_report, p_whatsapp, p_work, p_work_elevated, p_workspace, p_zeiterfassung] as const;

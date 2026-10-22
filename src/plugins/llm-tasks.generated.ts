@@ -4,6 +4,7 @@ import { CASES_LLM_TASKS } from "./cases/llm-tasks";
 import { DOCUMENTS_LLM_TASKS } from "./documents/llm-tasks";
 import { JIRA_LAGE_LLM_TASKS } from "./jira-lage/llm-tasks";
 import { KEEP_LLM_TASKS } from "./keep/llm-tasks";
+import { KNOW_LLM_TASKS } from "./know/llm-tasks";
 import { KNOWLEDGE_LLM_TASKS } from "./knowledge/llm-tasks";
 import { LLM_LLM_TASKS } from "./llm/llm-tasks";
 import { NEWS_LLM_TASKS } from "./news/llm-tasks";
@@ -13,4 +14,4 @@ import { TODOS_LLM_TASKS } from "./todos/llm-tasks";
 import { WORK_LLM_TASKS } from "./work/llm-tasks";
 
 /** Every plugin's AI tasks (plugins/llm/tasks.ts orders them by plugin). */
-export const LLM_TASK_LISTS = [AUTO_ACTIONS_LLM_TASKS, CASES_LLM_TASKS, DOCUMENTS_LLM_TASKS, JIRA_LAGE_LLM_TASKS, KEEP_LLM_TASKS, KNOWLEDGE_LLM_TASKS, LLM_LLM_TASKS, NEWS_LLM_TASKS, PEOPLE_LLM_TASKS, QUESTIONS_LLM_TASKS, TODOS_LLM_TASKS, WORK_LLM_TASKS] as const;
+export const LLM_TASK_LISTS = [AUTO_ACTIONS_LLM_TASKS, CASES_LLM_TASKS, DOCUMENTS_LLM_TASKS, JIRA_LAGE_LLM_TASKS, KEEP_LLM_TASKS, KNOW_LLM_TASKS, KNOWLEDGE_LLM_TASKS, LLM_LLM_TASKS, NEWS_LLM_TASKS, PEOPLE_LLM_TASKS, QUESTIONS_LLM_TASKS, TODOS_LLM_TASKS, WORK_LLM_TASKS] as const;

@@ -12,6 +12,7 @@ import type { PartyRole } from "../parties";
 import { caseAppData } from "../view-data";
 import { ContactField } from "./ContactField";
 import { TimelineList } from "@/plugins/timeline/ui/TimelineList";
+import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 
 /**
  * A case's own page, client side: what its template reads as app.* (the case's bundle, read when the page opens and after each
@@ -65,6 +66,12 @@ function TimelinePart(p: PartProps) {
   const t = useT();
   const row = p.rows[0]?.id;
   return row ? <TimelineList row={row} limit={20} compact filters={false} title={t("Timeline")} hideWhenOff /> : null;
+}
+
+/** What you should know about the case now (the know plugin) — nothing while it is off or there is nothing to say. */
+function KnowPart(p: PartProps) {
+  const row = p.rows[0]?.id;
+  return row ? <KnowPanel row={row} compact /> : null;
 }
 
 function StatusPart(p: PartProps) {
@@ -131,7 +138,7 @@ function Note({ note, onSave }: { note: string; onSave: (note: string) => Promis
 }
 
 const page: ViewAppModule = {
-  parts: { "case.timeline": TimelinePart, "case.status": StatusPart, "case.sources": SourcesPart, "case.pay": PayPart, "case.contact": ContactPart, "case.note": NotePart },
+  parts: { "case.know": KnowPart, "case.timeline": TimelinePart, "case.status": StatusPart, "case.sources": SourcesPart, "case.pay": PayPart, "case.contact": ContactPart, "case.note": NotePart },
   useAppData: useCaseData,
   actions: { "case.compile": (env) => void (env.app.run as Run | undefined)?.({ op: "compile" }) },
 };

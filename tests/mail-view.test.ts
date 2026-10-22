@@ -85,7 +85,7 @@ test("mail: the list and the reading pane are the language's — the parts only 
   assert.match(pane, /Bob <bob@y\.com> · 14:03 · Gmail · Inbox/);
   assert.match(pane, /Read-only — reply in Outlook \/ Gmail/);
   assert.deepEqual(find(sel.c, "button").map((b) => b.a.action), ["open"], "no link without one");
-  assert.deepEqual(parts(sel.c), ["mail.thread", "mail.suggested"], "no reply where it can't be sent");
+  assert.deepEqual(parts(sel.c), ["mail.know", "mail.thread", "mail.suggested"], "no reply where it can't be sent");
   assert.ok(parts(r.nodes).includes("mail.new-inbox"));
   assert.ok(find(r.nodes, "toggle")[0].a.label.includes("(2)"), "the unread counted");
 
@@ -145,7 +145,7 @@ test("the chat's default template draws without an error; its list and header th
   const pane = vnodeToString(find(r.nodes, "selected")[0]);
   assert.match(pane, /Eva/);
   assert.match(pane, /Open in WhatsApp/);
-  assert.deepEqual(parts(r.nodes).filter((p) => p !== "mail.new-inbox"), ["chat.messages", "mail.suggested", "mail.reply"]);
+  assert.deepEqual(parts(r.nodes).filter((p) => p !== "mail.new-inbox"), ["mail.know", "chat.messages", "mail.suggested", "mail.reply"]);
   const teams = drawChat({});
   assert.match(vnodeToString(teams.nodes), /Read-only — replying through Teams isn't set up here\./);
   assert.ok(!parts(teams.nodes).includes("mail.reply"));
@@ -224,7 +224,7 @@ test("inbox: channels as tabs, threads as the language's list, the reading pane 
   const pane = vnodeToString(sel);
   assert.match(pane, /✉️ Outlook · Me <me@x\.de> · 10:00 · Inbox/);
   assert.match(pane, /From a customer/);
-  assert.deepEqual(parts(sel.c), ["inbox.snooze", "mail.thread", "mail.suggested", "mail.reply"]);
+  assert.deepEqual(parts(sel.c), ["inbox.snooze", "mail.know", "mail.thread", "mail.suggested", "mail.reply"]);
   const teams = drawInbox({ snoozed: "true", selected: "23" });
   assert.match(vnodeToString(teams.nodes), /Read-only — replying through Teams isn't set up here\./);
   assert.ok(!parts(teams.nodes).includes("mail.reply"));

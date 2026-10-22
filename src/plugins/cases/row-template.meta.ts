@@ -80,6 +80,8 @@ const template = (t: T) => `{{#if app.loading}}
       {{/if}}
     </section>
 
+    <part name="case.know"/>
+
     <part name="case.timeline"/>
   </col>
 
@@ -122,6 +124,7 @@ export const CASE_PAGE: ViewAppMeta = {
   app: "case",
   label: "Case",
   parts: [
+    { name: "case.know", description: "What you should know about the case now (the know plugin; nothing while it is off or there is nothing to say): the person on the other side, what is open between you, money, the latest, with the AI's points when kept" },
     { name: "case.timeline", description: "What happened with the case, by day: its mails and letters, payments, todos, changes to its row (the Timeline plugin; nothing while it is off) — under its own heading" },
     { name: "case.status", description: "The case's status as a dropdown (open, closed, not a case) — saved at once" },
     { name: "case.sources", description: "Its mails, letters and appointments as cards (by kind, the newest first, more behind Show more)" },

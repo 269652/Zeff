@@ -114,6 +114,7 @@ const template = (t: T) => `<state name="keep" value=""/>
   </col>
 
   <col gap=5>
+    <part name="person.know"/>
     <box>
       ${head(t("Summary"), `<button action="person.compile" ${busy("compile", "app.compileLabel")} variant=quiet/>`)}
       {{#if app.compiled}}
@@ -310,6 +311,7 @@ export const PERSON_PAGE: ViewAppMeta = {
   label: "Person",
   parts: [
     { name: "person.input", description: "A line of the profile, saved on leaving it (or Enter) — “Saved ✓” for a moment (state.saved)", attrs: { field: "name | aliases | emails | whatsapp | jira", label: "its label", placeholder: "a hint in it" } },
+    { name: "person.know", description: "What you should know about them now (the know plugin; nothing while it is off or there is nothing to say): the AI's points when kept, what is open between you, what they are about (tickets, cases, projects), the latest, a line for sources not up to date" },
     { name: "person.timeline", description: "What happened with them, by day: mails, chats, Teams, comments, appointments, todos, payments, documents — with the kinds to filter by and a line where your last visit was (the Timeline plugin; nothing while it is off) — under its own heading" },
     { name: "person.note", description: "Your notes on them, saved while you write and on leaving it", attrs: { placeholder: "a hint in it" } },
     { name: "person.transfer", description: "“Transfer money”: a dialog with the amount and purpose, and the GiroCode of the transfer to their account (app.canPay)" },
