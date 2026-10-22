@@ -32,6 +32,8 @@ export type CaseSummary = {
   creditorKind?: "person" | "organization";
   collector?: string;
   collectorKind?: "person" | "organization";
+  /** The day of the month the instalments are due (a plan "am 15."), when said. */
+  installmentDay?: number;
   /** A debt you wrote down yourself (no case number): kept as you wrote it — never summed up by the AI. */
   manual?: boolean;
   /** Made from a promise of yours (a claim of the People plugin). */

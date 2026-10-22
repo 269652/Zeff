@@ -62,6 +62,8 @@ export type CasesOverview = {
   suggestions: import("./parties").DebtSuggestion[];
   /** Your contacts (for choosing a creditor). */
   contacts: { id: number; name: string; kind: "person" | "organization" }[];
+  /** The debts with their payment plans (each with its row), and the plans together. */
+  plans: { debts: (import("./debts").DebtPlan & { rowId: number | null })[]; summary: import("./plans").PlanSummary };
 };
 
 /** The cases database's overview (its "Overview" view): the money in figures, the running cases by what is due first, each with where it pays to. */
@@ -101,7 +103,8 @@ export async function casesOverviewAction(): Promise<Result<{ overview: CasesOve
       })()),
     };
     const contacts = isInstalled("people") ? (await import("@/plugins/people/store")).listPeople().map((p) => ({ id: p.id, name: p.name, kind: p.kind })) : [];
-    return { overview: { figures, cases, suggestions: parties.debtSuggestions(), contacts } };
+    const plans = (await import("./debts")).debtPlans(today);
+    return { overview: { figures, cases, suggestions: parties.debtSuggestions(), contacts, plans: { debts: plans.debts.map((d) => ({ ...d, rowId: rows.get(`case:${d.id}`) ?? null })), summary: plans.summary } } };
   });
 }
 
@@ -124,7 +127,16 @@ export async function createDebtAction(v: { title: string; creditorId?: number |
 export async function caseMoneyAction(caseId: number, patch: { total?: number | null; open?: number | null; installment?: number | null; due?: string | null }): Promise<Result> {
   return run(async () => {
     const num = (v: unknown) => (v === null ? null : v === undefined ? undefined : Number(v));
-    (await import("./parties")).editCaseMoney(Number(caseId), { total: num(patch.total), open: num(patch.open), installment: num(patch.installment), ...(patch.due !== undefined ? { due: patch.due ? String(patch.due) : null } : {}) });
+    (await import("./parties")).setDebtMoney(Number(caseId), { total: num(patch.total), open: num(patch.open), installment: num(patch.installment), ...(patch.due !== undefined ? { due: patch.due ? String(patch.due) : null } : {}) });
+    await rowsAgain();
+    return {};
+  });
+}
+
+/** A debt of your own removed. */
+export async function deleteDebtAction(caseId: number): Promise<Result> {
+  return run(async () => {
+    (await import("./parties")).deleteDebt(Number(caseId));
     await rowsAgain();
     return {};
   });

@@ -23,5 +23,6 @@ export default async function DebtOverviewPage() {
   const parties = await import("@/plugins/cases/parties");
   parties.assignAllParties();
   const contacts = isInstalled("people") ? (await import("@/plugins/people/store")).listPeople().map((p) => ({ id: p.id, name: p.name, kind: p.kind })) : [];
-  return <DebtView overview={debtOverview()} today={new Date().toISOString().slice(0, 10)} contacts={contacts} suggestions={parties.debtSuggestions()} />;
+  const plans = (await import("@/plugins/cases/debts")).debtPlans();
+  return <DebtView plans={{ summary: plans.summary, byCase: Object.fromEntries(plans.debts.map((d) => [d.id, { kind: d.plan.kind, end: d.plan.end, estimatedStart: d.plan.estimatedStart, left: d.plan.payments.length }])) }} overview={debtOverview()} today={new Date().toISOString().slice(0, 10)} contacts={contacts} suggestions={parties.debtSuggestions()} />;
 }

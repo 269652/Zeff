@@ -1,65 +1,34 @@
 "use client";
 
-import { useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { caseMoneyAction } from "../block-actions";
+import { InlineAmount } from "./InlineAmount";
 
 /**
- * A case's amount (or due day) as text — a click makes it a field: Enter or leaving it saves yours (it stays over what the AI
- * sums up later), Escape cancels, emptied it takes yours back.
+ * A case's amount (or due day) as text — a click makes it a field: Enter or leaving it saves yours, Escape cancels, emptied it
+ * takes yours back. `readOnly` (what the AI read off the case's letters and mails): shown only — it is what they say.
  */
-export function EditMoney({ caseId, field, value, onSaved, className = "" }: { caseId: number; field: "total" | "open" | "installment" | "due"; value: number | string | null; onSaved: () => void; className?: string }) {
+export function EditMoney({ caseId, field, value, onSaved, className = "", readOnly = false }: { caseId: number; field: "total" | "open" | "installment" | "due"; value: number | string | null; onSaved: () => void; className?: string; readOnly?: boolean }) {
   const t = useT();
-  const [editing, setEditing] = useState(false);
-  const [v, setV] = useState("");
-  const date = field === "due";
-  const shown = value == null || value === "" ? "—" : date ? new Date(String(value)).toLocaleDateString() : Number(value).toLocaleString(undefined, { style: "currency", currency: "EUR" });
-  const save = async () => {
-    setEditing(false);
-    const raw = v.trim();
-    let next: number | string | null = null;
-    if (raw) {
-      if (date) next = raw;
-      else {
-        const n = Number(raw.replace(/\./g, "").replace(",", "."));
-        if (!Number.isFinite(n) || n < 0) return void toast(t("Not an amount — e.g. 11,52"), { tone: "error" });
-        next = n;
-      }
-    }
-    if (next === value) return;
-    const r = await caseMoneyAction(caseId, { [field]: next });
-    if (!r.ok) toast(r.error, { tone: "error" });
-    else onSaved();
-  };
-  if (editing)
+  if (readOnly) {
+    const shown = value == null || value === "" ? "—" : field === "due" ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString() : Number(value).toLocaleString(undefined, { style: "currency", currency: "EUR" });
     return (
-      <input
-        className={`input w-28 px-1.5 py-0.5 text-right text-sm tabular-nums ${className}`}
-        type={date ? "date" : "text"}
-        inputMode={date ? undefined : "decimal"}
-        autoFocus
-        value={v}
-        onChange={(e) => setV(e.target.value)}
-        onBlur={() => void save()}
-        onKeyDown={(e) => {
-          if (e.key === "Enter") e.currentTarget.blur();
-          if (e.key === "Escape") setEditing(false);
-        }}
-        aria-label={t("Change")}
-      />
+      <span className={`px-1 tabular-nums ${className}`} title={t("From the case's letters and mails")}>
+        {shown}
+      </span>
     );
+  }
   return (
-    <button
-      type="button"
-      className={`rounded px-1 tabular-nums hover:bg-zinc-100 hover:ring-1 hover:ring-zinc-200 dark:hover:bg-zinc-800 dark:hover:ring-zinc-700 print:hover:bg-transparent ${className}`}
-      title={t("Click to change")}
-      onClick={() => {
-        setV(value == null ? "" : date ? String(value) : String(value).replace(".", ","));
-        setEditing(true);
+    <InlineAmount
+      value={value}
+      date={field === "due"}
+      className={className}
+      onSave={async (next) => {
+        const r = await caseMoneyAction(caseId, { [field]: next });
+        if (!r.ok) toast(r.error, { tone: "error" });
+        else onSaved();
       }}
-    >
-      {shown}
-    </button>
+    />
   );
 }

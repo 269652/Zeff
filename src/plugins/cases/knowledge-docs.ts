@@ -72,6 +72,8 @@ export function bankDocs(): KnowledgeDoc[] {
     ]
       .join("\n")
       .slice(0, 4800);
-    return { id: `zeff:bank:${account.toLowerCase().replace(/[^a-z0-9]+/g, "-")}:${month}`, space: "Zeff · Konto", title: `Kontoauszug ${account} ${monthName(month)}`, url: "", version: version(body), updatedAt: list.at(-1)?.date ?? `${month}-01`, author: null, body };
+    // The version also names what the compile reads off a statement ("profile 1": the net income) — when that grows, the
+    // months already compiled are compiled once more.
+    return { id: `zeff:bank:${account.toLowerCase().replace(/[^a-z0-9]+/g, "-")}:${month}`, space: "Zeff · Konto", title: `Kontoauszug ${account} ${monthName(month)}`, url: "", version: version(`profile 1\n${body}`), updatedAt: list.at(-1)?.date ?? `${month}-01`, author: null, body };
   });
 }

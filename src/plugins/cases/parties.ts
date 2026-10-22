@@ -161,6 +161,28 @@ export function editCaseMoney(caseId: number, patch: { total?: number | null; op
   });
 }
 
+/**
+ * A debt's money changed on the overview: a debt of your own takes it as it is (emptied: gone); one from letters keeps your
+ * correction over the AI's (emptied: the AI's again).
+ */
+export function setDebtMoney(caseId: number, patch: { total?: number | null; open?: number | null; installment?: number | null; due?: string | null }): void {
+  const c = getCase(caseId);
+  if (!c) throw new Error("Unknown case.");
+  if (!c.compiled?.manual) return editCaseMoney(caseId, patch);
+  // Yours: the values themselves (a correction kept from before goes, so it can't cover them).
+  setOverrides(caseId, { total: null, open: null, installment: null, nextDue: null });
+  updateDebt(caseId, patch);
+}
+
+/** A debt of your own removed (with its parties) — a case from letters isn't removed so (set it aside instead). */
+export function deleteDebt(caseId: number): void {
+  const c = getCase(caseId);
+  if (!c) return;
+  if (!c.compiled?.manual) throw new Error("Only a debt of your own is removed so — set a case from letters aside.");
+  casesDb().prepare("delete from cases where id = ?").run(caseId);
+  emitChange("todos");
+}
+
 /** A debt of your own changed (its money, its due day, its title). */
 export function updateDebt(caseId: number, patch: { title?: string; total?: number | null; open?: number | null; installment?: number | null; due?: string | null }): void {
   const c = getCase(caseId);

@@ -167,3 +167,20 @@ test("a case's money corrected by you — total, open, instalment, due — stays
   editCaseMoney(c.id, { open: null });
   assert.equal(getCase(c.id)!.compiled?.open, 3618.13, "taken back: the AI's again");
 });
+
+test("a debt of your own: a field emptied is emptied (its due day, its instalment) — and the debt can go; one from letters keeps its figures", async () => {
+  await setup();
+  const { createPerson } = await import("@/plugins/people/store");
+  const { createDebt, setDebtMoney, deleteDebt } = await import("@/plugins/cases/parties");
+  const { getCase, caseByKey } = await import("@/plugins/cases/store");
+  const id = createDebt({ title: "Leihgabe", creditorId: createPerson({ name: "Tina Test" }), amount: 500, due: day(10), installment: 50 });
+  setDebtMoney(id, { due: null, installment: null });
+  assert.equal(getCase(id)!.compiled?.nextDue, null, "the due day gone");
+  assert.equal(getCase(id)!.compiled?.installment, null, "the instalment gone");
+  setDebtMoney(id, { installment: 25 });
+  assert.equal(getCase(id)!.compiled?.installment, 25);
+  deleteDebt(id);
+  assert.equal(getCase(id), null, "gone");
+  const fromLetters = caseByKey("DR II 1121/26")!;
+  assert.throws(() => deleteDebt(fromLetters.id), /own/i, "a case from letters isn't deleted so");
+});

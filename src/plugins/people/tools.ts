@@ -54,6 +54,8 @@ export type PersonCardInfo = {
   pay: { iban: string; bic: string } | null;
   /** Their birthday is today (0) or tomorrow (1) — a greeting to draft. */
   birthdayIn: number | null;
+  /** What you owe them (the running debts they are the creditor of — the Cases plugin). */
+  debt: { amount: number; count: number } | null;
 };
 
 /** What an identity suggestion proposes, in words (`nameOf`: a profile's name by its id). */
@@ -85,6 +87,15 @@ export async function peopleOverview(): Promise<PeopleOverview> {
   const contacts = await lastContactsAll(people);
   const today = new Date().toISOString().slice(0, 10);
   const owedAll = openCommitments();
+  // What you owe whom: the running debts by their creditor (with the Cases plugin).
+  const debts = new Map<number, { amount: number; count: number }>();
+  if (isInstalled("cases")) {
+    for (const d of (await import("@/plugins/cases/debts")).debtPlans().debts) {
+      if (!d.creditorId) continue;
+      const x = debts.get(d.creditorId) ?? { amount: 0, count: 0 };
+      debts.set(d.creditorId, { amount: Math.round((x.amount + d.open) * 100) / 100, count: x.count + 1 });
+    }
+  }
   const birthdays = new Map(upcoming({ days: 1 }).filter((u) => u.date.kind === "birthday").map((u) => [u.person.id, u.inDays]));
   const cards: PeopleOverview["cards"] = {};
   for (const p of people) {
@@ -102,6 +113,7 @@ export async function peopleOverview(): Promise<PeopleOverview> {
       chat: p.whatsapp,
       pay: iban ? { iban, bic: details.find((d) => d.key === "bic")?.value ?? "" } : null,
       birthdayIn: birthdays.get(p.id) ?? null,
+      debt: debts.get(p.id) ?? null,
     };
   }
   return {

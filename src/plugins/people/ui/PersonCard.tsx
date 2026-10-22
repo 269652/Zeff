@@ -108,6 +108,11 @@ export function PersonCard({ p, info, now, soonUntil, weeks, open, run }: { p: C
                 {t("owes you {n}", { n: theirs.length })}
               </button>
             )}
+            {info?.debt && (
+              <span className={`${chip} bg-rose-100 font-medium text-rose-800 dark:bg-rose-950 dark:text-rose-300`} title={info.debt.count === 1 ? t("1 running debt to them") : t("{n} running debts to them", { n: info.debt.count })}>
+                {t("Debt {amount}", { amount: info.debt.amount.toLocaleString(undefined, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) })}
+              </span>
+            )}
             {p.todos > 0 && <span className={`${chip} bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300`}>{p.todos === 1 ? t("1 todo") : t("{n} todos", { n: p.todos })}</span>}
             {p.tickets > 0 && <span className={grey}>{p.tickets === 1 ? t("1 ticket") : t("{n} tickets", { n: p.tickets })}</span>}
           </div>

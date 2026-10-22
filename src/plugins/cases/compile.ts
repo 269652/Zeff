@@ -26,6 +26,7 @@ const SCHEMA = {
     total: { type: ["number", "null"], description: "Die ganze Forderung in Euro, sonst null." },
     open: { type: ["number", "null"], description: "Was davon noch offen ist, in Euro, sonst null." },
     installment: { type: ["number", "null"], description: "Eine laufende Rate in Euro, sonst null." },
+    installment_day: { type: ["number", "null"], description: "Der Tag im Monat, an dem die Raten fällig sind (z. B. 15 bei „am 15. jedes Monats“), sonst null." },
     next_due: { type: "string", description: "Die nächste Zahlung oder Frist als YYYY-MM-DD, sonst leer." },
     next_what: { type: "string", description: "Was dann fällig ist (z. B. „Rate 300 €“, „Widerspruchsfrist“)." },
     iban: { type: "string", description: "Die IBAN, auf die zu zahlen ist, genau abgeschrieben — sonst leer." },
@@ -37,7 +38,7 @@ const SCHEMA = {
   required: ["title", "party", "creditor", "creditor_kind", "collector", "collector_kind", "summary", "total", "open", "installment", "next_due", "next_what", "iban", "bic", "payee", "purpose", "done"],
 };
 
-type Answer = { title?: string; party?: string; creditor?: string; creditor_kind?: string; collector?: string; collector_kind?: string; summary?: string; total?: unknown; open?: unknown; installment?: unknown; next_due?: string; next_what?: string; iban?: string; bic?: string; payee?: string; purpose?: string; done?: boolean };
+type Answer = { installment_day?: unknown; title?: string; party?: string; creditor?: string; creditor_kind?: string; collector?: string; collector_kind?: string; summary?: string; total?: unknown; open?: unknown; installment?: unknown; next_due?: string; next_what?: string; iban?: string; bic?: string; payee?: string; purpose?: string; done?: boolean };
 
 export const INSTRUCTIONS = `Du fasst einen Vorgang zusammen — alles, was zu einem Aktenzeichen gehört: Mails, Briefe (ihr Text), Todos. Ich will auf einen Blick sehen, worum es geht, wie viel offen ist, was als Nächstes fällig ist und wohin ich zahle.
 
@@ -66,6 +67,7 @@ export function checked(a: Answer, key: string, sources: number): CaseSummary {
     total: money(a.total),
     open: money(a.open),
     installment: money(a.installment),
+    ...(typeof a.installment_day === "number" && a.installment_day >= 1 && a.installment_day <= 31 ? { installmentDay: Math.round(a.installment_day) } : {}),
     nextDue: /^\d{4}-\d{2}-\d{2}$/.test(due) ? due : null,
     nextWhat: clip(a.next_what, 120),
     iban: validIban ? iban : "",

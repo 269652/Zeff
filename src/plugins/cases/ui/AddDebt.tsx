@@ -11,7 +11,7 @@ import { ContactField, type ContactOption } from "./ContactField";
  * A debt of your own written down — to whom (a contact, or a new one), what for, how much, by when — and your promises with an
  * amount offered as debts ("Johanna: 200 € zurücküberweisen" → a debt to Johanna).
  */
-export function AddDebt({ contacts, suggestions, onDone, startOpen = false }: { contacts: ContactOption[]; suggestions: DebtSuggestion[]; onDone: () => void; startOpen?: boolean }) {
+export function AddDebt({ contacts, suggestions, onDone, startOpen = false, hideButton = false }: { contacts: ContactOption[]; suggestions: DebtSuggestion[]; onDone: () => void; startOpen?: boolean; /** Only the promises offered (the button is elsewhere). */ hideButton?: boolean }) {
   const t = useT();
   const [open, setOpen] = useState(startOpen);
   const [busy, setBusy] = useState(false);
@@ -125,7 +125,7 @@ export function AddDebt({ contacts, suggestions, onDone, startOpen = false }: { 
             </button>
           </div>
         </form>
-      ) : (
+      ) : hideButton ? null : (
         <button type="button" className="btn btn-sm" onClick={() => setOpen(true)}>
           + {t("Debt")}
         </button>
