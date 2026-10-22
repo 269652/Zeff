@@ -19,6 +19,20 @@ export async function allSeries(range: SeriesRange): Promise<Series[]> {
   return out;
 }
 
+/** Every series the installed plugins offer, without values (quick) — your databases' fields first. */
+export function seriesCatalog(): SeriesInfo[] {
+  const out: SeriesInfo[] = [];
+  for (const c of correlationSeries.list())
+    for (const p of c.impl) {
+      try {
+        out.push(...(p.catalog?.() ?? []));
+      } catch (e) {
+        console.warn(`[correlations] ${p.id}: ${errorMessage(e)}`);
+      }
+    }
+  return out;
+}
+
 const norm = (s: string) => s.trim().toLowerCase().replace(/\s+/g, " ");
 
 /**

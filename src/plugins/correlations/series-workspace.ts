@@ -3,14 +3,14 @@ import { dateRange, type Property, type Row } from "@/plugins/workspace/model";
 import { getDatabase, rowsOf } from "@/plugins/workspace/store";
 import { getSqlite } from "@/db";
 import { filled } from "./days";
-import type { Series, SeriesProvider, SeriesRange } from "./series-point";
+import type { Series, SeriesInfo, SeriesProvider, SeriesRange } from "./series-point";
 
 /**
  * The series of your own Workspace databases — any with a date (a journal, a workout log, a sleep diary): per day its numbers (also a
  * formula's or a rollup's), a select as its option's place (Hard = 1 … Great = 5, the options' order), a tick and each tag of a
  * multi-select as 0/1, and how many entries the day has. A day is the row's date (the first date field); days without an entry have
  * no value (not a 0) — except the count, 0 from the first entry on. Databases filled by a source (mails, messages, calendars) are not
- * diaries and are left out.
+ * diaries and are left out, as are todo lists (their date is when a thing is due, not a day lived).
  */
 
 type Acc = Map<string, number[]>;
@@ -27,7 +27,7 @@ function diaryDatabases(): number[] {
   const ids = (getSqlite().prepare("select id from ws_pages where kind = 'database' and archived_at is null and template = 0 order by id").all() as { id: number }[]).map((r) => r.id);
   return ids.filter((id) => {
     const s = getDatabase(id)?.schema;
-    return !!s && !s.dataType && !s.pipeline?.steps?.length && !s.jobs && !s.rules && s.properties.some((p) => p.type === "date");
+    return !!s && !s.dataType && !s.pipeline?.steps?.length && !s.jobs && !s.rules && !s.todoList && s.properties.some((p) => p.type === "date");
   });
 }
 
@@ -87,12 +87,28 @@ export function databaseSeries(dbId: number, range: SeriesRange): Series[] {
     const counts = new Map<string, number>();
     for (const { day } of inRange) counts.set(day, (counts.get(day) ?? 0) + 1);
     const values = filled(counts, range, first);
-    out.push({ ...base("entries", t("entries")), kind: "number", values });
+    out.push({ ...base("entries", t("Entries per day")), kind: "number", values });
   }
   return out;
+}
+
+/** A database's series without their values, from its fields alone (quick: the widget's choice of a target). */
+export function databaseCatalog(dbId: number): SeriesInfo[] {
+  const d = getDatabase(dbId);
+  if (!d) return [];
+  const name = d.page.title || t("Untitled");
+  const base = (id: string, label: string) => ({ id: `db:${dbId}:${id}`, label: `${name} › ${label}`, group: name });
+  return d.schema.properties.flatMap((p): SeriesInfo[] => {
+    if (p.type === "number") return [{ ...base(p.id, p.name), kind: "number" }];
+    if ((p.type === "select" || p.type === "status") && p.options?.length) return [{ ...base(p.id, p.name), kind: "ordinal", levels: p.options.map((o) => o.name) }];
+    if (p.type === "multi_select") return (p.options ?? []).map((o) => ({ ...base(`${p.id}:${o.id}`, `${p.name}: ${o.name}`), kind: "binary" as const }));
+    if (p.type === "checkbox") return [{ ...base(p.id, p.name), kind: "binary" }];
+    return [];
+  });
 }
 
 export const WORKSPACE_SERIES: SeriesProvider = {
   id: "workspace.databases",
   series: (range) => diaryDatabases().flatMap((id) => databaseSeries(id, range)),
+  catalog: () => diaryDatabases().flatMap(databaseCatalog),
 };

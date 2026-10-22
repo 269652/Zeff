@@ -33,6 +33,8 @@ export type SeriesProvider = {
   id: string;
   /** Every series it has values for in the period (inclusive days). */
   series: (range: SeriesRange) => Series[] | Promise<Series[]>;
+  /** What it can offer, without values — quick (the widget's choice of a target). */
+  catalog?: () => SeriesInfo[];
 };
 
 export const correlationSeries = extensionPoint<SeriesProvider[]>("correlations.series");

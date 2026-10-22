@@ -4,7 +4,7 @@ import { t } from "@/lib/i18n/server";
 import { ME_SENDER } from "@/lib/mail/shared";
 import { isInstalled } from "@/plugins/state";
 import { filled, localDate, localDay } from "./days";
-import type { Series, SeriesProvider, SeriesRange } from "./series-point";
+import type { Series, SeriesInfo, SeriesProvider, SeriesRange } from "./series-point";
 import { addDays } from "./stats";
 
 /**
@@ -157,8 +157,24 @@ function activity(range: SeriesRange, msgs: ReturnType<typeof messages>): Series
   ];
 }
 
+/** The signals without their values (the widget's choice of a target): those whose source is there. */
+function signalCatalog(): SeriesInfo[] {
+  const of = (id: string, label: string, group: string, unit?: string): SeriesInfo => ({ id, label, group, kind: "number", ...(unit ? { unit } : {}) });
+  return [
+    of("calendar:meeting-hours", t("Meeting hours"), t("Calendar"), "h"),
+    ...(isInstalled("zeiterfassung") ? [of("time:booked-hours", t("Booked hours"), t("Time tracking"), "h")] : []),
+    ...CHANNELS().flatMap(([ch, name]) => [of(`messages:${ch}:received`, t("{channel} received", { channel: name }), t("Messages")), of(`messages:${ch}:sent`, t("{channel} sent", { channel: name }), t("Messages"))]),
+    of("todos:created", t("Todos created"), t("Todos")),
+    of("todos:done", t("Todos done"), t("Todos")),
+    ...(isInstalled("finances") ? [of("finances:spending", t("Spending"), t("Finances"), "€")] : []),
+    of("activity:first", t("First activity (hour)"), t("Activity"), "h"),
+    of("activity:last", t("Last activity (hour)"), t("Activity"), "h"),
+  ];
+}
+
 export const SIGNAL_SERIES: SeriesProvider = {
   id: "correlations.signals",
+  catalog: signalCatalog,
   series: (range) => {
     const msgs = messages(range);
     return [...meetingHours(range), ...bookedHours(range), ...messageSeries(range, msgs), ...todoSeries(range), ...spending(range), ...activity(range, msgs)];
