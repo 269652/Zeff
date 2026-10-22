@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { templateParamsAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { templateParamsAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, setDatabaseLabelAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -700,6 +700,27 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
               )}
               {/* What goes out of it (into the Ticket-Lage; the knowledge server picks for itself): the Workspace's settings. */}
               <MenuItem onClick={() => (close(), router.push(`/workspace/settings/outputs#db-${dbId}`))}>📤 {t("Outputs …")}</MenuItem>
+              {/* How sensitive it is (open, personal, secret): what may flow out of it at all — Settings → Data boundaries. */}
+              <div className="flex items-center gap-1 px-2 py-1 text-sm" title={t("Personal: agents only with permission. Secret: never leaves Zeff — no knowledge, briefing, agents or AI.")}>
+                <span aria-hidden>{data.extras?.sensitivity && data.extras.sensitivity !== "open" ? "🔒" : "🔓"}</span>
+                <span className="mr-auto text-zinc-500">{t("Sensitivity")}</span>
+                {(["open", "personal", "secret"] as const).map((l) => (
+                  <button
+                    key={l}
+                    type="button"
+                    aria-pressed={(data.extras?.sensitivity ?? "open") === l}
+                    className={`rounded px-1.5 py-0.5 text-xs ${(data.extras?.sensitivity ?? "open") === l ? "bg-indigo-100 dark:bg-indigo-950" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+                    onClick={async () => {
+                      const r = await setDatabaseLabelAction(dbId, l);
+                      if (!r.ok) return void toast(r.error, { tone: "error" });
+                      await api.reload();
+                    }}
+                  >
+                    {l === "open" ? t("Open") : l === "personal" ? t("Personal") : t("Secret")}
+                  </button>
+                ))}
+              </div>
+              <MenuItem onClick={() => (close(), router.push("/privacy/boundaries"))}>🔒 {t("Data boundaries …")}</MenuItem>
               <div className="px-2 py-1">
                 <input className="input w-full text-sm" value={view.name} aria-label={t("View name")} onChange={(e) => setView({ ...view, name: e.target.value })} />
               </div>

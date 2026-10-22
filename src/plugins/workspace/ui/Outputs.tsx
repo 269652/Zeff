@@ -12,7 +12,7 @@ import { setCollectionAction } from "../actions";
  * briefing"); into the knowledge — picked on the knowledge server now (Plugins → Zeff → what to read), from every source
  * and database Zeff has.
  */
-export function OutputsView({ databases, knowledgeOn }: { databases: { id: number; name: string; briefing: boolean; source: string | null }[]; knowledgeOn: boolean }) {
+export function OutputsView({ databases, knowledgeOn }: { databases: { id: number; name: string; briefing: boolean; source: string | null; sensitivity?: "open" | "personal" | "secret" }[]; knowledgeOn: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -30,11 +30,17 @@ export function OutputsView({ databases, knowledgeOn }: { databases: { id: numbe
         <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
           {databases.map((d) => (
             <li key={d.id} id={`db-${d.id}`} className="flex items-center gap-3 px-3 py-2 text-sm">
-              <input type="checkbox" checked={d.briefing} disabled={pending} aria-label={d.name} onChange={(e) => set(d.id, e.target.checked)} />
+              {/* A secret database goes nowhere (Data boundaries): its switch can't put it in. */}
+              <input type="checkbox" checked={d.briefing} disabled={pending || d.sensitivity === "secret"} aria-label={d.name} onChange={(e) => set(d.id, e.target.checked)} />
               <Link href={`/workspace/${d.id}`} className="min-w-0 flex-1 truncate hover:underline">
                 {d.name}
               </Link>
               {d.source && <span className="text-xs text-zinc-400">{d.source}</span>}
+              {d.sensitivity && d.sensitivity !== "open" && (
+                <Link href="/privacy/boundaries" className="text-xs text-zinc-500 hover:underline" title={t("Data boundaries")}>
+                  🔒 {d.sensitivity === "secret" ? t("Secret") : t("Personal")}
+                </Link>
+              )}
             </li>
           ))}
         </ul>

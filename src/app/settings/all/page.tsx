@@ -37,6 +37,7 @@ export default async function SettingsHubPage() {
     ...(isInstalled("accounts") ? [{ href: "/accounts", label: t("Accounts"), what: t("Separate data sets, each with its own settings") }] : []),
     { href: "/diagnostics", label: t("Diagnostics"), what: t("Health of the app, its syncs and the automation Chrome") },
     { href: "/privacy", label: t("What leaves this PC"), what: t("Every outgoing connection, listed") },
+    { href: "/privacy/boundaries", label: t("Data boundaries"), what: t("What may flow where: open, personal, secret") },
   ];
   const groups: { id: string; title: string; areas: Area[] }[] = [
     { id: "general", title: t("General & AI"), areas: general },

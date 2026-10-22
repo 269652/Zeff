@@ -32,6 +32,8 @@ export type Collection = {
   statuses?: string[];
   /** Kept by a sync from elsewhere ("jira", "google-keep"): its items come from there (Jira's tickets come into the Lage from Jira). */
   source?: string;
+  /** How sensitive its items are (lib/boundaries): open, personal or secret — a secret one goes into neither the briefing nor the knowledge. */
+  sensitivity?: "open" | "personal" | "secret";
 };
 
 /** What can be switched on a collection (what's left out stays as it is). */
