@@ -306,6 +306,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   // How many of its rows the database hides.
   const hiddenCount = data?.schema.hiddenRows?.length ? data.rows.filter((r) => data.schema.hiddenRows!.includes(r.id)).length : 0;
 
+  // What an app view wants a new row to start with (the debtors overview: owed to you).
+  const appDefaults = useRef<Record<string, unknown> | null>(null);
+  const setAppDefaults = useCallback((cells: Record<string, unknown> | null) => void (appDefaults.current = cells), []);
   if (api.error && !data) return <p className="alert-error text-sm">{api.error}</p>;
   if (!data || !view) return <p className="py-6 text-sm text-zinc-500">{t("Loading …")}</p>;
 
@@ -376,8 +379,10 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           ...(syncing.length ? [t("{names} syncing — what it brings follows", { names: syncing.join(", ") })] : []),
         ].join(" · ");
 
+  // Where a new row can be named in place: a table (an app's view without its app is one) — anywhere else it opens.
+  const inPlace = !!view && (view.type === "table" || (view.type === "app" && !data?.extras?.appViews?.some((a) => a.id === view.app)));
   const newRow = async (cells: Record<string, unknown> = {}, templateId?: number, open = false, params?: Record<string, string>) => {
-    const id = await api.addRow(cells, "", templateId, params);
+    const id = await api.addRow({ ...(view?.type === "app" ? (appDefaults.current ?? {}) : {}), ...cells }, "", templateId, params);
     if (!id) return;
     // A row from a template opens as a page; a plain one is named in place.
     if (open) openRow(id);
@@ -709,7 +714,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           )}
         </Dropdown>
         <div className={`flex ${data.locked || data.noNewRows ? "hidden" : ""}`}>
-          <button type="button" className="btn btn-primary btn-sm rounded-r-none" onClick={() => void newRow({}, undefined, false)}>
+          <button type="button" className="btn btn-primary btn-sm rounded-r-none" onClick={() => void newRow({}, undefined, !inPlace)}>
             {t("New")}
           </button>
           <Dropdown label="▾" align="right" title={t("New from a template")} className="btn btn-primary btn-sm rounded-l-none border-l border-indigo-400 px-1.5">
@@ -757,7 +762,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
 
       {data.extras?.running && <p className="text-sm text-indigo-600 dark:text-indigo-400" data-running>✨ {t("The AI is going through the rows — they change as it writes them …")}</p>}
       <PipelineSummaries pipeline={schema.pipeline} />
-      {view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
+      {view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} newRowDefaults={setAppDefaults} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
       {view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} onHide={(hide) => (api.changeSchema((s) => hideRows(s, [...picked], hide)), setPicked(new Set()))} />}
       {view.type === "table" && <TableView fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}

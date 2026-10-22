@@ -5,6 +5,7 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { GiroCode } from "@/components/GiroCode";
 import type { AppViewProps } from "@/plugins/workspace/ui/app-view";
+import { DEBT } from "../fields";
 import type { Direction } from "../own";
 import { financesOverviewAction, setIncomeAction, type FinancesOverview } from "../server-actions";
 import { AddDebt } from "./AddDebt";
@@ -27,14 +28,12 @@ const euro = (v: number | null | undefined, digits = 2) => (v == null ? "—" : 
 const day = (iso: string | null | undefined) => (iso ? new Date(`${iso.slice(0, 10)}T12:00:00`).toLocaleDateString() : "—");
 const monthYear = (iso: string, long = false) => new Date(`${iso.slice(0, 7)}-15T12:00:00`).toLocaleDateString(undefined, { month: long ? "long" : "short", year: "numeric" });
 
-export default function DebtsView({ openRow }: AppViewProps) {
+export default function DebtsView({ openRow, rows, newRowDefaults }: AppViewProps) {
   const t = useT();
   const [dir, setDir] = useState<Direction>("owe");
   const [o, setO] = useState<FinancesOverview | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [paying, setPaying] = useState<number | null>(null);
-  // The form for a new debt, opened by "+ Debt" beside "Print".
-  const [adding, setAdding] = useState(false);
   // Only the latest load counts (a slower one before it doesn't put the old figures back); one that fails is tried once more.
   const seq = useRef(0);
   const load = useCallback(() => {
@@ -54,7 +53,14 @@ export default function DebtsView({ openRow }: AppViewProps) {
       );
     void once(true);
   }, [dir]);
-  useEffect(load, [load]);
+  // Read again when the database's rows change (a debt made with "New" and filled in, one changed in its page).
+  const rowsKey = JSON.stringify(rows.map((r) => [r.id, r.title, r.cells]));
+  useEffect(load, [load, rowsKey]);
+  // The toolbar's "New" here: a debt of this direction.
+  useEffect(() => {
+    newRowDefaults?.({ [DEBT.dir]: dir });
+    return () => newRowDefaults?.(null);
+  }, [newRowDefaults, dir]);
   // Today — fixed when the view opens.
   const [today] = useState(() => new Date().toISOString().slice(0, 10));
   // The fixed costs counted in (the charts, what is left) — or not; kept in this browser.
@@ -191,9 +197,6 @@ export default function DebtsView({ openRow }: AppViewProps) {
           <p className="text-xs text-zinc-500">{t("As of {date}", { date: new Date().toLocaleDateString(undefined, { day: "numeric", month: "long", year: "numeric" }) })}</p>
         </div>
         <span className="flex-1" />
-        <button type="button" className="btn btn-sm print:hidden" aria-expanded={adding} onClick={() => setAdding(true)}>
-          + {t("Debt")}
-        </button>
         <button type="button" className="btn btn-sm print:hidden" onClick={() => window.print()}>
           {t("Print / save as PDF")}
         </button>
@@ -210,7 +213,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
       </dl>
 
       <div className="print:hidden">
-        <AddDebt dir={dir} contacts={o.contacts} suggestions={o.suggestions} onDone={load} hideButton open={adding} onOpenChange={setAdding} />
+        <AddDebt dir={dir} contacts={o.contacts} suggestions={o.suggestions} onDone={load} hideButton />
       </div>
 
       <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 print:overflow-visible print:rounded-none print:border-0">

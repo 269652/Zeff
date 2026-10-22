@@ -5,7 +5,15 @@ import type { DatabaseData } from "../actions";
 import type { Row, View } from "../model";
 
 /** What an app's view gets: the database, its rows (filtered, sorted as the view says), opening a row, reading again. */
-export type AppViewProps = { view: View; data: DatabaseData; rows: Row[]; openRow: (id: number) => void; reload: () => void };
+export type AppViewProps = {
+  view: View;
+  data: DatabaseData;
+  rows: Row[];
+  openRow: (id: number) => void;
+  reload: () => void;
+  /** What a row made with the toolbar's "New" starts with while the app is shown (its cells by property id; null: nothing). */
+  newRowDefaults?: (cells: Record<string, unknown> | null) => void;
+};
 
 /** The apps' views, by id — each its plugin's (loaded when shown). */
 const APPS: Record<string, LazyExoticComponent<ComponentType<AppViewProps>>> = {
