@@ -102,3 +102,10 @@ test("batches of 20 messages (more attention per pair); the eval cuts its cases 
   assert.equal(PER_BATCH, 20);
   assert.equal(PER_BATCH * MAX_BATCHES, 120, "as many messages a run as before");
 });
+
+test("private chats too: plans, offers and meeting up are commitments; how someone is and their news (ill, away, the garage) are facts", async () => {
+  const { extractPrompt } = await import("@/plugins/people/extract");
+  const p = extractPrompt({ instructions: "x", profiles, rejected: { claims: [], links: [] }, items: items() });
+  assert.match(p, /Verabredung/);
+  assert.match(p, /Befinden/);
+});
