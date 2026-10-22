@@ -189,14 +189,26 @@ export type ExtractProfile = { id: number; name: string; aliases: string[]; know
 /**
  * With the Open loops plugin (off by default): questions to me, review/sign requests and my own unanswered questions are read
  * as commitments too — added to the instructions only while it is on, so the extraction stays as it was for everyone else until
- * the change has had its before/after eval (`npm run eval -- people`).
+ * the change has had its before/after eval (`npm run eval -- people`). It is an addition, not a new focus: appended at the end,
+ * it pulled the AI towards commitments and it found less of the rest (eval 2026-10-22) — so it says the rest stays as full.
  */
-export const LOOPS_ADDENDUM = `Offene Schleifen: Zu commitment gehören auch eine Frage an mich, auf die sie eine Antwort braucht, und eine Bitte um Review, Prüfung, Freigabe oder Unterschrift (mine) — und eine Frage oder Bitte von mir an sie, auf deren Antwort ich warte (theirs). text sagt, wer wem was schuldet („Ich schicke Anna die Fotos“, „Tom schickt mir das Angebot“).`;
+export const LOOPS_ADDENDUM = `Zusätzlich zählen als commitment eine Frage an mich, auf die sie eine Antwort braucht, und eine Bitte um Review, Prüfung, Freigabe oder Unterschrift (mine) — und eine Frage oder Bitte von mir an sie, auf deren Antwort ich warte (theirs); text sagt dann, wer wem was schuldet („Ich schicke Anna die Fotos“, „Tom schickt mir das Angebot“). Das ist eine Ergänzung: alle anderen Aussagen und Verbindungen liest du genauso vollständig wie sonst, und trägt eine Nachricht mehrere, gibst du jede aus.`;
+
+/**
+ * The instructions with the open-loops addendum: right under the commitment kind (indented, part of its definition), or — a
+ * prompt of your own without that line — at the end.
+ */
+export function withLoopsAddendum(base: string): string {
+  const lines = base.split("\n");
+  const at = lines.findIndex((l) => l.startsWith("- commitment:"));
+  if (at < 0) return `${base}\n\n${LOOPS_ADDENDUM}`;
+  return [...lines.slice(0, at + 1), `  ${LOOPS_ADDENDUM}`, ...lines.slice(at + 1)].join("\n");
+}
 
 /** The extraction's instructions: yours (System → Prompts) or the built-in ones, and the open-loops addendum while that plugin is on. */
 export function extractInstructions(): string {
   const base = promptText("people-extract", INSTRUCTIONS);
-  return isInstalled("loops") ? `${base}\n\n${LOOPS_ADDENDUM}` : base;
+  return isInstalled("loops") ? withLoopsAddendum(base) : base;
 }
 
 /** The extraction's prompt for one batch: the instructions, the profiles concerned, what you rejected, the messages (their ids m1 …). */
