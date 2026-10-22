@@ -2,6 +2,7 @@ import { and, desc, gt, gte, inArray, isNull, ne, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { currentLocale } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
+import { ingestTodoEvents } from "@/lib/learning/todos";
 import type { TodoEventKind, TodoEventView } from "./activity-shared";
 
 const { todoEvents, todos, workRuns, boardRuns } = schema;
@@ -11,7 +12,8 @@ const lastId = () => getDb().select({ m: sql<number>`coalesce(max(${todoEvents.i
 /**
  * Who did what happens in `fn` to the todos (the triggers record it, this says who): "you",
  * "agent:<name>"… — where the triggers couldn't tell (a planned step it spawns stays the plan's).
- * Synchronous work only — what fn does, nothing else, is in between.
+ * Synchronous work only — what fn does, nothing else, is in between. What you closed of an AI step's todos goes into
+ * the feedback ledger (src/lib/learning).
  */
 export function attributed<T>(actor: string, fn: () => T): T {
   const before = lastId();
@@ -19,6 +21,8 @@ export function attributed<T>(actor: string, fn: () => T): T {
     return fn();
   } finally {
     getDb().update(todoEvents).set({ actor }).where(and(gt(todoEvents.id, before), isNull(todoEvents.actor))).run();
+    // Yours: an AI step's todo you did or dropped is a verdict on that step (the feedback ledger).
+    if (actor === "you") ingestTodoEvents({ afterId: before });
   }
 }
 

@@ -6,6 +6,8 @@
  * (extract.ts). Facts that go stale expire and come back to be checked. Server only.
  */
 import { getSqlite } from "@/db";
+import { recordFeedback } from "@/lib/learning/ledger";
+import { claimFeedback, linkFeedback } from "@/lib/learning/sources";
 import { emitChange } from "@/lib/events";
 import { claimReviewed, flushSoon } from "./knowledge-sync";
 import { getPerson, listPeople, namesOf } from "./store";
@@ -174,8 +176,10 @@ export function deleteClaim(id: number): void {
 
 export function reviewClaim(id: number, op: "confirm" | "reject" | "done" | "recheck"): void {
   const d = db();
-  const row = d.prepare("select kind from people_claims where id = ?").get(id) as { kind: string } | undefined;
+  const row = d.prepare("select * from people_claims where id = ?").get(id) as CRow | undefined;
   if (!row) return;
+  // Your word on what the AI read: the feedback ledger (a recheck or done isn't one).
+  if ((op === "confirm" && row.status !== "confirmed") || (op === "reject" && row.status !== "rejected")) recordFeedback(claimFeedback(row, op === "confirm" ? "accepted" : "rejected"));
   const shelf = SHELF_LIFE[row.kind as ClaimKind];
   if (op === "confirm") d.prepare("update people_claims set status = 'confirmed', confirmed_at = ?, expires_at = ? where id = ?").run(now(), shelf ? days(shelf) : null, id);
   else if (op === "recheck") d.prepare("update people_claims set confirmed_at = ?, expires_at = ? where id = ?").run(now(), days(shelf ?? 120), id);
@@ -223,6 +227,8 @@ export const proposedLinks = (): (Link & { personName: string })[] =>
   (db().prepare("select l.*, p.name person_name from people_links l join people p on p.id = l.person_id where l.status = 'proposed' and l.source = 'ai' order by l.confidence desc, l.id desc limit 200").all() as (LRow & { person_name: string })[]).map((r) => ({ ...toLink(r), personName: r.person_name }));
 
 export function reviewLink(id: number, op: "confirm" | "reject"): void {
+  const row = db().prepare("select * from people_links where id = ?").get(id) as LRow | undefined;
+  if (row && row.source === "ai" && row.status !== (op === "confirm" ? "confirmed" : "rejected")) recordFeedback(linkFeedback(row, op === "confirm" ? "accepted" : "rejected"));
   db().prepare("update people_links set status = ?, confirmed_at = ? where id = ?").run(op === "confirm" ? "confirmed" : "rejected", op === "confirm" ? now() : null, id);
   changed();
 }

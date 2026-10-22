@@ -1,4 +1,6 @@
 import { and, eq, gte, inArray, isNull, lte, sql } from "drizzle-orm";
+import { recordFeedback } from "@/lib/learning/ledger";
+import { bookingFeedback } from "@/lib/learning/sources";
 import { getDb, schema } from "@/db";
 import type { EntrySuggestion } from "@/db/schema";
 import { listTodos, todosByIds } from "@/lib/boards/store";
@@ -331,8 +333,9 @@ export function withdrawSuggestion(id: number): SuggestionView {
 
 /** Not to be booked: skipped (its evidence isn't suggested again). */
 export function skipSuggestion(id: number): void {
-  requireOpen(id);
+  const r = requireOpen(id);
   getDb().update(entrySuggestions).set({ status: "skipped", updatedAt: new Date().toISOString() }).where(eq(entrySuggestions.id, id)).run();
+  recordFeedback(bookingFeedback({ id, description: r.description, hours: r.hours, ticket: r.ticket, reported_by: r.reportedBy }, "rejected"));
   emitChange("work");
 }
 
@@ -404,6 +407,9 @@ export function acceptSuggestion(
   const todoIds = ids(r.todoIds);
   bookEvidence(entry.id, r, opts.context !== false);
   getDb().update(entrySuggestions).set({ status: "accepted", entryId: entry.id, hours, description, updatedAt: new Date().toISOString() }).where(eq(entrySuggestions.id, id)).run();
+  // Taken over as suggested, or with your hours or words (the AI's are kept in the ledger: the row gets yours).
+  const edited = hours !== r.hours || description !== r.description;
+  recordFeedback(bookingFeedback({ id, description: r.description, hours: r.hours, ticket: r.ticket, reported_by: r.reportedBy }, edited ? "edited" : "accepted", undefined, edited ? { yourHours: hours, yourText: description } : {}));
   // Work parallel to other work (a collecting entry's day, tasks of its job at the same time): grouped with it — nothing is moved, only how it is booked.
   const parallel = opts.group === "none" ? undefined : (autoGroup(entry.id) ?? undefined);
   emitChange("work");

@@ -7,6 +7,8 @@
  * queue until you accept it; a rejected one is remembered and not made again. Server only.
  */
 import { getSqlite } from "@/db";
+import { recordFeedback } from "@/lib/learning/ledger";
+import { identityFeedback } from "@/lib/learning/sources";
 import { emitChange } from "@/lib/events";
 import { nameSimilar, normalizeName } from "./accounts";
 import type { Person } from "./shared";
@@ -298,6 +300,7 @@ export function acceptSuggestion(id: number): number | undefined {
     if (s.jira) addAccount(touched, "jira", s.jira);
   }
   db().prepare("update people_suggestions set status = 'accepted', decided_at = ? where id = ?").run(now(), id);
+  recordFeedback(identityFeedback(r, "accepted"));
   // Others that concerned a profile that is gone now.
   db().prepare("update people_suggestions set status = 'obsolete', decided_at = ? where status = 'pending' and kind != 'person' and ((person_id != 0 and person_id not in (select id from people)) or (other_id != 0 and other_id not in (select id from people)))").run(now());
   emitChange("todos");
@@ -305,6 +308,8 @@ export function acceptSuggestion(id: number): number | undefined {
 }
 
 export function rejectSuggestion(id: number): void {
+  const r = db().prepare("select * from people_suggestions where id = ? and status = 'pending'").get(id) as Row | undefined;
   db().prepare("update people_suggestions set status = 'rejected', decided_at = ? where id = ? and status = 'pending'").run(now(), id);
+  if (r) recordFeedback(identityFeedback(r, "rejected"));
   emitChange("todos");
 }

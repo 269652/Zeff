@@ -365,8 +365,9 @@ export async function addRowAction(dbId: number, v: store.NewRow = {}) {
 }
 
 export async function setCellAction(rowId: number, propId: string, value: unknown) {
-  return run(() => {
-    store.setCell(Number(rowId), String(propId), value);
+  return run(async () => {
+    // By your hand: a correction of an AI field goes into the feedback ledger.
+    (await import("./ai-feedback")).setCellByHand(Number(rowId), String(propId), value);
     // A row of a two-way source (a person): the edit goes back to where it comes from.
     void import("./pipeline").then((p) => p.syncAfterEdit(Number(rowId))).catch(() => undefined);
     return {};
