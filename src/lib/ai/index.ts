@@ -54,7 +54,7 @@ export const defaultModelOf = (provider: AiProvider, s: AppSettings = getAppSett
 export async function runAi<T>(
   prompt: string,
   schemaOut: object,
-  opts: { task?: LlmTaskId; provider?: AiProvider; timeoutMs?: number; maxBudgetUsd?: number } = {},
+  opts: { task?: LlmTaskId; provider?: AiProvider; timeoutMs?: number; maxBudgetUsd?: number; /** Not from the cache of an idempotent task (an eval's repeated runs). */ fresh?: boolean } = {},
 ): Promise<AiAnswer<T>> {
   const { llm } = await import("@/plugins/llm/run");
   return llm<T>(opts.task ?? "general", prompt, schemaOut, opts);

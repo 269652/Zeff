@@ -88,11 +88,19 @@ export const peopleAdapter: EvalAdapter<PeopleInput> = {
     return cases;
   },
   async run(c, instructions, ask) {
-    const { acceptFindings, extractPrompt, EXTRACT_SCHEMA } = await import("@/plugins/people/extract");
+    const { extractBatch } = await import("@/plugins/people/extract");
     const { profiles, rejected, items } = c.input;
-    const answer = ((await ask(extractPrompt({ instructions, profiles, rejected, items }), EXTRACT_SCHEMA, { task: "people-normalize", step: "people" })) ?? {}) as Parameters<typeof acceptFindings>[0];
     const everyone = new Set(c.input.people);
-    const found = acceptFindings(answer, items, new Set(profiles.map((p) => p.id)), (id) => everyone.has(id));
+    // The step's own way through a batch: every pair judged, the open ones asked about again.
+    const found = await extractBatch({
+      ask: async (prompt, schema) => ((await ask(prompt, schema, { task: "people-normalize", step: "people" })) ?? {}) as never,
+      instructions,
+      profiles,
+      rejected,
+      items: items.map((i) => ({ ...i })),
+      allowed: new Set(profiles.map((p) => p.id)),
+      personExists: (id) => everyone.has(id),
+    });
     return new Set([...found.claims, ...found.links].map((f) => `${f.personId}@${f.sourceRef}`));
   },
 };

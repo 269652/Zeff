@@ -53,8 +53,21 @@ const SCHEMA = {
         required: ["person", "rel", "target_type", "target", "evidence", "source", "confidence"],
       },
     },
+    checked: {
+      type: "array",
+      description: "Für JEDES Paar unter „Zu beurteilen“ genau ein Eintrag — keines auslassen.",
+      items: {
+        type: "object",
+        properties: {
+          source: { type: "string", description: "Die Kennung der Nachricht, z. B. m3." },
+          person: { type: "integer", description: "Die id des Profils." },
+          verdict: { type: "string", enum: ["gefunden", "nichts"], description: "gefunden: du gibst dazu mindestens eine Aussage oder Verbindung mit Zitat aus; nichts: die Nachricht sagt über diese Person nichts Neues." },
+        },
+        required: ["source", "person", "verdict"],
+      },
+    },
   },
-  required: ["claims", "links"],
+  required: ["claims", "links", "checked"],
 };
 
 export const EXTRACT_SCHEMA = SCHEMA;
@@ -63,6 +76,7 @@ export type ExtractAnswer = Answer;
 type Answer = {
   claims?: { person?: number; kind?: string; text?: string; evidence?: string; source?: string; confidence?: number; direction?: string; due?: string }[];
   links?: { person?: number; rel?: string; target_type?: string; target?: string; evidence?: string; source?: string; confidence?: number }[];
+  checked?: { source?: string; person?: number; verdict?: string }[];
 };
 
 export const INSTRUCTIONS = `Du liest neue Nachrichten (Mail, Chats, Teams, Jira-Kommentare) und hältst fest, was sie über Personen sagen, die ich als Profil führe — damit ich später weiß, wer was macht, wer wofür zuständig ist und was versprochen wurde.
@@ -211,9 +225,14 @@ export function extractInstructions(): string {
   return isInstalled("loops") ? withLoopsAddendum(base) : base;
 }
 
-/** The extraction's prompt for one batch: the instructions, the profiles concerned, what you rejected, the messages (their ids m1 …). */
-export function extractPrompt(v: { instructions: string; profiles: ExtractProfile[]; rejected: { claims: string[]; links: string[] }; items: Item[] }): string {
+/**
+ * The extraction's prompt for one batch: the instructions, the profiles concerned, what you rejected, the messages (their ids
+ * m1 …) — and every pair of a message and a person it concerns to judge, so nothing is passed over silently. `followUp`: the
+ * pairs an answer left open, asked about again.
+ */
+export function extractPrompt(v: { instructions: string; profiles: ExtractProfile[]; rejected: { claims: string[]; links: string[] }; items: Item[]; followUp?: boolean }): string {
   const { rejected } = v;
+  const name = new Map(v.profiles.map((p) => [p.id, p.name]));
   return [
     v.instructions,
     "",
@@ -223,7 +242,60 @@ export function extractPrompt(v: { instructions: string; profiles: ExtractProfil
     "",
     "# Nachrichten",
     ...v.items.map((i) => `[${i.id}] ${i.at.slice(0, 10)} ${i.where} · ${i.who}: ${clip(i.text, i.max ?? 500)}  (betrifft: ${i.people.join(", ")})`),
+    "",
+    "# Zu beurteilen",
+    v.followUp
+      ? "Diese Paare hast du noch nicht beurteilt (oder als gefunden markiert, ohne eine Aussage mit Zitat dazu). Lies jede dieser Nachrichten genau: Was sagt sie über die Person — eine Rolle, eine Zuständigkeit, eine Tatsache (auch Aktenzeichen, Kontaktdaten, Abwesenheit), eine Zusage, eine Verbindung zu einem Ticket, Projekt oder Thema? Gib jeden Fund mit Zitat aus und beurteile jedes Paar in checked."
+      : "Gehe die Nachrichten einzeln durch und beurteile JEDES Paar (Nachricht → Person) in checked: gefunden, wenn du dazu mindestens eine Aussage oder Verbindung mit Zitat ausgibst, sonst nichts. Lass kein Paar aus. Eine Nachricht, in der jemand etwas tut, sagt, zusagt, fragt oder über ein Ticket, Projekt oder Thema schreibt, sagt meist etwas über diese Person — im Zweifel ein Fund mit Zitat.",
+    ...v.items.map((i) => `[${i.id}] → ${i.people.map((p) => `${p} ${name.get(p) ?? "?"}`).join(", ")}`),
   ].join("\n");
+}
+
+/** A pair "<person>@<message id>". */
+const pairKey = (person: number, message: string) => `${person}@${message}`;
+
+/**
+ * One batch read in full: the prompt with every pair to judge, the findings that hold, then the pairs the answer left open —
+ * not judged, or "gefunden" without a finding that holds — asked about once more with only their messages. `open`: the pairs
+ * still without a verdict after that (none, normally).
+ */
+export async function extractBatch(v: { ask: (prompt: string, schema: object) => Promise<Answer>; instructions: string; profiles: ExtractProfile[]; rejected: { claims: string[]; links: string[] }; items: Item[]; allowed: Set<number>; personExists: (id: number) => boolean }): Promise<{ claims: Parameters<typeof addClaim>[0][]; links: Parameters<typeof addLink>[0][]; open: string[] }> {
+  const refOf = new Map(v.items.map((i) => [i.id, i.ref]));
+  const pairs = v.items.flatMap((i) => i.people.filter((p) => v.allowed.has(p)).map((p) => pairKey(p, i.id)));
+  const claims: Parameters<typeof addClaim>[0][] = [];
+  const links: Parameters<typeof addLink>[0][] = [];
+  const judged = new Set<string>();
+  const read = (answer: Answer, items: Item[]) => {
+    const found = acceptFindings(answer ?? {}, items, v.allowed, v.personExists);
+    claims.push(...found.claims);
+    links.push(...found.links);
+    const has = new Set([...found.claims, ...found.links].map((f) => `${f.personId}@${f.sourceRef}`));
+    for (const c of answer?.checked ?? []) {
+      const k = pairKey(Number(c.person), String(c.source ?? ""));
+      const ref = refOf.get(String(c.source ?? ""));
+      if (!ref || !pairs.includes(k)) continue;
+      // "nothing" is a verdict; "found" counts only with a finding that holds.
+      if (c.verdict === "nichts" || has.has(`${Number(c.person)}@${ref}`)) judged.add(k);
+    }
+    // A finding that holds is a verdict, also where checked forgot it.
+    for (const f of [...found.claims, ...found.links]) {
+      const item = items.find((i) => i.ref === f.sourceRef);
+      if (item) judged.add(pairKey(f.personId, item.id));
+    }
+  };
+  read(await v.ask(extractPrompt({ instructions: v.instructions, profiles: v.profiles, rejected: v.rejected, items: v.items }), SCHEMA), v.items);
+  let open = pairs.filter((k) => !judged.has(k));
+  if (open.length) {
+    // Only the open pairs: their messages, each with only its open people.
+    const items = v.items.flatMap((i) => {
+      const people = i.people.filter((p) => open.includes(pairKey(p, i.id)));
+      return people.length ? [{ ...i, people }] : [];
+    });
+    const who = new Set(items.flatMap((i) => i.people));
+    read(await v.ask(extractPrompt({ instructions: v.instructions, profiles: v.profiles.filter((p) => who.has(p.id)), rejected: v.rejected, items, followUp: true }), SCHEMA), items);
+    open = pairs.filter((k) => !judged.has(k));
+  }
+  return { claims, links, open };
 }
 
 /**
@@ -291,9 +363,17 @@ export async function extractKnowledge(opts: { ask?: ExtractDeps["ask"]; sinceDa
       batch.forEach((it, i) => (it.id = `m${i + 1}`));
       const involved = [...new Set(batch.flatMap((i) => i.people))].map((id) => people.find((p) => p.id === id)).filter((p): p is Person => !!p);
       const profiles = involved.map((p) => ({ id: p.id, name: p.name, aliases: p.aliases, known: claimsOf(p.id, { status: ["proposed", "confirmed"] }).slice(0, 6).map((x) => x.text) }));
-      const prompt = extractPrompt({ instructions: extractInstructions(), profiles, rejected, items: batch });
-      const answer = await askWithRetrieval<Answer>({ prompt: withRagInstructions(prompt), schema: SCHEMA, ask: (p, s) => ask(p, s), retrieve: opts.retrieve, rounds: 2 });
-      const found = acceptFindings(answer, batch, new Set(involved.map((p) => p.id)), (id) => !!getPerson(id));
+      // Every pair of a message and a person judged; the ones left open asked about again (extractBatch).
+      const found = await extractBatch({
+        ask: (prompt, schema) => askWithRetrieval<Answer>({ prompt: withRagInstructions(prompt), schema, ask: (p, s) => ask(p, s), retrieve: opts.retrieve, rounds: 2 }),
+        instructions: extractInstructions(),
+        profiles,
+        rejected,
+        items: batch,
+        allowed: new Set(involved.map((p) => p.id)),
+        personExists: (id) => !!getPerson(id),
+      });
+      if (found.open.length) console.warn(`[people] extraction: ${found.open.length} pair(s) still without a verdict after the follow-up`);
       for (const c of found.claims) if (addClaim(c)) out.claims++;
       for (const l of found.links) if (addLink(l)) out.links++;
       out.items += batch.length;
