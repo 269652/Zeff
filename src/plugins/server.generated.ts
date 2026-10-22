@@ -3,6 +3,7 @@ import "./actions/server";
 import "./calendar/server";
 import "./cases/server";
 import "./documents/server";
+import "./finances/server";
 import "./gitlab/server";
 import "./jira/server";
 import "./jira-lage/server";

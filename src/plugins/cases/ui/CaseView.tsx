@@ -8,7 +8,7 @@ import { TodoSources } from "@/components/boards/TodoSources";
 import { GiroCode } from "@/components/GiroCode";
 import { caseBundleAction, caseOpAction } from "../block-actions";
 import type { CaseBundle, CaseOperation } from "../blocks";
-import { DebtFields, PartiesCard } from "./Parties";
+import { PartiesCard } from "./Parties";
 
 /**
  * A case's page — the custom view of the cases database's rows: what it is about and where it stands, the money and where to
@@ -103,9 +103,7 @@ export default function CaseView({ rowId }: { rowId: number }) {
       <div className="grid gap-x-8 gap-y-5 @2xl:grid-cols-[minmax(0,2fr)_minmax(0,1fr)]">
         <div className="space-y-5">
           <Card title={t("Where it stands")}>
-            {d.manual ? (
-              <DebtFields d={d} run={run} />
-            ) : s?.summary ? (
+            {s?.summary ? (
               <p className="text-sm">{s.summary}</p>
             ) : (
               <Empty>{d.compiling ? t("Being summed up from its mails, letters and todos …") : d.canCompile ? t("Not summed up yet — Sum up reads its mails, letters and todos.") : t("With the LLM plugin the AI sums the case up.")}</Empty>

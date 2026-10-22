@@ -17,7 +17,8 @@ const fact = (back: number, amount: number) => ({ key: "net_income", period: mon
 test("the monthly income is what the knowledge read off your statements: the average of the last three whole months it knows — the running month not counted; yours goes first", async () => {
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("cases", true);
-  const { refreshIncome, monthlyIncome, setManualIncome } = await import("@/plugins/cases/income");
+  setInstalled("finances", true);
+  const { refreshIncome, monthlyIncome, setManualIncome } = await import("@/plugins/finances/income");
   assert.equal(monthlyIncome().source, "none", "nothing known yet");
   await refreshIncome({ read: async () => [fact(0, 9999), fact(1, 3552), fact(2, 3552), fact(3, 3200), fact(4, 1000)] });
   const i = monthlyIncome();
@@ -40,14 +41,9 @@ test("the monthly income is what the knowledge read off your statements: the ave
   assert.equal(monthlyIncome().source, "knowledge");
 });
 
-test("the debt overview takes the income the knowledge read", async () => {
-  const { debtOverview } = await import("@/plugins/cases/bank");
-  assert.equal(debtOverview().income, 3200);
-});
-
 test("the statements go to the knowledge as a page per account and month — what came in by sender, the largest payments out", async () => {
   const { addBookings } = await import("@/plugins/cases/bank");
-  const { bankDocs } = await import("@/plugins/cases/knowledge-docs");
+  const { bankDocs } = await import("@/plugins/finances/knowledge-docs");
   const d = `${month(1)}-23`;
   addBookings([{ date: d, amount: 3552, currency: "EUR", text: "Zahlung von ACME GMBH", counterparty: "", iban: "", reference: "Gehalt" }, { date: d, amount: -900, currency: "EUR", text: "To Vermieter", counterparty: "Vermieter", iban: "", reference: "" }], "Revolut");
   const doc = bankDocs().find((x) => x.id === `zeff:bank:revolut:${month(1)}`)!;

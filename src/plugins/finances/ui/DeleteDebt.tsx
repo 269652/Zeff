@@ -2,10 +2,10 @@
 
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { deleteDebtAction } from "../block-actions";
+import { deleteDebtAction } from "../server-actions";
 
 /** A debt of your own removed — after a yes. */
-export function DeleteDebt({ caseId, name, onDone }: { caseId: number; name: string; onDone: () => void }) {
+export function DeleteDebt({ rowId, name, onDone }: { rowId: number; name: string; onDone: () => void }) {
   const t = useT();
   return (
     <button
@@ -15,7 +15,7 @@ export function DeleteDebt({ caseId, name, onDone }: { caseId: number; name: str
       aria-label={t("Remove the debt to {name}", { name })}
       onClick={async () => {
         if (!window.confirm(t("Remove the debt to {name}?", { name }))) return;
-        const r = await deleteDebtAction(caseId);
+        const r = await deleteDebtAction(rowId);
         if (!r.ok) toast(r.error, { tone: "error" });
         else onDone();
       }}

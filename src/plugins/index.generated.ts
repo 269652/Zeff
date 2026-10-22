@@ -8,6 +8,7 @@ import p_claude_cli from "./claude-cli/plugin";
 import p_codex_cli from "./codex-cli/plugin";
 import p_copilot_cli from "./copilot-cli/plugin";
 import p_documents from "./documents/plugin";
+import p_finances from "./finances/plugin";
 import p_gitlab from "./gitlab/plugin";
 import p_gmail from "./gmail/plugin";
 import p_google_calendar from "./google-calendar/plugin";
@@ -43,4 +44,4 @@ import p_workspace from "./workspace/plugin";
 import p_zeiterfassung from "./zeiterfassung/plugin";
 
 /** Every built-in plugin's manifest (unsorted; plugins/catalog.ts orders them). */
-export const BUILTIN_MANIFESTS = [p_accounts, p_auto_actions, p_backup, p_calendar, p_cases, p_claude_cli, p_codex_cli, p_copilot_cli, p_documents, p_gitlab, p_gmail, p_google_calendar, p_google_drive, p_jira, p_jira_lage, p_kanban, p_keep, p_keep_write, p_knowledge, p_lang_de, p_lang_en, p_lang_es, p_llm, p_mail_client, p_monthly_report, p_news, p_notes, p_outlook_calendar, p_outlook_mail, p_people, p_revolut, p_signal, p_teams, p_tickets, p_todos, p_web_search, p_weekly_report, p_whatsapp, p_work, p_work_elevated, p_workspace, p_zeiterfassung] as const;
+export const BUILTIN_MANIFESTS = [p_accounts, p_auto_actions, p_backup, p_calendar, p_cases, p_claude_cli, p_codex_cli, p_copilot_cli, p_documents, p_finances, p_gitlab, p_gmail, p_google_calendar, p_google_drive, p_jira, p_jira_lage, p_kanban, p_keep, p_keep_write, p_knowledge, p_lang_de, p_lang_en, p_lang_es, p_llm, p_mail_client, p_monthly_report, p_news, p_notes, p_outlook_calendar, p_outlook_mail, p_people, p_revolut, p_signal, p_teams, p_tickets, p_todos, p_web_search, p_weekly_report, p_whatsapp, p_work, p_work_elevated, p_workspace, p_zeiterfassung] as const;

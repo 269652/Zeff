@@ -191,7 +191,7 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
             bank.matchPayments();
             bank.overdueWarnings(new Date().toISOString().slice(0, 10));
             // Your income as the knowledge read it off your statements (it compiles them as a source of its own).
-            await (await import("@/plugins/cases/income")).refreshIncome();
+            if ((await import("@/plugins/state")).isInstalled("finances")) await (await import("@/plugins/finances/income")).refreshIncome();
           } catch (e) {
             console.error("[cases] after the briefing:", errorMessage(e));
           }

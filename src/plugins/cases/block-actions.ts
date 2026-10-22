@@ -39,31 +39,18 @@ export async function caseOpAction(rowId: number, op: CaseOperation): Promise<Re
   });
 }
 
-/** The overview of the debts (the printable page), with your income for the months ahead. */
+/** The overview of the debts (the printable page). */
 export async function debtOverviewAction(): Promise<Result<{ overview: import("./bank").DebtOverview }>> {
   return run(async () => {
     return { overview: (await import("./bank")).debtOverview() };
   });
 }
 
-/** Your monthly income, for the months ahead (null: not said). */
-export async function setIncomeAction(income: number | null): Promise<Result> {
-  return run(async () => {
-    const n = income == null ? null : Number(income);
-    (await import("./income")).setManualIncome(n != null && Number.isFinite(n) && n >= 0 ? n : null);
-    return {};
-  });
-}
-
 export type CasesOverview = {
-  figures: { open: number; dueSoon: number; overdue: number; running: number; /** Your income a month (the knowledge read it off your statements, or yours). */ income: number | null; incomeSource: "manual" | "knowledge" | "none" };
-  cases: { id: number; rowId: number | null; title: string; label: string; person: string; /** Who it is owed to, who collects it (contacts' names). */ creditor: string; collector: string; /** A debt you wrote down yourself. */ manual: boolean; open: number | null; nextDue: string | null; nextWhat: string; payment: import("./payments").CasePayment | null; summed: boolean }[];
-  /** Promises of yours with an amount, to write down as debts. */
-  suggestions: import("./parties").DebtSuggestion[];
-  /** Your contacts (for choosing a creditor). */
-  contacts: { id: number; name: string; kind: "person" | "organization" }[];
-  /** The debts with their payment plans (each with its row), and the plans together. */
-  plans: { debts: (import("./debts").DebtPlan & { rowId: number | null })[]; summary: import("./plans").PlanSummary };
+  figures: { open: number; dueSoon: number; overdue: number; running: number };
+  cases: { id: number; rowId: number | null; title: string; label: string; person: string; /** Who it is owed to, who collects it (contacts' names). */ creditor: string; collector: string; open: number | null; nextDue: string | null; nextWhat: string; payment: import("./payments").CasePayment | null; summed: boolean }[];
+  /** The debts database of the Finances plugin (its overview): where the money is planned. */
+  debtsDb: number | null;
 };
 
 /** The cases database's overview (its "Overview" view): the money in figures, the running cases by what is due first, each with where it pays to. */
@@ -87,67 +74,17 @@ export async function casesOverviewAction(): Promise<Result<{ overview: CasesOve
     const today = new Date().toISOString().slice(0, 10);
     const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
     const cases = listCases()
-      .filter((c) => c.status === "open" && !c.compiled?.done)
-      .map((c) => ({ id: c.id, rowId: rows.get(`case:${c.id}`) ?? null, title: caseTitle(c), label: c.label, person: c.personId ? (names.get(c.personId) ?? "") : "", creditor: parties.partiesOf(c.id).creditor?.name ?? "", collector: parties.partiesOf(c.id).collector?.name ?? "", manual: !!c.compiled?.manual, open: c.compiled?.open ?? null, nextDue: c.compiled?.nextDue ?? null, nextWhat: c.compiled?.nextWhat ?? "", payment: casePayment(c.id), summed: !!c.compiled }))
+      .filter((c) => c.status === "open" && !c.compiled?.done && !c.compiled?.manual)
+      .map((c) => ({ id: c.id, rowId: rows.get(`case:${c.id}`) ?? null, title: caseTitle(c), label: c.label, person: c.personId ? (names.get(c.personId) ?? "") : "", creditor: parties.partiesOf(c.id).creditor?.name ?? "", collector: parties.partiesOf(c.id).collector?.name ?? "", open: c.compiled?.open ?? null, nextDue: c.compiled?.nextDue ?? null, nextWhat: c.compiled?.nextWhat ?? "", payment: casePayment(c.id), summed: !!c.compiled }))
       .sort((a, b) => (a.nextDue ?? "9999").localeCompare(b.nextDue ?? "9999"));
     const figures = {
       open: cases.reduce((s, c) => s + (c.open ?? 0), 0),
       dueSoon: cases.filter((c) => c.nextDue && c.nextDue >= today && c.nextDue <= in30).reduce((s, c) => s + (c.payment?.amount ?? 0), 0),
       overdue: cases.filter((c) => c.nextDue && c.nextDue < today).length,
       running: cases.length,
-      ...(await (async () => {
-        const income = await import("./income");
-        await income.refreshIncome();
-        const i = income.monthlyIncome();
-        return { income: i.amount, incomeSource: i.source };
-      })()),
     };
-    const contacts = isInstalled("people") ? (await import("@/plugins/people/store")).listPeople().map((p) => ({ id: p.id, name: p.name, kind: p.kind })) : [];
-    const plans = (await import("./debts")).debtPlans(today);
-    return { overview: { figures, cases, suggestions: parties.debtSuggestions(), contacts, plans: { debts: plans.debts.map((d) => ({ ...d, rowId: rows.get(`case:${d.id}`) ?? null })), summary: plans.summary } } };
-  });
-}
-
-/** The cases database reads the cases again (a new or changed debt shows as its row). */
-async function rowsAgain(): Promise<void> {
-  const db = await (await import("./database")).casesDatabase();
-  if (db) (await import("@/plugins/workspace/pipeline")).startPipeline(db, { ai: false });
-}
-
-/** A debt of your own written down (no case number): to whom (a contact, or a new one by its name), how much, by when. */
-export async function createDebtAction(v: { title: string; creditorId?: number | null; creditorName?: string; creditorKind?: "person" | "organization"; amount: number | null; due: string | null; installment: number | null }): Promise<Result<{ id: number }>> {
-  return run(async () => {
-    const id = (await import("./parties")).createDebt({ title: String(v.title ?? ""), creditorId: v.creditorId ? Number(v.creditorId) : null, creditorName: v.creditorName ? String(v.creditorName) : undefined, creditorKind: v.creditorKind === "organization" ? "organization" : v.creditorKind === "person" ? "person" : undefined, amount: v.amount == null ? null : Number(v.amount), due: v.due ? String(v.due) : null, installment: v.installment == null ? null : Number(v.installment) });
-    await rowsAgain();
-    return { id };
-  });
-}
-
-/** A case's money corrected by you (a debt of yours, or one the AI summed up): it stays over what the AI sums up later; null takes it back. */
-export async function caseMoneyAction(caseId: number, patch: { total?: number | null; open?: number | null; installment?: number | null; due?: string | null }): Promise<Result> {
-  return run(async () => {
-    const num = (v: unknown) => (v === null ? null : v === undefined ? undefined : Number(v));
-    (await import("./parties")).setDebtMoney(Number(caseId), { total: num(patch.total), open: num(patch.open), installment: num(patch.installment), ...(patch.due !== undefined ? { due: patch.due ? String(patch.due) : null } : {}) });
-    await rowsAgain();
-    return {};
-  });
-}
-
-/** A debt of your own removed. */
-export async function deleteDebtAction(caseId: number): Promise<Result> {
-  return run(async () => {
-    (await import("./parties")).deleteDebt(Number(caseId));
-    await rowsAgain();
-    return {};
-  });
-}
-
-/** A promise of yours written down as a debt. */
-export async function debtFromClaimAction(claimId: number): Promise<Result<{ id: number }>> {
-  return run(async () => {
-    const id = (await import("./parties")).createDebtFromClaim(Number(claimId));
-    await rowsAgain();
-    return { id };
+    const debtsDb = isInstalled("finances") ? (await import("@/plugins/finances/debts")).debtsDbId() : null;
+    return { overview: { figures, cases, debtsDb } };
   });
 }
 

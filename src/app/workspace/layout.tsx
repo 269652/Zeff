@@ -15,6 +15,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   await (await import("@/plugins/workspace/people-database")).ensurePeopleDatabase().catch((e) => console.error("[workspace] the people database failed", e));
   // Your cases as a database (once; Cases installed).
   await (await import("@/plugins/cases/database")).ensureCasesDatabase().catch((e) => console.error("[workspace] the cases database failed", e));
+  await (await import("@/plugins/finances/database")).ensureDebtsDatabase().catch((e) => console.error("[workspace] the debts database failed", e));
   // The news you kept as a database (once; News installed).
   await (await import("@/plugins/workspace/news-database")).ensureNewsDatabase().catch((e) => console.error("[workspace] the news database failed", e));
   // The search knows what the cells of the rows say (once: pages made before it are read in again).

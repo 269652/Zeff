@@ -36,7 +36,8 @@ export type SourceRecord = {
   /** What the record is (a mail, a message): the database's type when all its records are. */
   dataType?: DataType;
 };
-export type TypedField = { id: string; name: string; type: "text" | "date" | "checkbox" | "select" | "url" | "number"; value: string | number | boolean | null };
+/** A record's field with its type; a person: People profile ids (as a person property keeps them); a number may say how it's shown. */
+export type TypedField = { id: string; name: string; type: "text" | "date" | "checkbox" | "select" | "url" | "number" | "person"; value: string | number | boolean | number[] | null; format?: "number" | "euro" };
 
 /** The fixed properties a pipeline keeps its rows by. */
 export const SRC_REF = "srcref";
@@ -344,7 +345,8 @@ function valueOf(r: SourceRecord, field: string): string | boolean | number | nu
   if (name === "key") return r.key ?? null;
   if (name === "status") return r.status?.name ?? null;
   const typed = (r.typed ?? []).find((x) => x.name.toLowerCase() === name);
-  if (typed) return typed.value;
+  // A person field: its profile ids, as a filter compares them (a list in words).
+  if (typed) return Array.isArray(typed.value) ? typed.value.join(", ") : typed.value;
   const plain = Object.entries(r.fields).find(([k]) => k.toLowerCase() === name);
   return plain ? plain[1] : null;
 }
@@ -507,7 +509,7 @@ function schemaFor(cur: DbSchema, records: SourceRecord[], steps: PipelineStep[]
   for (const f of records.flatMap((r) => r.typed ?? [])) {
     let i = props.findIndex((p) => p.id === f.id);
     if (i < 0) {
-      props.push({ id: f.id, name: f.name, type: f.type, ...(f.type === "select" ? { options: [] } : {}), ...(f.type === "date" ? { includeTime: true } : {}), ...(f.type === "number" ? { format: "number" as const } : {}) });
+      props.push({ id: f.id, name: f.name, type: f.type, ...(f.type === "select" ? { options: [] } : {}), ...(f.type === "date" ? { includeTime: true } : {}), ...(f.type === "number" ? { format: f.format ?? ("number" as const) } : {}) });
       i = props.length - 1;
     }
     const p = props[i];

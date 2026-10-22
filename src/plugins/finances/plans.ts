@@ -1,5 +1,5 @@
 /**
- * The debts' payment plans (the Cases plugin): for each debt its payments to come — the instalment every month from its next due
+ * The debts' payment plans (the Finances plugin): for each debt its payments to come — the instalment every month from its next due
  * day (later ones on the plan's day of the month), the rest last, until nothing is open; a debt with a due day but no instalment
  * is one payment; one with neither has no plan. Together: the monthly fixed costs, when you are debt-free with the plans, what
  * has no plan, the months ahead. Pure — client-safe.

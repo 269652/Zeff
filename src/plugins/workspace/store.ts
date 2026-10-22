@@ -839,6 +839,8 @@ export function setCell(rowId: number, propId: string, value: unknown): void {
   if (!p) throw new Error("No such property.");
   if (isComputed(p)) throw new Error(`"${p.name}" is computed — it can't be set.`);
   noAgentOnSystem(rowId);
+  // A field the source keeps, on a row it brought: the source's (what it says is what its record says).
+  if (row.props.srcref && !isViaSource() && sourceLocked(row.dbId).includes(propId)) throw new Error(`"${p.name}" comes from the source (${String(row.props.srcref).split(":")[0]}) — it isn't changed here.`);
   const props = { ...row.props };
   const v = coerceCell(p, value);
   protectCheck(row.dbId, "set", { [p.id]: cellText(p, v) }, rowId);
@@ -934,6 +936,13 @@ export function rowsAddable(dbId: number): boolean {
   const step = getDatabase(dbId)?.schema.pipeline?.steps.find((s) => s.kind === "source" && s.from === "ext");
   if (!step?.ext) return true;
   return !workspaceSources.list().some((c) => c.impl.some((s) => s.id === step.ext && s.noNewRows));
+}
+
+/** The fields a database's source keeps on the rows it brought (none: no source, or it locks nothing). */
+export function sourceLocked(dbId: number): string[] {
+  const step = getDatabase(dbId)?.schema.pipeline?.steps.find((s) => s.kind === "source" && s.from === "ext");
+  if (!step?.ext) return [];
+  return workspaceSources.list().flatMap((c) => c.impl.filter((s) => s.id === step.ext).flatMap((s) => s.lockedFields ?? []));
 }
 
 /** A row of a todo list that feeds the Todo engine was changed: its todo follows (todo-engine.ts). */

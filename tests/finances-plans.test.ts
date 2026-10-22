@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { schedule, summarize } from "@/plugins/cases/plans";
+import { schedule, summarize } from "@/plugins/finances/plans";
 
 const TODAY = "2026-10-22";
 

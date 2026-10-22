@@ -108,9 +108,14 @@ export function PersonCard({ p, info, now, soonUntil, weeks, open, run }: { p: C
                 {t("owes you {n}", { n: theirs.length })}
               </button>
             )}
-            {info?.debt && (
-              <span className={`${chip} bg-rose-100 font-medium text-rose-800 dark:bg-rose-950 dark:text-rose-300`} title={info.debt.count === 1 ? t("1 running debt to them") : t("{n} running debts to them", { n: info.debt.count })}>
-                {t("Debt {amount}", { amount: info.debt.amount.toLocaleString(undefined, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) })}
+            {info?.debt && info.debt.owe > 0 && (
+              <span className={`${chip} bg-rose-100 font-medium text-rose-800 dark:bg-rose-950 dark:text-rose-300`} title={t("What you owe them")}>
+                {t("Debt {amount}", { amount: info.debt.owe.toLocaleString(undefined, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) })}
+              </span>
+            )}
+            {info?.debt && info.debt.owed > 0 && (
+              <span className={`${chip} bg-emerald-100 font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300`} title={t("What they owe you")}>
+                {t("Claim {amount}", { amount: info.debt.owed.toLocaleString(undefined, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) })}
               </span>
             )}
             {p.todos > 0 && <span className={`${chip} bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300`}>{p.todos === 1 ? t("1 todo") : t("{n} todos", { n: p.todos })}</span>}

@@ -5,7 +5,6 @@ import { addManualTodo, addTodoUserNote, listTodos, setTodoDue, setTodoOps, setT
 import { detailsOf } from "@/plugins/people/details";
 import { getPerson } from "@/plugins/people/store";
 import { isInstalled } from "@/plugins/state";
-import { monthlyIncome, type MonthlyIncome } from "./income";
 import { partiesOf } from "./parties";
 import { caseTitle } from "./shared";
 import { caseByKey, getCase, listCases } from "./store";
@@ -177,7 +176,7 @@ export function overdueWarnings(today: string): number {
 // ---------------------------------------------------------------------------
 
 export type DebtRow = { caseId: number; creditor: string; /** Who collects it (a bailiff, a collection agency) — "" none. */ collector: string; /** The creditor's contact. */ creditorId: number | null; /** A debt you wrote down yourself (no case number). */ manual: boolean; caseNumber: string; person: string; total: number | null; open: number | null; installment: number | null; nextDue: string | null; nextWhat: string; last: { date: string; amount: number } | null; contact: string; iban: string };
-export type DebtOverview = { rows: DebtRow[]; totals: { total: number; open: number; installments: number }; months: { month: string; installments: number; left: number | null }[]; income: number | null; /** Where the income comes from: yours, or the statements (and their figure, the months, the senders). */ incomeInfo: MonthlyIncome };
+export type DebtOverview = { rows: DebtRow[]; totals: { total: number; open: number; installments: number }; months: { month: string; installments: number; left: number | null }[]; income: number | null };
 
 /** Every running case as a debt — and the next six months: the instalments due in each, what is left of your income. */
 export function debtOverview(opts: { income?: number | null; today?: string } = {}): DebtOverview {
@@ -198,9 +197,7 @@ export function debtOverview(opts: { income?: number | null; today?: string } = 
     })
     .sort((a, b) => (a.nextDue ?? "9999").localeCompare(b.nextDue ?? "9999"));
   const totals = { total: rows.reduce((s, r) => s + (r.total ?? 0), 0), open: rows.reduce((s, r) => s + (r.open ?? 0), 0), installments: rows.reduce((s, r) => s + (r.installment ?? 0), 0) };
-  // The income: as given, else yours, else from the statements.
-  const incomeInfo = monthlyIncome(new Date(`${today}T12:00:00`));
-  const income = opts.income !== undefined ? opts.income : incomeInfo.amount;
+  const income = opts.income ?? null;
   const months = Array.from({ length: 6 }, (_, i) => {
     const d = new Date(`${today.slice(0, 7)}-01T00:00:00Z`);
     d.setUTCMonth(d.getUTCMonth() + i);
@@ -209,5 +206,5 @@ export function debtOverview(opts: { income?: number | null; today?: string } = 
     const installments = rows.filter((r) => r.installment != null && (r.open == null || r.open > r.installment * i)).reduce((s, r) => s + r.installment!, 0);
     return { month, installments, left: income != null ? Math.round((income - installments) * 100) / 100 : null };
   });
-  return { rows, totals, months, income, incomeInfo };
+  return { rows, totals, months, income };
 }

@@ -28,6 +28,8 @@ export type WorkspaceSource = {
   relationOnly?: boolean;
   /** Its records are only read from where they live: a row cannot be made by hand in a database of it. */
   noNewRows?: boolean;
+  /** Fields of its records that are the source's: on a row it brought, they aren't set by hand (rows of your own in the database are yours). */
+  lockedFields?: string[];
   pull?: (dbId: number, rows: Row[], schema: DbSchema) => void | Promise<void>;
   /** A row of it deleted in the database: the record it came from goes too (`ref` as the record had it). Throws when it can't (a read-only record) - the row then stays. */
   remove?: (dbId: number, ref: string) => void | Promise<void>;

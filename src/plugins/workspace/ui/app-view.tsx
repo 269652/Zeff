@@ -16,6 +16,7 @@ const APPS: Record<string, LazyExoticComponent<ComponentType<AppViewProps>>> = {
   calendar: lazy(() => import("@/plugins/calendar/ui/CalendarView")),
   documents: lazy(() => import("@/plugins/documents/ui/DocumentsView")),
   cases: lazy(() => import("@/plugins/cases/ui/CasesView")),
+  debts: lazy(() => import("@/plugins/finances/ui/DebtsView")),
 };
 
 /** An app's view of the database — or, its app not there (its plugin not installed), the fallback (a table). */

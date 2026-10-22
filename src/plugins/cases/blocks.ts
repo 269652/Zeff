@@ -101,8 +101,6 @@ export type CaseOperation =
   /** A party chosen by you (null: none) — or a new contact by its name, a person or an organisation. */
   | { op: "party"; role: string; personId: number | null }
   | { op: "newParty"; role: string; name: string; kind: "person" | "organization" }
-  /** A debt of your own changed. */
-  | { op: "debt"; title?: string; total?: number | null; open?: number | null; installment?: number | null; due?: string | null };
 
 export async function caseOp(caseId: number, o: CaseOperation): Promise<{ message?: string }> {
   if (!getCase(caseId)) throw new Error(t("Unknown case."));
@@ -133,12 +131,6 @@ export async function caseOp(caseId: number, o: CaseOperation): Promise<{ messag
       setParty(caseId, role, id, "manual");
       // The case's person follows its creditor when it had none.
       if (role === "creditor" && id && !getCase(caseId)?.personId) updateCase(caseId, { personId: id });
-      return {};
-    }
-    case "debt": {
-      const { updateDebt } = await import("./parties");
-      const num = (v: unknown) => (v == null || v === "" ? null : Number(v));
-      updateDebt(caseId, { ...(o.title !== undefined ? { title: String(o.title) } : {}), ...(o.total !== undefined ? { total: num(o.total) } : {}), ...(o.open !== undefined ? { open: num(o.open) } : {}), ...(o.installment !== undefined ? { installment: num(o.installment) } : {}), ...(o.due !== undefined ? { due: o.due ? String(o.due) : null } : {}) });
       return {};
     }
     case "refresh": {

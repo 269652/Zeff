@@ -2,7 +2,7 @@ import { getPref, setPref } from "@/lib/prefs";
 import { isInstalled } from "@/plugins/state";
 
 /**
- * Your monthly income (the Cases plugin), as the knowledge server read it off your bank statements when it compiled them (a
+ * Your monthly income (the Finances plugin), as the knowledge server read it off your bank statements when it compiled them (a
  * page per account and month goes to it — knowledge-docs.ts): its "net income" of each month, the average of the last three
  * whole months. What it read is kept here (read again after each briefing and when the debt overview opens), so the pages
  * have it at once. What you set yourself goes first. Server only.

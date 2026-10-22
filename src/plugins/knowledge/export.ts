@@ -1,5 +1,5 @@
 import { isoDay } from "@/lib/text";
-import { bankDocs } from "@/plugins/cases/knowledge-docs";
+import { bankDocs } from "@/plugins/finances/knowledge-docs";
 import { getSqlite } from "@/db";
 import { currentAccount } from "@/db/accounts";
 import { weekFromDate } from "@/lib/week";
@@ -249,7 +249,7 @@ ${clean(r.body)}` }));
   if (isInstalled("documents")) docs.push(...documentDocs(zeffUrl));
 
   // The bank statements (the Cases plugin's bank): a page per account and month — the knowledge keeps your income from them.
-  if (isInstalled("cases")) docs.push(...bankDocs());
+  if (isInstalled("finances")) docs.push(...bankDocs());
 
   if (pick) {
     // The sources picked (by their space); the collections were picked above.

@@ -3,15 +3,15 @@
 import { useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { createDebtAction, debtFromClaimAction } from "../block-actions";
-import type { DebtSuggestion } from "../parties";
-import { ContactField, type ContactOption } from "./ContactField";
+import { ContactField, type ContactOption } from "@/plugins/cases/ui/ContactField";
+import type { DebtSuggestion, Direction } from "../own";
+import { createDebtAction, debtFromClaimAction } from "../server-actions";
 
 /**
  * A debt of your own written down — to whom (a contact, or a new one), what for, how much, by when — and your promises with an
  * amount offered as debts ("Johanna: 200 € zurücküberweisen" → a debt to Johanna).
  */
-export function AddDebt({ contacts, suggestions, onDone, startOpen = false, hideButton = false }: { contacts: ContactOption[]; suggestions: DebtSuggestion[]; onDone: () => void; startOpen?: boolean; /** Only the promises offered (the button is elsewhere). */ hideButton?: boolean }) {
+export function AddDebt({ dir = "owe", contacts, suggestions, onDone, startOpen = false, hideButton = false }: { dir?: Direction; contacts: ContactOption[]; suggestions: DebtSuggestion[]; onDone: () => void; startOpen?: boolean; /** Only the promises offered (the button is elsewhere). */ hideButton?: boolean }) {
   const t = useT();
   const [open, setOpen] = useState(startOpen);
   const [busy, setBusy] = useState(false);
@@ -28,7 +28,7 @@ export function AddDebt({ contacts, suggestions, onDone, startOpen = false, hide
   const save = async () => {
     if (!title.trim() || !creditor) return;
     setBusy(true);
-    const r = await createDebtAction({ title, ...("id" in creditor ? { creditorId: creditor.id } : { creditorName: creditor.name, creditorKind: creditor.kind }), amount: num(amount), installment: num(installment), due: due || null });
+    const r = await createDebtAction({ dir, title, ...("id" in creditor ? { creditorId: creditor.id } : { creditorName: creditor.name, creditorKind: creditor.kind }), amount: num(amount), installment: num(installment), due: due || null });
     setBusy(false);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     toast(t("Debt written down ✓"));

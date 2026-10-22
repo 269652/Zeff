@@ -35,10 +35,11 @@ export function installedPlugins(): Set<PluginId> {
 
 function readInstalled(): Set<PluginId> {
   const on = chosen();
-  const there = (id: PluginId, seen = new Set<PluginId>()): boolean => {
-    if (!on.get(id) || seen.has(id)) return false;
-    seen.add(id);
-    return (pluginById(id).dependsOn ?? []).every((d) => there(d, seen));
+  // `path`: the plugins on the way here — a cycle guard per path (a plugin two of its dependencies share is there for both).
+  const there = (id: PluginId, path = new Set<PluginId>()): boolean => {
+    if (!on.get(id) || path.has(id)) return false;
+    const next = new Set(path).add(id);
+    return (pluginById(id).dependsOn ?? []).every((d) => there(d, next));
   };
   return new Set(PLUGINS.filter((p) => there(p.id)).map((p) => p.id));
 }
