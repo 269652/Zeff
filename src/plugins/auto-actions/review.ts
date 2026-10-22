@@ -93,6 +93,26 @@ Regeln:
 - why: ein Satz, warum genau diese Aktionen.`;
 
 /** The people whose mail addresses are known (from the mails read): "Name <address>", for those the todos name. */
+/**
+ * When the newest account (IBAN, RevTag) of the people a todo names became known — a todo whose actions were proposed before
+ * that is looked at again (a transfer is possible now). "" when none.
+ */
+async function accountsKnownSince(): Promise<(text: string) => string> {
+  const { isInstalled } = await import("@/plugins/state");
+  if (!isInstalled("people")) return () => "";
+  const { getSqlite } = await import("@/db");
+  const { listPeople, namesThem } = await import("@/plugins/people/store");
+  let rows: { person_id: number; at: string }[] = [];
+  try {
+    rows = getSqlite().prepare("select person_id, max(created_at) as at from people_details where key in ('iban', 'revtag') and removed = 0 group by person_id").all() as typeof rows;
+  } catch {
+    return () => "";
+  }
+  const at = new Map(rows.map((r) => [r.person_id, r.at]));
+  const people = listPeople().filter((p) => at.has(p.id));
+  return (text) => people.filter((p) => namesThem(p, text)).reduce((m, p) => (at.get(p.id)! > m ? at.get(p.id)! : m), "");
+}
+
 /** The bank accounts of the people the todos name (the People plugin's details): "Name: IBAN (BIC …)". */
 async function accountsOf(text: string): Promise<string[]> {
   const { isInstalled } = await import("@/plugins/state");
@@ -287,11 +307,12 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
     const reviewedAt = new Map(getDb().select({ id: todos.id, at: todos.actionsReviewedAt }).from(todos).where(eq(todos.status, "open")).all().map((r) => [r.id, r.at ?? ""]));
     const ours = open.filter((t) => t.ops.length && !!t.autoOpsWhy && due.has(t.id));
     const oursSources = todoSources(ours, board?.tickets ?? []);
+    const accountAt = await accountsKnownSince();
     const learned = new Set(
       ours
         .filter((t) => {
           const at = reviewedAt.get(t.id) ?? "";
-          return t.userNotes.some((n) => n.at > at) || sourcesOf(t.refs, oursSources).some((x) => (entityWhoWhen(x).at ?? "") > at);
+          return t.userNotes.some((n) => n.at > at) || sourcesOf(t.refs, oursSources).some((x) => (entityWhoWhen(x).at ?? "") > at) || accountAt(t.text) > at;
         })
         .map((t) => t.id),
     );
