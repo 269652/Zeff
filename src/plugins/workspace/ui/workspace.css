@@ -475,6 +475,9 @@
     border-color: var(--color-zinc-700, #3f3f46);
   }
 }
+.ws-bubble-ai[data-layout="list"] {
+  grid-template-columns: 1fr;
+}
 .ws-bubble-ai button {
   display: flex;
   align-items: center;

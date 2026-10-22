@@ -42,6 +42,15 @@ export type SaveState = "saved" | "saving" | "error" | "conflict";
 /** Markdown typed or pasted as plain text: headings, lists, fences, tables or links over several lines. */
 const MD_HINT = /(^#{1,6} |^\s*[-*] |^\s*\d+\. |^```|^\|.+\|$|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/m;
 
+/** The selection card's AI signs (24-unit paths, drawn at 14 px). */
+const AI_ICONS: Record<"improve" | "fix" | "shorter" | "longer" | "explain", string[]> = {
+  improve: ["M12 3l1.9 5.1L19 10l-5.1 1.9L12 17l-1.9-5.1L5 10l5.1-1.9z", "M19 17v4", "M17 19h4"],
+  fix: ["M5 12l4 4 10-10"],
+  shorter: ["M4 14h6v6", "M20 10h-6V4", "M14 10l7-7", "M3 21l7-7"],
+  longer: ["M15 3h6v6", "M9 21H3v-6", "M21 3l-7 7", "M3 21l7-7"],
+  explain: ["M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20z", "M9.1 9a3 3 0 0 1 5.8 1c0 2-3 3-3 3", "M12 17h.01"],
+};
+
 /** The AI's answer waiting for you: where it goes, and what was selected (to find it again if the page changed meanwhile). */
 type Proposal = { markdown: string; mode: AiMode; from: number; to: number; replace: boolean; original: string };
 
@@ -59,6 +68,22 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
   const conflicted = useRef(false);
   const [proposal, setProposal] = useState<Proposal | null>(null);
   const [aiBusy, setAiBusy] = useState(false);
+  // The selection card's AI actions as a list (one column) or a grid — kept in this browser.
+  const [aiLayout, setAiLayout] = useState<"grid" | "list">(() => {
+    try {
+      return typeof window !== "undefined" && localStorage.getItem("ws:bubble-layout") === "list" ? "list" : "grid";
+    } catch {
+      return "grid";
+    }
+  });
+  const pickAiLayout = (v: "grid" | "list") => {
+    setAiLayout(v);
+    try {
+      localStorage.setItem("ws:bubble-layout", v);
+    } catch {
+      // without storage: for this page only
+    }
+  };
   const [askAi, setAskAi] = useState(false);
   const [dbPicker, setDbPicker] = useState<{ id: number; title: string; icon: string }[] | null>(null);
   const [embedPicker, setEmbedPicker] = useState<TreeItem[] | null>(null);
@@ -480,19 +505,22 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
                 🔗
               </button>
             </div>
-            <div className="ws-bubble-ai" role="group" aria-label={t("AI")}>
+            <div className="ws-bubble-ai" data-layout={aiLayout} role="group" aria-label={t("AI")}>
               {([
-                ["improve", "✨", t("Improve")],
-                ["fix", "✓", t("Spelling")],
-                ["shorter", "↘", t("Shorter")],
-                ["longer", "↗", t("Longer")],
-                ["explain", "?", t("Explain")],
-              ] as [AiMode, string, string][]).map(([mode, icon, label]) => (
+                ["improve", AI_ICONS.improve, t("Improve")],
+                ["fix", AI_ICONS.fix, t("Spelling")],
+                ["shorter", AI_ICONS.shorter, t("Shorter")],
+                ["longer", AI_ICONS.longer, t("Longer")],
+                ["explain", AI_ICONS.explain, t("Explain")],
+              ] as [AiMode, string[], string][]).map(([mode, paths, label]) => (
                 <button key={mode} type="button" disabled={aiBusy} onClick={() => void runAi(mode)}>
-                  <span aria-hidden className="w-3.5 shrink-0 text-center text-violet-500">
-                    {icon}
-                  </span>
-                  {label}
+                  {/* One size for every sign (14 px): the gap to the name is the same 8 px for each, the names aligned. */}
+                  <svg aria-hidden viewBox="0 0 24 24" width={14} height={14} className="shrink-0 text-violet-500" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+                    {paths.map((d) => (
+                      <path key={d} d={d} />
+                    ))}
+                  </svg>
+                  <span>{label}</span>
                 </button>
               ))}
             </div>
@@ -507,7 +535,19 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
                   {label}
                 </button>
               ))}
-              {aiBusy && <span className="ml-auto animate-pulse px-1 text-[11px] text-violet-600">…</span>}
+              {aiBusy && <span className="animate-pulse px-1 text-[11px] text-violet-600">…</span>}
+              <span className="ml-auto flex" role="group" aria-label={t("Layout")}>
+                {(
+                  [
+                    ["list", "☰", t("List")],
+                    ["grid", "▦", t("Gallery")],
+                  ] as const
+                ).map(([v, icon, label]) => (
+                  <button key={v} type="button" title={label} aria-label={label} data-active={aiLayout === v} className="text-xs text-zinc-500" onClick={() => pickAiLayout(v)}>
+                    {icon}
+                  </button>
+                ))}
+              </span>
             </div>
           </div>
         </BubbleMenu>
