@@ -339,6 +339,11 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
             </label>
           )}
           {p.type === "date" && (
+            <label className="flex items-center gap-2">
+              <input type="checkbox" checked={!!p.defaultToday} onChange={(e) => onChange({ ...p, defaultToday: e.target.checked || undefined })} /> {t("New rows start with today")}
+            </label>
+          )}
+          {p.type === "date" && (
             // A deadline: its rows in "Needs attention" so many days before (empty: never).
             <label className="flex items-center gap-2">
               {t("Remind")}

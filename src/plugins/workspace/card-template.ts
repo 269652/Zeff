@@ -309,7 +309,7 @@ function valueOf(p: Property, cell: unknown, text: string): unknown {
 }
 
 /** What a template sees of a row: its title, key, id, times and every property by name (or id). `key`: the row's ticket key, if it has one. */
-export function cardScope(v: { row: Row; props: Property[]; titleName: string; key?: string | null; labels?: Labels; now?: Date }): CardScope {
+export function cardScope(v: { row: Row; props: Property[]; titleName: string; key?: string | null; labels?: Labels; now?: Date; /** What the row's page says (a property named so wins). */ text?: string }): CardScope {
   const labels = v.labels ?? noLabels;
   const fields = new Map<string, Field>();
   const set = (name: string, f: Field) => fields.set(norm(name), f);
@@ -327,7 +327,8 @@ export function cardScope(v: { row: Row; props: Property[]; titleName: string; k
   set("key", { value: v.key ?? null, text: v.key ?? "", prop: null });
   set("created", { value: v.row.createdAt.slice(0, 10), text: v.row.createdAt.slice(0, 10), prop: null });
   set("updated", { value: v.row.updatedAt.slice(0, 10), text: v.row.updatedAt.slice(0, 10), prop: null });
-  return { get: (name) => fields.get(norm(name)), now: v.now ?? new Date(), names: ["title", "key", "id", "icon", "created", "updated", ...v.props.map((p) => p.name)] };
+  if (v.text !== undefined && !fields.has("text")) set("text", { value: v.text || null, text: v.text, prop: null });
+  return { get: (name) => fields.get(norm(name)), now: v.now ?? new Date(), names: ["title", "key", "id", "icon", "created", "updated", ...(v.text !== undefined ? ["text"] : []), ...v.props.map((p) => p.name)] };
 }
 
 // ---------------------------------------------------------------------------

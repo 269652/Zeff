@@ -13,6 +13,7 @@ import { installPackage, listPackages } from "./packages";
 import { widgetCatalog } from "./widgets";
 import { createRoutine } from "./routines";
 import { createTicketCockpit } from "./ticket-cockpit";
+import { journalPage } from "./templates-journal";
 import { authorityPage, financesPage, meetingPage, oneOnOnePage, projectBriefPage, weeklyReviewPage, whoOwesPage, wikiHomePage } from "./templates-pages";
 import { getPref, setPref } from "@/lib/prefs";
 import { createPage, getPage, updatePage } from "./store";
@@ -307,6 +308,19 @@ const TEMPLATES: Template[] = [
     },
     kind: "database",
     build: (parentId) => readingDatabase(parentId),
+  },
+  {
+    key: "journal",
+    category: "notes",
+    get name() {
+      return t("Journal");
+    },
+    icon: "📓",
+    get description() {
+      return t("One entry a day for your thoughts, mood and energy — and the AI writes a weekly and a monthly review of them.");
+    },
+    kind: "page",
+    build: (parentId) => journalPage(parentId),
   },
   {
     key: "projects",

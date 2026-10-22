@@ -336,7 +336,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       const attention = typeof att === "string" && isAttention(att) ? att : (cur?.attention ?? null);
       tickets[k] = { attention, attentionLabel: attention && isAttention(attention) ? attentionLabels(t)[attention] : null, lead: typeof lead === "string" ? lead : (cur?.lead ?? null), summary: typeof r.cells[LAGE_FIELDS.summary] === "string" ? String(r.cells[LAGE_FIELDS.summary]) : (cur?.summary ?? null), happened: cur?.happened ?? [], todos: cur?.todos ?? [] };
     }
-    const extras: DatabaseData["extras"] = { jobs: d.schema.jobs ? await (async () => { const j = await import("./jobs"); await j.upgradeDeliveries(d.rows).catch((e) => console.error("[jobs] upgrading deliveries failed", e)); return j.jobPanels(d.rows); })() : undefined, keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), fieldTypes: await (async () => (await import("@/plugins/contributions"), (await import("./field-types")).fieldTypeInfos()))(), running: (await import("./pipeline")).pipelineRunning(page.id), extSources: (await (await import("./source-point")).extSources()).map((x) => ({ id: x.id, label: x.label, icon: x.icon, hint: x.hint })), inboxPossible: (await import("./derived")).channelKinds().mail || (await import("./derived")).channelKinds().messages, appViews: await (async () => { const nav = await import("./app-nav"); return (await import("./app-views")).appViewsFor(d.schema.dataType).map((a) => ({ id: a.id, label: t(a.label), icon: a.icon, nav: nav.hasNav(a.id) })); })(), capabilities: (await import("./capabilities")).capabilitiesOf(d.schema), derived: (await import("./derived")).derivedOf(page.id), derivedFrom: (await import("./derived")).derivedFrom(d.schema), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])), links: (await import("./links")).linksIn(d.rows.map((r) => r.id)), rowView: (await import("./row-views")).rowViewOf(d.schema.dataType)?.id ?? null };
+    const extras: DatabaseData["extras"] = { jobs: d.schema.jobs ? await (async () => { const j = await import("./jobs"); await j.upgradeDeliveries(d.rows).catch((e) => console.error("[jobs] upgrading deliveries failed", e)); return j.jobPanels(d.rows); })() : undefined, keys, subtasks: subtaskCounts(d.schema, d.rows, page.id), tickets, todosOn: isInstalled("todos"), ...collectionSwitches(page.id), me: await whoAmI(), source: collectionSource(page.id), fieldTypes: await (async () => (await import("@/plugins/contributions"), (await import("./field-types")).fieldTypeInfos()))(), running: (await import("./pipeline")).pipelineRunning(page.id), extSources: (await (await import("./source-point")).extSources()).map((x) => ({ id: x.id, label: x.label, icon: x.icon, hint: x.hint })), inboxPossible: (await import("./derived")).channelKinds().mail || (await import("./derived")).channelKinds().messages, appViews: await (async () => { const nav = await import("./app-nav"); return Promise.all((await import("./app-views")).appViewsFor(d.schema.dataType).map(async (a) => ({ id: a.id, label: t(a.label), icon: a.icon, nav: await nav.hasNav(a.id) }))); })(), capabilities: (await import("./capabilities")).capabilitiesOf(d.schema), derived: (await import("./derived")).derivedOf(page.id), derivedFrom: (await import("./derived")).derivedFrom(d.schema), previews: Object.fromEntries(d.rows.map((r) => [r.id, previewLines(store.getPage(r.id)?.content, 10)])), links: (await import("./links")).linksIn(d.rows.map((r) => r.id)), rowView: (await import("./row-views")).rowViewOf(d.schema.dataType)?.id ?? null };
     return { data: { id: page.id, title: page.title, icon: page.icon, locked: page.locked || !!d.schema.protect?.lock, noNewRows: await readOnlyRows(page.id), schema: d.schema, rows: d.rows, labels, templates: store.rowTemplates(page.id).map((r) => ({ id: r.id, title: r.title || t("Untitled") })), related, extras } };
   });
 }
@@ -463,11 +463,16 @@ export async function createSourceDatabaseAction(from: string) {
 
 /** Any database made an inbox: the channels named as its sources, its rows read in the background (the Inbox view follows). */
 /** Where an app view's navigation is: in the view, or in the Workspace tree under its database. */
-export async function setNavPlaceAction(dbId: number, viewId: string, place: "view" | "workspace") {
+export async function setNavPlaceAction(dbId: number, viewId: string, place: "view" | "workspace" | "off") {
   return run(async () => {
-    (await import("./app-nav-store")).setNavPlace(Number(dbId), String(viewId), place === "workspace" ? "workspace" : "view");
+    (await import("./app-nav-store")).setNavPlace(Number(dbId), String(viewId), place === "workspace" || place === "off" ? place : "view");
     return {};
   });
+}
+
+/** A row made with New and closed again untouched: to the bin (see fresh-rows.ts). Whether it went. */
+export async function discardIfUntouchedAction(rowId: number, madeWith: string[]) {
+  return run(async () => ({ discarded: (await import("./fresh-rows")).discardIfUntouched(Number(rowId), Array.isArray(madeWith) ? madeWith.map(String) : []) }));
 }
 
 /** An entry of the navigation in the tree: hidden, or shown again (never deleted). */

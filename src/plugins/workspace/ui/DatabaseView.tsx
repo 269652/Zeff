@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { templateParamsAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { templateParamsAction, discardIfUntouchedAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -313,6 +313,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   // An app's view as code (its template being written — the view shows the draft), and what is wrong with the draft.
   const [code, setCode] = useState<{ viewId: string; draft: string } | null>(null);
   const [codeErrors, setCodeErrors] = useState<TplError[]>([]);
+  // The row New just made and opened (with the cells it got): closed again untouched, it goes — New leaves no empty rows behind.
+  const fresh = useRef<{ id: number; madeWith: string[] } | null>(null);
   // An app's view can take "New" over (its own form for a new row — the debts overview's).
   const appNew = useRef<(() => void) | null>(null);
   const setAppNew = useCallback((fn: (() => void) | null) => void (appNew.current = fn), []);
@@ -335,9 +337,12 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     withRow(id);
   };
   const closePeek = () => {
+    const made = fresh.current;
+    fresh.current = null;
     setPeek(null);
     withRow(null);
-    void api.reload();
+    if (made && made.id === peek) void discardIfUntouchedAction(made.id, made.madeWith).then(() => api.reload());
+    else void api.reload();
   };
   const setView = (v: View) => api.changeSchema((s) => ({ ...s, views: s.views.map((x) => (x.id === v.id ? v : x)) }));
   const pick = (id: string) => {
@@ -392,13 +397,18 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     const id = await api.addRow(cells, "", templateId, params);
     if (!id) return;
     // A row from a template opens as a page; a plain one is named in place.
+    if (open && !templateId) fresh.current = { id, madeWith: Object.keys(cells) };
     if (open) openRow(id);
     else setJustAdded(id);
   };
 
   // What a view's buttons do to rows (a template's new, delete, duplicate, hide).
   const rowOps: RowOps = {
-    add: (cells) => api.addRow(cells, ""),
+    add: async (cells) => {
+      const id = await api.addRow(cells, "");
+      if (id) fresh.current = { id, madeWith: Object.keys(cells) };
+      return id;
+    },
     remove: (id) => api.removeRow(id),
     duplicate: (id) => api.duplicateRow(id),
     hide: (id) => api.changeSchema((s) => hideRows(s, [id], true)),
@@ -614,20 +624,33 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm">
           {(close) => (
             <>
-              {view.type === "app" && data.extras?.appViews?.find((a) => a.id === view.app)?.nav && (
-                <MenuItem
-                  checked={view.nav === "workspace"}
-                  onClick={() => {
-                    close();
-                    void setNavPlaceAction(dbId, view.id, view.nav === "workspace" ? "view" : "workspace").then((r) => {
-                      if (!r.ok) return toast(r.error, { tone: "error" });
-                      void api.reload();
-                      router.refresh();
-                    });
-                  }}
-                >
-                  🧭 {t("Navigation in the Workspace tree")}
-                </MenuItem>
+              {/* Its sidebar beside the view or in the tree — an app's (its plugin brings it) or a template's <nav>. */}
+              {view.type === "app" && (data.extras?.appViews?.find((a) => a.id === view.app)?.nav || /<nav[\s>]/.test(view.template ?? viewAppMeta(view.app ?? "")?.defaultTemplate(t) ?? "")) && (
+                <>
+                  {/* Where it is: in the tree, beside the view — or (a template's) nowhere. */}
+                  {(
+                    [
+                      ["workspace", `🧭 ${t("Navigation in the Workspace tree")}`],
+                      ["view", `◧ ${t("Navigation beside the view")}`],
+                      ...(/<nav[\s>]/.test(view.template ?? viewAppMeta(view.app ?? "")?.defaultTemplate(t) ?? "") ? ([["off", `⊘ ${t("No navigation")}`]] as const) : []),
+                    ] as const
+                  ).map(([place, label]) => (
+                    <MenuItem
+                      key={place}
+                      checked={(view.nav ?? "view") === place}
+                      onClick={() => {
+                        close();
+                        void setNavPlaceAction(dbId, view.id, place).then((r) => {
+                          if (!r.ok) return toast(r.error, { tone: "error" });
+                          void api.reload();
+                          router.refresh();
+                        });
+                      }}
+                    >
+                      {label}
+                    </MenuItem>
+                  ))}
+                </>
               )}
               {/* The rows hidden in the database: shown too (set back), or left out again. */}
               {view.type === "app" && appAvailable(data, view) && (

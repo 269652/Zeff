@@ -197,3 +197,26 @@ test("comments are left out; tabs whose options are worked out leave the start t
   assert.equal(safeUrl("javascript:alert(1)"), "");
   assert.deepEqual(viewDefaults('<state name="known" value="{{ app.first }}"/><tabs bind="known" options="{{ app.tabs }}"/>'), {});
 });
+
+test("a <nav>: its entries — a state to set, a row to open (inside a row by itself), an address; drawn apart from the view", async () => {
+  const { navOf } = await import("../src/plugins/workspace/view-template");
+  const r = renderView(`<nav title="Mein"><entry label="Aktiv" icon="✅" state="st" value="a" n="{{ rows | where('Status', 'Aktiv') | count }}"/>{{#each rows | limit(2)}}<entry label="{{ title }}" group="Erste"/>{{/each}}<entry label="Todos" href="/todos"/></nav><b>Rest</b>`, data(), { parts });
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(navOf(r.nodes), {
+    title: "Mein",
+    entries: [
+      { id: "st=a", label: "Aktiv", icon: "✅", n: 3, state: "st", value: "a" },
+      { id: "row:1", label: "Miete", icon: "", n: 0, group: "Erste", row: 1 },
+      { id: "row:2", label: "Strom", icon: "", n: 0, group: "Erste", row: 2 },
+      { id: "/todos", label: "Todos", icon: "", n: 0, href: "/todos" },
+    ],
+  });
+  assert.match(renderView('<nav><entry icon="x"/></nav>', data(), { parts }).errors[0].message, /needs a label/);
+  assert.equal(navOf(renderView("<b>no nav</b>", data(), { parts }).nodes), null);
+});
+
+test("a column of a fixed width (width=140): what follows starts at the same place in every row", () => {
+  const r = renderView("{{#each rows | limit(2)}}<row><col width=140><mono>{{ title }}</mono></col><col fill=true>{{ Status }}</col></row>{{/each}}", data(), { parts });
+  assert.deepEqual(r.errors, []);
+  assert.deepEqual(find(r.nodes, "col").filter((c) => c.a.width).map((c) => c.a.width), ["140", "140"]);
+});

@@ -963,6 +963,8 @@ export function addRow(dbId: number, v: NewRow = {}): number {
     const c = coerceCell(p, val);
     if (c !== null) props[k] = c;
   }
+  // (A date that starts with today — a journal's day.)
+  for (const p of d.schema.properties) if (p.type === "date" && p.defaultToday && props[p.id] === undefined) props[p.id] = new Date().toLocaleDateString("sv-SE");
   const params = tpl?.dbId === dbId ? { ...builtinParams(), ...(v.params ?? {}) } : (v.params ?? {});
   if (tpl?.dbId === dbId && Object.keys(params).length) for (const [k, val] of Object.entries(props)) if (typeof val === "string") props[k] = fill(val, params);
   const title = v.title ?? (tpl && tpl.dbId === dbId ? tpl.title : "");
@@ -990,8 +992,9 @@ export function pageHits(words: string[]): { ref: string; title: string; text: s
 export function unreadCounts(): Record<number, number> {
   const d = db();
   const out: Record<number, number> = {};
-  const field: Record<string, string> = { mail: "$.mailunread", message: "$.msgunread", inbox: "$.communread" };
-  const dbs = d.prepare(`select id, json_extract(schema, '$.dataType') as dt from ws_pages where kind = 'database' and archived_at is null and json_extract(schema, '$.dataType') in ('mail', 'message', 'inbox')`).all() as { id: number; dt: string }[];
+  // (The document inbox too: its unread documents.)
+  const field: Record<string, string> = { mail: "$.mailunread", message: "$.msgunread", inbox: "$.communread", documents: "$.docunread" };
+  const dbs = d.prepare(`select id, json_extract(schema, '$.dataType') as dt from ws_pages where kind = 'database' and archived_at is null and json_extract(schema, '$.dataType') in ('mail', 'message', 'inbox', 'documents')`).all() as { id: number; dt: string }[];
   // A snoozed row (an inbox's, until a time in the future) is not counted.
   const count = d.prepare("select count(*) as n from ws_pages where db_id = ? and archived_at is null and template = 0 and json_extract(props, ?) = 1 and coalesce(json_extract(props, '$.commsnooze'), '') <= ?");
   const now = new Date().toISOString();

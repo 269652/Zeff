@@ -5,7 +5,7 @@ import { listRoutines, setNextRun, type Trigger } from "./routines";
 import { runRoutine } from "./routine-run";
 
 /**
- * When routines run by themselves: on a schedule (every N minutes, or at a time of day on some weekdays) and when something happens
+ * When routines run by themselves: on a schedule (every N minutes, or at a time of day on some weekdays or on a day of the month) and when something happens
  * in a database (a row added or changed, a pipeline through). A routine's own changes never trigger routines again.
  */
 
@@ -17,6 +17,13 @@ export function nextRunAfter(trigger: Trigger, from: Date): Date | null {
   if (trigger.everyMinutes) return new Date(from.getTime() + trigger.everyMinutes * 60000);
   const m = trigger.at ? /^(\d{2}):(\d{2})$/.exec(trigger.at) : null;
   if (!m) return null;
+  if (trigger.monthDay) {
+    for (let add = 0; add < 2; add++) {
+      const d = new Date(from.getFullYear(), from.getMonth() + add, trigger.monthDay, Number(m[1]), Number(m[2]));
+      if (d.getTime() > from.getTime()) return d;
+    }
+    return null;
+  }
   const days = trigger.days?.length ? trigger.days : [0, 1, 2, 3, 4, 5, 6];
   for (let add = 0; add < 8; add++) {
     const d = new Date(from.getFullYear(), from.getMonth(), from.getDate() + add, Number(m[1]), Number(m[2]));
