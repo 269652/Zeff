@@ -23,13 +23,16 @@ const template = (t: T) => `<state name="circle" value="all"/>
 <state name="sort" value="name"/>
 <state name="adding" value=""/>
 <state name="days" value="0"/>
+<state name="tab" value="people"/>
 
 {{#if app.loading}}
   <muted>{{ app.error | default('…') }}</muted>
 {{#else}}
 
-<split side=left width=340>
-<col gap=4>
+<tabs bind="tab" options="people:${t("People")}:{{ app.count }}, more:${t("Dates & to check")}:{{ app.toCheck }}"/>
+
+{{#if state.tab == 'more'}}
+<grid cols=2 gap=4 min=360>
   {{#if app.meetings}}
   <box title="${t("Appointments in the next 24 hours")}">
     {{#each app.meetings}}
@@ -152,8 +155,8 @@ const template = (t: T) => `<state name="circle" value="all"/>
       <part name="people.settings"/>
     </section>
   </box>
-</col>
-
+</grid>
+{{#else}}
 <col gap=3>
   <row gap=2>
     <select bind="circle" options="{{ app.circleOptions }}"/>
@@ -180,7 +183,7 @@ const template = (t: T) => `<state name="circle" value="all"/>
     <box><text tone=muted>{{ app.rowCount ? ${q(t("No one matches."))} : ${q(t("No people yet — add one above, or import them from your mails and chats (Tools)."))} }}</text></box>
   {{/if}}
 </col>
-</split>
+{{/if}}
 
 {{/if}}`;
 
