@@ -2,6 +2,7 @@
 import "./actions/server";
 import "./calendar/server";
 import "./cases/server";
+import "./correlations/server";
 import "./documents/server";
 import "./finances/server";
 import "./gitlab/server";

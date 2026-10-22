@@ -5,6 +5,7 @@ import { registerGmailTools } from "@/plugins/gmail/mcp";
 import { registerWorkspaceTools } from "@/plugins/workspace/mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
 import { registerAiQualityTool } from "@/lib/learning/mcp";
+import { registerCorrelationTools } from "@/plugins/correlations/mcp";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { ConflictError, NotFoundError, ValidationError, errorMessage } from "@/lib/errors";
@@ -1066,4 +1067,5 @@ export function registerZeffTools(server: McpServer): void {
   registerReportTool(server, { run, ok, fail } as never);
   // How useful each AI step is, from the user's decisions (read-only).
   registerAiQualityTool(server, { run, ok, fail } as never);
+  registerCorrelationTools(server, { run, ok, fail } as never);
 }

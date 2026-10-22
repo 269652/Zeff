@@ -25,6 +25,10 @@ export type WidgetItem = {
   tone?: "good" | "warn" | "bad";
   /** A tick shown (its action "toggle" ticks it). */
   done?: boolean;
+  /** The text and detail read whole (wrapped) instead of cut to a line — a sentence that is the point of the row. */
+  wrap?: boolean;
+  /** A tiny chart under the row: a few bars side by side (two groups' means, a week's days). */
+  mini?: { bars: { label: string; value: number; tone?: "good" | "warn" | "bad" }[]; unit?: string };
   /** Buttons on the row, by the action they run on the plugin — shown on hover; with an icon the label is its tooltip. */
   actions?: { id: string; label: string; icon?: string }[];
 };

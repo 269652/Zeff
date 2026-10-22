@@ -74,6 +74,26 @@ function Lead({ icon, tone }: { icon?: string; tone: Tone }) {
   );
 }
 
+/** A row's tiny chart: a few bars side by side, each with its value above and its label below. */
+function MiniBars({ mini }: { mini: NonNullable<WidgetItem["mini"]> }) {
+  const max = Math.max(...mini.bars.map((b) => Math.abs(b.value)), 1e-9);
+  return (
+    <span className="mt-1.5 flex items-end gap-2" aria-hidden>
+      {mini.bars.map((b) => (
+        <span key={b.label} className="flex w-16 flex-col items-center gap-0.5">
+          <span className="text-[10px] text-zinc-500 tabular-nums">{`${Math.round(b.value * 10) / 10}${mini.unit ? ` ${mini.unit}` : ""}`}</span>
+          <span className="flex h-8 w-6 items-end overflow-hidden rounded bg-zinc-100 dark:bg-zinc-800">
+            <span className={`block w-full rounded ${TONE_FILL[b.tone ?? "none"]}`} style={{ height: `${Math.max(4, (Math.abs(b.value) / max) * 100)}%` }} />
+          </span>
+          <span className="max-w-16 truncate text-[10px] text-zinc-400" title={b.label}>
+            {b.label}
+          </span>
+        </span>
+      ))}
+    </span>
+  );
+}
+
 function ItemRow({ item, busy, act }: { item: WidgetItem; busy: boolean; act: (action: string, id: string) => void }) {
   const tone: Tone = item.tone ?? "none";
   const big = !!item.icon;
@@ -81,8 +101,9 @@ function ItemRow({ item, busy, act }: { item: WidgetItem; busy: boolean; act: (a
     <li className={`group/item relative flex items-start gap-3 rounded-xl px-2 ${big ? "py-1.5" : "py-1"} transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50`}>
       <Lead icon={item.icon} tone={tone} />
       <Go href={item.href} className="min-w-0 flex-1 text-inherit no-underline" title={item.text}>
-        <span className={`block truncate text-sm ${item.done ? "text-zinc-400 line-through" : "font-medium text-zinc-800 dark:text-zinc-100"}`}>{item.text}</span>
-        {item.detail && <span className="block truncate text-xs text-zinc-500 dark:text-zinc-400">{item.detail}</span>}
+        <span className={`block ${item.wrap ? "" : "truncate"} text-sm ${item.done ? "text-zinc-400 line-through" : "font-medium text-zinc-800 dark:text-zinc-100"}`}>{item.text}</span>
+        {item.detail && <span className={`block ${item.wrap ? "" : "truncate"} text-xs text-zinc-500 dark:text-zinc-400`}>{item.detail}</span>}
+        {item.mini && <MiniBars mini={item.mini} />}
       </Go>
       <span className="flex shrink-0 items-center gap-1.5 self-center">
         {item.badge && <span className={`max-w-32 truncate rounded-full px-2 py-0.5 text-[11px] font-medium ${TONE_BADGE[tone]}`}>{item.badge}</span>}
