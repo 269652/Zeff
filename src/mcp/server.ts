@@ -289,7 +289,11 @@ export function registerZeffTools(server: McpServer): void {
       run(async () => {
         if (!isInstalled("knowledge")) return fail("Knowledge is not installed in Zeff (Menu → Plugins) — this tool isn't available.");
         const { knowledgeSearch } = await import("@/plugins/knowledge/client");
-        const r = await knowledgeSearch(args.query, args.limit ?? 6);
+        const found = await knowledgeSearch(args.query, args.limit ?? 6);
+        // Only what this caller may read (lib/boundaries): a personal space's pages not for an agent without personal data.
+        const { mayRead, spaceLabels } = await import("@/lib/boundaries");
+        const label = await spaceLabels();
+        const r = { ...found, pages: found.pages.filter((p) => mayRead(label(p.space))) };
         if (!r.pages.length && !r.entities.length) return ok(`Nothing in the knowledge base for "${args.query}".`);
         const plain = (t: string) => t.replace(/[⟦⟧]/g, "").replace(/\s+/g, " ").trim();
         const pages = r.pages.map((p) => `- ${p.title} (${p.space})${p.url ? ` ${p.url}` : ""}${p.summary ? `\n  summary: ${plain(p.summary)}` : ""}\n  found: ${plain(p.snippet)}`);

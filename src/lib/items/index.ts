@@ -1,4 +1,5 @@
 import "@/plugins/contributions";
+import { sourceLabel } from "@/lib/boundaries";
 import { collectionProviders } from "./point";
 import type { Collection, CollectionSwitches, Item, ItemAction } from "./shared";
 
@@ -14,9 +15,19 @@ const providers = () => collectionProviders.list().map((c) => c.impl);
 
 export type CollectionFilter = { plugin?: string; briefing?: boolean; knowledge?: boolean };
 
+/**
+ * A collection with its sensitivity (its provider's — a Workspace database's own — else its plugin's source label): a
+ * secret one is in neither the briefing nor the knowledge, whatever its switches say (they stay as they are).
+ */
+function bounded(c: Collection): Collection {
+  const sensitivity = c.sensitivity ?? sourceLabel(c.plugin === "notes" ? "keep" : c.plugin);
+  return sensitivity === "secret" ? { ...c, sensitivity, briefing: false, knowledge: false } : { ...c, sensitivity };
+}
+
 export function listCollections(filter: CollectionFilter = {}): Collection[] {
   return providers()
     .flatMap((p) => p.collections())
+    .map(bounded)
     .filter(
       (c) =>
         (filter.plugin === undefined || c.plugin === filter.plugin) &&

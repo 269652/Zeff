@@ -160,7 +160,10 @@ async function realKnowledge(query: string) {
   if (!isInstalled("knowledge")) return [];
   const { knowledgeSearch } = await import("@/plugins/knowledge/client");
   const r = await knowledgeSearch(query, 4);
-  return r.pages.map((p) => ({ title: p.title, snippet: clip(p.snippet || p.summary || "", 700) }));
+  // (Only what the reader may see: a personal space's pages not for an agent without personal data — lib/boundaries.)
+  const { mayRead, spaceLabels } = await import("@/lib/boundaries");
+  const label = await spaceLabels();
+  return r.pages.filter((p) => mayRead(label(p.space))).map((p) => ({ title: p.title, snippet: clip(p.snippet || p.summary || "", 700) }));
 }
 
 /**
@@ -173,6 +176,9 @@ export async function retrieve(needs: Need[], opts: RetrieveOpts = {}): Promise<
   const maxChars = opts.maxChars ?? 7000;
   const seen = new Set<string>();
   const hits: RagHit[] = [];
+  // What the reader may see (lib/boundaries): never a secret source's or database's; personal only with a personal clearance.
+  const { mayRead, refLabels } = await import("@/lib/boundaries");
+  const labelOf = refLabels();
   for (const need of needs.slice(0, 3)) {
     const q = String(need?.query ?? "").trim();
     const words = wordsOf(q);
@@ -189,7 +195,7 @@ export async function retrieve(needs: Need[], opts: RetrieveOpts = {}): Promise<
       } catch {
         found = [];
       }
-      for (const h of found.filter((c) => c.score >= min).sort((a, b) => b.score - a.score || (b.when ?? "").localeCompare(a.when ?? "")).slice(0, perSource)) {
+      for (const h of found.filter((c) => c.score >= min && (c.source === "knowledge" || mayRead(labelOf(c.ref)))).sort((a, b) => b.score - a.score || (b.when ?? "").localeCompare(a.when ?? "")).slice(0, perSource)) {
         if (seen.has(h.ref)) continue;
         seen.add(h.ref);
         hits.push({ source: h.source, ref: h.ref, title: h.title, text: h.text, when: h.when });

@@ -12,21 +12,33 @@ import "./routine-agent"; // (registers an agent routine's permissions as a guar
 import { asAgent } from "./agent-scope";
 import * as store from "./store";
 import { registerWorkspaceDbTools, valuesToCells } from "./mcp-db";
+import { mayRead, refusal } from "@/lib/boundaries";
+import { labelResolver, pageLabel } from "./sensitivity";
 
 type Result = { content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[]; isError?: boolean };
 export type Helpers = { run: (fn: () => Promise<Result> | Result) => Promise<Result>; ok: (text: string) => Result; fail: (text: string) => Result };
 
 export const off = (h: Helpers): Result | null => (isInstalled("workspace") ? null : h.fail("The Workspace is not installed in Zeff (Menu → Plugins) — this tool isn't available."));
 
-/** A page by id ("12", "#12") or by its title (exact, then the closest). */
+/**
+ * A page by id ("12", "#12") or by its title (exact, then the closest). One the caller may not read (lib/boundaries: a
+ * secret database's, or a personal one's for an agent without personal data) throws — every tool that names a page
+ * passes here, so none reads or writes past the boundary.
+ */
 export function findPage(ref: string | number): store.Page | null {
   const s = String(ref).trim();
   const id = /^#?(\d+)$/.exec(s);
-  if (id) return store.getPage(Number(id[1]));
-  const hits = store.suggestPages(s, 5);
+  const readable = (p: store.Page | null) => {
+    const label = p ? pageLabel(p.id) : "open";
+    if (!mayRead(label)) throw new Error(refusal(label, `Page ${p!.id}`));
+    return p;
+  };
+  if (id) return readable(store.getPage(Number(id[1])));
+  const labels = labelResolver();
+  const hits = store.suggestPages(s, 5).filter((h) => mayRead(labels.page(h.id)));
   const exact = hits.find((h) => h.title.toLowerCase() === s.toLowerCase());
   const pick = exact ?? hits[0];
-  return pick ? store.getPage(pick.id) : null;
+  return pick ? readable(store.getPage(pick.id)) : null;
 }
 
 const MAX_CHARS = 14000;
@@ -72,7 +84,8 @@ export function registerWorkspaceTools(real: McpServer, h: Helpers): void {
       h.run(() => {
         const gone = off(h);
         if (gone) return gone;
-        const hits = store.search(query, limit ?? 8);
+        const labels = labelResolver();
+        const hits = store.search(query, limit ?? 8).filter((x) => mayRead(labels.page(x.id)));
         return h.ok(hits.length ? hits.map((x) => `- [${x.id}] ${x.icon} ${x.title || "Untitled"}${x.path ? ` — ${x.path}` : ""}${x.snippet ? `\n  ${x.snippet}` : ""}`).join("\n") : `Nothing found for "${query}".`);
       }),
   );

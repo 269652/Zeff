@@ -5,6 +5,7 @@ import type { CollectionProvider } from "@/lib/items/point";
 import { getPref, setPref } from "@/lib/prefs";
 import type { Collection, Item, ItemAction } from "@/lib/items/shared";
 import { getPerson } from "@/plugins/people/store";
+import { labelResolver } from "./sensitivity";
 import { docText } from "./doc";
 import { cellText, isEmptyValue, type DbSchema, type Labels, type Row } from "./model";
 import { getDatabase, getPage, rawRows, setCell, tree, updatePage } from "./store";
@@ -148,6 +149,7 @@ export const workspaceCollections: CollectionProvider = {
   collections: () => {
     const on = switches();
     const from = sources();
+    const sens = labelResolver();
     return tree()
       .filter((p) => p.kind === "database")
       .map((p): Collection => {
@@ -166,6 +168,7 @@ export const workspaceCollections: CollectionProvider = {
           readOnly: !!page?.locked,
           briefing: on.briefing.includes(p.id),
           knowledge: on.knowledge.includes(p.id),
+          sensitivity: sens.database(p.id),
           items: rawRows(p.id).length,
           ...(board ? { statuses: status!.options?.map((o) => o.name) ?? [] } : {}),
           ...(from[p.id] ? { source: from[p.id] } : {}),
@@ -178,7 +181,8 @@ export const workspaceCollections: CollectionProvider = {
     const dbId = Number(m[1]);
     const on = switches();
     const flip = (list: number[], v: boolean | undefined) => (v === undefined ? list : [...list.filter((x) => x !== dbId), ...(v ? [dbId] : [])]);
-    setPref(SWITCHES, { briefing: flip(on.briefing, patch.briefing), knowledge: flip(on.knowledge, patch.knowledge) });
+    // (The databases' labels are kept in the same pref: sensitivity.ts.)
+    setPref(SWITCHES, { ...getPref<object>(SWITCHES, {}), briefing: flip(on.briefing, patch.briefing), knowledge: flip(on.knowledge, patch.knowledge) });
     return true;
   },
   items(id) {

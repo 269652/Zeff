@@ -9,6 +9,7 @@ import { isInstalled } from "@/plugins/state";
 import { pushTo } from "@/lib/collections";
 import { backfillReports } from "@/lib/work/report";
 import { branchKnowledgeDocs } from "@/lib/work/branch-knowledge";
+import { docLabel } from "@/lib/boundaries";
 
 /**
  * Zeff's synced context as documents for the knowledge server (its "Zeff" source): Jira tickets
@@ -55,7 +56,8 @@ const KIND_DE = { card: "Karte", note: "Notiz", row: "Eintrag" } as const;
  */
 export function collectionDocs(plugin?: string, ids?: Set<string>): KnowledgeDoc[] {
   // Picked by the knowledge server (its ids): those collections, whatever their old switch; else the switch's.
-  const placed = ids ? listCollections().filter((c) => ids.has(c.id)).flatMap((collection) => (collectionItems(collection.id, { archived: true }) ?? []).map((item) => ({ item, collection }))) : knowledgeItems(plugin ? { plugin } : {});
+  // (A secret collection never: picked or not — lib/boundaries; the switches of one are off already.)
+  const placed = ids ? listCollections().filter((c) => ids.has(c.id) && c.sensitivity !== "secret").flatMap((collection) => (collectionItems(collection.id, { archived: true }) ?? []).map((item) => ({ item, collection }))) : knowledgeItems(plugin ? { plugin } : {});
   return placed
     .filter(({ item: n }) => n.title || n.text)
     .map(({ item: n, collection: c }) => {
@@ -254,6 +256,11 @@ ${clean(r.body)}` }));
   // The bank statements (the Cases plugin's bank): a page per account and month — the knowledge keeps your income from them.
   if (isInstalled("finances")) docs.push(...bankDocs());
 
+  // A secret source's pages never leave Zeff (Settings → Data boundaries).
+  const kept = docs.filter((d) => docLabel(d.id) !== "secret");
+  docs.length = 0;
+  docs.push(...kept);
+
   if (pick) {
     // The sources picked (by their space); the collections were picked above.
     const collections = new Set(listCollections().map((c) => c.space ?? c.name));
@@ -273,6 +280,6 @@ export function knowledgeCatalog(): CatalogEntry[] {
   const collections = new Set(listCollections().map((c) => c.space ?? c.name));
   for (const d of knowledgeDocs("").docs) if (d.id.startsWith("zeff:") || !collections.has(d.space)) spaces.set(d.space, (spaces.get(d.space) ?? 0) + 1);
   const sources: CatalogEntry[] = [...spaces.entries()].sort((a, b) => a[0].localeCompare(b[0])).map(([space, count]) => ({ id: `space:${space}`, name: space.replace(/^Zeff · /, ""), kind: "source", count, selected: true }));
-  const dbs: CatalogEntry[] = listCollections().map((c) => ({ id: c.id, name: c.name, kind: "database", count: (collectionItems(c.id) ?? []).length, selected: !!c.knowledge }));
+  const dbs: CatalogEntry[] = listCollections().filter((c) => c.sensitivity !== "secret").map((c) => ({ id: c.id, name: c.name, kind: "database", count: (collectionItems(c.id) ?? []).length, selected: !!c.knowledge }));
   return [...sources, ...dbs];
 }

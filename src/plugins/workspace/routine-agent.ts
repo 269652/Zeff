@@ -2,6 +2,7 @@ import { getSqlite } from "@/db";
 import { callerRunId } from "@/mcp/caller";
 import { t } from "@/lib/i18n/server";
 import { addApprovedTools } from "@/lib/work/approved-tools";
+import { guardPrompt } from "@/lib/boundaries";
 import { addAgentGuard } from "./agent-scope";
 import { docToMarkdown } from "./doc";
 import { recordOfRow } from "./automation";
@@ -94,7 +95,8 @@ export async function startAgent(pageId: number, trigger: Trigger, ctx: { row?: 
   if (!page || !getRoutine(pageId)) throw new Error("This page is no agent.");
   const runId = startRun(pageId, trigger);
   try {
-    const prompt = buildAgentPrompt(pageId, trigger, ctx);
+    // (Its pages' excerpts and the row in hand: what is marked secret is left out — lib/boundaries.)
+    const prompt = guardPrompt(buildAgentPrompt(pageId, trigger, ctx));
     const { addManualTodo } = await import("@/lib/boards/store");
     const todo = addManualTodo({ ticket: "", text: `Agent: ${page.title || "Untitled"}` });
     const run = await { ...realDeps, ...deps }.dispatch(todo.id, { instruction: prompt, provider: getRoutine(pageId)?.provider, ...(getRoutine(pageId)?.permissions.gmail ? { approvedTools: GMAIL_CHANGE_TOOLS } : {}) });

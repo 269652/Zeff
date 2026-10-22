@@ -17,6 +17,7 @@ import { claudeSessionSettings } from "@/lib/work/store";
 import { runCopilot } from "@/plugins/copilot-cli/cli";
 import { isInstalled, providerAvailable } from "@/plugins/state";
 import { recordUsage } from "@/lib/ai/usage";
+import { guardPrompt } from "@/lib/boundaries";
 import { getLlmSettings } from "./settings";
 import { IDEMPOTENT_TASKS, LLM_PREAMBLE_MAX, type LlmTaskId } from "./tasks";
 
@@ -72,7 +73,8 @@ export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { 
   const model = (opts.provider && opts.provider !== choice.provider ? defaultModelOf(provider) : choice.model) || undefined;
   const preamble = llmPreamble();
   // Last: what comes last weighs most — the user's word over the task's own rules.
-  const full = preamble ? `${prompt}\n\n---\n\n${preamble}` : prompt;
+  // What is marked secret never goes out (lib/boundaries): its lines are left out of the prompt.
+  const full = guardPrompt(preamble ? `${prompt}\n\n---\n\n${preamble}` : prompt);
   // Only Claude takes a budget.
   if (opts.maxBudgetUsd !== undefined && provider !== "claude") console.warn(`[llm] ${task}: maxBudgetUsd is ignored by ${provider}.`);
   const attempt = () =>

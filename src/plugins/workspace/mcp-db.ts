@@ -12,6 +12,8 @@ import { applyOps, type DbOp, type PropIn, type ViewIn } from "./schema-ops";
 import { cellText, isComputed, PROP_TYPES, ROLLUP_FNS, VIEW_TYPES, type DbSchema } from "./model";
 import * as store from "./store";
 import { findPage, off, type Helpers } from "./mcp";
+import { mayRead } from "@/lib/boundaries";
+import { labelResolver } from "./sensitivity";
 
 const ref = z.union([z.number().int(), z.string()]);
 
@@ -146,7 +148,9 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
     guard(({ parent, depth }: { parent?: string | number; depth?: number }) => {
-      const items = store.tree();
+      // (What the caller may not read is not listed — nor what is under it: lib/boundaries.)
+      const labels = labelResolver();
+      const items = store.tree().filter((x) => mayRead(x.kind === "database" ? labels.database(x.id) : "open"));
       const root = parent !== undefined ? findPage(parent) : null;
       if (parent !== undefined && !root) return h.fail(`No page "${parent}".`);
       const out: string[] = [];
