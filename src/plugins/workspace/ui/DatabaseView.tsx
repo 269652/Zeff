@@ -33,6 +33,8 @@ const PLAIN_VIEWS = VIEW_TYPES.filter((v) => v !== "app");
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const countRules = (f: View["filter"]): number => f.rules.reduce((n, r) => n + ("rules" in r ? countRules(r) : 1), 0);
+/** The table's first column: a row's checkbox and its menu (w-14). */
+const SELECT_COLUMN = 56;
 
 /** The views' state and the changes to the database: shared by the page and the blocks. */
 function useDatabase(initial: DatabaseData | null, dbId: number) {
@@ -1113,10 +1115,11 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   );
   return (
     <div className="overflow-x-auto rounded-lg border border-zinc-200 dark:border-zinc-800">
-      <table ref={tableRef} className={`ws-table${fixed ? " ws-fixed" : ""}`} style={fixed ? { tableLayout: "fixed", width: 64 + cols.reduce((n, id) => n + (widths![id] ?? DEFAULT_COLUMN), 0) } : undefined}>
+      <table ref={tableRef} className={`ws-table${fixed ? " ws-fixed" : ""}`} style={fixed ? { tableLayout: "fixed", width: SELECT_COLUMN + 32 + cols.reduce((n, id) => n + (widths![id] ?? DEFAULT_COLUMN), 0) } : undefined}>
         {fixed && (
           <colgroup>
-            <col style={{ width: 32 }} />
+            {/* The row's checkbox and menu: as wide as they are (not squashed when the widths are fixed). */}
+            <col style={{ width: SELECT_COLUMN }} />
             {cols.map((id) => (
               <col key={id} style={{ width: widths![id] ?? DEFAULT_COLUMN }} />
             ))}
@@ -1165,8 +1168,8 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
               ))}
             {!folded.has(g.key) && !ctx.data.noNewRows && (
               <tr>
-                <td colSpan={visible.length + 3} className="px-2 py-1">
-                  {/* A button that looks like one: its own outline on hover, the plus in a small square. */}
+                <td colSpan={visible.length + 3} className="py-1.5 pr-2" style={{ paddingLeft: SELECT_COLUMN - 8 }}>
+                  {/* Under the first column, with room around it; a button that looks like one: its own outline on hover, the plus in a small square. */}
                   <button
                     type="button"
                     className="inline-flex items-center gap-2 rounded-md px-2 py-1 text-sm font-medium text-zinc-500 transition-colors hover:bg-indigo-50 hover:text-indigo-700 focus-visible:bg-indigo-50 focus-visible:text-indigo-700 dark:hover:bg-indigo-950/60 dark:hover:text-indigo-300"

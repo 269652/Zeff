@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { useT } from "@/components/I18nProvider";
 import { Markdown } from "@/components/Markdown";
 import { PersonHover } from "@/plugins/people/PersonMention";
@@ -191,9 +192,41 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
   }
 }
 
+/** An editor that needs more than one field (a list to pick from, two dates, a text and its AI button): it opens over the table, not squeezed into the cell. */
+export const needsRoom = (p: Property) => ["select", "status", "multi_select", "person", "todo", "relation", "date", "ai"].includes(p.type);
+
+/** A panel under a cell (above it when there is no room below), over everything — the table's scrolling box doesn't cut it off. */
+function CellPanel({ anchor, children }: { anchor: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
+  const [pos, setPos] = useState<React.CSSProperties | null>(null);
+  useLayoutEffect(() => {
+    const place = () => {
+      const r = anchor.current?.getBoundingClientRect();
+      if (!r) return;
+      const width = Math.max(r.width, 260);
+      const left = Math.max(8, Math.min(r.left, window.innerWidth - width - 8));
+      const below = window.innerHeight - r.bottom;
+      setPos(below < 300 && r.top > below ? { left, bottom: window.innerHeight - r.top + 4, minWidth: width } : { left, top: r.bottom + 4, minWidth: width });
+    };
+    place();
+    window.addEventListener("scroll", place, true);
+    window.addEventListener("resize", place);
+    return () => {
+      window.removeEventListener("scroll", place, true);
+      window.removeEventListener("resize", place);
+    };
+  }, [anchor]);
+  return createPortal(
+    <div className="fixed z-50 max-w-[min(28rem,calc(100vw-16px))] rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5 dark:border-zinc-700 dark:bg-zinc-900" style={pos ?? { visibility: "hidden", left: 0, top: 0 }}>
+      {children}
+    </div>,
+    document.body,
+  );
+}
+
 /** A cell editable in place: click it to change it. */
 export function Cell({ p, row, ctx, className = "", empty }: { p: Property; row: Row; ctx: CellCtx; className?: string; /** Shown when the cell has no value (the row page). */ empty?: React.ReactNode }) {
   const [editing, setEditing] = useState(false);
+  const anchor = useRef<HTMLButtonElement>(null);
   if (isComputed(p) || p.type === "checkbox" || !ctx.editable) {
     return (
       <div className={`ws-cell ${className}`} style={{ cursor: "default" }}>
@@ -201,11 +234,18 @@ export function Cell({ p, row, ctx, className = "", empty }: { p: Property; row:
       </div>
     );
   }
-  if (!editing)
+  if (!editing || needsRoom(p))
     return (
-      <button type="button" className={`ws-cell ${className}`} onClick={() => setEditing(true)} aria-label={p.name}>
-        {empty && (row.cells[p.id] === undefined || row.cells[p.id] === null || row.cells[p.id] === "") ? empty : <CellView p={p} row={row} ctx={ctx} />}
-      </button>
+      <>
+        <button ref={anchor} type="button" className={`ws-cell ${className} ${editing ? "ws-cell-active" : ""}`} onClick={() => setEditing(true)} aria-label={p.name} aria-expanded={needsRoom(p) ? editing : undefined}>
+          {empty && (row.cells[p.id] === undefined || row.cells[p.id] === null || row.cells[p.id] === "") ? empty : <CellView p={p} row={row} ctx={ctx} />}
+        </button>
+        {editing && (
+          <CellPanel anchor={anchor}>
+            <CellEditor p={p} row={row} ctx={ctx} done={() => setEditing(false)} />
+          </CellPanel>
+        )}
+      </>
     );
   return <CellEditor p={p} row={row} ctx={ctx} done={() => setEditing(false)} />;
 }
@@ -310,7 +350,7 @@ function OptionEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellC
     }
   };
   return (
-    <div ref={ref} className="w-56 space-y-1 p-1">
+    <div ref={ref} className="w-full min-w-56 space-y-1 p-1">
       <input autoFocus className="input w-full text-sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search or create …")} aria-label={t("Search or create")} onKeyDown={(e) => {
         if (e.key === "Enter" && q.trim()) {
           e.preventDefault();
@@ -324,7 +364,7 @@ function OptionEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellC
         }
         if (e.key === "Escape") done();
       }} />
-      <ul className="max-h-48 overflow-y-auto">
+      <ul className="max-h-64 overflow-y-auto">
         {opts.map((o) => (
           <li key={o.id}>
             <button type="button" className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => pick(o.id)}>
@@ -384,7 +424,7 @@ function LinkEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx
   }, [q, p.type, related, t]);
   const toggle = (id: number) => ctx.set(row.id, p.id, current.includes(id) ? current.filter((x) => x !== id) : [...current, id]);
   return (
-    <div ref={ref} className="w-64 space-y-1 p-1">
+    <div ref={ref} className="w-full min-w-64 space-y-1 p-1">
       <input autoFocus className="input w-full text-sm" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search …")} aria-label={t("Search")} onKeyDown={(e) => e.key === "Escape" && done()} />
       <ul className="max-h-52 overflow-y-auto">
         {items.map((it) => (

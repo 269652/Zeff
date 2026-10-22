@@ -1061,3 +1061,8 @@
 .ws-todo-items .ws-todo-row { align-items: center; }
 .ws-todo-items .ws-todo-check, .ws-todo-items .ws-todo-due { margin-top: 0; }
 .ws-todo-block.is-headless { padding-top: 0; padding-bottom: 0; border-color: transparent; }
+/* A cell whose editor is open over the table. */
+.ws-cell.ws-cell-active {
+  box-shadow: inset 0 0 0 2px rgb(99 102 241 / 0.7);
+  background: rgb(99 102 241 / 0.05);
+}
