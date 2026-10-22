@@ -179,3 +179,13 @@ test("snooze: the inbox has the Snoozed-until field, and a snoozed row is not co
   await runPipeline(id, { ai: false });
   assert.ok(w.rawRows(id).find((r) => r.id === unread[0].id)!.cells.commsnooze, "a run keeps it");
 });
+
+test("the document inbox counts its unread documents in the sidebar, as a mail inbox does", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("workspace", true);
+  const w = await import("@/plugins/workspace/store");
+  const id = w.createPage({ kind: "database", title: "Dokumente", schema: { titleName: "Name", properties: [{ id: "docunread", name: "Unread", type: "checkbox" }], views: [], dataType: "documents" } as never });
+  w.addRow(id, { title: "neu.pdf", cells: { docunread: true } });
+  w.addRow(id, { title: "gelesen.pdf", cells: { docunread: false } });
+  assert.equal(w.unreadCounts()[id], 1);
+});
