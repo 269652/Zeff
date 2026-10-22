@@ -117,7 +117,7 @@ test("the packages that come with Zeff: listed with the templates, installable â
   assert.ok(listPackages().some((p) => p.id === "projects-tasks"));
   const meta = templateMetas().find((m) => m.key === "pkg:projects-tasks");
   assert.ok(meta, "among the templates");
-  const id = fromTemplate("pkg:projects-tasks", null);
+  const id = await fromTemplate("pkg:projects-tasks", null);
   const kids = w.tree().filter((x) => x.parentId === id);
   const titles = kids.map((x) => x.title).sort();
   assert.ok(titles.some((t) => /Projects|Projekte/.test(t)) && titles.some((t) => /Tasks|Aufgaben/.test(t)));

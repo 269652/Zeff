@@ -32,7 +32,7 @@ test("New → template → Keep board: a Workspace database with the note-board 
 
   const w = await import("@/plugins/workspace/store");
   const parent = w.createPage({ title: "Home" });
-  const id = fromTemplate("keep-board", parent);
+  const id = await fromTemplate("keep-board", parent);
   const d = w.getDatabase(id)!;
   assert.equal(d.page.title, "Keep board");
   assert.equal(d.page.parentId, parent);

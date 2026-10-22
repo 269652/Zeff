@@ -17,7 +17,7 @@ test("templates: Agent and Automation — a page with a routine, off, started by
   assert.ok(metas.some((m) => m.key === "automation" && m.kind === "page"), "an Automation template");
 
   const project = w.createPage({ title: "Projekt" });
-  const agent = fromTemplate("agent", project);
+  const agent = await fromTemplate("agent", project);
   const page = w.getPage(agent)!;
   assert.equal(page.parentId, project, "it can be a sub page: it knows its parent");
   assert.ok(page.title, "a name as title");
@@ -27,7 +27,7 @@ test("templates: Agent and Automation — a page with a routine, off, started by
   assert.equal(blocks[0].type, "zeffRoutine", "the controls come first");
   assert.ok(blocks.length > 1 && docText(page.content).trim().length > 0, "and a block to write the first instruction in");
 
-  const auto = fromTemplate("automation", null);
+  const auto = await fromTemplate("automation", null);
   const ra = r.getRoutine(auto)!;
   assert.deepEqual([ra.kind, ra.enabled, ra.steps.length], ["automation", false, 0]);
   assert.equal((w.getPage(auto)!.content as { content: { type: string }[] }).content[0].type, "zeffRoutine");

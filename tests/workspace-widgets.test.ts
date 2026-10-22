@@ -98,12 +98,12 @@ test("the Dashboard template: a page of widget blocks in flex boxes — only the
   const w = await import("@/plugins/workspace/store");
   const { templateMetas, fromTemplate } = await import("@/plugins/workspace/templates");
   assert.ok(templateMetas().some((m) => m.key === "dashboard" && m.kind === "page"));
-  const id = fromTemplate("dashboard", null);
+  const id = await fromTemplate("dashboard", null);
   const text = JSON.stringify(w.getPage(id)!.content);
   for (const widget of ["mail.unread", "people.upcoming", "news.top", "work.runs", "workspace.routines"]) assert.ok(text.includes(`"${widget}"`), `${widget} is on the dashboard`);
   assert.ok(text.includes('"flexBox"'), "laid out in boxes");
   setInstalled("news", false);
-  const without = JSON.stringify(w.getPage(fromTemplate("dashboard", null))!.content);
+  const without = JSON.stringify(w.getPage(await fromTemplate("dashboard", null))!.content);
   assert.ok(!without.includes('"news.top"'), "a plugin that is off has no widget on it");
   setInstalled("news", true);
 });

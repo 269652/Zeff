@@ -92,7 +92,7 @@ test("ensureNewsDatabase: made once with the News plugin — a gone one is not m
   const { templateMetas, fromTemplate } = await import("@/plugins/workspace/templates");
   assert.ok(templateMetas().some((m) => m.key === "news-summary"), "a template for the summary agent");
   const r = await import("@/plugins/workspace/routines");
-  const agent = fromTemplate("news-summary", null);
+  const agent = await fromTemplate("news-summary", null);
   assert.equal(r.getRoutine(agent)!.kind, "agent");
   const { buildAgentPrompt } = await import("@/plugins/workspace/routine-agent");
   assert.match(buildAgentPrompt(agent, { kind: "manual" }), /Gemerkte News|Saved news/i, "it is told which database to read");

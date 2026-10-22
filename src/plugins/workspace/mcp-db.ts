@@ -175,7 +175,7 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
       if (!create) return h.ok(templateMetas().map((x) => `- ${x.key}: ${x.icon} ${x.name} (${x.kind}) — ${x.description}`).join("\n"));
       const up = parent !== undefined ? findPage(parent) : null;
       if (parent !== undefined && !up) return h.fail(`No parent page "${parent}".`);
-      const id = fromTemplate(create, up?.id ?? null);
+      const id = await fromTemplate(create, up?.id ?? null);
       return h.ok(`Made page ${id} from "${create}". Open: /workspace/${id}`);
     }),
   );

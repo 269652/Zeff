@@ -3,10 +3,10 @@
  * a decision log, tasks tied to Zeff's todos, projects with their tasks and a progress rollup. Server only.
  */
 import { t } from "@/lib/i18n/server";
+import { isInstalled } from "@/plugins/state";
 import { markdownToDoc, type DocNode } from "./doc";
 import { createJobsDatabase } from "./jobs";
 import { createRulesDatabase } from "./rules";
-import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property, type View } from "./model";
 import { createNotesBoard } from "./notes-board";
 import { newsDatabaseTitle } from "./news-database";
 import { installPackage, listPackages } from "./packages";
@@ -14,31 +14,19 @@ import { widgetCatalog } from "./widgets";
 import { createRoutine } from "./routines";
 import { createTicketCockpit } from "./ticket-cockpit";
 import { authorityPage, financesPage, meetingPage, oneOnOnePage, projectBriefPage, weeklyReviewPage, whoOwesPage, wikiHomePage } from "./templates-pages";
-import { addRow, createPage, getDatabase, updatePage, updateSchema } from "./store";
+import { createPage, updatePage } from "./store";
+import { contractsDatabase, decisionsDatabase, instalmentPlansDatabase, projectsDatabase, readingDatabase, tasksDatabase } from "./templates-databases";
 
 /** The group a template is shown in (the gallery's tabs). */
 export type TemplateCategory = "overview" | "work" | "notes" | "automation" | "packages";
 export type TemplateMeta = { key: string; name: string; icon: string; description: string; kind: "page" | "database"; category: TemplateCategory };
 
 
-const select = (name: string, names: string[], colors?: string[]): Property => ({ ...newProperty(name, "select"), options: names.map((n, i): Option => ({ id: newId("o"), name: n, color: colors?.[i] ?? COLORS[(i + 1) % COLORS.length] })) });
-const multi = (name: string, names: string[]): Property => ({ ...newProperty(name, "multi_select"), options: names.map((n, i): Option => ({ id: newId("o"), name: n, color: COLORS[(i + 3) % COLORS.length] })) });
-const view = (name: string, type: View["type"], extra: Partial<View> = {}): View => ({ ...newView(name, type), ...extra });
-
-/** How the cards of the template databases look (card-template.ts): the title, then what tells them apart at a glance. */
-const TASK_CARD = `<b>{{ title }}</b>
-<row gap=1>{{ Priority | chip }}<grow/>{{ Due | relative | muted }}</row>
-{{ Owner | muted }}`;
-const READING_CARD = `<b>{{ title }}</b>
-<row gap=1>{{ Status | chip }} {{ Tags | chip }}</row>
-<row>{{#if Rating}}{{ Rating }} ★{{/if}}<grow/>{{ Link | link }}</row>`;
-const DECISION_CARD = `<b>{{ title }}</b>
-<row gap=1>{{ Area | chip }}<grow/>{{ [Decided on] | date | muted }}</row>`;
-const PROJECT_CARD = `<row><b>{{ title }}</b><grow/>{{ Progress | percent }}</row>
-{{ Progress | bar }}
-<row>{{ Owner | muted }}<grow/>{{ [Total hours] | hours | muted }}</row>`;
-
-type Template = TemplateMeta & { build: (parentId: number | null) => number };
+type Template = TemplateMeta & {
+  build: (parentId: number | null) => number | Promise<number>;
+  /** Offered only while this holds (a template another plugin does better is left out then). */
+  offered?: () => boolean;
+};
 
 /** A routine's page: its controls block first (run, when, what it may do …), then the blocks that are its instructions (or notes). */
 function routinePage(kind: "agent" | "automation", parentId: number | null, title: string, icon: string, intro: string): number {
@@ -111,7 +99,7 @@ const TEMPLATES: Template[] = [
       return t("An LLM run on the instructions you write here — by hand, on a schedule or on an event; it knows its parent and sibling pages.");
     },
     kind: "page",
-    build: (parentId) => routinePage("agent", parentId, "New agent", "🤖", "Write what the agent should do — one block per instruction.\n\n- Read the pages next to this one.\n- Write what you find as a short summary under this page.\n"),
+    build: (parentId) => routinePage("agent", parentId, t("New agent"), "🤖", `${t("Write what the agent should do — one block per instruction.")}\n\n- ${t("Read the pages next to this one.")}\n- ${t("Write what you find as a short summary under this page.")}\n`),
   },
   {
     key: "news-summary",
@@ -128,13 +116,13 @@ const TEMPLATES: Template[] = [
       routinePage(
         "agent",
         parentId,
-        "News summary",
+        t("News summary"),
         "📰",
-        `Read the database “${newsDatabaseTitle()}” (the news I saved or liked — find it with workspace_search, read it with workspace_read_page).
+        `${t("Read the database “{name}” (the news I saved or liked — find it with workspace_search, read it with workspace_read_page).", { name: newsDatabaseTitle() })}
 
-- Group the items by topic and write a short summary per topic, with the headlines as links.
-- Say what is new since your last summary (look at the sub pages of this page).
-- Write the result as a new sub page of this page, titled with today's date.
+- ${t("Group the items by topic and write a short summary per topic, with the headlines as links.")}
+- ${t("Say what is new since your last summary (look at the sub pages of this page).")}
+- ${t("Write the result as a new sub page of this page, titled with today's date.")}
 `,
       ),
   },
@@ -149,8 +137,9 @@ const TEMPLATES: Template[] = [
       return t("Steps that run one after another, with gates, branches and conditions — no AI; on a schedule, on an event or by hand.");
     },
     kind: "page",
-    build: (parentId) => routinePage("automation", parentId, "New automation", "⚙️", "What this automation is for, in a line — its steps are above."),
-  },  {
+    build: (parentId) => routinePage("automation", parentId, t("New automation"), "⚙️", t("What this automation is for, in a line — its steps are above.")),
+  },
+  {
     key: "agent-jobs",
     category: "automation",
     get name() {
@@ -252,29 +241,7 @@ const TEMPLATES: Template[] = [
       return t("A task database with status, due date, priority, owner — tied to your Zeff todos and Jira tickets. Table, board and calendar views.");
     },
     kind: "database",
-    build: (parentId) => {
-      const status = newProperty("Status", "status");
-      const due = newProperty("Due", "date");
-      const priority = select("Priority", ["Low", "Medium", "High"], ["gray", "yellow", "red"]);
-      const owner = newProperty("Owner", "person");
-      const todo = newProperty("Zeff todo", "todo");
-      const ticket = newProperty("Ticket", "ticket");
-      const schema: DbSchema = {
-        titleName: "Task",
-        properties: [status, due, priority, owner, todo, ticket],
-        views: [
-          view("Table", "table", { sorts: [{ prop: due.id, dir: "asc" }] }),
-          view("Board", "board", { groupBy: status.id, hidden: [todo.id, ticket.id], card: TASK_CARD }),
-          view("Calendar", "calendar", { dateProp: due.id }),
-          view("Open", "table", { filter: { op: "and", rules: [{ prop: status.id, cond: "is_not", value: status.options![2].id }] } }),
-        ],
-      };
-      const id = createPage({ parentId, title: "Tasks", icon: "✅", kind: "database", schema });
-      addRow(id, { title: t("Try the board view"), cells: { [status.id]: status.options![1].id, [priority.id]: priority.options![1].id } });
-      addRow(id, { title: t("Drag a card to another column"), cells: { [status.id]: status.options![0].id, [priority.id]: priority.options![0].id } });
-      addRow(id, { title: t("Link a Zeff todo or a Jira ticket"), cells: { [status.id]: status.options![0].id, [priority.id]: priority.options![2].id } });
-      return id;
-    },
+    build: (parentId) => tasksDatabase(parentId),
   },
   {
     key: "keep-board",
@@ -300,18 +267,7 @@ const TEMPLATES: Template[] = [
       return t("What was decided, by whom, when — so nobody asks twice.");
     },
     kind: "database",
-    build: (parentId) => {
-      const status = { ...newProperty("Status", "status"), options: [{ id: newId("o"), name: "Proposed", color: "yellow", group: "todo" as const }, { id: newId("o"), name: "Decided", color: "green", group: "done" as const }, { id: newId("o"), name: "Superseded", color: "gray", group: "done" as const }] };
-      const decided = newProperty("Decided on", "date");
-      const who = newProperty("Deciders", "person");
-      const ticket = newProperty("Ticket", "ticket");
-      const area = multi("Area", ["Frontend", "Backend", "Process", "Design"]);
-      const schema: DbSchema = { titleName: "Decision", properties: [status, decided, who, area, ticket], views: [view("Table", "table", { sorts: [{ prop: decided.id, dir: "desc" }] }), view("By status", "board", { groupBy: status.id, card: DECISION_CARD })] };
-      const id = createPage({ parentId, title: "Decisions", icon: "⚖️", kind: "database", schema });
-      addRow(id, { title: t("We review merge requests within one working day"), cells: { [status.id]: status.options[1].id, [decided.id]: new Date().toLocaleDateString("sv-SE"), [area.id]: [area.options![2].id] } });
-      addRow(id, { title: t("Design tokens come from one shared file"), cells: { [status.id]: status.options[0].id, [area.id]: [area.options![0].id, area.options![3].id] } });
-      return id;
-    },
+    build: (parentId) => decisionsDatabase(parentId),
   },
   {
     key: "reading-list",
@@ -324,18 +280,7 @@ const TEMPLATES: Template[] = [
       return t("Articles and books: status, rating, tags, link — in a gallery too.");
     },
     kind: "database",
-    build: (parentId) => {
-      const status = { ...newProperty("Status", "status"), options: [{ id: newId("o"), name: "To read", color: "gray", group: "todo" as const }, { id: newId("o"), name: "Reading", color: "blue", group: "doing" as const }, { id: newId("o"), name: "Read", color: "green", group: "done" as const }] };
-      const rating = { ...newProperty("Rating", "number") };
-      const tags = multi("Tags", ["Tech", "Design", "Business", "Fiction"]);
-      const url = newProperty("Link", "url");
-      const schema: DbSchema = { titleName: "Title", properties: [status, rating, tags, url], views: [view("Gallery", "gallery", { card: READING_CARD }), view("Board", "board", { groupBy: status.id, card: READING_CARD }), view("List", "table")] };
-      const id = createPage({ parentId, title: "Reading list", icon: "📖", kind: "database", schema });
-      addRow(id, { title: "Shape Up", cells: { [status.id]: status.options[2].id, [rating.id]: 5, [tags.id]: [tags.options![2].id], [url.id]: "https://basecamp.com/shapeup" } });
-      addRow(id, { title: "Refactoring UI", cells: { [status.id]: status.options[1].id, [tags.id]: [tags.options![1].id], [url.id]: "https://www.refactoringui.com" } });
-      addRow(id, { title: t("An article you want to read"), cells: { [status.id]: status.options[0].id, [tags.id]: [tags.options![0].id] } });
-      return id;
-    },
+    build: (parentId) => readingDatabase(parentId),
   },
   {
     key: "projects",
@@ -348,28 +293,7 @@ const TEMPLATES: Template[] = [
       return t("Two linked databases: projects and their tasks — each project rolls up its tasks' progress and hours.");
     },
     kind: "database",
-    build: (parentId) => {
-      const projects = createPage({ parentId, title: "Projects", icon: "🗂️", kind: "database", schema: { titleName: "Project", properties: [], views: [view("Table", "table")] } });
-      const tasks = createPage({ parentId, title: "Project tasks", icon: "☑️", kind: "database", schema: { titleName: "Task", properties: [], views: [view("Table", "table")] } });
-      const status = newProperty("Status", "status");
-      const hours = newProperty("Hours", "number");
-      const project = { ...newProperty("Project", "relation"), relationDb: projects };
-      const taskSchema: DbSchema = { titleName: "Task", properties: [project, status, hours, newProperty("Due", "date")], views: [view("Table", "table"), view("Board", "board", { groupBy: status.id })] };
-      updateSchema(tasks, taskSchema);
-      const back = { ...newProperty("Tasks", "relation"), relationDb: tasks, backOf: project.id };
-      const done = { ...newProperty("Progress", "rollup"), format: "percent" as const, rollup: { relation: back.id, property: status.id, fn: "percent_done" as const } };
-      const total = { ...newProperty("Total hours", "rollup"), rollup: { relation: back.id, property: hours.id, fn: "sum" as const } };
-      const owner = newProperty("Owner", "person");
-      const projSchema: DbSchema = { titleName: "Project", properties: [owner, newProperty("Due", "date"), back, done, total], views: [view("Cards", "gallery", { card: PROJECT_CARD }), view("Table", "table")] };
-      updateSchema(projects, projSchema);
-      // An example: a project with three tasks, one done — its progress and hours roll up.
-      const p = addRow(projects, { title: t("Website relaunch") });
-      const st = getDatabase(tasks)!.schema.properties.find((x) => x.id === status.id)!.options!;
-      addRow(tasks, { title: t("Collect the requirements"), cells: { [project.id]: [p], [status.id]: st[2].id, [hours.id]: 3 } });
-      addRow(tasks, { title: t("Design the start page"), cells: { [project.id]: [p], [status.id]: st[1].id, [hours.id]: 5 } });
-      addRow(tasks, { title: t("Go live"), cells: { [project.id]: [p], [status.id]: st[0].id } });
-      return projects;
-    },
+    build: (parentId) => projectsDatabase(parentId),
   },
   {
     key: "finances",
@@ -411,8 +335,28 @@ const TEMPLATES: Template[] = [
     build: (parentId) => authorityPage(parentId),
   },
   {
+    key: "debts",
+    category: "overview",
+    get name() {
+      return t("Debts and claims");
+    },
+    icon: "💶",
+    get description() {
+      return t("Whom you owe what and who owes you: each debt with its plan, the instalments a month, when you are debt-free — your cases' debts come by themselves.");
+    },
+    kind: "database",
+    offered: () => isInstalled("finances"),
+    // One for all: the Finances plugin's database (made once) — the template opens it.
+    build: async () => {
+      const id = await (await import("@/plugins/finances/database")).ensureDebtsDatabase();
+      if (!id) throw new Error(t("The debts database couldn't be made."));
+      return id;
+    },
+  },
+  {
     key: "installment-plan",
     category: "work",
+    offered: () => !isInstalled("finances"),
     get name() {
       return t("Instalment plans");
     },
@@ -421,29 +365,7 @@ const TEMPLATES: Template[] = [
       return t("Two linked databases: the plans (creditor, case number, total, instalment, account) and their payments — each plan sums up what is paid and what is open.");
     },
     kind: "database",
-    build: (parentId) => {
-      const plans = createPage({ parentId, title: t("Instalment plans"), icon: "🧾", kind: "database", schema: { titleName: t("Creditor"), properties: [], views: [view(t("Table"), "table")] } });
-      const payments = createPage({ parentId, title: t("Payments"), icon: "💸", kind: "database", schema: { titleName: t("Payment"), properties: [], views: [view(t("Table"), "table")] } });
-      const plan = { ...newProperty(t("Plan"), "relation"), relationDb: plans };
-      const amount = { ...newProperty(t("Amount"), "number"), format: "euro" as const };
-      const paidOn = newProperty(t("Paid on"), "date");
-      updateSchema(payments, { titleName: t("Payment"), properties: [plan, amount, paidOn], views: [view(t("Table"), "table", { sorts: [{ prop: paidOn.id, dir: "desc" }] })] });
-      const back = { ...newProperty(t("Payments"), "relation"), relationDb: payments, backOf: plan.id };
-      const total = { ...newProperty(t("Total"), "number"), format: "euro" as const };
-      const rate = { ...newProperty(t("Instalment"), "number"), format: "euro" as const };
-      const paid = { ...newProperty(t("Paid"), "rollup"), format: "euro" as const, rollup: { relation: back.id, property: amount.id, fn: "sum" as const } };
-      const open = { ...newProperty(t("Open"), "formula"), format: "euro" as const, formula: `prop(${JSON.stringify(t("Total"))}) - prop(${JSON.stringify(t("Paid"))})` };
-      const caseNo = newProperty(t("Case number"), "text");
-      const next = newProperty(t("Next due"), "date");
-      const iban = newProperty("IBAN", "text");
-      const status = { ...newProperty(t("Status"), "status"), options: [{ id: newId("o"), name: t("Running"), color: "blue", group: "doing" as const }, { id: newId("o"), name: t("Paid off"), color: "green", group: "done" as const }] };
-      updateSchema(plans, { titleName: t("Creditor"), properties: [status, caseNo, total, rate, paid, open, next, iban, back], views: [view(t("Table"), "table", { sorts: [{ prop: next.id, dir: "asc" }] }), view(t("Board"), "board", { groupBy: status.id })] });
-      // An example: a plan with two payments made — what is paid and open follow.
-      const p = addRow(plans, { title: t("Example creditor"), cells: { [status.id]: status.options[0].id, [caseNo.id]: "DR II 123/26", [total.id]: 600, [rate.id]: 100 } });
-      addRow(payments, { title: t("Instalment 1"), cells: { [plan.id]: [p], [amount.id]: 100, [paidOn.id]: new Date(Date.now() - 30 * 864e5).toLocaleDateString("sv-SE") } });
-      addRow(payments, { title: t("Instalment 2"), cells: { [plan.id]: [p], [amount.id]: 100, [paidOn.id]: new Date().toLocaleDateString("sv-SE") } });
-      return plans;
-    },
+    build: (parentId) => instalmentPlansDatabase(parentId),
   },
   {
     key: "contracts",
@@ -456,32 +378,20 @@ const TEMPLATES: Template[] = [
       return t("What you pay regularly: cost a month and a year, until when it runs, when to cancel by, your customer number.");
     },
     kind: "database",
-    build: (parentId) => {
-      const monthly = { ...newProperty(t("Per month"), "number"), format: "euro" as const };
-      const yearly = { ...newProperty(t("Per year"), "formula"), format: "euro" as const, formula: `prop(${JSON.stringify(t("Per month"))}) * 12` };
-      const until = newProperty(t("Runs until"), "date");
-      const cancel = newProperty(t("Cancel by"), "date");
-      const customer = newProperty(t("Customer number"), "text");
-      const kind = select(t("Kind"), [t("Insurance"), t("Subscription"), t("Utilities"), t("Phone & internet"), t("Other")]);
-      const status = { ...newProperty(t("Status"), "status"), options: [{ id: newId("o"), name: t("Active"), color: "green", group: "doing" as const }, { id: newId("o"), name: t("Cancelled"), color: "gray", group: "done" as const }] };
-      const schema: DbSchema = { titleName: t("Contract"), properties: [status, kind, monthly, yearly, until, cancel, customer], views: [view(t("Table"), "table", { sorts: [{ prop: cancel.id, dir: "asc" }] }), view(t("By kind"), "board", { groupBy: kind.id })] };
-      const id = createPage({ parentId, title: t("Contracts"), icon: "📜", kind: "database", schema });
-      addRow(id, { title: t("Example: mobile phone"), cells: { [status.id]: status.options[0].id, [kind.id]: kind.options![3].id, [monthly.id]: 15 } });
-      return id;
-    },
+    build: (parentId) => contractsDatabase(parentId),
   },
 ];
 
 export const templateMetas = (): TemplateMeta[] => [
-  ...TEMPLATES.map(({ key, name, icon, description, kind, category }) => ({ key, name, icon, description, kind, category })),
+  ...TEMPLATES.filter((x) => x.offered?.() ?? true).map(({ key, name, icon, description, kind, category }) => ({ key, name, icon, description, kind, category })),
   ...listPackages().map((p): TemplateMeta => ({ key: `pkg:${p.id}`, name: t(p.name), icon: p.icon, description: p.description ? t(p.description) : "", kind: "page", category: "packages" })),
 ];
 
 /** A template made as a new page (a database: with what belongs to it). Returns the new page's id. */
-export function fromTemplate(key: string, parentId: number | null): number {
+export async function fromTemplate(key: string, parentId: number | null): Promise<number> {
   const pkg = key.startsWith("pkg:") ? listPackages().find((p) => `pkg:${p.id}` === key) : undefined;
   if (pkg) return installPackage(pkg.pkg, parentId).rootId;
   const t = TEMPLATES.find((x) => x.key === key);
   if (!t) throw new Error("No such template.");
-  return t.build(parentId);
+  return await t.build(parentId);
 }

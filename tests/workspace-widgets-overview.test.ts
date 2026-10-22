@@ -103,7 +103,7 @@ test("the Ticket cockpit template: tickets joined with hours, merge requests, to
   const w = await import("@/plugins/workspace/store");
   const { fromTemplate, templateMetas } = await import("@/plugins/workspace/templates");
   assert.ok(templateMetas().some((m) => m.key === "ticket-cockpit" && m.kind === "database"));
-  const id = fromTemplate("ticket-cockpit", null);
+  const id = await fromTemplate("ticket-cockpit", null);
   for (const t of ["DSH-1", "DSH-2"]) w.addRow(id, { title: t, cells: {} });
   const d = w.rowsOf(id)!;
   const prop = (n: string) => d.schema.properties.find((p) => p.name === n)!.id;
@@ -117,6 +117,6 @@ test("the Ticket cockpit template: tickets joined with hours, merge requests, to
   const cards = await widgetData("workspace.database", { database: "Ticket cockpit", limit: 5 });
   assert.equal(cards.kind, "cards");
   if (cards.kind === "cards") assert.equal(cards.cards.length, 2);
-  const dash = JSON.stringify(w.getPage(fromTemplate("dashboard", null))!.content);
+  const dash = JSON.stringify(w.getPage(await fromTemplate("dashboard", null))!.content);
   assert.ok(dash.indexOf('"workspace.overview"') > -1 && dash.indexOf('"workspace.overview"') < dash.indexOf('"flexBox"'), "the overview comes first");
 });

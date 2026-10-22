@@ -79,7 +79,7 @@ export async function createPageAction(v: { parentId?: number | null; kind?: "pa
   return run(async () => {
     if (v.templateKey) {
       const { fromTemplate } = await import("./templates");
-      return { id: fromTemplate(v.templateKey, v.parentId ?? null) };
+      return { id: await fromTemplate(v.templateKey, v.parentId ?? null) };
     }
     return { id: store.createPage({ parentId: v.parentId ?? null, kind: v.kind, title: v.title }) };
   });
