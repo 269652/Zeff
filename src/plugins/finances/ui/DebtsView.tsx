@@ -161,6 +161,10 @@ export default function DebtsView({ openRow }: AppViewProps) {
   const colors = creditorColors([...byWhom.values()].sort((a, b) => b.amount - a.amount).map((x) => x.id));
   const creditorOf: CreditorOf = Object.fromEntries(o.debts.map((d) => [d.id, { key: d.creditorId ?? -d.id, name: d.creditor, color: colors[d.creditorId ?? -d.id] }]));
   const estimated = o.debts.some((d) => d.plan.estimatedStart);
+  // What a debt is (its file number or "own", who collects it, what for) — one line.
+  const whatOf = (d: FinancesOverview["debts"][number]) => [d.label ? `Az. ${d.label}` : t("own"), d.collector ? t("via {name}", { name: d.collector }) : "", d.title && d.title !== d.creditor ? d.title : ""].filter(Boolean).join(" · ");
+  // The share paid off (0…1), when there is a total.
+  const paidOff = (d: FinancesOverview["debts"][number]) => (d.total != null && d.total > 0 ? Math.max(0, Math.min(1, 1 - d.open / d.total)) : null);
   const contactLine = (d: FinancesOverview["debts"][number]) => {
     const c = d.contact.startsWith(d.creditor) ? d.contact.slice(d.creditor.length).replace(/^\s*·\s*/, "") : d.contact;
     return [c, d.iban].filter(Boolean).join(" · ");
@@ -208,7 +212,7 @@ export default function DebtsView({ openRow }: AppViewProps) {
       <div className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 print:overflow-visible print:rounded-none print:border-0">
         <table className="w-full border-collapse text-sm">
           <thead>
-            <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-xs font-medium text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/60">
+            <tr className="border-b border-zinc-200 bg-zinc-50 text-left text-[11px] font-semibold tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:bg-zinc-900/60">
               <th className="px-3 py-2">{owe ? t("Creditor") : t("Debtor")}</th>
               <th className="px-2 py-2 text-right">{t("Total")}</th>
               <th className="px-2 py-2 text-right">{t("Open")}</th>
@@ -224,54 +228,71 @@ export default function DebtsView({ openRow }: AppViewProps) {
           <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
             {o.debts.map((d) => (
               <Fragment key={d.id}>
-                <tr className="align-top">
-                  <td className="max-w-72 min-w-44 px-3 py-2.5">
-                    <button type="button" className="text-left font-medium hover:underline" onClick={() => openRow(d.id)}>
-                      {d.creditor}
-                    </button>
-                    <span className="line-clamp-2 text-xs text-zinc-500">{[d.label ? `Az. ${d.label}` : t("own"), d.collector ? t("via {name}", { name: d.collector }) : "", d.title && d.title !== d.creditor ? d.title : ""].filter(Boolean).join(" · ")}</span>
+                <tr className="group align-top transition-colors hover:bg-zinc-50/70 dark:hover:bg-zinc-900/40">
+                  <td className="max-w-80 min-w-48 px-3 py-3">
+                    {/* The creditor's colour, as in the charts below. */}
+                    <span className="flex items-center gap-2">
+                      <span className="size-2.5 shrink-0 rounded-full" style={{ background: creditorOf[d.id]?.color }} aria-hidden />
+                      <button type="button" className="truncate text-left font-medium hover:underline" onClick={() => openRow(d.id)}>
+                        {d.creditor}
+                      </button>
+                    </span>
+                    <span className="block truncate pl-4.5 text-xs text-zinc-500 print:whitespace-normal" title={whatOf(d)}>
+                      {whatOf(d)}
+                    </span>
                     {contactLine(d) && (
-                      <span className="block truncate text-xs text-zinc-400 print:whitespace-normal" title={contactLine(d)}>
+                      <span className="block truncate pl-4.5 text-xs text-zinc-400 print:whitespace-normal" title={contactLine(d)}>
                         {contactLine(d)}
                       </span>
                     )}
                   </td>
-                  <td className="px-2 py-2.5 text-right tabular-nums">
+                  <td className="px-2 py-3 text-right text-zinc-500 tabular-nums">
                     <EditMoney readOnly={!d.manual} rowId={d.id} field="total" value={d.total} onSaved={load} />
                   </td>
-                  <td className="px-2 py-2.5 text-right font-medium tabular-nums">
+                  <td className="px-2 py-3 text-right font-semibold tabular-nums">
                     <EditMoney readOnly={!d.manual} rowId={d.id} field="open" value={d.open} onSaved={load} />
+                    {/* How much is paid off already, in the creditor's colour. */}
+                    {paidOff(d) != null && (
+                      <span className="mt-1.5 ml-auto block h-1 w-20 overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800" title={t("{pct} % paid off", { pct: Math.round(paidOff(d)! * 100) })}>
+                        <span className="block h-full rounded-full" style={{ width: `${paidOff(d)! * 100}%`, background: creditorOf[d.id]?.color }} />
+                      </span>
+                    )}
                   </td>
-                  <td className="px-2 py-2.5 text-right tabular-nums">
+                  <td className="px-2 py-3 text-right tabular-nums">
                     <EditMoney readOnly={!d.manual} rowId={d.id} field="installment" value={d.installment} onSaved={load} />
                   </td>
-                  <td className={`max-w-52 px-2 py-2.5 ${d.plan.payments.some((p) => p.date < today) ? "text-red-600 dark:text-red-400" : ""}`}>
+                  <td className={`max-w-52 px-2 py-3 ${d.plan.payments.some((p) => p.date < today) ? "font-medium text-red-600 dark:text-red-400" : ""}`}>
                     <EditMoney readOnly={!d.manual} rowId={d.id} field="due" value={d.nextDue} onSaved={load} />
                     {d.nextWhat && (
-                      <span className="line-clamp-2 text-xs text-zinc-500" title={d.nextWhat}>
+                      <span className="block truncate text-xs font-normal text-zinc-500" title={d.nextWhat}>
                         {d.nextWhat}
                       </span>
                     )}
                   </td>
-                  <td className="px-2 py-2.5 whitespace-nowrap">{planText(d)}</td>
-                  <td className="px-2 py-2.5 whitespace-nowrap text-zinc-600 dark:text-zinc-300">
+                  <td className="px-2 py-3 whitespace-nowrap">{planText(d)}</td>
+                  <td className="px-2 py-3 whitespace-nowrap text-zinc-600 dark:text-zinc-300">
                     {d.last ? (
                       <>
                         {day(d.last.date)}
                         <span className="block text-xs text-zinc-500 tabular-nums">{euro(d.last.amount)}</span>
                       </>
                     ) : (
-                      "—"
+                      <span className="text-zinc-300 dark:text-zinc-600">—</span>
                     )}
                   </td>
-                  <td className="px-3 py-2 print:hidden">
-                    <span className="flex items-center justify-end gap-1">
+                  <td className="px-3 py-2.5 print:hidden">
+                    <span className="flex min-w-24 items-center justify-end gap-1">
                       {owe && d.payment && (
                         <button type="button" className={`btn btn-sm ${paying === d.id ? "" : "btn-primary"}`} onClick={() => setPaying(paying === d.id ? null : d.id)}>
                           {paying === d.id ? t("Close") : t("Pay")}
                         </button>
                       )}
-                      {d.manual && <DeleteDebt rowId={d.id} name={d.creditor} onDone={load} />}
+                      {d.manual && (
+                        // Taking one out: there when you look at the row, not in every one.
+                        <span className="opacity-0 transition-opacity group-focus-within:opacity-100 group-hover:opacity-100">
+                          <DeleteDebt rowId={d.id} name={d.creditor} onDone={load} />
+                        </span>
+                      )}
                     </span>
                   </td>
                 </tr>
@@ -296,11 +317,11 @@ export default function DebtsView({ openRow }: AppViewProps) {
           </tbody>
           {o.debts.length > 0 && (
             <tfoot>
-              <tr className="border-t border-zinc-200 font-semibold dark:border-zinc-800">
-                <td className="px-3 py-2">{t("Total")}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{euro(total)}</td>
-                <td className="px-2 py-2 text-right tabular-nums">{euro(open)}</td>
-                <td className="px-2 py-2 text-right tabular-nums">
+              <tr className="border-t border-zinc-200 bg-zinc-50 align-top font-semibold dark:border-zinc-800 dark:bg-zinc-900/60">
+                <td className="px-3 py-2.5">{t("Total")}</td>
+                <td className="px-2 py-2.5 text-right text-zinc-500 tabular-nums">{euro(total)}</td>
+                <td className="px-2 py-2.5 text-right tabular-nums">{euro(open)}</td>
+                <td className="px-2 py-2.5 text-right tabular-nums">
                   {euro(allRates)}
                   {later > 0 && <span className="block text-xs font-normal text-zinc-500">{t("running now {amount}", { amount: euro(s.monthlyRates) })}</span>}
                 </td>

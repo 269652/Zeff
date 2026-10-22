@@ -6806,5 +6806,6 @@
   "This column now counts into “{name}”.": "Esta columna cuenta ahora en «{name}».",
   "Counts into “{name}”": "Cuenta en «{name}»",
   "{name} = {fn} over {n} columns: {value}": "{name} = {fn} sobre {n} columnas: {value}",
-  "Take this column out of “{name}”": "Quitar esta columna de «{name}»"
+  "Take this column out of “{name}”": "Quitar esta columna de «{name}»",
+  "{pct} % paid off": "{pct} % pagado"
 }

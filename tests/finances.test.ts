@@ -129,3 +129,24 @@ test("fixed costs: the value published as Fixkosten (a sum in a database of your
   assert.deepEqual(f.items.map((i) => [i.title, i.amount, i.source]), [["Miete", 650, "Monatskosten"], ["Handy", 15.5, "Monatskosten"]]);
   assert.equal(new Set(f.items.map((i) => i.color)).size, 2);
 });
+
+test("a case summed up before its creditor was asked: the case's person (the bailiff who writes) collects it — not taken for the creditor", async () => {
+  await setup();
+  const { createPerson } = await import("@/plugins/people/store");
+  const { ensureCase, updateCase } = await import("@/plugins/cases/store");
+  const { checked } = await import("@/plugins/cases/compile");
+  const ogv = createPerson({ name: "Ulrike Nathanael" });
+  const c = ensureCase("DR II 810/26", "DR II 810/26", new Date().toISOString()).id;
+  const old = checked({ title: "Rundfunkbeitrag SWR – Zwangsvollstreckung", party: "OGV Nathanael (für SWR)", open: 11.52, total: 297.27, next_due: day(3) }, "DR II 810/26", 9);
+  delete old.creditor;
+  delete old.collector;
+  updateCase(c, { personId: ogv, compiled: old });
+  const { debtsDbId } = await import("@/plugins/finances/debts");
+  await (await import("@/plugins/workspace/pipeline")).runPipeline(debtsDbId()!, { ai: false });
+  const { debtPlans } = await import("@/plugins/finances/debts");
+  const d = debtPlans(day(0), "owe").debts.find((x) => x.caseId === c)!;
+  assert.ok(d, "the case's debt is there");
+  assert.notEqual(d.creditor, "Ulrike Nathanael");
+  assert.equal(d.creditorId, null, "the creditor not known yet");
+  assert.equal(d.collector, "Ulrike Nathanael", "she collects it");
+});

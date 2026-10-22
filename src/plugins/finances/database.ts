@@ -59,8 +59,10 @@ export function debtRecords(): SourceRecord[] {
           dataType: "debts" as const,
           typed: [
             { id: DEBT.dir, name: "Direction", type: "select" as const, value: t("I owe") },
-            { id: DEBT.creditor, name: "Other side", type: "person" as const, value: p.creditor ? [p.creditor.personId] : c.personId ? [c.personId] : [] },
-            { id: DEBT.collector, name: "Collected by", type: "person" as const, value: p.collector ? [p.collector.personId] : [] },
+            // The case's person is who writes — often who collects it (a bailiff), not whom it is owed to: never taken for the
+            // creditor; with no parties known yet (summed up before they were asked for) it stands as who collects it.
+            { id: DEBT.creditor, name: "Other side", type: "person" as const, value: p.creditor ? [p.creditor.personId] : [] },
+            { id: DEBT.collector, name: "Collected by", type: "person" as const, value: p.collector ? [p.collector.personId] : !p.creditor && c.personId ? [c.personId] : [] },
             { id: DEBT.total, name: "Total", type: "number" as const, format: "euro" as const, value: s.total },
             { id: DEBT.open, name: "Open", type: "number" as const, format: "euro" as const, value: open },
             { id: DEBT.rate, name: "Instalment", type: "number" as const, format: "euro" as const, value: s.installment },
