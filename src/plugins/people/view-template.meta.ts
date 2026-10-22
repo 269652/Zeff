@@ -28,38 +28,7 @@ const template = (t: T) => `<state name="circle" value="all"/>
   <muted>{{ app.error | default('…') }}</muted>
 {{#else}}
 
-<grid cols=2 gap=4 min=360>
-<col gap=3>
-  <row gap=2>
-    <tabs bind="circle" options="{{ app.circleOptions }}"/>
-    <grow/>
-    <select bind="sort" options="name:${t("By name")}, quiet:${t("Longest without contact first")}, recent:${t("Last in touch first")}, next:${t("Next date first")}, todos:${t("Most todos first")}"/>
-    {{#if state.adding}}
-      <part name="people.add"/>
-    {{#else}}
-      <button action="state" state="adding" value="true" label="+ ${t("Person")}" variant=primary/>
-    {{/if}}
-  </row>
-  <row gap=3>
-    <muted>{{#if app.filtered}}${t("{n} of {total}", { n: "{{ app.shown | count }}", total: "{{ app.rowCount }}" })}{{#else}}{{#if app.count == 1}}${t("1 person")}{{#else}}${t("{n} people", { n: "{{ app.count }}" })}{{/if}}{{/if}}</muted>
-    <row gap=1>
-      ${only("starred", `★ ${t("Starred")}`)}
-      ${only("quiet", t("Long not heard of"))}
-      ${only("owed", t("Open promises"))}
-      ${only("todos", t("With todos"))}
-      ${only("soon", t("Dates soon"))}
-    </row>
-  </row>
-
-  {{#if app.shown}}
-    <grid cols=3 gap=2 min=280>
-      {{#each app.shown}}<part name="people.card" row="{{ id }}"/>{{/each}}
-    </grid>
-  {{#else}}
-    <box><text tone=muted>{{ app.rowCount ? ${q(t("No one matches."))} : ${q(t("No people yet — add one above, or import them from your mails and chats (Tools)."))} }}</text></box>
-  {{/if}}
-</col>
-
+<split side=left width=340>
 <col gap=4>
   {{#if app.meetings}}
   <box title="${t("Appointments in the next 24 hours")}">
@@ -184,7 +153,34 @@ const template = (t: T) => `<state name="circle" value="all"/>
     </section>
   </box>
 </col>
-</grid>
+
+<col gap=3>
+  <row gap=2>
+    <select bind="circle" options="{{ app.circleOptions }}"/>
+    <select bind="sort" options="name:${t("By name")}, quiet:${t("Longest without contact first")}, recent:${t("Last in touch first")}, next:${t("Next date first")}, todos:${t("Most todos first")}"/>
+    <grow/>
+    {{#if state.adding}}<part name="people.add"/>{{/if}}
+  </row>
+  <row gap=3>
+    <muted>{{#if app.filtered}}${t("{n} of {total}", { n: "{{ app.shown | count }}", total: "{{ app.rowCount }}" })}{{#else}}{{#if app.count == 1}}${t("1 person")}{{#else}}${t("{n} people", { n: "{{ app.count }}" })}{{/if}}{{/if}}</muted>
+    <row gap=1>
+      ${only("starred", `★ ${t("Starred")}`)}
+      ${only("quiet", t("Long not heard of"))}
+      ${only("owed", t("Open promises"))}
+      ${only("todos", t("With todos"))}
+      ${only("soon", t("Dates soon"))}
+    </row>
+  </row>
+
+  {{#if app.shown}}
+    <grid cols=4 gap=2 min=260>
+      {{#each app.shown}}<part name="people.card" row="{{ id }}"/>{{/each}}
+    </grid>
+  {{#else}}
+    <box><text tone=muted>{{ app.rowCount ? ${q(t("No one matches."))} : ${q(t("No people yet — add one above, or import them from your mails and chats (Tools)."))} }}</text></box>
+  {{/if}}
+</col>
+</split>
 
 {{/if}}`;
 

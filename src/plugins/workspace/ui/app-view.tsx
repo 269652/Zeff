@@ -49,6 +49,8 @@ export type ViewAppModule = {
   parts: Record<string, ComponentType<PartProps>>;
   useAppData: (props: AppViewProps, state: Record<string, string>) => { data: Record<string, unknown>; reload: () => void };
   actions?: Record<string, (env: ActionEnv) => void>;
+  /** The toolbar's New taken over while the app is shown (the people's name field, the calendar's new event). */
+  onNew?: (env: ActionEnv) => void;
 };
 
 const NO_DATA = { data: {}, reload: () => {} };

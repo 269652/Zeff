@@ -1,13 +1,13 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { formatNumber, type Labels, type Property, type Row } from "../model";
 import type { ViewAppMeta } from "../view-apps";
 import { renderView, viewDefaults, type VNode } from "../view-template";
-import type { AppViewProps, ViewAppModule } from "./app-view";
+import type { ActionEnv, AppViewProps, ViewAppModule } from "./app-view";
 import { draw, Level, type DrawExt } from "./card-template";
 import { Cell } from "./cells";
 import { WidgetBlock } from "./widget-node";
@@ -44,6 +44,18 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
     () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE" }, { parts: meta.parts, actions: meta.actions }),
     [src, props.rows, schema, state, app.data, props.data.id, props.data.title, labels, meta],
   );
+  // The toolbar's New, when the app takes it over: run with the view as it is at the click.
+  const envRef = useRef<ActionEnv | null>(null);
+  useEffect(() => {
+    envRef.current = { props, state: r.state, setState, app: app.data, reloadApp: app.reload, rowId: null, attrs: {}, t };
+  });
+  const takeNew = props.onNew;
+  const appNew = module.onNew;
+  useEffect(() => {
+    if (!takeNew || !appNew) return;
+    takeNew(() => envRef.current && appNew(envRef.current));
+    return () => takeNew(null);
+  }, [takeNew, appNew]);
   const errKey = JSON.stringify(r.errors);
   useEffect(() => onErrors?.(JSON.parse(errKey)), [errKey, onErrors]);
 
@@ -304,14 +316,15 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
         );
       }
       case "select": {
-        const opts = json<[string, string][]>(a.options, []);
+        const opts = json<[string, string, string?][]>(a.options, []);
         return (
           <label key={key} className="inline-flex items-center gap-1.5 text-sm print:hidden">
             {a.label && <span className="text-xs text-zinc-500">{a.label}</span>}
             <select className="input w-auto py-1 text-sm" value={a.current} onChange={(e) => setState(a.bind, e.target.value)}>
-              {opts.map(([v, label]) => (
+              {opts.map(([v, label, count]) => (
                 <option key={v} value={v}>
                   {label}
+                  {count !== undefined ? ` (${count})` : ""}
                 </option>
               ))}
             </select>

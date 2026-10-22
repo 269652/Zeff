@@ -76,13 +76,13 @@ test("the state's defaults: all circles, no filter, by name, the messages since 
   assert.equal(r.state.days, "0");
 });
 
-test("the circles as tabs with their counts (those with nobody left out), a card per person — the starred first", () => {
+test("the circles as a dropdown with their counts (those with nobody left out), a card per person — the starred first", () => {
   const r = draw(overview());
-  const tabs = find(r.nodes, "tabs")[0];
+  const tabs = find(r.nodes, "select").find((x) => x.a.bind === "circle")!;
   assert.deepEqual(JSON.parse(tabs.a.options), [["all", "All 4"], ["family", "Family 1"], ["friends", "Friends 1"], ["work", "Work 1"], ["none", "No circle 1"]]);
   assert.deepEqual(parts(r.nodes, "people.card").map((p) => p.a.row), ["11", "14", "12", "13"]);
   assert.match(vnodeToString(r.nodes), /4 people/);
-  assert.deepEqual(find(r.nodes, "select").map((s) => s.a.bind), ["sort", "days"]);
+  assert.deepEqual(find(r.nodes, "select").map((s) => s.a.bind), ["days", "circle", "sort"], "the side (its look-back) first, then the circle and the order");
 });
 
 test("filters and sorts as before: a circle, only some, the longest quiet first; the count says how many of all", () => {
@@ -111,9 +111,9 @@ test("a filter is a button that sets the state, pressed when on — and off agai
   assert.equal(btn.find((b) => b.a.label === "★ Starred")!.a.value, "starred");
 });
 
-test("+ Person opens the form (a part); the side: appointments, nudges, coming up, to check, suggestions, tools", () => {
+test("New (the toolbar's) opens the form (a part); the side: appointments, nudges, coming up, to check, suggestions, tools", () => {
   assert.equal(parts(draw(overview()).nodes, "people.add").length, 0);
-  assert.ok(find(draw(overview()).nodes, "button").some((b) => b.a.action === "state" && b.a.state === "adding" && b.a.value === "true"));
+  assert.equal(find(draw(overview()).nodes, "part").filter((x) => x.a.name === "people.add").length, 0, "closed until New");
   const r = draw(overview(), { adding: "true" });
   assert.equal(parts(r.nodes, "people.add").length, 1);
   const s = vnodeToString(r.nodes);

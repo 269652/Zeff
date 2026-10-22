@@ -237,5 +237,7 @@ const view: ViewAppModule = {
     "people.settings": SettingsPart,
   },
   useAppData: usePeopleData,
+  // The toolbar's New: the name field for a new person.
+  onNew: (env) => env.setState("adding", "true"),
 };
 export default view;
