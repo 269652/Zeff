@@ -121,3 +121,19 @@ test("a document database turned into a mail inbox (View → Inbox: mail and cha
   assert.ok(s.properties.some((p) => p.id === "docunread"), "its own fields stay");
   assert.deepEqual([s.views[0].type, s.views[0].app], ["app", "documents"]);
 });
+
+test("a document read after its row was made: the row follows by itself (it said waiting while the document was ready long since)", async () => {
+  const { addDocument, setExtracted } = await import("@/plugins/documents/store");
+  const { documentInbox } = await import("@/plugins/workspace/document-databases");
+  const store = await import("@/plugins/workspace/store");
+  const { runPipeline } = await import("@/plugins/workspace/pipeline");
+  const inbox = documentInbox()!;
+  const d = addDocument("scan.pdf", Buffer.from("%PDF-1.4 x"), "application/pdf").doc;
+  await runPipeline(inbox, { ai: false });
+  const status = () => store.rowsOf(inbox)!.rows.find((r) => r.title === "scan.pdf")!.cells.docstatus;
+  assert.notEqual(status(), "ready");
+  setExtracted(d.id, "Gelesen");
+  // The refresh comes a moment later (several changes at once: one).
+  await new Promise((r) => setTimeout(r, 2500));
+  assert.equal(status(), "ready");
+});
