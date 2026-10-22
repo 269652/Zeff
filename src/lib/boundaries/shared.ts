@@ -134,6 +134,10 @@ export function flowOf(label: Label, exit: Exit, switches: { knowledge?: boolean
   return "yes";
 }
 
+/** What flows into every exit, for a row of the settings' matrix. */
+export const flowsOf = (label: Label, switches: { knowledge?: boolean; briefing?: boolean } = {}): Record<Exit, Flow> =>
+  Object.fromEntries(EXITS.map((e) => [e, flowOf(label, e, switches)])) as Record<Exit, Flow>;
+
 /** The names that make a database personal when it has no label of its own — its own, or a parent page's. */
 const PERSONAL_NAMES = /journal|tagebuch|diary|gesundheit|health|arzt|medizin|medical|stimmung|mood|finanz|financ|\bbank|\bkonto|schulden|debts?\b|vorgäng|whatsapp|signal|privat|private/i;
 /** The sources that make a database personal (one a sync keeps). */

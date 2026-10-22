@@ -69,6 +69,10 @@ export function buildAgentPrompt(pageId: number, trigger: Trigger, ctx: { row?: 
     "",
     "## Was du darfst",
     SCOPE_TEXT[routine.permissions.scope],
+    // (The data boundaries: what it can't read over the MCP, said up front — it is refused there anyway.)
+    routine.permissions.personal
+      ? "Persönliche Daten (als „persönlich“ markierte Quellen und Datenbanken: WhatsApp, Signal, Journal …) darfst du lesen; als „geheim“ markierte nie."
+      : "Als „persönlich“ oder „geheim“ markierte Quellen und Datenbanken (WhatsApp, Signal, Journal …) kannst du nicht lesen — sie werden dir verweigert.",
     "Den Workspace erreichst du über die Zeff-MCP-Tools workspace_* (workspace_tree, workspace_search, workspace_read_page, workspace_write_page, workspace_update_row …). Lies zuerst, was du brauchst; erfinde nichts. Schließ mit einer kurzen Zusammenfassung ab, was du getan hast.",
   ].join("\n");
 }

@@ -284,7 +284,7 @@ export type DatabaseData = {
   locked: boolean;
   /** Its source only lends records (automations, their runs): no row can be made by hand. */
   noNewRows?: boolean;
-  extras: { /** A jobs database: per row, the question it waits on and the delivery proposed under it. */ jobs?: Record<number, import("./jobs").JobPanel>; keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; me: { names: string[]; ids: number[] }; source: string | null; /** The field types the databases can have (the Workspace's and the plugins'). */ fieldTypes?: import("./field-point").FieldTypeInfo[]; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string; /** Its sidebar can be in the Workspace tree. */ nav?: boolean }[]; /** The sources plugins bring (People …), for the pipeline editor. */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; /** Mail or message channels can be named as sources (the View menu offers "Inbox"). */ inboxPossible?: boolean; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; drafts: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]>; /** Rows that are linked copies of a row in another database. */ links?: Record<number, { source: number; sourceTitle: string; sourceDb: string }>; /** The custom view its rows have (a plugin's): its id. */ rowView?: string | null };
+  extras: { /** A jobs database: per row, the question it waits on and the delivery proposed under it. */ jobs?: Record<number, import("./jobs").JobPanel>; keys: Record<number, string>; subtasks: Record<number, { done: number; total: number }>; tickets: Record<string, TicketExtras>; todosOn: boolean; briefing: boolean; knowledge: boolean; /** How sensitive it is (lib/boundaries) — shown with a lock in its menu. */ sensitivity?: "open" | "personal" | "secret"; me: { names: string[]; ids: number[] }; source: string | null; /** The field types the databases can have (the Workspace's and the plugins'). */ fieldTypes?: import("./field-point").FieldTypeInfo[]; running?: boolean; /** The app views it can have (mail client, chat — their plugins installed). */ appViews?: { id: string; label: string; icon: string; /** Its sidebar can be in the Workspace tree. */ nav?: boolean }[]; /** The sources plugins bring (People …), for the pipeline editor. */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; /** Mail or message channels can be named as sources (the View menu offers "Inbox"). */ inboxPossible?: boolean; /** What its sources let you do (reply where they send; read-only else). */ capabilities?: { reply: string[]; drafts: string[]; readOnly: boolean }; /** Its derived databases (an app shows them as folders), and the one it is derived from. */ derived?: { id: number; title: string; icon: string; count: number; unread: number }[]; derivedFrom?: number | null; previews: Record<number, PreviewLine[]>; /** Rows that are linked copies of a row in another database. */ links?: Record<number, { source: number; sourceTitle: string; sourceDb: string }>; /** The custom view its rows have (a plugin's): its id. */ rowView?: string | null };
 };
 
 export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: DatabaseData }>> {
@@ -676,9 +676,20 @@ export async function ticketDetailAction(key: string) {
 }
 
 /** Whether a database is in the briefing and in the knowledge (its collection's switches). */
-function collectionSwitches(dbId: number): { briefing: boolean; knowledge: boolean } {
+function collectionSwitches(dbId: number): { briefing: boolean; knowledge: boolean; sensitivity: "open" | "personal" | "secret" } {
   const c = listCollections({ plugin: "workspace" }).find((x) => x.id === `workspace:${dbId}`);
-  return { briefing: !!c?.briefing, knowledge: !!c?.knowledge };
+  return { briefing: !!c?.briefing, knowledge: !!c?.knowledge, sensitivity: c?.sensitivity ?? "open" };
+}
+
+/** A database's sensitivity (open, personal, secret — Settings → Data boundaries); null: back to its default. */
+export async function setDatabaseLabelAction(dbId: number, label: "open" | "personal" | "secret" | null) {
+  return run(async () => {
+    const { isLabel } = await import("@/lib/boundaries/shared");
+    if (label !== null && !isLabel(label)) throw new Error(t("No such label."));
+    if (!store.getDatabase(Number(dbId))) throw new Error(t("This page is gone."));
+    (await import("./sensitivity")).setDatabaseLabel(Number(dbId), label);
+    return {};
+  });
 }
 
 /** A database into the briefing (its rows: tickets or notes of the Lage) or the knowledge, or out — Kanban's "into the briefing". */

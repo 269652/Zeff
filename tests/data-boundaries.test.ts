@@ -213,3 +213,28 @@ test("the AI exit: a prompt has the secret database's rows and a secret source's
   assert.ok(!guardPrompt(chat).includes("Überraschungsparty"));
   setSourceLabel("signal", null);
 });
+
+test("the settings' matrix: the installed plugins' sources and every database, each with its label and what flows where", async () => {
+  await install("workspace", "jira", "whatsapp");
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("signal", false);
+  const { boundaryMatrix, setSourceLabel } = await import("@/lib/boundaries");
+  const { setCollection } = await import("@/lib/items");
+  const dbId = await database("Leseliste", []);
+  setCollection(`workspace:${dbId}`, { briefing: false });
+  const rows = await boundaryMatrix();
+  const jira = rows.find((r) => r.kind === "source" && r.key === "jira")!;
+  assert.deepEqual(jira.flows, { knowledge: "yes", briefing: "yes", agents: "yes", ai: "yes", web: "yes" });
+  assert.equal(jira.own, false);
+  const wa = rows.find((r) => r.key === "whatsapp")!;
+  assert.equal(wa.label, "personal");
+  assert.equal(wa.flows.agents, "permission");
+  assert.ok(!rows.some((r) => r.key === "signal"), "a plugin not installed: not listed");
+  const db = rows.find((r) => r.kind === "database" && r.key === String(dbId))!;
+  assert.equal(db.flows.briefing, "off");
+  setSourceLabel("jira", "secret");
+  const after = (await boundaryMatrix()).find((r) => r.key === "jira")!;
+  assert.equal(after.own, true);
+  assert.equal(after.flows.ai, "no");
+  setSourceLabel("jira", null);
+});

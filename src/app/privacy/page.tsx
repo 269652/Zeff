@@ -49,7 +49,12 @@ export default async function PrivacyPage() {
           <ul className="list-disc pl-5">
             {ai.length ? ai.map((p) => <li key={p.id}>{catalogText(t, p.name)}</li>) : <li className="list-none text-zinc-500">{t("No AI program is installed — nothing is sent.")}</li>}
           </ul>
-          <p className="text-zinc-500">{t("Don't want a source read by the AI? Uninstall its plugin under Menu → Plugins.")}</p>
+          <p className="text-zinc-500">
+            {t("Don't want a source read by the AI? Mark it secret under Data boundaries — or uninstall its plugin under Menu → Plugins.")}{" "}
+            <Link href="/privacy/boundaries" className="text-indigo-600 hover:underline dark:text-indigo-400">
+              🔒 {t("Data boundaries")}
+            </Link>
+          </p>
         </section>
 
         <section className="card space-y-2 p-4 text-sm">

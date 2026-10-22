@@ -2,7 +2,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
 import { labelResolver, secretRowTexts } from "@/plugins/workspace/sensitivity";
-import { allows, defaultSourceLabel, docSourceKey, isLabel, redact, refSourceKey, secretIndex, SPACE_SOURCES, type Clearance, type Label, type SecretIndex } from "./shared";
+import { allows, BOUNDARY_SOURCES, defaultSourceLabel, flowsOf, docSourceKey, isLabel, redact, refSourceKey, secretIndex, SPACE_SOURCES, type Clearance, type Exit, type Flow, type Label, type SecretIndex } from "./shared";
 
 /**
  * The data boundaries at work (server only): the sources' labels as you set them, the clearance of whoever reads right
@@ -125,4 +125,34 @@ function secretTexts(): SecretIndex {
 /** A prompt as it may go to an AI: every line of a secret source or database left out. Nothing secret: unchanged (and cheap). */
 export function guardPrompt(text: string): string {
   return redact(text, secretTexts());
+}
+
+// ---------------------------------------------------------------------------
+// The matrix: what flows where today (Settings → Data boundaries)
+// ---------------------------------------------------------------------------
+
+export type BoundaryRow = { kind: "source" | "database"; key: string; name: string; label: Label; own: boolean; flows: Record<Exit, Flow>; href?: string };
+
+/**
+ * Every source of an installed plugin (those without a plugin always) and every Workspace database, with its label (yours
+ * or its default) and what flows into each exit today — a database's briefing switch counts (the knowledge server picks
+ * for itself what it reads of what is offered).
+ */
+export async function boundaryMatrix(): Promise<BoundaryRow[]> {
+  const { isInstalled } = await import("@/plugins/state");
+  const sources: BoundaryRow[] = BOUNDARY_SOURCES.filter((s) => !s.plugin || isInstalled(s.plugin)).map((s) => {
+    const label = sourceLabel(s.key);
+    return { kind: "source", key: s.key, name: s.name, label, own: hasOwnSourceLabel(s.key), flows: flowsOf(label) };
+  });
+  if (!isInstalled("workspace")) return sources;
+  const { listCollections } = await import("@/lib/items");
+  const { getPref: pref } = await import("@/lib/prefs");
+  const switches = pref<{ briefing?: number[] }>("workspace.collections", {});
+  const { hasOwnLabel } = await import("@/plugins/workspace/sensitivity");
+  const dbs: BoundaryRow[] = listCollections({ plugin: "workspace" }).map((c) => {
+    const id = Number(c.id.slice("workspace:".length));
+    const label = c.sensitivity ?? "open";
+    return { kind: "database", key: String(id), name: c.name, label, own: hasOwnLabel(id), flows: flowsOf(label, { briefing: (switches.briefing ?? []).includes(id) }), href: c.href };
+  });
+  return [...sources, ...dbs];
 }

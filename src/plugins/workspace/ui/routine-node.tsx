@@ -176,6 +176,10 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
             <input type="checkbox" checked={!!view.permissions.gmail} disabled={!editable} onChange={(e) => void save({ permissions: { ...view.permissions, gmail: e.target.checked || undefined } })} />
             {t("May change Gmail (labels, read, spam, filters)")}
           </label>
+          <label className="flex items-center gap-1.5 text-xs text-zinc-500" title={t("WhatsApp, Signal, the bank, a journal … — what Settings → Data boundaries marks personal. Secret data stays closed either way.")}>
+            <input type="checkbox" checked={!!view.permissions.personal} disabled={!editable} onChange={(e) => void save({ permissions: { ...view.permissions, personal: e.target.checked || undefined } })} />
+            🔒 {t("May read personal data")}
+          </label>
           <div className="space-y-1 pt-1">
             <h4 className="text-xs font-semibold text-zinc-500 uppercase">{t("What it may use")}</h4>
             {AGENT_TOOL_GROUPS.map((g) => {
