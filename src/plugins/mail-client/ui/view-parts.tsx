@@ -1,11 +1,186 @@
 "use client";
 
-import { useNoAppData, type PartProps, type ViewAppModule } from "@/plugins/workspace/ui/app-view";
-import ChatView from "./ChatView";
-import InboxView from "./InboxView";
-import MailView from "./MailView";
+import { useEffect, useMemo, useRef, useState } from "react";
+import { useT } from "@/components/I18nProvider";
+import { toast } from "@/components/Toaster";
+import { setCellAction } from "@/plugins/workspace/actions";
+import type { Row } from "@/plugins/workspace/model";
+import type { AppViewProps, PartProps, ViewAppModule } from "@/plugins/workspace/ui/app-view";
+import { Dropdown, MenuItem } from "@/plugins/workspace/ui/kit";
+import { SuggestedActions } from "@/plugins/workspace/ui/suggested";
+import { snoozeUntil, type SnoozeOption } from "../threads";
+import { chatAppData, inboxAppData, mailAppData, type Current, type MailInput, type Msg } from "../view-data";
+import { ChatReply } from "./ChatReply";
+import { MailReply } from "./MailReply";
+import { NewInbox } from "./NewInbox";
 
-/** The mail client's views, client side: the parts their templates are built of. */
-export const MAIL: ViewAppModule = { parts: { "mail.view": (p: PartProps) => <MailView {...p} /> }, useAppData: useNoAppData };
-export const CHAT: ViewAppModule = { parts: { "chat.view": (p: PartProps) => <ChatView {...p} /> }, useAppData: useNoAppData };
-export const INBOX: ViewAppModule = { parts: { "inbox.view": (p: PartProps) => <InboxView {...p} /> }, useAppData: useNoAppData };
+/**
+ * The mail client's views, client side: what their templates read as app.* (view-data.ts, worked out of the rows and the view's
+ * state), and the parts they are built of where the language's tags aren't enough — the conversation fetched, the reply, the
+ * suggestions, snooze, a chat's bubbles, the texts of a list item that aren't properties.
+ */
+
+/** The app data of one of the views, worked out again when the rows or the view's state change. */
+const appData = (compute: (v: MailInput) => Record<string, unknown>) =>
+  function useMailData(props: AppViewProps, state: Record<string, string>) {
+    const extras = props.data.extras;
+    const schema = props.data.schema;
+    // (What is snoozed is so at the time it is worked out.)
+    const data = useMemo(
+      () => compute({ rows: props.rows, props: schema.properties, state, previews: extras?.previews, reply: extras?.capabilities?.reply ?? [], now: Date.now() }),
+      [props.rows, schema, state, extras],
+    );
+    return { data, reload: () => {} };
+  };
+
+const currentOf = (p: PartProps) => (p.app.current as Current | null | undefined) ?? null;
+
+/** + New inbox (a database of the plugin's templates under this one). */
+function NewInboxPart(p: PartProps) {
+  return (
+    <span className="print:hidden">
+      <NewInbox dbId={p.data.id} dataType={p.attrs.type === "message" ? "message" : "mail"} />
+    </span>
+  );
+}
+
+/** A list item's text that isn't a property (app.texts by row): the sender's name, a preview — or a thread's size as a badge. */
+function TextPart(p: PartProps) {
+  const t = useT();
+  const texts = (p.app.texts as Record<number, Record<string, unknown>> | undefined) ?? {};
+  const v = p.rowId != null ? texts[p.rowId]?.[p.attrs.field] : undefined;
+  if (p.attrs.field === "count") {
+    const n = Number(v) || 0;
+    return n > 1 ? (
+      <span className="shrink-0 rounded-full bg-zinc-100 px-1.5 text-xs text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300" title={t("{n} messages in this conversation", { n })}>
+        {n}
+      </span>
+    ) : null;
+  }
+  const s = typeof v === "string" ? v : "";
+  if (p.attrs.field === "preview") return <>{s}</>;
+  return <span className={`min-w-0 flex-1 truncate text-sm ${p.attrs.strong === "true" ? "font-semibold" : ""}`}>{s}</span>;
+}
+
+/** The conversation of the one picked, oldest first — fetched (a mail's, a WhatsApp / Signal chat's), else the message itself. */
+function ThreadPart(p: PartProps) {
+  const c = currentOf(p);
+  if (!c) return null;
+  return <Thread key={c.id} conv={c.conv} fetch={c.fetch} fallback={c.fallback} />;
+}
+
+function Thread({ conv, fetch: load, fallback }: { conv: string; fetch: boolean; fallback: Msg }) {
+  const t = useT();
+  const [thread, setThread] = useState<Msg[] | null>(load ? null : []);
+  useEffect(() => {
+    if (!load) return;
+    let live = true;
+    void fetch(`/api/mail/thread?conv=${encodeURIComponent(conv)}`)
+      .then((r) => (r.ok ? r.json() : { messages: [] }))
+      .then((j: { messages: Msg[] }) => live && setThread(j.messages));
+    return () => {
+      live = false;
+    };
+  }, [conv, load]);
+  if (thread === null) return <p className="text-sm text-zinc-400">…</p>;
+  return (
+    <ol className="space-y-2">
+      {(thread.length ? thread : [fallback]).map((m) => (
+        <li key={m.key} className={`rounded-lg border p-3 text-sm ${m.mine ? "border-indigo-200 bg-indigo-50/50 dark:border-indigo-900 dark:bg-indigo-950/20" : "border-zinc-200 dark:border-zinc-800"}`}>
+          <p className="mb-1 flex gap-2 text-xs text-zinc-500">
+            <span className="font-medium text-zinc-700 dark:text-zinc-300">{m.mine ? t("Me") : m.name}</span>
+            <span>{m.at}</span>
+          </p>
+          <p className="whitespace-pre-wrap">{m.preview}</p>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+/** The AI's suggested actions (a reply, a follow-up) for the one picked. */
+function SuggestedPart(p: PartProps) {
+  const a = currentOf(p)?.actions;
+  if (!a) return null;
+  return <SuggestedActions key={a.rowId} rowId={a.rowId} value={a.value} onDone={p.reload} />;
+}
+
+/** The reply by what the one picked is: a mail a draft you send yourself, a chat sent from here. */
+function ReplyPart(p: PartProps) {
+  const c = currentOf(p);
+  const r = c?.reply;
+  if (!c || !r) return null;
+  if (r.kind === "mail") return <MailReply key={c.id} rowId={c.id} account={r.account} to={r.to} subject={r.subject} />;
+  return <ChatReply key={String(c.key ?? c.id)} rowId={r.rowId} channel={r.channel} chat={r.chat} onSent={p.reload} bar={p.attrs.bar === "true"} />;
+}
+
+/** 💤 Snooze: the whole thread away until a time — or awake again. */
+function SnoozePart(p: PartProps) {
+  const t = useT();
+  const c = currentOf(p);
+  const ids = (c?.ids as number[] | undefined) ?? [];
+  if (!c) return null;
+  const options: [SnoozeOption | "", string][] = [
+    ["later", t("Later today")],
+    ["tomorrow", t("Tomorrow morning")],
+    ["week", t("Next week")],
+    ["", t("Wake up now")],
+  ];
+  return (
+    <Dropdown label={`💤 ${t("Snooze")}`} className="btn btn-sm print:hidden">
+      {(close) =>
+        options.map(([k, label]) => (
+          <MenuItem
+            key={k || "clear"}
+            onClick={async () => {
+              close();
+              const until = k ? snoozeUntil(k) : "";
+              for (const id of ids) await setCellAction(id, "commsnooze", until || null);
+              const undo = async () => {
+                for (const id of ids) await setCellAction(id, "commsnooze", null);
+                p.reload();
+              };
+              toast(k ? t("Snoozed — it comes back {when}.", { when: label.toLowerCase() }) : t("Awake again."), { action: k ? { label: t("Undo"), run: undo } : undefined });
+              p.reload();
+            }}
+          >
+            {label}
+          </MenuItem>
+        ))
+      }
+    </Dropdown>
+  );
+}
+
+/** The chat picked as bubbles, yours on the right — opened at its newest message (the bottom), as a chat does; a click opens one. */
+function MessagesPart(p: PartProps) {
+  const list = (currentOf(p)?.messages as Row[] | undefined) ?? [];
+  const scroller = useRef<HTMLOListElement>(null);
+  useEffect(() => {
+    if (scroller.current) scroller.current.scrollTop = scroller.current.scrollHeight;
+  }, [list.length]);
+  const time = (v: unknown) => {
+    const d = v ? new Date(String(v)) : null;
+    return d && !Number.isNaN(d.getTime()) ? d.toLocaleString([], { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }) : "";
+  };
+  if (!list.length) return null;
+  return (
+    <ol ref={scroller} className="max-h-[60vh] min-h-0 flex-1 space-y-2 overflow-y-auto py-2">
+      {list.map((r) => (
+        <li key={r.id} className={`flex ${r.cells.msgmine ? "justify-end" : ""}`}>
+          <button type="button" onClick={() => p.openRow(r.id)} className={`max-w-[75%] rounded-2xl px-3 py-2 text-left text-sm ${r.cells.msgmine ? "bg-indigo-600 text-white" : "bg-zinc-100 dark:bg-zinc-800"}`}>
+            {!r.cells.msgmine && <span className="block text-xs font-medium opacity-70">{String(r.cells.msgsender ?? "")}</span>}
+            <span className="block whitespace-pre-wrap">{r.title}</span>
+            <span className="block text-right text-[10px] opacity-60">{time(r.cells.msgsent)}</span>
+          </button>
+        </li>
+      ))}
+    </ol>
+  );
+}
+
+const shared = { "mail.new-inbox": NewInboxPart, "mail.thread": ThreadPart, "mail.suggested": SuggestedPart, "mail.reply": ReplyPart };
+
+export const MAIL: ViewAppModule = { parts: { ...shared, "mail.text": TextPart }, useAppData: appData(mailAppData) };
+export const CHAT: ViewAppModule = { parts: { ...shared, "chat.messages": MessagesPart }, useAppData: appData(chatAppData) };
+export const INBOX: ViewAppModule = { parts: { ...shared, "mail.text": TextPart, "inbox.snooze": SnoozePart }, useAppData: appData(inboxAppData) };
