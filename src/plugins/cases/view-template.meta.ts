@@ -7,5 +7,5 @@ export const CASES_VIEW: ViewAppMeta = {
   parts: [{ name: "cases.view", description: "The whole cases overview as before (bank bar, figures, the cases)" }],
   actions: [],
   appData: "",
-  defaultTemplate: '<part name="cases.view"/>',
+  defaultTemplate: () => '<part name="cases.view"/>',
 };

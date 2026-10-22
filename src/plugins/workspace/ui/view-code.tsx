@@ -21,7 +21,7 @@ export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, on
   const [ask, setAsk] = useState("");
   const [asNew, setAsNew] = useState(false);
   const [busy, setBusy] = useState(false);
-  const changed = draft !== (view.template ?? meta.defaultTemplate);
+  const changed = draft !== (view.template ?? meta.defaultTemplate(t));
   const lines = draft.split("\n").length;
   const bad = new Set(errors.map((e) => e.line));
 
@@ -71,7 +71,7 @@ export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, on
         <button type="button" className="btn btn-sm" onClick={onClose}>
           {t("Close")}
         </button>
-        <button type="button" className="btn btn-primary btn-sm" disabled={!changed || errors.length > 0} title={errors.length ? t("Fix the errors first") : undefined} onClick={() => onSave(draft.trim() === meta.defaultTemplate.trim() ? null : draft)}>
+        <button type="button" className="btn btn-primary btn-sm" disabled={!changed || errors.length > 0} title={errors.length ? t("Fix the errors first") : undefined} onClick={() => onSave(draft.trim() === meta.defaultTemplate(t).trim() ? null : draft)}>
           {t("Save")}
         </button>
       </div>

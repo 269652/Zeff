@@ -34,7 +34,7 @@ export const MAX_TEMPLATE = 8000;
 /** A tag's definition: whether it is empty, and what each attribute may be. */
 export type TagDef = { void?: boolean; attrs: Record<string, AttrKind> };
 /** "text": any words (a label, a name), "list": an expression giving rows or items (not interpolated), "any": every attribute let through as text. */
-export type AttrKind = "int" | "url" | "color" | "num" | "text" | "list" | { oneOf: string[] };
+export type AttrKind = "int" | "url" | "color" | "paint" | "num" | "text" | "list" | { oneOf: string[] };
 export const CARD_TAGS: Record<string, TagDef> = {
   row: { attrs: { gap: "int", align: { oneOf: ["start", "center", "end", "baseline"] }, wrap: { oneOf: ["true", "false"] }, justify: { oneOf: ["start", "between", "end"] } } },
   col: { attrs: { gap: "int" } },
@@ -491,6 +491,8 @@ export function checkAttr(kind: AttrKind, v: string): string | null {
   if (kind === "int") return /^\d{1,3}$/.test(s) ? s : null;
   if (kind === "num") return s !== "" && Number.isFinite(Number(s)) ? s : null;
   if (kind === "color") return (COLORS as readonly string[]).includes(s) ? s : null;
+  // A colour by name, or as #rgb / #rrggbb (a creditor's, an item's own).
+  if (kind === "paint") return (COLORS as readonly string[]).includes(s) || /^#[0-9a-f]{3,8}$/i.test(s) ? s : null;
   if (kind === "url") return safeUrl(s) || null;
   return kind.oneOf.includes(s) ? s : null;
 }

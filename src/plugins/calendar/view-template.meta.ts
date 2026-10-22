@@ -7,5 +7,5 @@ export const CALENDAR_VIEW: ViewAppMeta = {
   parts: [{ name: "calendar.view", description: "The whole calendar as before (day, week, month)" }],
   actions: [],
   appData: "",
-  defaultTemplate: '<part name="calendar.view"/>',
+  defaultTemplate: () => '<part name="calendar.view"/>',
 };

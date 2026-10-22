@@ -91,3 +91,32 @@ test("the state a template starts with, read before it is drawn: its <state> val
   const { viewDefaults } = await import("../src/plugins/workspace/view-template");
   assert.deepEqual(viewDefaults('<state name="q" value=""/><section title="x"><tabs bind="dir" options="owe:A, owed:B"/></section>'), { q: "", dir: "owe" });
 });
+
+test("a table of any list: columns with their own cell templates (and a foot), buttons that name their row, dots and bars in a colour of their own", () => {
+  const d = data({ app: { debts: [{ id: 11, name: "SKP", open: 1200, color: "#f59e0b" }, { id: 12, name: "DKB", open: 300, color: "#0ea5e9" }] } });
+  const r = renderView(`<datatable source="app.debts" empty="Nichts">
+  <column label="Wer"><dot color="{{ color }}"/> <b>{{ name }}</b></column>
+  <column label="Offen" align=right foot="{{ app.debts | sum('open') | euro(0) }}">{{ open | euro(0) }}<bar value="{{ open }}" max=1500 fill="{{ color }}"/></column>
+  <column label=""><button action="open" row="{{ id }}" label="Öffnen"/></column>
+</datatable>`, d, { parts });
+  assert.deepEqual(r.errors, []);
+  const table = find(r.nodes, "datatable")[0];
+  assert.deepEqual(JSON.parse(table.a.cols).map((c: { label: string; align?: string; foot?: string }) => [c.label, c.align ?? "", c.foot ?? ""]), [["Wer", "", ""], ["Offen", "right", "1.500 €"], ["", "", ""]]);
+  const rows = table.c.filter((x): x is Extract<VNode, object> => typeof x !== "string");
+  assert.equal(rows.length, 2);
+  assert.match(vnodeToString(rows[0]), /SKP.*1\.200 €/);
+  assert.equal(find(r.nodes, "dot")[0].a.color, "#f59e0b");
+  assert.equal(find(r.nodes, "bar")[0].a.fill, "#f59e0b");
+  assert.deepEqual(find(r.nodes, "button").map((b) => b.a.row), ["11", "12"], "a row named by the button");
+  const empty = renderView('<datatable source="app.none" empty="Nichts"><column label="x">{{ name }}</column></datatable>', d, { parts });
+  assert.equal(find(empty.nodes, "datatable")[0].a.empty, "Nichts");
+});
+
+test("a tile with content under its value (a part, text); a chart of an app's list in its items' colours; euro with digits", () => {
+  const r = renderView('<tile label="Übrig" value="{{ app.left | euro(0) }}" tone=good><part name="debts.table"/> · fix</tile><chart kind=bar source="app.list" group="name" value="amount"/>', data({ app: { left: 1009.4, list: [{ name: "Miete", amount: 600, color: "#c4b5fd" }] } }), { parts });
+  assert.deepEqual(r.errors, []);
+  const tile = find(r.nodes, "tile")[0];
+  assert.equal(tile.a.value, "1.009 €");
+  assert.equal(find(tile.c, "part").length, 1);
+  assert.deepEqual(JSON.parse(find(r.nodes, "chart")[0].a.data), [{ label: "Miete", value: 600, color: "#c4b5fd" }]);
+});

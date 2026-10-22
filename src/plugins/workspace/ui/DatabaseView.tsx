@@ -632,7 +632,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
               {view.type === "app" && appAvailable(data, view) && (
                 <>
                   {/* The app's view as code: its template (written by hand or by the AI), drawn live. */}
-                  <MenuItem checked={code?.viewId === view.id} onClick={() => (close(), setCode(code?.viewId === view.id ? null : { viewId: view.id, draft: view.template ?? viewAppMeta(view.app!)?.defaultTemplate ?? "" }))}>
+                  <MenuItem checked={code?.viewId === view.id} onClick={() => (close(), setCode(code?.viewId === view.id ? null : { viewId: view.id, draft: view.template ?? viewAppMeta(view.app!)?.defaultTemplate(t) ?? "" }))}>
                     &lt;/&gt; {t("Code")}
                   </MenuItem>
                   {view.template && (

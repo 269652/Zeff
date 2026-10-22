@@ -7,5 +7,5 @@ export const DOCUMENTS_VIEW: ViewAppMeta = {
   parts: [{ name: "documents.view", description: "The whole documents view as before (grid, preview, upload)" }],
   actions: [],
   appData: "",
-  defaultTemplate: '<part name="documents.view"/>',
+  defaultTemplate: () => '<part name="documents.view"/>',
 };

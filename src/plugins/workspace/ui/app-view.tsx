@@ -1,5 +1,6 @@
 "use client";
 
+import { useT } from "@/components/I18nProvider";
 import { lazy, Suspense, type ComponentType, type LazyExoticComponent, type ReactNode } from "react";
 import type { DatabaseData } from "../actions";
 import type { Row, View } from "../model";
@@ -84,9 +85,10 @@ export const appAvailable = (data: DatabaseData, view: View): boolean => !!view.
 
 /** An app's view of the database drawn from its template (`src`: one being written; else the view's own, else the app's default) — or, its app not there (its plugin not installed), the fallback (a table). */
 export function AppViewHost({ fallback, src, onErrors, ...props }: AppViewProps & { fallback: ReactNode; src?: string; onErrors?: HostProps["onErrors"] }) {
+  const t = useT();
   const View = props.view.app ? VIEWS[props.view.app] : undefined;
   if (!View || !appAvailable(props.data, props.view)) return <>{fallback}</>;
-  const template = src ?? props.view.template ?? viewAppMeta(props.view.app!)?.defaultTemplate ?? "";
+  const template = src ?? props.view.template ?? viewAppMeta(props.view.app!)?.defaultTemplate(t) ?? "";
   return (
     <Suspense fallback={<p className="text-sm text-zinc-400">…</p>}>
       <View {...props} src={template} onErrors={onErrors} />

@@ -161,9 +161,81 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
           <div key={key} className="h-full rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-800">
             <div className="text-xs font-medium text-zinc-500">{a.label}</div>
             <div className={`mt-0.5 text-xl font-semibold tracking-tight tabular-nums ${TONE[a.tone ?? ""] ?? ""}`}>{a.value || "—"}</div>
-            {a.sub && <div className="mt-0.5 text-xs text-zinc-500">{a.sub}</div>}
+            {(a.sub || n.c.length > 0) && (
+              <div className="mt-0.5 text-xs text-zinc-500">
+                {a.sub}
+                {n.c.length > 0 && <span className="inline">{n.c.map((c, i) => draw(c, i, ext))}</span>}
+              </div>
+            )}
           </div>
         );
+      case "dot":
+        return <span key={key} className="inline-block size-2.5 shrink-0 rounded-full" style={{ background: paint(a.color) }} aria-hidden />;
+      case "bar": {
+        if (!a.fill) return undefined;
+        const value = Number(a.value) || 0;
+        const max = Number(a.max) || 1;
+        return (
+          <span key={key} className="mt-1 block h-1 w-full overflow-hidden rounded-full bg-zinc-100 dark:bg-zinc-800" role="progressbar" aria-valuenow={value} aria-valuemax={max}>
+            <span className="block h-full rounded-full" style={{ width: `${Math.max(0, Math.min(100, (value / max) * 100))}%`, background: paint(a.fill) }} />
+          </span>
+        );
+      }
+      case "printonly":
+        return (
+          <div key={key} className="hidden print:block">
+            {kids(n.c)}
+          </div>
+        );
+      case "noprint":
+        return (
+          <div key={key} className="print:hidden">
+            {kids(n.c)}
+          </div>
+        );
+      case "datatable": {
+        const cols = json<{ label: string; align?: string; foot?: string; nowrap?: string; width?: string }[]>(a.cols, []);
+        const rows = n.c.filter((c): c is Extract<VNode, object> => typeof c !== "string");
+        const align = (c: { align?: string }) => (c.align === "right" ? "text-right" : c.align === "center" ? "text-center" : "text-left");
+        if (!rows.length) return a.empty ? <p key={key} className="rounded-xl border border-dashed border-zinc-200 px-3 py-4 text-sm text-zinc-400 dark:border-zinc-800">{a.empty}</p> : null;
+        return (
+          <div key={key} className="overflow-x-auto rounded-xl border border-zinc-200 dark:border-zinc-800 print:overflow-visible print:rounded-none print:border-0">
+            <table className="w-full border-collapse text-sm">
+              <thead>
+                <tr className="border-b border-zinc-200 bg-zinc-50 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase dark:border-zinc-800 dark:bg-zinc-900/60">
+                  {cols.map((c, i) => (
+                    <th key={i} className={`px-3 py-2 ${align(c)} ${c.nowrap === "true" ? "whitespace-nowrap" : ""}`} style={c.width ? { width: Number(c.width) } : undefined}>
+                      {c.label}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-zinc-100 dark:divide-zinc-800">
+                {rows.map((tr, ri) => (
+                  <tr key={tr.a.row ?? ri} className="group align-top transition-colors hover:bg-zinc-50/70 dark:hover:bg-zinc-900/40">
+                    {tr.c.map((td, ci) => (
+                      <td key={ci} className={`px-3 py-3 ${align(cols[ci] ?? {})} ${cols[ci]?.nowrap === "true" ? "whitespace-nowrap" : ""}`}>
+                        {typeof td === "string" ? td : <div className={`flex flex-col gap-0.5 ${cols[ci]?.align === "right" ? "items-end" : ""}`}><Level nodes={td.c} ext={ext} /></div>}
+                      </td>
+                    ))}
+                  </tr>
+                ))}
+              </tbody>
+              {cols.some((c) => c.foot) && (
+                <tfoot>
+                  <tr className="border-t border-zinc-200 bg-zinc-50 font-semibold dark:border-zinc-800 dark:bg-zinc-900/60">
+                    {cols.map((c, i) => (
+                      <td key={i} className={`px-3 py-2.5 whitespace-nowrap tabular-nums ${align(c)}`}>
+                        {c.foot}
+                      </td>
+                    ))}
+                  </tr>
+                </tfoot>
+              )}
+            </table>
+          </div>
+        );
+      }
       case "tabs": {
         const opts = json<[string, string][]>(a.options, []);
         return (
@@ -238,7 +310,7 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
           </div>
         );
       case "button": {
-        const variant = a.variant === "primary" ? "btn btn-primary btn-sm" : a.variant === "danger" ? "btn btn-sm btn-danger" : a.variant === "quiet" ? "rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800" : "btn btn-sm";
+        const variant = a.variant === "link" ? "truncate text-left font-medium hover:underline" : a.variant === "primary" ? "btn btn-primary btn-sm" : a.variant === "danger" ? "btn btn-sm btn-danger" : a.variant === "quiet" ? "rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800" : "btn btn-sm";
         return (
           <button key={key} type="button" className={`${variant} print:hidden`} onClick={(e) => (e.stopPropagation(), void run(a))}>
             {a.label ?? a.action}
@@ -335,13 +407,15 @@ function RowsTable({ columns, rows, sum, empty, props }: { columns: string[]; ro
   );
 }
 
+/** A template's colour: #hex as it is, a name as the chips' colours. */
+const paint = (c: string | undefined) => (!c ? "#a1a1aa" : c.startsWith("#") ? c : (CHART_COLORS[c] ?? "#a1a1aa"));
 const CHART_COLORS: Record<string, string> = { gray: "#a1a1aa", brown: "#a16207", orange: "#f97316", yellow: "#eab308", green: "#22c55e", blue: "#3b82f6", purple: "#a855f7", pink: "#ec4899", red: "#ef4444" };
 const PALETTE = ["#6366f1", "#f59e0b", "#10b981", "#ef4444", "#0ea5e9", "#a855f7", "#ec4899", "#84cc16"];
 
 /** A small chart of a template's data: bars, columns, a line or a pie. */
 function MiniChart({ kind = "bar", data }: { kind?: string; data: { label: string; value: number; color?: string }[] }) {
   if (!data.length) return null;
-  const colorOf = (d: { color?: string }, i: number) => (d.color ? (CHART_COLORS[d.color] ?? PALETTE[i % PALETTE.length]) : PALETTE[i % PALETTE.length]);
+  const colorOf = (d: { color?: string }, i: number) => (d.color ? (d.color.startsWith("#") ? d.color : (CHART_COLORS[d.color] ?? PALETTE[i % PALETTE.length])) : PALETTE[i % PALETTE.length]);
   const max = Math.max(...data.map((d) => d.value), 1);
   const fmt = (n: number) => n.toLocaleString(undefined, { maximumFractionDigits: 2 });
   if (kind === "pie") {

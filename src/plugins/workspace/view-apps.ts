@@ -4,6 +4,7 @@ import { DOCUMENTS_VIEW } from "@/plugins/documents/view-template.meta";
 import { DEBTS_VIEW } from "@/plugins/finances/view-template.meta";
 import { CHAT_VIEW, INBOX_VIEW, MAIL_VIEW } from "@/plugins/mail-client/view-template.meta";
 import { PEOPLE_VIEW } from "@/plugins/people/view-template.meta";
+import type { T } from "@/lib/i18n/shared";
 import type { ActionMeta, PartMeta } from "./view-template";
 
 /**
@@ -18,7 +19,8 @@ export type ViewAppMeta = {
   actions: ActionMeta[];
   /** What app.* holds (for the AI and the help): "app.open: the money open …". */
   appData: string;
-  defaultTemplate: string;
+  /** The view as it comes — its labels in the language shown (t: the i18n bundles'). */
+  defaultTemplate: (t: T) => string;
 };
 
 /** A view of any table: its title, a search, New — and the rows as a table. */
@@ -28,11 +30,12 @@ export const TEMPLATE_VIEW: ViewAppMeta = {
   parts: [],
   actions: [],
   appData: "",
-  defaultTemplate: [
-    '<state name="q" value=""/>',
-    '<row gap=2><heading level=2>{{ db.title }}</heading><grow/><search bind="q" placeholder="Search …"/><button action="new" label="New" variant=primary/></row>',
-    '<table source="rows | search(state.q)"/>',
-  ].join("\n"),
+  defaultTemplate: (t) =>
+    [
+      '<state name="q" value=""/>',
+      `<row gap=2><heading level=2>{{ db.title }}</heading><grow/><search bind="q" placeholder="${t("Search …")}"/><button action="new" label="${t("New")}" variant=primary/></row>`,
+      '<table source="rows | search(state.q)"/>',
+    ].join("\n"),
 };
 
 const ALL: ViewAppMeta[] = [TEMPLATE_VIEW, DEBTS_VIEW, CASES_VIEW, PEOPLE_VIEW, CALENDAR_VIEW, DOCUMENTS_VIEW, MAIL_VIEW, CHAT_VIEW, INBOX_VIEW];

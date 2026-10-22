@@ -7,7 +7,7 @@ export const MAIL_VIEW: ViewAppMeta = {
   parts: [{ name: "mail.view", description: "The whole mail client as before (list, reading pane, reply)" }],
   actions: [],
   appData: "",
-  defaultTemplate: '<part name="mail.view"/>',
+  defaultTemplate: () => '<part name="mail.view"/>',
 };
 export const CHAT_VIEW: ViewAppMeta = {
   app: "chat",
@@ -15,7 +15,7 @@ export const CHAT_VIEW: ViewAppMeta = {
   parts: [{ name: "chat.view", description: "The whole chat as before (conversations, the conversation, reply)" }],
   actions: [],
   appData: "",
-  defaultTemplate: '<part name="chat.view"/>',
+  defaultTemplate: () => '<part name="chat.view"/>',
 };
 export const INBOX_VIEW: ViewAppMeta = {
   app: "inbox",
@@ -23,5 +23,5 @@ export const INBOX_VIEW: ViewAppMeta = {
   parts: [{ name: "inbox.view", description: "The whole inbox as before (channels, threads, reading pane, reply, snooze)" }],
   actions: [],
   appData: "",
-  defaultTemplate: '<part name="inbox.view"/>',
+  defaultTemplate: () => '<part name="inbox.view"/>',
 };

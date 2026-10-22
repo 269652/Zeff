@@ -69,7 +69,13 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   box: T({ title: "text", tone: { oneOf: ["plain", "muted", "good", "warn", "bad"] } }),
   heading: T({ level: { oneOf: ["1", "2", "3"] } }),
   text: T({ tone: { oneOf: ["plain", "muted", "good", "warn", "bad"] } }),
-  tile: T({ label: "text", value: "text", sub: "text", tone: { oneOf: ["plain", "good", "warn", "bad"] } }, true),
+  tile: T({ label: "text", value: "text", sub: "text", tone: { oneOf: ["plain", "good", "warn", "bad"] } }),
+  bar: T({ value: "num", max: "num", color: "color", fill: "paint" }, true),
+  dot: T({ color: "paint" }, true),
+  printonly: T({}),
+  noprint: T({}),
+  datatable: T({ source: "list", empty: "text" }),
+  column: T({ label: "text", align: { oneOf: ["left", "right", "center"] }, foot: "text", nowrap: { oneOf: ["true", "false"] }, width: "int" }),
   state: T({ name: "text", value: "text" }, true),
   tabs: T({ bind: "text", options: "text" }, true),
   split: T({ ratio: { oneOf: ["1:1", "1:2", "2:3", "1:3"] } }),
@@ -78,7 +84,7 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   table: T({ source: "list", columns: "text", sum: "text", empty: "text" }, true),
   chart: T({ source: "list", kind: { oneOf: ["bar", "column", "line", "pie"] }, group: "text", value: "text", calc: { oneOf: ["count", "sum", "avg"] } }, true),
   selected: T({ empty: "text" }),
-  button: T({ action: "text", label: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger"] } }, true),
+  button: T({ action: "text", label: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] } }, true),
   search: T({ bind: "text", placeholder: "text" }, true),
   select: T({ bind: "text", options: "text", label: "text" }, true),
   toggle: T({ bind: "text", label: "text" }, true),
@@ -214,7 +220,8 @@ function head(expr: string, ctx: Ctx, line: number): unknown {
   return evaluate(e, ctx, line);
 }
 
-const money = (n: number, locale: string) => n.toLocaleString(locale, { style: "currency", currency: "EUR" });
+/** Money as written in the language shown (a plain space before the €, so it reads the same everywhere); `digits`: 0 for whole euros. */
+const money = (n: number, locale: string, digits?: number) => n.toLocaleString(locale, { style: "currency", currency: "EUR", ...(digits !== undefined ? { minimumFractionDigits: digits, maximumFractionDigits: digits } : {}) }).replace(/\u00a0/g, " ");
 
 function compare(a: unknown, b: unknown): number {
   const x = plain(a);
@@ -304,7 +311,7 @@ const LIST_FILTERS: Record<string, (v: unknown, a: (string | number)[], ctx: Ctx
     return ns.length ? Math.max(...ns) : null;
   },
   pluck: (v, a, ctx) => valuesOf(v, ctx, String(a[0] ?? "title")).map((x) => textOf(plain(x))),
-  euro: (v, _a, ctx) => (numOf(plain(v)) === null ? "" : money(numOf(plain(v))!, ctx.data.locale ?? "de-DE")),
+  euro: (v, a, ctx) => (numOf(plain(v)) === null ? "" : money(numOf(plain(v))!, ctx.data.locale ?? "de-DE", typeof a[0] === "number" ? a[0] : undefined)),
   number: (v, a, ctx) => (numOf(plain(v)) === null ? "" : numOf(plain(v))!.toLocaleString(ctx.data.locale ?? "de-DE", { maximumFractionDigits: typeof a[0] === "number" ? a[0] : 2 })),
 };
 
@@ -460,13 +467,15 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       const src = source();
       const group = a.group ? (propByName(ctx, a.group) ?? null) : null;
       const valueProp = a.value ? (propByName(ctx, a.value) ?? null) : null;
-      const calc = a.calc ?? (valueProp ? "sum" : "count");
+      const calc = a.calc ?? (valueProp || (!isRows(src) && a.value) ? "sum" : "count");
       const buckets = new Map<string, { label: string; values: number[]; n: number; color?: string }>();
       for (const it of itemsOf(src)) {
         const row = isRows(src) ? (it as Row) : null;
         const gv = row ? (group ? (fieldOf(ctx, row, group.id)?.text ?? "") : "") : textOf((it as Record<string, unknown>)?.[a.group ?? ""]);
-        for (const label of gv ? gv.split(", ") : ["—"]) {
-          const b = buckets.get(label) ?? { label, values: [], n: 0, color: group?.options?.find((o) => o.name === label)?.color };
+        // (An item of an app's list may bring its own colour.)
+        const own = !row && typeof (it as Record<string, unknown>)?.color === "string" ? String((it as Record<string, unknown>).color) : undefined;
+        for (const label of gv ? (row ? gv.split(", ") : [gv]) : ["—"]) {
+          const b = buckets.get(label) ?? { label, values: [], n: 0, color: own ?? group?.options?.find((o) => o.name === label)?.color };
           b.n++;
           const x = row ? (valueProp ? numOf(fieldOf(ctx, row, valueProp.id)?.value) : null) : numOf((it as Record<string, unknown>)?.[a.value ?? ""]);
           if (x !== null) b.values.push(x);
@@ -475,6 +484,21 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       }
       const data = [...buckets.values()].map((b) => ({ label: b.label, value: calc === "count" ? b.n : calc === "avg" ? (b.values.length ? b.values.reduce((x, y) => x + y, 0) / b.values.length : 0) : b.values.reduce((x, y) => x + y, 0), ...(b.color ? { color: b.color } : {}) }));
       return [{ t: "chart", a: { kind: a.kind ?? "bar", data: JSON.stringify(data) }, c: [] }];
+    }
+    case "datatable": {
+      // A table of any list: its columns' templates drawn for each item, a foot under a column (drawn once).
+      const cols = n.kids.filter((k): k is Extract<TNode, { k: "tag" }> => k.k === "tag" && k.name === "column");
+      if (!cols.length) return (err("<datatable> needs <column label=…>…</column> inside."), []);
+      const meta = cols.map((c) => {
+        const ca = attrsOf(c, ctx);
+        return Object.fromEntries(Object.entries({ label: ca.label ?? "", align: ca.align, foot: ca.foot, nowrap: ca.nowrap, width: ca.width }).filter((e) => e[1] !== undefined));
+      });
+      const rows = itemsOf(source()).map((it) => {
+        const c = withItem(ctx, it);
+        const id = c.row ? String(c.row.id) : c.item && (typeof c.item.id === "number" || typeof c.item.id === "string") ? String(c.item.id) : undefined;
+        return { t: "tr", a: id ? { row: id } : {}, c: cols.map((col) => ({ t: "td", a: {}, c: drawList(col.kids, c) }) as VNode) } as VNode;
+      });
+      return [{ t: "datatable", a: { cols: JSON.stringify(meta), ...(a.empty ? { empty: a.empty } : {}) }, c: rows }];
     }
     case "selected": {
       const id = Number(ctx.state.selected);
@@ -486,9 +510,9 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       const action = a.action ?? "";
       const known = ACTIONS[action];
       if (!known && !ctx.actions.has(action)) return (err(`There is no action “${action}” — there are ${[...Object.keys(ACTIONS), ...ctx.actions].join(", ")}.`), []);
-      if (known?.row && !ctx.row) return (err(`“${action}” acts on a row — put the button in a list's item, an {{#each rows}} or <selected>.`), []);
+      if (known?.row && !ctx.row && !a.row) return (err(`“${action}” acts on a row — put the button in a list's item, an {{#each rows}} or <selected>.`), []);
       const out: Record<string, string> = { ...a };
-      if (ctx.row) out.row = String(ctx.row.id);
+      if (ctx.row && !a.row) out.row = String(ctx.row.id);
       if (a.prop) {
         const p = propByName(ctx, a.prop);
         if (!p) return (err(`There is no property “${a.prop}”.`), []);
@@ -588,17 +612,19 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     "NAMES: rows (the view's rows — a collection), a row's properties by name ([Name with spaces]) inside a row (a list's item, {{#each rows}}, <selected>), title, id, state.<name> (the view's state), app.<path> (the app's data), db.title, now, this (the current item).",
     "",
     "LAYOUT: <row gap=2 align=center justify=between wrap=true>, <col gap=2>, <grid cols=3 gap=3 min=220>, <section title=\"…\" collapsible=true open=false>, <box title=\"…\" tone=muted|good|warn|bad>, <heading level=1|2|3>, <text tone=muted>, <split ratio=1:2> (two children side by side), <hr/>, <grow/>.",
-    "TEXT: <b> <i> <small> <muted> <code> <clamp lines=3> <chip color=…> <badge color=…> <bar value= max=/> <img src= h=/> <a href=…>.",
-    "FIGURES: <tile label=\"…\" value=\"{{ … }}\" sub=\"…\" tone=good|warn|bad/>.",
-    "DATA: <list source=\"rows | …\" select=true open=true empty=\"…\">item template</list>, <cards source=\"…\" cols=3>item template</cards>, <table source=\"rows | …\" columns=\"title, Status, [Due]\" sum=\"Amount\" empty=\"…\"/>, <chart kind=bar|column|line|pie source=\"rows\" group=\"Status\" value=\"Amount\" calc=count|sum|avg/>, <selected empty=\"…\">template of the row picked (a list with select=true picks)</selected>, <field name=\"Status\"/> (a row's property, editable).",
+    "TEXT: <b> <i> <small> <muted> <code> <clamp lines=3> <chip color=…> <badge color=…> <bar value= max= fill=\"#hex\"/> <dot color=\"#hex or name\"/> <img src= h=/> <a href=…>, <printonly>…</printonly> (only on paper), <noprint>…</noprint>.",
+    "FIGURES: <tile label=\"…\" value=\"{{ … }}\" sub=\"…\" tone=good|warn|bad/> — or <tile …>content under the value (text, a part)</tile>.",
+    "DATA: <list source=\"rows | …\" select=true open=true empty=\"…\">item template</list>, <cards source=\"…\" cols=3>item template</cards>, <table source=\"rows | …\" columns=\"title, Status, [Due]\" sum=\"Amount\" empty=\"…\"/>, <chart kind=bar|column|line|pie source=\"rows\" group=\"Status\" value=\"Amount\" calc=count|sum|avg/>, <selected empty=\"…\">template of the row picked (a list with select=true picks)</selected>, <field name=\"Status\"/> (a row's property, editable), <datatable source=\"app.list | …\" empty=\"…\"><column label=\"…\" align=right nowrap=true foot=\"{{ … }}\">cell template (the item's fields by name)</column>…</datatable> (a table of any list).",
     "STATE: <state name=\"dir\" value=\"owe\"/> (a default), <tabs bind=\"dir\" options=\"owe:Label, owed:Label\"/>, <select bind=… options=… label=…/>, <search bind=\"q\" placeholder=…/> (use it: rows | search(state.q)), <toggle bind=\"done\" label=…/> (state.done is \"true\"/\"\").",
-    `BUTTONS: <button action=… label=\"…\" variant=primary|plain|quiet|danger confirm=\"…\"/> — actions: ${Object.entries(ACTIONS)
+    `BUTTONS: <button action=… label=\"…\" row=\"{{ id }}\" (the row it acts on, outside a row) variant=primary|plain|quiet|danger|link confirm=\"…\"/> — actions: ${Object.entries(ACTIONS)
       .map(([k, v]) => `${k} (${v.what}${v.row ? "; in a row" : ""})`)
       .join(", ")}${actions.length ? `, ${actions.map((x) => `${x.name} (${x.description})`).join(", ")}` : ""}.`,
     "FILTERS for collections: where(\"Field\", \"value\") or where(\"Field\", \">\", 5) (=, !=, >, <, >=, <=, contains, empty, filled), sort(\"Field\", \"desc\"), limit(5), search(state.q), count, sum(\"Field\"), avg(\"Field\"), min(\"Field\"), max(\"Field\"), pluck(\"Field\").",
-    "FILTERS for values: euro, number(2), percent, hours, date, relative, chip, upper, lower, truncate(40), clamp(3), default(\"—\"), join(\", \"), first, last, count, check, bold, muted, small, code, link, img(80), bar(max), initials.",
+    "FILTERS for values: euro (euro(0): whole euros), number(2), percent, hours, date, relative, chip, upper, lower, truncate(40), clamp(3), default(\"—\"), join(\", \"), first, last, count, check, bold, muted, small, code, link, img(80), bar(max), initials.",
     "WIDGETS: <widget id=\"plugin.widget\" setting=value/> — a plugin's widget (as on pages).",
     parts.length ? `PARTS of this app (its own blocks): ${parts.map((p) => `<part name="${p.name}"${Object.entries(p.attrs ?? {}).map(([k, v]) => ` ${k}="${v}"`).join("")}/> — ${p.description}`).join("; ")}.` : "PARTS: none (a view of any table: build it from the tags above).",
+    "",
+    "Expressions: app.owe ? 'A' : 'B', a == 3, a > b and not c — texts in '…' inside an attribute.",
     "",
     "EXAMPLE:",
     '<state name="q" value=""/>',

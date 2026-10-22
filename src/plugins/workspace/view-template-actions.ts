@@ -47,6 +47,7 @@ export async function viewTemplateAiAction(v: { dbId: number; app: string; curre
       .slice(0, 5)
       .map((r) => `- ${r.title || "(ohne Titel)"}: ${schema.properties.map((p) => `${p.name}=${cellText(p, r.cells[p.id]).slice(0, 60)}`).filter((x) => !x.endsWith("=")).join("; ")}`)
       .join("\n");
+    const serverT = (await import("@/lib/i18n/server")).t;
     const prompt = (extra = "") =>
       [
         "Du schreibst die Vorlage einer Ansicht einer Datenbank in Zeff (einer persönlichen Arbeits-App) — in der Vorlagensprache unten, nichts sonst.",
@@ -64,7 +65,7 @@ export async function viewTemplateAiAction(v: { dbId: number; app: string; curre
         sample || "(keine)",
         "",
         `DIE VORLAGE JETZT${v.current.trim() ? "" : " (leer — baue eine neue)"}:`,
-        v.current.trim() || meta.defaultTemplate,
+        v.current.trim() || meta.defaultTemplate(serverT),
         "",
         ...(v.history?.length ? ["BISHERIGES GESPRÄCH:", ...v.history.slice(-8).map((h) => `${h.role === "user" ? "Nutzer" : "Du"}: ${h.text}`), ""] : []),
         `WUNSCH DES NUTZERS: ${v.request}`,

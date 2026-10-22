@@ -7,5 +7,5 @@ export const PEOPLE_VIEW: ViewAppMeta = {
   parts: [{ name: "people.view", description: "The whole people overview as before (cards, meetings, to check)" }],
   actions: [],
   appData: "",
-  defaultTemplate: '<part name="people.view"/>',
+  defaultTemplate: () => '<part name="people.view"/>',
 };
