@@ -26,3 +26,20 @@ test("a filter about what Gmail finds important, or only about dates or the inbo
   // Every mail with an attachment is a kind that stays: a rule.
   assert.equal(filterProblem({ hasAttachment: true }), null);
 });
+
+/**
+ * Labels are no lasting mark for a filter: Gmail sets them while the filters run, so `label:` and `has:userlabels` match whatever another
+ * filter happens to label — and with an open `after:` every mail to come. (The cleanup agent made exactly these: from then on nearly every
+ * new mail skipped the inbox.) "OR", "AND" and brackets are grammar, not words that stay.
+ */
+test("a filter only about labels, or about labels joined with OR, is refused", () => {
+  assert.ok(filterProblem({ query: "has:userlabels after:2026/03/01" }));
+  assert.ok(filterProblem({ query: "label:Zahlungen after:2026/01/01" }));
+  assert.ok(filterProblem({ query: "label:Schulden-Inkasso" }));
+  assert.ok(filterProblem({ query: "(label:Familie OR label:Rechnungen OR label:Bestellungen) after:2026/01/01" }));
+  assert.ok(filterProblem({ query: "category:updates -is:important -label:Schulden-Inkasso" }));
+  assert.ok(filterProblem({ query: "(category:updates OR category:personal) -is:important" }));
+  // A sender with a label beside it still names who: fine.
+  assert.equal(filterProblem({ query: "from:(riverty OR coeo)" }), null);
+  assert.equal(filterProblem({ query: "from:kleinanzeigen OR subject:\"Nutzer-Anfrage\"" }), null);
+});

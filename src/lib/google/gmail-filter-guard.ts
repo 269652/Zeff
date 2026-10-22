@@ -9,13 +9,17 @@ export function filterProblem(c: { from?: string; to?: string; subject?: string;
   if ([c.from, c.to, c.subject].some((x) => !!x?.trim()) || c.hasAttachment) return null;
   const q = (c.query ?? "").trim();
   // Operators that name something lasting: a sender, a recipient, a list, a subject, a mail kind (has:…, filename:…, label:…), a quoted phrase or a plain word.
+  // Brackets, OR and AND are grammar. Labels are no mark that stays: Gmail sets them while its filters run, so label: and
+  // has:userlabels match whatever another filter happens to label (with an open after: every mail to come — an agent did that once).
   const lasting = q
     .split(/\s+/)
-    .filter(Boolean)
+    .map((tok) => tok.replace(/^[({]+|[)}]+$/g, ""))
+    .filter((tok) => tok && !/^(OR|AND)$/.test(tok))
     .some((tok) => {
       if (/^-/.test(tok)) return false; // a negation names what it is not
-      if (/^(is|in|after|before|older|newer|older_than|newer_than|smaller|larger|size|category):/i.test(tok)) return false; // states and ranges of the moment
-      return true; // from:, to:, list:, subject:, deliveredto:, has:, filename:, a word …
+      if (/^(is|in|after|before|older|newer|older_than|newer_than|smaller|larger|size|category|label):/i.test(tok)) return false; // states and ranges of the moment
+      if (/^has:(user|nouser)labels$/i.test(tok)) return false;
+      return true; // from:, to:, list:, subject:, deliveredto:, has:attachment, filename:, a word …
     });
   if (lasting) return null;
   return q
