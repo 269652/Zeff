@@ -120,3 +120,16 @@ test("a tile with content under its value (a part, text); a chart of an app's li
   assert.equal(find(tile.c, "part").length, 1);
   assert.deepEqual(JSON.parse(find(r.nodes, "chart")[0].a.data), [{ label: "Miete", value: 600, color: "#c4b5fd" }]);
 });
+
+test("tooltips (tip), monospace, a box taking the room left (fill) with text cut to one line, roomy lists, buttons kept on paper", () => {
+  const r = renderView(`<row><col fill=true><truncate tip="{{ app.open | euro }}">Ein sehr langer Name</truncate></col><mono>DR II 810/26</mono><text tip="aus Briefen">x</text></row>
+<list source="rows | limit(1)" spacing=roomy>{{ title }}</list><button action="print" label="Drucken" print=true tip="Als PDF"/>`, data(), { parts });
+  assert.deepEqual(r.errors, []);
+  assert.equal(find(r.nodes, "col")[0].a.fill, "true");
+  assert.match(find(r.nodes, "truncate")[0].a.tip, /12,50\s€/);
+  assert.equal(find(r.nodes, "mono").length, 1);
+  assert.equal(find(r.nodes, "text")[0].a.tip, "aus Briefen");
+  assert.equal(find(r.nodes, "list")[0].a.spacing, "roomy");
+  const b = find(r.nodes, "button")[0];
+  assert.deepEqual([b.a.print, b.a.tip], ["true", "Als PDF"]);
+});

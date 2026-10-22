@@ -113,6 +113,38 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
   const ext: DrawExt = (n, key, kids) => {
     const a = n.a;
     switch (n.t) {
+      case "row":
+      case "col": {
+        if (a.fill !== "true" && !a.tip) return undefined;
+        // (Taking the room left — and letting what is in it be cut to one line.)
+        const inner = draw({ ...n, a: { ...a, fill: "", tip: "" } }, key, ext);
+        return (
+          <div key={key} className={a.fill === "true" ? "min-w-0 flex-1" : ""} title={a.tip || undefined}>
+            {inner}
+          </div>
+        );
+      }
+      case "truncate":
+        return (
+          <span key={key} className="block min-w-0 truncate" title={a.tip || undefined}>
+            {kids(n.c)}
+          </span>
+        );
+      case "mono":
+        return (
+          <span key={key} className="font-mono text-xs" title={a.tip || undefined}>
+            {kids(n.c)}
+          </span>
+        );
+      case "b":
+      case "small":
+      case "muted":
+        if (!a.tip) return undefined;
+        return (
+          <span key={key} title={a.tip}>
+            {draw({ ...n, a: { ...a, tip: "" } }, key, ext)}
+          </span>
+        );
       case "grid":
         return (
           <div key={key} className="grid" style={cols(a)}>
@@ -152,13 +184,13 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
       }
       case "text":
         return (
-          <div key={key} className={`text-sm ${TONE[a.tone ?? ""] ?? ""}`}>
+          <div key={key} className={`text-sm ${TONE[a.tone ?? ""] ?? ""}`} title={a.tip || undefined}>
             {kids(n.c)}
           </div>
         );
       case "tile":
         return (
-          <div key={key} className="h-full rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-800">
+          <div key={key} className="h-full rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-800" title={a.tip || undefined}>
             <div className="text-xs font-medium text-zinc-500">{a.label}</div>
             <div className={`mt-0.5 text-xl font-semibold tracking-tight tabular-nums ${TONE[a.tone ?? ""] ?? ""}`}>{a.value || "—"}</div>
             {(a.sub || n.c.length > 0) && (
@@ -292,8 +324,8 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
         return (
           <ul key={key} className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
             {items.map((it, i) => (
-              <li key={it.a.row ?? i} className={`px-3 py-2 text-sm ${active(it) ? "bg-indigo-50/70 dark:bg-indigo-950/40" : ""} ${clickable ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/50" : ""}`} onClick={click(it)}>
-                <div className="flex flex-col gap-1">{kids(it.c)}</div>
+              <li key={it.a.row ?? i} className={`${a.spacing === "roomy" ? "px-4 py-3" : "px-3 py-2"} text-sm ${active(it) ? "bg-indigo-50/70 dark:bg-indigo-950/40" : ""} ${clickable ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/50" : ""}`} onClick={click(it)}>
+                <div className={`flex flex-col ${a.spacing === "roomy" ? "gap-2" : "gap-1"}`}>{kids(it.c)}</div>
               </li>
             ))}
           </ul>
@@ -312,7 +344,7 @@ export function TemplateView({ src, onErrors, module, meta, ...props }: Props) {
       case "button": {
         const variant = a.variant === "link" ? "truncate text-left font-medium hover:underline" : a.variant === "primary" ? "btn btn-primary btn-sm" : a.variant === "danger" ? "btn btn-sm btn-danger" : a.variant === "quiet" ? "rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800" : "btn btn-sm";
         return (
-          <button key={key} type="button" className={`${variant} print:hidden`} onClick={(e) => (e.stopPropagation(), void run(a))}>
+          <button key={key} type="button" title={a.tip || undefined} className={`${variant} ${a.print === "true" ? "" : "print:hidden"}`} onClick={(e) => (e.stopPropagation(), void run(a))}>
             {a.label ?? a.action}
           </button>
         );
