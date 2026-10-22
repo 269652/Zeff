@@ -6697,5 +6697,14 @@
   "The Finances plugin is not installed (Menu → Plugins).": "Das Finanzen-Plugin ist nicht installiert (Menü → Plugins).",
   "What you owe them": "Was du ihnen schuldest",
   "What they owe you": "Was sie dir schulden",
-  "Claim {amount}": "Forderung {amount}"
+  "Claim {amount}": "Forderung {amount}",
+  "Income": "Einkommen",
+  "a month, from the statements": "im Monat, aus den Kontoauszügen",
+  "Open until debt-free": "Restschuld bis schuldenfrei",
+  "Owed to you until all is back": "Ausstehend, bis alles zurück ist",
+  "Open by creditor": "Offen nach Gläubiger",
+  "Owed by debtor": "Ausstehend nach Schuldner",
+  "{amount} open": "{amount} offen",
+  "Enter your income": "Einkommen eintragen",
+  "a month (yours)": "im Monat (von dir)"
 }

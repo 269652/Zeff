@@ -6697,5 +6697,14 @@
   "The Finances plugin is not installed (Menu → Plugins).": "El plugin Finanzas no está instalado (Menú → Plugins).",
   "What you owe them": "Lo que les debes",
   "What they owe you": "Lo que te deben",
-  "Claim {amount}": "Crédito {amount}"
+  "Claim {amount}": "Crédito {amount}",
+  "Income": "Ingresos",
+  "a month, from the statements": "al mes, de los extractos",
+  "Open until debt-free": "Pendiente hasta quedar sin deudas",
+  "Owed to you until all is back": "Pendiente hasta recuperarlo todo",
+  "Open by creditor": "Pendiente por acreedor",
+  "Owed by debtor": "Pendiente por deudor",
+  "{amount} open": "{amount} pendiente",
+  "Enter your income": "Introduce tus ingresos",
+  "a month (yours)": "al mes (tuyos)"
 }

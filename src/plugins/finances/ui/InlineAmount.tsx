@@ -8,11 +8,11 @@ import { toast } from "@/components/Toaster";
  * An amount (or a date) as text — a click makes it a field: Enter or leaving it saves, Escape cancels, emptied it saves null
  * (what was there before you set it: the AI's, the statements'). `hint`: shown small beside it (where the figure is from).
  */
-export function InlineAmount({ value, onSave, date = false, hint, className = "", digits = 2 }: { value: number | string | null; onSave: (v: number | string | null) => Promise<boolean | void> | boolean | void; date?: boolean; hint?: string; className?: string; digits?: number }) {
+export function InlineAmount({ value, onSave, date = false, hint, className = "", digits = 2, empty = "—" }: { value: number | string | null; onSave: (v: number | string | null) => Promise<boolean | void> | boolean | void; date?: boolean; hint?: string; className?: string; digits?: number; /** Shown when there is no value. */ empty?: string }) {
   const t = useT();
   const [editing, setEditing] = useState(false);
   const [v, setV] = useState("");
-  const shown = value == null || value === "" ? "—" : date ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString() : Number(value).toLocaleString(undefined, { style: "currency", currency: "EUR", minimumFractionDigits: digits, maximumFractionDigits: digits });
+  const shown = value == null || value === "" ? empty : date ? new Date(`${String(value).slice(0, 10)}T12:00:00`).toLocaleDateString() : Number(value).toLocaleString(undefined, { style: "currency", currency: "EUR", minimumFractionDigits: digits, maximumFractionDigits: digits });
   const save = async () => {
     setEditing(false);
     const raw = v.trim();
