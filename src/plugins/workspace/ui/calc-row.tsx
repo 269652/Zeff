@@ -23,7 +23,7 @@ export function useCalcLabels(): Record<CalcFn, string> {
 /** The values published from this database, and the names to pick from — read once per table, again after a change. */
 export function usePublished(dbId: number) {
   const [state, setState] = useState<{ here: PublishedHere[]; names: { key: string; label: string; what: string; taken: boolean }[] }>({ here: [], names: [] });
-  // eslint-disable-next-line react-hooks/set-state-in-effect -- read when shown (the state is set once the answer is there)
+  const load = () => void valuesOfDbAction(dbId).then((r) => r.ok && setState({ here: r.here, names: r.names }));
   useEffect(load, [dbId]);
   return { ...state, reload: load };
 }
