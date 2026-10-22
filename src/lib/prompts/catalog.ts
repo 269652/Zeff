@@ -34,6 +34,8 @@ export const PROMPTS: PromptEntry[] = [
   { key: "mail-signal", group: "Mail", title: "Mail review: Signal", uses: "Added to the mail review when Signal chats are among the mails", plugin: "todos", builtIn: async () => (await import("@/lib/boards/mail-todos")).SIGNAL_NOTE },
   { key: "mail-relations", group: "Mail", title: "Mails to todos", uses: "Which mails belong to which open todo", plugin: "todos", step: "relations", builtIn: async () => (await import("@/lib/boards/mail-relations")).INSTRUCTIONS },
   { key: "knowledge-relations", group: "Knowledge", title: "Knowledge to todos", uses: "Which knowledge belongs to which open todo", plugin: "knowledge", step: "knowledge", builtIn: async () => (await import("@/plugins/knowledge/relations")).INSTRUCTIONS },
+  { key: "questions-plan", group: "Knowledge", title: "Structured questions: the query", uses: "Whether a question is about your data, and the query over it", plugin: "questions", builtIn: async () => (await import("@/plugins/questions/ask")).PLAN_INSTRUCTIONS },
+  { key: "questions-answer", group: "Knowledge", title: "Structured questions: the answer", uses: "The answer phrased from the query's numbers", plugin: "questions", builtIn: async () => (await import("@/plugins/questions/ask")).ANSWER_INSTRUCTIONS },
   {
     key: "repo-pick",
     group: "Knowledge",

@@ -18,6 +18,9 @@ export async function askKnowledgeAction(question: string, history: { role: "use
     const q = String(question ?? "").trim();
     if (!q) return { ok: false, error: t("No question.") };
     const turns = (Array.isArray(history) ? history : []).slice(-8).map((h) => ({ role: h.role === "assistant" ? ("assistant" as const) : ("user" as const), text: String(h.text ?? "").slice(0, 4000) }));
+    // A question about numbers and dates in your own data is answered from it (Structured questions) — else the knowledge's.
+    const fromData = await (await import("@/plugins/questions/ask")).chatAnswer(q, turns);
+    if (fromData) return { ok: true, answer: fromData };
     const { knowledgeAsk } = await import("@/plugins/knowledge/client");
     return { ok: true, answer: await knowledgeAsk(q, turns) };
   } catch (err) {
