@@ -63,7 +63,7 @@ export function draw(n: VNode, key: number, ext?: DrawExt): ReactNode {
       );
     case "col":
       return (
-        <div key={key} className="flex flex-col gap-1" style={gap(n.a)}>
+        <div key={key} className="flex flex-col gap-1" style={{ ...gap(n.a), ...(n.a.align === "end" ? { alignItems: "flex-end", textAlign: "right" } : n.a.align === "center" ? { alignItems: "center", textAlign: "center" } : n.a.align === "start" ? { alignItems: "flex-start" } : {}) }}>
           <Level nodes={n.c} ext={ext} />
         </div>
       );
