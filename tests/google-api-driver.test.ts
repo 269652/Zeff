@@ -177,13 +177,46 @@ test("with the API driver Google Calendar writes its calendars and events", asyn
   }
 });
 
+test("Google Calendar reads the last months by default (from the 1st, configurable) — and a month shown that lies before, besides", async () => {
+  const g = await fakeGoogle();
+  try {
+    await signIn("good");
+    const { syncGoogleCalendar, syncWindow } = await import("@/plugins/google-calendar/sync");
+    const timeMins = () => g.seen.filter((s) => s.url.startsWith("/calendar/v3/calendars/me%40example.com/events")).map((s) => new URL(s.url, "http://x").searchParams.get("timeMin")!);
+    const local = (day: string) => new Date(`${day}T00:00:00`).toISOString();
+    assert.equal((await syncGoogleCalendar({ background: true })).ok, true);
+    const w = syncWindow({ weeks: 5, pastMonths: 3 });
+    const back = new Date();
+    assert.deepEqual(timeMins(), [local(w.from)], "one read: the window");
+    assert.equal(w.from, new Date(back.getFullYear(), back.getMonth() - 3, 1).toLocaleDateString("sv-SE"), "from the 1st, three months back");
+    g.seen.length = 0;
+    assert.equal((await syncGoogleCalendar({ background: true, range: { from: "2024-01-29", to: "2024-03-11" } })).ok, true);
+    assert.deepEqual(timeMins(), [local(w.from), local("2024-01-29")], "the window, and the month shown");
+  } finally {
+    g.close();
+  }
+});
+
+test("the window: the 1st of the month so many back (at least last week's Monday), so many weeks ahead; a range shown joined when it touches", async () => {
+  const { syncWindow, rangesToRead } = await import("@/plugins/google-calendar/sync");
+  const now = new Date(2026, 9, 22, 10); // Thursday 22 Oct 2026
+  assert.deepEqual(syncWindow({ weeks: 5, pastMonths: 3 }, now), { from: "2026-07-01", to: "2026-11-16" });
+  assert.deepEqual(syncWindow({ weeks: 5, pastMonths: 0 }, now), { from: "2026-10-01", to: "2026-11-16" });
+  assert.deepEqual(syncWindow({ weeks: 1, pastMonths: 0 }, new Date(2026, 9, 3)), { from: "2026-09-21", to: "2026-09-28" }, "early in a month: last week's Monday is earlier");
+  const w = { from: "2026-07-01", to: "2026-11-16" };
+  assert.deepEqual(rangesToRead(w), [w]);
+  assert.deepEqual(rangesToRead(w, { from: "2026-08-31", to: "2026-10-12" }), [w], "inside: nothing more");
+  assert.deepEqual(rangesToRead(w, { from: "2026-05-25", to: "2026-07-06" }), [{ from: "2026-05-25", to: "2026-11-16" }], "touching: joined");
+  assert.deepEqual(rangesToRead(w, { from: "2025-12-29", to: "2026-02-09" }), [w, { from: "2025-12-29", to: "2026-02-09" }], "apart: both");
+});
+
 test("an expired access token is refreshed once", async () => {
   const g = await fakeGoogle();
   try {
     await signIn("stale");
     const { getConnector } = await import("@/lib/connectors/store");
     const { readCalendar } = await import("@/lib/google/calendar-api");
-    const r = await readCalendar({ weeks: 2 });
+    const r = await readCalendar({ from: "2026-10-01", to: "2026-10-15" });
     assert.equal(r.calendars.length, 2);
     assert.equal(getConnector("google").accessToken, "fresh");
     assert.equal(g.seen.filter((s) => s.url === "/token").length, 1);

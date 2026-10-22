@@ -72,15 +72,11 @@ function toEvent(e: GEvent, calendarId: string): (EventInput & { calendarId: str
   };
 }
 
-/** The calendars, and the appointments of the weeks from last Monday — recurring ones as their single occurrences. */
-export async function readCalendar(o: { weeks: number }): Promise<GcalRead> {
-  const weeks = Math.max(1, Math.min(12, Number(o.weeks) || 5));
-  // From the Monday of the week before (what just was), at midnight.
-  const start = new Date();
-  start.setHours(0, 0, 0, 0);
-  start.setDate(start.getDate() - ((start.getDay() + 6) % 7) - 7);
-  const end = new Date(start);
-  end.setDate(end.getDate() + 7 * weeks);
+/** The calendars, and the appointments of the days from `from` up to `to` (local days, YYYY-MM-DD; `to` not included) — recurring ones as their single occurrences. */
+export async function readCalendar(o: { from: string; to: string }): Promise<GcalRead> {
+  const start = new Date(`${o.from}T00:00:00`);
+  const end = new Date(`${o.to}T00:00:00`);
+  if (!(end.getTime() > start.getTime())) throw new Error("readCalendar: an empty range.");
 
   const calendars: GcalRead["calendars"] = [];
   let token = "";
