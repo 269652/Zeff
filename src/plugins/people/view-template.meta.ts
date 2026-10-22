@@ -29,7 +29,15 @@ const template = (t: T) => `<state name="circle" value="all"/>
   <muted>{{ app.error | default('…') }}</muted>
 {{#else}}
 
-<tabs bind="tab" options="people:${t("People")}:{{ app.count }}, more:${t("Dates & to check")}:{{ app.toCheck }}"/>
+<row gap=2>
+  <tabs bind="tab" options="people:${t("People")}:{{ app.count }}, more:${t("Dates & to check")}:{{ app.toCheck }}"/>
+  <grow/>
+  {{#if state.tab != 'more'}}
+    {{#if state.adding}}<part name="people.add"/>{{/if}}
+    <select bind="circle" options="{{ app.circleOptions }}"/>
+    <select bind="sort" options="name:${t("By name")}, quiet:${t("Longest without contact first")}, recent:${t("Last in touch first")}, next:${t("Next date first")}, todos:${t("Most todos first")}"/>
+  {{/if}}
+</row>
 
 {{#if state.tab == 'more'}}
 <grid cols=2 gap=4 min=360>
@@ -158,12 +166,6 @@ const template = (t: T) => `<state name="circle" value="all"/>
 </grid>
 {{#else}}
 <col gap=3>
-  <row gap=2>
-    <select bind="circle" options="{{ app.circleOptions }}"/>
-    <select bind="sort" options="name:${t("By name")}, quiet:${t("Longest without contact first")}, recent:${t("Last in touch first")}, next:${t("Next date first")}, todos:${t("Most todos first")}"/>
-    <grow/>
-    {{#if state.adding}}<part name="people.add"/>{{/if}}
-  </row>
   <row gap=3>
     <muted>{{#if app.filtered}}${t("{n} of {total}", { n: "{{ app.shown | count }}", total: "{{ app.rowCount }}" })}{{#else}}{{#if app.count == 1}}${t("1 person")}{{#else}}${t("{n} people", { n: "{{ app.count }}" })}{{/if}}{{/if}}</muted>
     <row gap=1>
