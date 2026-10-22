@@ -12,6 +12,7 @@ import type { PersonOperation } from "../blocks";
 import { detailLabels, personPageData } from "../row-data";
 import { loadPerson, runPersonOp, usePersonEntry } from "./person-store";
 import { TimelineList } from "@/plugins/timeline/ui/TimelineList";
+import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 
 /**
  * A person's own page, client side: what its template reads as app.* (their bundle and what the knowledge knows), its actions (a
@@ -63,6 +64,12 @@ function TimelinePart(p: PartProps) {
   const t = useT();
   const row = rowOf(p);
   return row ? <TimelineList row={row} limit={25} title={t("Timeline")} hideWhenOff /> : null;
+}
+
+/** What you should know about them now (the know plugin) — nothing while it is off or there is nothing to say. */
+function KnowPart(p: PartProps) {
+  const row = rowOf(p);
+  return row ? <KnowPanel row={row} compact /> : null;
 }
 
 function InputPart(p: PartProps) {
@@ -259,6 +266,7 @@ const page: ViewAppModule = {
   parts: {
     "person.input": InputPart,
     "person.timeline": TimelinePart,
+    "person.know": KnowPart,
     "person.note": NotePart,
     "person.transfer": TransferPart,
     "person.addDetail": AddDetailPart,

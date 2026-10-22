@@ -18,6 +18,7 @@ import { SuggestedActions } from "./suggested";
 import { RowProperties } from "./DatabaseView";
 import { Editor } from "./Editor";
 import { TimelineList } from "@/plugins/timeline/ui/TimelineList";
+import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 
 /**
  * The modules of a row's detail view — the same everywhere: its properties and page, and by its ticket key what Zeff knows
@@ -28,7 +29,7 @@ import { TimelineList } from "@/plugins/timeline/ui/TimelineList";
 /** A module's name, as the detail view's editor lists it. */
 export function useModuleLabels(): Record<DetailModule, string> {
   const t = useT();
-  return { properties: t("Properties"), source: t("Linked ticket"), subtasks: t("Subtasks"), suggested: t("Suggested actions"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page"), timeline: t("Timeline") };
+  return { properties: t("Properties"), source: t("Linked ticket"), subtasks: t("Subtasks"), suggested: t("Suggested actions"), briefing: t("Briefing"), todos: t("Todos"), questions: t("Questions"), actions: t("Suggested actions"), flags: t("Flags"), context: t("Context"), chat: t("Chat"), page: t("Page"), timeline: t("Timeline"), know: t("What you should know") };
 }
 
 /** The modules that need the row's ticket key (none without one). */
@@ -58,6 +59,8 @@ export function DetailModules({ modules, data, rowId, bare = false }: { modules:
     if (m === "subtasks") return <SubtasksModule rowId={rowId} locked={!!data.locked} />;
     if (m === "suggested") return <SuggestedActions rowId={rowId} value={data.rows.find((r) => r.id === rowId)?.cells.rowactions} />;
     if (m === "timeline") return <TimelineModule rowId={rowId} />;
+    // What you should know about it (the know plugin): its people, what is open with them, what it is about — nothing while off or empty.
+    if (m === "know") return <KnowPanel row={rowId} compact />;
     if (m === "page") return page ? <Editor key={rowId} pageId={rowId} initial={page.content} rev={page.rev} editable={!data.locked} smallText={false} /> : <p className="text-sm text-zinc-400">…</p>;
     return <ModuleBody m={m} k={x.key!} ticket={x.ticket} detail={detail} todosOn={!!data.extras?.todosOn} />;
   };

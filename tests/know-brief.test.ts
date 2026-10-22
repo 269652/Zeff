@@ -146,3 +146,29 @@ test("as text for an agent: people, loops, the latest, related, with refs and li
   assert.match(text, /owed to you.*schickt mir das Angebot.*overdue/i);
   assert.match(text, /ticket:PROJ-12/);
 });
+
+test("an appointment's row (the calendar database) is briefed as its meeting", async () => {
+  const id = await getAnna();
+  await install("calendar", "workspace");
+  const { addEvent, zeffCalendar } = await import("@/lib/calendar/ir");
+  const start = new Date(NOW.getTime() + 3 * 3600e3);
+  const e = addEvent(zeffCalendar().id, { title: "Jour fixe", start: local(start), end: local(new Date(start.getTime() + 1800e3)), attendees: ["anna.weber@example.com"] });
+  const w = await import("@/plugins/workspace/store");
+  const m = await import("@/plugins/workspace/model");
+  const dbId = w.createPage({ kind: "database", title: "Termine", schema: { titleName: "Title", properties: [{ id: "srcref", name: "Source", type: "text" }], views: [m.newView("Table")] } });
+  const row = w.addRow(dbId, { title: "Jour fixe", cells: { srcref: `event:${e.id}` } });
+  const { briefOfKey } = await import("@/plugins/know/summary");
+  const got = await briefOfKey({ row }, NOW);
+  assert.equal(got?.key, `event:${e.id}`);
+  assert.equal(got?.brief.meeting?.title, "Jour fixe");
+  assert.deepEqual(got?.brief.people.map((p) => p.id), [id]);
+});
+
+test("a ticket's brief: the people its events concern most, and what is open with them", async () => {
+  const id = await getAnna();
+  const { briefFor } = await import("@/plugins/know/brief");
+  const b = await briefFor(["ticket:PROJ-12"], { now: NOW, health: [] });
+  assert.deepEqual(b.people.map((p) => p.id), [id], "Anna wrote about it");
+  assert.ok(b.loops.some((l) => l.personId === id));
+  assert.ok(!b.related.some((r) => r.ref === "ticket:PROJ-12"), "not related to itself");
+});

@@ -10,6 +10,7 @@ import { ScopeChoice } from "./EventEditor";
 import { doneBrowserOpAction, removeTodoOpAction } from "@/plugins/todos/server-actions";
 import { acceptProposedEventAction, deleteEventAction, saveEventAction } from "./server-actions";
 import { whenText, type Item } from "./view-shared";
+import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 
 type Result = { ok: boolean; message?: string; error?: string } | null;
 
@@ -138,6 +139,12 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
           {e?.organizer && <p className="text-xs text-zinc-500">{t("Organiser: {name}", { name: e.organizer })}</p>}
           {e && e.attendees.length > 0 && <p className="text-xs text-zinc-500">{t("Guests: {names}", { names: `${e.attendees.slice(0, 8).join(", ")}${e.attendees.length > 8 ? ` +${e.attendees.length - 8}` : ""}` })}</p>}
           {e?.description && <p className="max-h-40 overflow-y-auto whitespace-pre-line text-zinc-600 dark:text-zinc-300">{e.description}</p>}
+          {/* What you should know before it (the know plugin): the people in it, what is open with them — nothing while off or empty. */}
+          {e && !item.proposed && (e.attendees.length > 0 || e.organizer) && (
+            <div className="max-h-72 overflow-y-auto">
+              <KnowPanel key={`${e.id}:${e.occurrence ?? ""}`} event={e.id} occurrence={e.occurrence ?? undefined} title={t("Before the meeting")} compact />
+            </div>
+          )}
           {item.proposed && (
             <p className="text-xs text-zinc-500">
               {t("Proposed for")}{" "}

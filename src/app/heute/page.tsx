@@ -9,6 +9,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { formatHours, formatLongDay, formatTime, roundQuarter } from "@/lib/format";
 import { dayFrame, dayProgress, freeWindows, phaseOf, workSpan, type DayPhase } from "@/lib/heute-day";
 import { DayTimeline } from "./DayTimeline";
+import { MeetingSoon } from "@/plugins/know/ui/MeetingSoon";
 import type { TodoView } from "@/lib/boards/shared";
 import { remindedFormAction } from "@/plugins/people/server-actions";
 import { peopleHome, personHref } from "@/plugins/workspace/people-database";
@@ -366,6 +367,9 @@ export default async function HeutePage() {
           )}
         </div>
       </section>
+
+      {/* A meeting about to start: what you should know before it (the know plugin). */}
+      <MeetingSoon now={now} />
 
       {rest.length > 0 && (
         <section aria-label={t("Up next")}>

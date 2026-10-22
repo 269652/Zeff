@@ -20,6 +20,7 @@ const NEW_INBOX: PartMeta = { name: "mail.new-inbox", description: "+ New inbox:
 const TEXT: PartMeta = { name: "mail.text", description: "What a list item shows that isn't a property, on one line: the sender's name (bold with strong=\"true\"), a mail's preview, a thread's size (a badge when more than one)", attrs: { field: "from | preview | count", strong: "true: bold" } };
 const THREAD: PartMeta = { name: "mail.thread", description: "The conversation of the one picked, oldest first (fetched; yours marked)" };
 const SUGGESTED: PartMeta = { name: "mail.suggested", description: "The AI's suggested actions for the one picked (a reply, a follow-up)" };
+const KNOW: PartMeta = { name: "mail.know", description: "What you should know about the one picked (the know plugin; nothing while it is off or there is nothing to say): its people — who they are, what is open with them —, what it is about, the latest, with the AI's points when kept" };
 const REPLY: PartMeta = { name: "mail.reply", description: "The reply: a mail drafted to send yourself, a chat written (or drafted by the AI) and sent from here", attrs: { bar: "true: one line under a chat, Enter sends" } };
 
 const mailTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/>
@@ -49,6 +50,7 @@ const mailTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/>
       {{#if not app.current.canReply}}<muted>🔒 ${t("Read-only — reply in Outlook / Gmail")}</muted>{{/if}}
     </row>
     {{#if app.current.why}}<box tone=warn>⭐ {{ app.current.why }}</box>{{/if}}
+    <part name="mail.know"/>
     <part name="mail.thread"/>
     <part name="mail.suggested"/>
     {{#if app.current.canReply}}<part name="mail.reply"/>{{/if}}
@@ -79,6 +81,7 @@ const chatTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/>
       {{#if app.current.link}}<button action="url" href="{{ app.current.link }}" label="↗ ${t("Open in {app}", { app: "{{ app.current.channel }}" })}"/>{{/if}}
     </row>
   </selected>
+  {{#if app.current.id}}<part name="mail.know"/>{{/if}}
   <part name="chat.messages"/>
   {{#if app.current.id}}
     <part name="mail.suggested"/>
@@ -124,6 +127,7 @@ const inboxTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/
       {{#if not app.current.canReply}}<muted>🔒 ${t("Read-only — replying through {channel} isn't set up here.", { channel: "{{ app.current.channel }}" })}</muted>{{/if}}
     </row>
     {{#if app.current.why}}<box tone=warn>⭐ {{ app.current.why }}</box>{{/if}}
+    <part name="mail.know"/>
     <part name="mail.thread"/>
     <part name="mail.suggested"/>
     {{#if app.current.canReply}}<part name="mail.reply"/>{{/if}}
@@ -134,7 +138,7 @@ const inboxTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/
 export const MAIL_VIEW: ViewAppMeta = {
   app: "mail",
   label: "Mail",
-  parts: [NEW_INBOX, TEXT, THREAD, SUGGESTED, REPLY],
+  parts: [NEW_INBOX, TEXT, KNOW, THREAD, SUGGESTED, REPLY],
   actions: [],
   appData: MAIL_APP_DATA,
   defaultTemplate: mailTemplate,
@@ -142,7 +146,7 @@ export const MAIL_VIEW: ViewAppMeta = {
 export const CHAT_VIEW: ViewAppMeta = {
   app: "chat",
   label: "Chat",
-  parts: [NEW_INBOX, { name: "chat.messages", description: "The messages of the chat picked as bubbles (yours on the right), opened at the newest; a click opens one as a row" }, SUGGESTED, REPLY],
+  parts: [NEW_INBOX, { name: "chat.messages", description: "The messages of the chat picked as bubbles (yours on the right), opened at the newest; a click opens one as a row" }, KNOW, SUGGESTED, REPLY],
   actions: [],
   appData: CHAT_APP_DATA,
   defaultTemplate: chatTemplate,
@@ -150,7 +154,7 @@ export const CHAT_VIEW: ViewAppMeta = {
 export const INBOX_VIEW: ViewAppMeta = {
   app: "inbox",
   label: "Inbox",
-  parts: [NEW_INBOX, TEXT, { name: "inbox.snooze", description: "💤 Snooze: the thread picked away until later today, tomorrow morning, next week — or awake now" }, THREAD, SUGGESTED, REPLY],
+  parts: [NEW_INBOX, TEXT, { name: "inbox.snooze", description: "💤 Snooze: the thread picked away until later today, tomorrow morning, next week — or awake now" }, KNOW, THREAD, SUGGESTED, REPLY],
   actions: [],
   appData: INBOX_APP_DATA,
   defaultTemplate: inboxTemplate,

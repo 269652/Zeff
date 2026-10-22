@@ -8,6 +8,7 @@ import type { Row } from "@/plugins/workspace/model";
 import type { AppViewProps, PartProps, ViewAppModule } from "@/plugins/workspace/ui/app-view";
 import { Dropdown, MenuItem } from "@/plugins/workspace/ui/kit";
 import { SuggestedActions } from "@/plugins/workspace/ui/suggested";
+import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 import { snoozeUntil, type SnoozeOption } from "../threads";
 import { chatAppData, inboxAppData, mailAppData, type Current, type MailInput, type Msg } from "../view-data";
 import { ChatReply } from "./ChatReply";
@@ -105,6 +106,12 @@ function SuggestedPart(p: PartProps) {
   return <SuggestedActions key={a.rowId} rowId={a.rowId} value={a.value} onDone={p.reload} />;
 }
 
+/** What you should know about the one picked (the know plugin): its people, what is open with them, what it is about. */
+function KnowPart(p: PartProps) {
+  const c = currentOf(p);
+  return c?.id ? <KnowPanel key={c.id} row={c.id} compact /> : null;
+}
+
 /** The reply by what the one picked is: a mail a draft you send yourself, a chat sent from here. */
 function ReplyPart(p: PartProps) {
   const c = currentOf(p);
@@ -179,7 +186,7 @@ function MessagesPart(p: PartProps) {
   );
 }
 
-const shared = { "mail.new-inbox": NewInboxPart, "mail.thread": ThreadPart, "mail.suggested": SuggestedPart, "mail.reply": ReplyPart };
+const shared = { "mail.new-inbox": NewInboxPart, "mail.thread": ThreadPart, "mail.suggested": SuggestedPart, "mail.know": KnowPart, "mail.reply": ReplyPart };
 
 export const MAIL: ViewAppModule = { parts: { ...shared, "mail.text": TextPart }, useAppData: appData(mailAppData) };
 export const CHAT: ViewAppModule = { parts: { ...shared, "chat.messages": MessagesPart }, useAppData: appData(chatAppData) };

@@ -32,6 +32,8 @@ const SINCE_DAYS = 180;
 const RECENT = 8;
 const FACTS = 6;
 const RELATED = 10;
+/** A thing that isn't a person (a ticket, a page): the people its events concern most, at most this many. */
+const PEOPLE_AROUND = 3;
 /** A date of theirs this close is worth saying. */
 const DATE_DAYS = 14;
 /** Details that are no conversation topic (paying them is the Finances' and the person page's business). */
@@ -95,6 +97,17 @@ function labels(): Labels {
 // ---------------------------------------------------------------------------
 // What a thing is about: a row's refs, a meeting's
 // ---------------------------------------------------------------------------
+
+/** The appointment a row of the calendar database is (its source ref "event:<id>" or "event:<id>@<day>"); null: it isn't one. */
+export function rowEvent(rowId: number): { id: number; occurrence?: string } | null {
+  try {
+    const r = getSqlite().prepare("select json_extract(props, '$.srcref') s from ws_pages where id = ?").get(rowId) as { s: string | null } | undefined;
+    const m = /^event:(\d+)(?:@(.+))?$/.exec(String(r?.s ?? ""));
+    return m ? { id: Number(m[1]), occurrence: m[2] || undefined } : null;
+  } catch {
+    return null;
+  }
+}
 
 /** A mail's timeline source by its key: WhatsApp's and Signal's chats share the mail table. */
 const mailSource = (key: string) => (key.startsWith("wa:") ? "whatsapp" : key.startsWith("sg:") ? "signal" : "mail");
@@ -282,23 +295,33 @@ export async function briefFor(refsIn: string[], opts: Opts = {}): Promise<Brief
   const allowed = (evs: TimelineEvent[]) =>
     evs.filter((e) => {
       const ok = L.ok(L.event(e));
-      if (!ok && !seen.has(e.id)) seen.add(e.id), hide();
+      if (!ok && !seen.has(e.id)) {
+        seen.add(e.id);
+        hide();
+      }
       return ok && notOwn(e);
     });
   const timelineOn = isInstalled("timeline");
   const read = (r: string | string[], limit: number) => (timelineOn ? allowed(eventsFor(r, { since, limit })) : []);
 
+  const evs = read(refs.filter((r) => !r.startsWith("event:")), 40);
+
+  // The people: those it is about — else (a ticket, a page) the ones its events concern most (who commented, who wrote).
   const money = isInstalled("people") ? await moneyMap(L, hide) : null;
-  const personIds = refs.flatMap((r) => (/^person:\d+$/.test(r) ? [Number(r.slice(7))] : []));
+  let personIds = refs.flatMap((r) => (/^person:\d+$/.test(r) ? [Number(r.slice(7))] : []));
+  if (!personIds.length) {
+    const seenPeople = new Map<number, number>();
+    for (const e of evs) for (const r of e.refs) if (/^person:\d+$/.test(r)) seenPeople.set(Number(r.slice(7)), (seenPeople.get(Number(r.slice(7))) ?? 0) + 1);
+    personIds = [...seenPeople.entries()].sort((a, b) => b[1] - a[1] || a[0] - b[0]).slice(0, PEOPLE_AROUND).map(([id]) => id);
+  }
   const people = isInstalled("people") ? personIds.flatMap((id) => personOf(id, L, now, (ref) => read(ref, 40), money, hide) ?? []) : [];
 
-  const loops = (isInstalled("people") ? openLoopsFor(refs, dayOf(now)) : []).filter((l) => {
+  const loops = (isInstalled("people") ? openLoopsFor([...refs, ...personIds.map((id) => `person:${id}`)], dayOf(now)) : []).filter((l) => {
     const ok = L.ok(maxLabel(sourceLabel("people"), L.ref(l.sourceRef)));
     if (!ok) hide();
     return ok;
   });
 
-  const evs = read(refs.filter((r) => !r.startsWith("event:")), 40);
   const recent: BriefEvent[] = withEntities(evs.slice(0, RECENT), refs).map((e) => ({ id: e.id, at: e.at, kind: e.kind, source: e.source, title: e.title, summary: e.summary, href: e.url, entities: e.entities }));
 
   // Related: what the refs and their events are about — tickets, cases (rows), projects, organisations — the most named first.

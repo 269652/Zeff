@@ -148,7 +148,10 @@ export async function briefOfKey(q: { event?: number; occurrence?: string; row?:
     return b ? { key: meetingKey(q.event, q.occurrence), brief: b } : null;
   }
   if (q.row) {
-    const { rowRefs } = await import("./brief");
+    const { rowEvent, rowRefs } = await import("./brief");
+    // An appointment's row (the calendar database): its meeting's brief.
+    const ev = rowEvent(q.row);
+    if (ev) return briefOfKey({ event: ev.id, occurrence: ev.occurrence }, now);
     const { labelOf } = await import("@/plugins/timeline/refs");
     return { key: `row:${q.row}`, brief: await briefFor(rowRefs(q.row), { now, label: labelOf(`page:${q.row}`) }) };
   }

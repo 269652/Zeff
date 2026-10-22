@@ -402,7 +402,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
 }
 
 /** The modules a row's detail view can show: its properties and page, and — by its ticket key — what Zeff knows about it. */
-export const DETAIL_MODULES = ["properties", "source", "subtasks", "suggested", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "page", "timeline"] as const;
+export const DETAIL_MODULES = ["properties", "source", "subtasks", "suggested", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "page", "timeline", "know"] as const;
 export type DetailModule = (typeof DETAIL_MODULES)[number];
 const isDetailModule = (v: unknown): v is DetailModule => (DETAIL_MODULES as readonly unknown[]).includes(v);
 
@@ -985,7 +985,9 @@ export function detailModules(schema: DbSchema, source: string | null | undefine
   if (schema.detail) return schema.detail;
   // A plugin's custom view of the rows (a person) is a block of the row's own page.
   if (schema.dataType === "people" || schema.dataType === "cases") return ["page"];
-  if (source === "jira") return ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "timeline"];
+  // An appointment of the calendar database: what you should know before it, first.
+  if (schema.dataType === "calendar") return ["properties", "know", "page"];
+  if (source === "jira") return ["properties", "know", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "timeline"];
   // A database that receives rows from others: the linked ticket first, then what Zeff knows of it (by the key the copy carries).
   if (schema.receive) return ["properties", "source", "briefing", "todos", "context", "page"];
   const status = schema.properties.find((p) => p.type === "status");

@@ -186,7 +186,8 @@ test("detailModules: a database's detail view — set, or by its kind", async ()
   const board = { ...plain, views: [{ ...m.newView("Board", "board"), groupBy: status.id }] };
   assert.deepEqual(m.detailModules(plain, null), ["properties", "page"]);
   assert.deepEqual(m.detailModules(board, null), ["properties", "subtasks", "briefing", "todos", "page"], "a board: its subtasks (as Kanban had them), its cards' briefing and todos");
-  assert.deepEqual(m.detailModules(board, "jira"), ["properties", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "timeline"], "Jira's: the briefing panel as Jira Lage had it");
+  assert.deepEqual(m.detailModules(board, "jira"), ["properties", "know", "briefing", "todos", "questions", "actions", "flags", "context", "chat", "timeline"], "Jira's: what you should know first, then the briefing panel as Jira Lage had it");
+  assert.deepEqual(m.detailModules({ ...plain, dataType: "calendar" }, null), ["properties", "know", "page"], "an appointment: what you should know before it");
   const set = { ...plain, detail: ["todos", "page", "nonsense"] as never };
   assert.deepEqual(m.detailModules(m.normalizeSchema(set), null), ["todos", "page"], "the set one, the unknown left out");
   assert.deepEqual(m.toggleDetail(["properties", "page"], "briefing"), ["properties", "page", "briefing"]);
