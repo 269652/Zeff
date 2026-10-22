@@ -53,9 +53,18 @@ const full = (over: Partial<PersonBundle> = {}): PersonBundle =>
       { id: 4, kind: "anniversary", label: "Anniversary", text: "3.5.", confirmed: false, remindDays: 3, sourceText: "“our day is 3 May”", when: "in 193 days", turns: null },
     ],
     details: [
-      { id: 7, key: "iban", value: "DE89 3704 0044 0532 0130 00", claimId: 0, confirmed: true },
-      { id: 8, key: "phone", value: "+49 (221) 123 45", claimId: 9, confirmed: false },
-      { id: 9, key: "address", value: "Ringstraße 1, 50667 Köln", claimId: 0, confirmed: true },
+      {
+        id: 7,
+        key: "iban",
+        value: "DE89 3704 0044 0532 0130 00",
+        claimId: 0,
+        confirmed: true,
+        source: "doc:4",
+        confirmedAt: "2026-10-20T09:00:00Z",
+        history: [{ value: "DE22 6609 0800 0007 7773 02", status: "superseded", source: "mail:m1", at: "2026-10-20" }],
+      },
+      { id: 8, key: "phone", value: "+49 (221) 123 45", claimId: 9, confirmed: false, source: "mail:m2", confirmedAt: "2026-10-01T09:00:00Z", history: [] },
+      { id: 9, key: "address", value: "Ringstraße 1, 50667 Köln", claimId: 0, confirmed: true, source: "you", confirmedAt: "2026-09-01T09:00:00Z", history: [] },
     ],
     claims: [
       { id: 11, kind: "fact", text: "has a dog", status: "proposed", evidence: "my dog Bello", confidence: 0.82, due: "", done: false, source: "" },
@@ -135,6 +144,10 @@ test("details: each with its label, copy and remove; a phone to call, an address
   assert.ok(find(r.nodes, "a").some((l) => l.a.href === "tel:+4922112345"), "a phone to call — a tel: link");
   assert.ok(find(r.nodes, "a").some((a) => a.a.href === "https://www.openstreetmap.org/search?query=Ringstra%C3%9Fe%201%2C%2050667%20K%C3%B6ln"));
   assert.match(s, /unchecked/);
+  // Where each was read and when it was last confirmed; what it was before on hover.
+  assert.match(s, /doc:4 · confirmed 2026-10-20/);
+  assert.match(s, /you · confirmed 2026-09-01/);
+  assert.ok(find(r.nodes, "text").some((x) => /DE22 6609 0800 0007 7773 02 — superseded 2026-10-20 \(mail:m1\)/.test(String(x.a.tip ?? ""))), "the history as the tip");
   assert.equal(parts(r.nodes, "person.transfer").length, 1);
   assert.equal(parts(r.nodes, "person.addDetail").length, 1);
   const none = draw(input({ person: empty() }));

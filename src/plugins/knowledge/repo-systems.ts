@@ -79,18 +79,23 @@ async function writeSummary(r: RepoView, repos: RepoView[], pages: Source[], pic
   return [words.intro?.trim(), table, words.notes?.trim()].filter(Boolean).join("\n\n");
 }
 
-/** One repo's summary written from the knowledge, nothing stored: the systems picked by the AI, then the words around them. */
-export async function composeRepo(r: RepoView, repos: RepoView[], rules?: string): Promise<{ summary: string; systems: RepoPick[]; pages: number }> {
+/**
+ * One repo's summary written from the knowledge, nothing stored: the systems picked by the AI, then the words around them.
+ * `trust`: the picks checked against what holds before they go into the summary (see repo-trust.ts).
+ */
+export async function composeRepo(r: RepoView, repos: RepoView[], rules?: string, trust?: (picks: RepoPick[]) => RepoPick[]): Promise<{ summary: string; systems: RepoPick[]; pages: number }> {
   const { knowledgeRepoSources } = await import("./client");
   const pages = await knowledgeRepoSources(termsOf(r), 16);
   if (!pages.length) return { summary: "", systems: [], pages: 0 };
-  const systems = await pickSystems(r, repos, pages, rules);
+  const picked = await pickSystems(r, repos, pages, rules);
+  const systems = trust ? trust(picked) : picked;
   return { summary: await writeSummary(r, repos, pages, systems), systems, pages: pages.length };
 }
 
-/** One repo's summary written from the knowledge and stored. */
+/** One repo's summary written from the knowledge and stored — with the addresses that hold (a changed prod address waits for you). */
 async function readRepo(r: RepoView, repos: RepoView[]): Promise<void> {
-  const { summary, systems } = await composeRepo(r, repos);
+  const { trustPicks } = await import("./repo-trust");
+  const { summary, systems } = await composeRepo(r, repos, undefined, (picks) => trustPicks(r.id, r.name, picks));
   setRepoSystems(r.id, { at: new Date().toISOString(), basis: basisOf(r, repos), summary, systems });
 }
 

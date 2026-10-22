@@ -409,6 +409,8 @@ export function mergePeople(keepId: number, dropId: number): void {
     graphSql("update or ignore people_claims set person_id = ? where person_id = ?", keep.id, drop.id);
     graphSql("update or ignore people_links set person_id = ? where person_id = ?", keep.id, drop.id);
     graphSql("update or ignore people_details set person_id = ? where person_id = ?", keep.id, drop.id);
+    // What Zeff trusts about them (@/lib/trust) goes with them.
+    graphSql("update or ignore fact_versions set subject = ? where subject = ?", `person:${keep.id}`, `person:${drop.id}`);
     graphSql("update or ignore people_links set target_ref = ? where target_type = 'person' and target_ref = ?", String(keep.id), String(drop.id));
     graphSql("delete from people_links where person_id = ? and target_type = 'person' and target_ref = ?", keep.id, String(keep.id));
     deletePerson(drop.id);

@@ -4,20 +4,44 @@
  * (the claims the extraction made, see graph.ts) by rule, no AI: an IBAN only with its check digits right.
  * A detail from a claim lives as long as the claim does (rejected: gone); one you removed isn't read again;
  * one you add is yours. Server only.
+ *
+ * Each detail is a version of what Zeff trusts (@/lib/trust): a second IBAN read for someone doesn't stand beside
+ * the first — it waits in the review queue until you take it (yours hold at once); what you no longer take is
+ * hidden, its claim superseded (out of the knowledge). The details shown are the ones that hold, each with
+ * where it was read, when it was last confirmed and what it was before.
  */
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { BIC_RE, IBAN_RE, ibanValid } from "@/lib/girocode";
 import type { Payee } from "@/lib/girocode-todo";
+import { onTrustDecision, recordFact, setStatus, versionsOf, type FactVersion } from "@/lib/trust/store";
+import { sameValue } from "@/lib/trust/normalize";
 import { isInstalled } from "@/plugins/state";
-import { claimsOf } from "./graph";
-import { listPeople, namesThem } from "./store";
+import { claimsOf, reviewClaim } from "./graph";
+import { getPerson, listPeople, namesThem } from "./store";
 
 export const DETAIL_KEYS = ["iban", "bic", "bank", "revtag", "address", "phone", "hours"] as const;
 export type DetailKey = (typeof DETAIL_KEYS)[number];
 export const isDetailKey = (k: string): k is DetailKey => (DETAIL_KEYS as readonly string[]).includes(k);
 
-export type PersonDetail = { id: number; key: DetailKey; value: string; /** The claim it was read from (0: added by you). */ claimId: number; /** Yours, or its claim confirmed. */ confirmed: boolean };
+/** A detail's earlier and other values, for its tooltip. */
+export type DetailHistory = { value: string; status: FactVersion["status"]; source: string; at: string };
+
+export type PersonDetail = {
+  id: number;
+  key: DetailKey;
+  value: string;
+  /** The claim it was read from (0: added by you). */
+  claimId: number;
+  /** Yours, or its claim confirmed. */
+  confirmed: boolean;
+  /** Where it was read first ("mail:<key>", "doc:7"; "you"). */
+  source: string;
+  /** When it was last confirmed (a new source, or you) — the date consumers show. */
+  confirmedAt: string;
+  /** The other values it had or that were read for it, the newest first. */
+  history: DetailHistory[];
+};
 
 // ---------------------------------------------------------------------------
 // Reading them off a text
@@ -72,15 +96,52 @@ function db() {
 /** For comparing: an IBAN or BIC without spaces, the rest in lower case with single spaces. */
 const norm = (key: DetailKey, value: string) => (key === "iban" || key === "bic" ? value.replace(/\s+/g, "").toUpperCase() : value.replace(/\s+/g, " ").trim().toLowerCase());
 
-type Row = { id: number; key: string; value: string; claim_id: number; removed: number };
+type Row = { id: number; key: string; value: string; claim_id: number; removed: number; created_at: string };
 
-/** Their details, in the order of DETAIL_KEYS, then as they came. */
+const subjectOf = (personId: number) => `person:${personId}`;
+const versionIn = (versions: FactVersion[], key: string, value: string) => versions.find((v) => v.attribute === key && sameValue(key, v.value, value));
+
+/**
+ * Their details that hold, in the order of DETAIL_KEYS, then as they came — a value disputed, superseded or
+ * rejected (see @/lib/trust) left out; one trust doesn't know yet (not read again since) holds as it was.
+ */
 export function detailsOf(personId: number): PersonDetail[] {
-  const status = new Map(claimsOf(personId, { status: ["proposed", "confirmed"] }).map((c) => [c.id, c.status]));
-  return (db().prepare("select id, key, value, claim_id, removed from people_details where person_id = ? and removed = 0 order by id").all(personId) as Row[])
+  const status = new Map(claimsOf(personId, { status: ["proposed", "confirmed", "superseded"] }).map((c) => [c.id, c.status]));
+  const versions = versionsOf(subjectOf(personId));
+  return (db().prepare("select id, key, value, claim_id, removed, created_at from people_details where person_id = ? and removed = 0 order by id").all(personId) as Row[])
     .filter((r): r is Row & { key: DetailKey } => isDetailKey(r.key))
-    .map((r) => ({ id: r.id, key: r.key, value: r.value, claimId: r.claim_id, confirmed: !r.claim_id || status.get(r.claim_id) === "confirmed" }))
+    .flatMap((r) => {
+      const v = versionIn(versions, r.key, r.value);
+      if (v && v.status !== "current") return [];
+      const history = versions
+        .filter((x) => x.attribute === r.key && x.id !== v?.id)
+        .sort((a, b) => b.id - a.id)
+        .map((x) => ({ value: x.value, status: x.status, source: x.sourceRef, at: (x.decidedAt ?? x.firstSeen).slice(0, 10) }));
+      const claim = status.get(r.claim_id);
+      const source = v?.sourceRef ?? (r.claim_id ? `claim:${r.claim_id}` : "you");
+      return [{ id: r.id, key: r.key, value: r.value, claimId: r.claim_id, confirmed: !r.claim_id || claim === "confirmed" || claim === "superseded", source, confirmedAt: v?.confirmedAt ?? r.created_at, history }];
+    })
     .sort((a, b) => DETAIL_KEYS.indexOf(a.key) - DETAIL_KEYS.indexOf(b.key) || a.id - b.id);
+}
+
+/**
+ * A detail recorded with trust: the same value again confirms it, another one where only one holds (an IBAN,
+ * an address) waits for you. Whether it holds now.
+ */
+function trustDetail(personId: number, key: DetailKey, value: string, from: { sourceRef: string; quote?: string; confidence?: number; byUser?: boolean; target?: string }): boolean {
+  const r = recordFact({
+    subject: subjectOf(personId),
+    subjectLabel: getPerson(personId)?.name ?? "",
+    attribute: key,
+    value,
+    writer: "details",
+    target: from.target,
+    sourceRef: from.sourceRef,
+    quote: from.quote,
+    confidence: from.confidence,
+    byUser: from.byUser,
+  });
+  return r.version.status === "current";
 }
 
 /**
@@ -90,25 +151,44 @@ export function detailsOf(personId: number): PersonDetail[] {
 export function syncDetails(personId: number): boolean {
   const d = db();
   const claims = claimsOf(personId, { status: ["proposed", "confirmed"] });
-  const live = new Set(claims.map((c) => c.id));
+  // A superseded claim keeps its other details (the BIC of an account it no longer names).
+  const live = new Set([...claims, ...claimsOf(personId, { status: ["superseded"] })].map((c) => c.id));
   let changed = d.prepare("delete from people_details where person_id = ? and claim_id != 0 and removed = 0 and claim_id not in (select value from json_each(?))").run(personId, JSON.stringify([...live])).changes > 0;
   const insert = d.prepare("insert or ignore into people_details (person_id, key, value, norm, claim_id, created_at) values (?, ?, ?, ?, ?, ?)");
   // The confirmed first: when two say the same, the detail goes with the checked one.
   for (const c of [...claims].sort((a, b) => Number(b.status === "confirmed") - Number(a.status === "confirmed") || a.id - b.id)) {
     for (const x of detailsFromText(c.text)) if (insert.run(personId, x.key, x.value, norm(x.key, x.value), c.id, new Date().toISOString()).changes) changed = true;
   }
+  // Each read with trust, in the order they came: a claim's every time (a new claim saying it confirms it),
+  // yours and those from before once.
+  const byId = new Map(claims.map((c) => [c.id, c]));
+  const versions = versionsOf(subjectOf(personId));
+  for (const r of d.prepare("select id, key, value, claim_id, removed, created_at from people_details where person_id = ? and removed = 0 order by id").all(personId) as Row[]) {
+    if (!isDetailKey(r.key)) continue;
+    const claim = byId.get(r.claim_id);
+    if (r.claim_id && !claim) continue;
+    if (!claim && versionIn(versions, r.key, r.value)) continue;
+    const target = `detail:${r.id}`;
+    trustDetail(personId, r.key, r.value, claim ? { sourceRef: claim.sourceRef || `claim:${claim.id}`, quote: claim.evidence || claim.text, confidence: claim.confidence, target } : { sourceRef: "you", byUser: true, target });
+  }
   if (changed) emitChange("todos");
   return changed;
 }
 
-/** A detail you add (one you removed before comes back as yours). */
-export function addDetail(personId: number, key: DetailKey, value: string): void {
+/**
+ * A detail you add (one you removed before comes back as yours) — it holds at once. `from`: not you but a
+ * source (a transfer's account): another value than the one that holds waits for you. Whether it holds.
+ */
+export function addDetail(personId: number, key: DetailKey, value: string, from?: { sourceRef: string }): boolean {
   const v = value.replace(/\s+/g, " ").trim().slice(0, 300);
-  if (!v || !isDetailKey(key)) return;
-  db()
-    .prepare("insert into people_details (person_id, key, value, norm, claim_id, created_at) values (?, ?, ?, ?, 0, ?) on conflict (person_id, key, norm) do update set value = excluded.value, claim_id = 0, removed = 0")
-    .run(personId, key, v, norm(key, v), new Date().toISOString());
+  if (!v || !isDetailKey(key)) return false;
+  const d = db();
+  d.prepare("insert into people_details (person_id, key, value, norm, claim_id, created_at) values (?, ?, ?, ?, 0, ?) on conflict (person_id, key, norm) do update set value = excluded.value, claim_id = 0, removed = 0").run(personId, key, v, norm(key, v), new Date().toISOString());
+  const row = d.prepare("select id from people_details where person_id = ? and key = ? and norm = ?").get(personId, key, norm(key, v)) as { id: number };
+  const target = `detail:${row.id}`;
+  const holds = trustDetail(personId, key, v, from ? { sourceRef: from.sourceRef, target } : { sourceRef: "you", byUser: true, target });
   emitChange("todos");
+  return holds;
 }
 
 /**
@@ -123,16 +203,34 @@ export function rememberAccount(name: string, iban: string, bic = ""): string | 
   const p = matches[0];
   const has = (key: DetailKey, v: string) => detailsOf(p.id).some((d) => d.key === key && norm(key, d.value) === norm(key, v));
   if (has("iban", iban)) return null;
-  addDetail(p.id, "iban", iban);
-  if (bic && !has("bic", bic)) addDetail(p.id, "bic", bic);
+  // Another account than the one that holds: it waits for you (the review queue).
+  if (!addDetail(p.id, "iban", iban, { sourceRef: "transfer" })) return null;
+  if (bic && !has("bic", bic)) addDetail(p.id, "bic", bic, { sourceRef: "transfer" });
   return p.name;
 }
 
 /** A detail removed — kept as removed, so reading the claims again doesn't bring it back. */
 export function removeDetail(personId: number, key: DetailKey, value: string): void {
   db().prepare("update people_details set removed = 1 where person_id = ? and key = ? and norm = ?").run(personId, key, norm(key, value));
+  // Not true (any more): read again, it stays out.
+  const v = versionIn(versionsOf(subjectOf(personId)), key, value);
+  if (v) setStatus(v.id, "rejected");
   emitChange("todos");
 }
+
+/**
+ * Your word on a detail that changed (the review queue): what you no longer take — superseded, or rejected —
+ * takes the claim it was read from along: superseded (true once; out of the knowledge, kept for its other
+ * details) or rejected. What you take holds now (its row is there: it is shown again).
+ */
+onTrustDecision("details", (changes) => {
+  for (const c of changes) {
+    if (c.status === "current" || !c.subject.startsWith("person:")) continue;
+    const personId = Number(c.subject.slice(7));
+    const rows = db().prepare("select key, value, claim_id from people_details where person_id = ? and key = ? and claim_id != 0").all(personId, c.attribute) as { key: string; value: string; claim_id: number }[];
+    for (const r of rows) if (sameValue(c.attribute, r.value, c.value)) reviewClaim(r.claim_id, c.status === "rejected" ? "reject" : "supersede");
+  }
+});
 
 /** The people with a bank account, as payees for a todo's GiroCode (see girocode-todo.ts): their details, what was said about them. */
 export function payees(): Payee[] {

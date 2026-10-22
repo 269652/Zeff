@@ -57,6 +57,7 @@ const template = (t: T) => `<state name="keep" value=""/>
             <small><muted>{{ label }}</muted></small>
             <col gap=0 fill=true>
               <row gap=1 align=baseline>{{#if phone}}<a href="tel:{{ dial }}">{{ value }}</a>{{#else}}{{#if map}}<a href="{{ map }}">{{ value }}</a>{{#else}}{{#if mono}}<mono>{{ value }}</mono>{{#else}}{{ value }}{{/if}}{{/if}}{{/if}}{{#if !confirmed}}<text tone=warn tip="${t("Read from a message — confirm it under To check.")}"><small>${t("unchecked")}</small></text>{{/if}}</row>
+              <text tone=muted tip="{{ historyTip }}"><small>{{ provenance }}</small></text>
             </col>
             <button action="person.copy" value="{{ value }}" label="⧉" tip="${t("Copy")}" variant=quiet/>
             <button action="person.removeDetail" value="{{ id }}" label="×" tip="${t("Remove")}" variant=quiet/>

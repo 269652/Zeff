@@ -1,6 +1,7 @@
 import "@/plugins/contributions";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
+import { TRUST_REVIEW } from "@/lib/trust/review";
 import { reviewLinks, reviewSources, type ReviewEntry, type ReviewSource } from "./point";
 
 /**
@@ -23,7 +24,11 @@ export type ReviewQueue = {
   count: number;
 };
 
-const sources = (): (ReviewSource & { plugin: string })[] => reviewSources.list().flatMap((c) => c.impl.map((s) => ({ ...s, plugin: c.plugin })));
+/** The plugins' sources, then Zeff's own: what changed and what may be outdated (trust in facts, @/lib/trust). */
+const sources = (): (ReviewSource & { plugin: string })[] => [
+  ...reviewSources.list().flatMap((c) => c.impl.map((s) => ({ ...s, plugin: c.plugin }))),
+  ...TRUST_REVIEW.map((s) => ({ ...s, plugin: "core" })),
+];
 
 /** Everything waiting, source by source in the plugins' order; a source that fails is named in `errors`, the others still there. */
 export async function reviewItems(): Promise<ReviewQueue> {

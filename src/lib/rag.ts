@@ -129,7 +129,7 @@ export const SEARCHERS: Record<Exclude<RagSource, "knowledge">, Searcher> = {
   people: async (words) => {
     if (!(await import("@/plugins/state")).isInstalled("people")) return [];
     const { searchPeople } = await import("@/plugins/people/search");
-    return searchPeople(words).map((h) => ({ source: "people" as const, ref: `person:${h.personId}`, title: `${h.name} (Person)`, text: clip(h.text, 400), score: h.score }));
+    return searchPeople(words, { dated: true }).map((h) => ({ source: "people" as const, ref: `person:${h.personId}`, title: `${h.name} (Person)`, text: clip(h.text, 400), score: h.score }));
   },
   todos: async (words, q) => {
     const { searchTodos } = await import("@/lib/boards/store");

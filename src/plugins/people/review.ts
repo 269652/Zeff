@@ -1,5 +1,6 @@
 import { t } from "@/lib/i18n/server";
 import type { ReviewAction, ReviewSource } from "@/lib/review/point";
+import { dailyBatch } from "@/lib/trust/store";
 import { proposedClaims, proposedLinks, staleClaims } from "./graph";
 import { pendingSuggestions } from "./identity";
 import { dateKindLabels, dateText } from "./shared";
@@ -75,7 +76,8 @@ export const PEOPLE_REVIEW: ReviewSource[] = [
     get label() {
       return t("Still true?");
     },
-    list: () => staleClaims().map((c) => ({ id: String(c.id), title: `${c.personName}: ${c.text}`, detail: c.evidence || undefined, href: profile(c.personId), actions: verdict(t("Still true"), t("Outdated")) })),
+    // A few a day (not all at once).
+    list: () => dailyBatch("people-stale", staleClaims(), (c) => String(c.id)).map((c) => ({ id: String(c.id), title: `${c.personName}: ${c.text}`, detail: c.evidence || undefined, href: profile(c.personId), actions: verdict(t("Still true"), t("Outdated")) })),
     act: (id, action) => said(decide(action, { tool: "claim", id: Number(id), action: "recheck" }, { tool: "claim", id: Number(id), action: "reject" })),
   },
   {

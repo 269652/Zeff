@@ -166,6 +166,9 @@ async function matchNames(): Promise<NormalizeResult> {
     // Zeff's facts on the profiles they name (no AI); what you confirmed and the knowledge didn't get yet, sent.
     try {
       (await import("./synergy")).syncFactClaims();
+      // Their details read off the claims, each with trust: a changed IBAN or address waits in the review queue.
+      const { syncDetails } = await import("./details");
+      for (const p of listPeople()) syncDetails(p.id);
       (await import("./knowledge-sync")).flushSoon();
     } catch (e) {
       console.warn("[people] facts:", errorMessage(e));
