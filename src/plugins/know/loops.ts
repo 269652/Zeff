@@ -1,6 +1,28 @@
 import { getSqlite } from "@/db";
+import { listLoops } from "@/plugins/loops/query";
 import { SHOW_FROM } from "@/plugins/people/graph";
+import { isInstalled } from "@/plugins/state";
 import type { BriefLoop } from "./shared";
+
+/** The Open loops plugin's open loops of these people, and those said in one of these sources — as the brief shows them. */
+function loopsOfPlugin(people: number[], sources: string[]): BriefLoop[] {
+  const open = [...people.flatMap((personId) => listLoops({ personId })), ...(sources.length ? listLoops().filter((l) => sources.includes(l.sourceRef)) : [])];
+  const seen = new Set<string>();
+  return open
+    .filter((l) => !seen.has(l.ref) && seen.add(l.ref))
+    .map((l, i) => ({
+      // (A promise keeps its claim's id; a loop read by rule has none — a stand-in, unique within the brief.)
+      id: /^claim:\d+$/.test(l.ref) ? Number(l.ref.slice(6)) : -(i + 1),
+      personId: l.personId ?? 0,
+      personName: l.who,
+      direction: l.direction === "mine" || l.direction === "theirs" ? l.direction : "",
+      text: l.text,
+      due: l.due,
+      overdue: l.overdue,
+      evidence: l.quote,
+      sourceRef: l.sourceRef,
+    }));
+}
 
 /**
  * ===========================================================================================================================
@@ -18,6 +40,8 @@ export function openLoopsFor(refs: string[], today = new Date().toISOString().sl
   const people = [...new Set(refs.flatMap((r) => (/^person:\d+$/.test(r) ? [Number(r.slice(7))] : [])))];
   const sources = [...new Set(refs.filter((r) => /^(mail|teams|jira-comment|doc):/.test(r)))];
   if (!people.length && !sources.length) return [];
+  // With the Open loops plugin: its loops (the promises AND the questions and requests read by rule, closed ones gone).
+  if (isInstalled("loops")) return loopsOfPlugin(people, sources);
   const where = [people.length ? `c.person_id in (${people.map(() => "?").join(",")})` : "", sources.length ? `c.source_ref in (${sources.map(() => "?").join(",")})` : ""].filter(Boolean).join(" or ");
   let rows: { id: number; person_id: number; name: string; direction: string; text: string; due: string; evidence: string; source_ref: string }[] = [];
   try {

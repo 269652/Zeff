@@ -322,8 +322,14 @@ test("MCP open_loops: lines for agents, personal sources (WhatsApp) only for a c
 });
 
 test("the extraction is told what counts as a loop: questions to me, review and signature requests, my questions they owe an answer to", async () => {
-  const { INSTRUCTIONS } = await import("@/plugins/people/extract");
-  assert.match(INSTRUCTIONS, /Unterschrift/);
-  assert.match(INSTRUCTIONS, /Frage an mich/);
-  assert.match(INSTRUCTIONS, /auf deren Antwort ich warte/);
+  // (Only while the Open loops plugin is on — tests/people-extract-loops.test.ts.)
+  const { setInstalled } = await import("@/plugins/state");
+  const { extractInstructions } = await import("@/plugins/people/extract");
+  const was = (await import("@/plugins/state")).isInstalled("loops");
+  setInstalled("loops", true);
+  const text = extractInstructions();
+  setInstalled("loops", was);
+  assert.match(text, /Unterschrift/);
+  assert.match(text, /Frage an mich/);
+  assert.match(text, /auf deren Antwort ich warte/);
 });

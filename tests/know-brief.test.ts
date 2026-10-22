@@ -172,3 +172,18 @@ test("a ticket's brief: the people its events concern most, and what is open wit
   assert.ok(b.loops.some((l) => l.personId === id));
   assert.ok(!b.related.some((r) => r.ref === "ticket:PROJ-12"), "not related to itself");
 });
+
+test("with the Open loops plugin the brief reads its loops: a promise it shows that the brief alone holds back (not sure enough)", async () => {
+  const id = await getAnna();
+  const { addClaim } = await import("@/plugins/people/graph");
+  const { setInstalled } = await import("@/plugins/state");
+  const { openLoopsFor } = await import("@/plugins/know/loops");
+  addClaim({ personId: id, kind: "commitment", text: "Anna prüft den Vertrag", direction: "theirs", confidence: 0.6, sourceRef: "mail:m7" });
+  setInstalled("loops", false);
+  assert.ok(!openLoopsFor([`person:${id}`]).some((l) => l.text === "Anna prüft den Vertrag"), "without the plugin: only the sure ones");
+  setInstalled("loops", true);
+  const loops = openLoopsFor([`person:${id}`]);
+  assert.ok(loops.some((l) => l.text === "Anna prüft den Vertrag" && l.personId === id && l.personName === "Anna Weber"), "with it: its open loops");
+  assert.ok(!loops.some((l) => l.text === "Rückruf"), "a done one stays out");
+  setInstalled("loops", false);
+});
