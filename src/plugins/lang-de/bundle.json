@@ -6923,5 +6923,12 @@
   "Navigation beside the view": "Navigation neben der Ansicht",
   "No navigation": "Keine Navigation",
   "Remind": "Erinnern",
-  "deadline": "Frist"
+  "deadline": "Frist",
+  "Write a draft of this week's review as a new sub page of the page above you (the weekly review), titled with the week (“Week 43”). Short, in bullet points, linking todos and pages with @.": "Schreib einen Entwurf für den Rückblick dieser Woche als neue Unterseite der Seite über dir (dem Wochenrückblick), mit der Woche als Titel („KW 43“). Kurz, in Stichpunkten, Todos und Seiten mit @ verlinkt.",
+  "What got done this week (list_todos: the ones done since Monday) — grouped by topic.": "Was diese Woche erledigt wurde (list_todos: die seit Montag erledigten) — nach Thema gruppiert.",
+  "The appointments of the week and what came of them.": "Die Termine der Woche und was daraus wurde.",
+  "The hours booked (get_weekly_report), if there is time tracking.": "Die gebuchten Stunden (get_weekly_report), wenn es eine Zeiterfassung gibt.",
+  "What is still open and why — the overdue first.": "Was noch offen ist und warum — das Überfällige zuerst.",
+  "Three suggestions for next week.": "Drei Vorschläge für nächste Woche.",
+  "Write the weekly review": "Wochenrückblick schreiben"
 }
