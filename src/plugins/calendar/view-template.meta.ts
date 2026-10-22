@@ -39,7 +39,7 @@ const template = (t: T) => `<state name="view" value="week"/>
 <row gap=6 align=start>
   <col gap=4>
     <button action="calendar.new" label="+ ${t("New event")}" variant=primary/>
-    <section title="${t("Calendars & date")}" collapsible=true open=true>
+    <section title="${t("Calendars & date")}" collapsible=true open=wide>
       <part name="calendar.minimonth"/>
       {{#each app.groups}}
         <col gap=1>

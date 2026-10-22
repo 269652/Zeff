@@ -218,12 +218,11 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         );
       case "section":
         return a.collapsible === "true" ? (
-          <details key={key} open={a.open !== "false"} className="group space-y-2">
-            <summary className="cursor-pointer text-sm font-semibold select-none">{a.title}</summary>
+          <Fold key={key} title={a.title} open={a.open === "wide" ? "wide" : a.open !== "false"}>
             <div className="space-y-3 pt-2" style={scrolls(a)}>
               {kids(n.c)}
             </div>
-          </details>
+          </Fold>
         ) : (
           <section key={key} className="space-y-2 break-inside-avoid">
             {(a.title || a.aside) && (
@@ -640,5 +639,20 @@ function MiniChart({ kind = "bar", data }: { kind?: string; data: { label: strin
         </li>
       ))}
     </ul>
+  );
+}
+
+/** A section that folds: open or not — or "wide": open on a wide screen, folded on a phone (decided once it is shown). */
+function Fold({ title, open, children }: { title: string; open: boolean | "wide"; children: React.ReactNode }) {
+  const [isOpen, setOpen] = useState(open !== false);
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- the window's width is known only in the browser
+    if (open === "wide" && window.matchMedia("(max-width: 639px)").matches) setOpen(false);
+  }, [open]);
+  return (
+    <details open={isOpen} onToggle={(e) => setOpen(e.currentTarget.open)} className="group space-y-2">
+      <summary className="cursor-pointer text-sm font-semibold select-none">{title}</summary>
+      {children}
+    </details>
   );
 }
