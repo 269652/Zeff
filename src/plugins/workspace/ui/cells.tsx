@@ -8,6 +8,7 @@ import { Markdown } from "@/components/Markdown";
 import { PersonHover } from "@/plugins/people/PersonMention";
 import { aiFillCellAction, cellChoicesAction, type DatabaseData } from "../actions";
 import { choiceColor, COLORS, dateRange, formatNumber, isComputed, newId, type Option, type Property, type Row } from "../model";
+import { FormulaEditor } from "./formula-editor";
 import { Dropdown, useDismiss } from "./kit";
 
 /** The cells of a database: how each property type is shown, and edited in place. */
@@ -19,6 +20,10 @@ export type CellCtx = {
   /** Add an option to a select / multi-select / status property; returns its id. */
   addOption: (propId: string, name: string) => string;
   editable: boolean;
+  /** A formula column's formula changed (from one of its cells) — none: its cells only show. */
+  setFormula?: (propId: string, formula: string) => void;
+  /** The columns a formula being edited names, with their colours (by name, lower-cased) — null: none any more. */
+  showRefs?: (refs: Record<string, string> | null) => void;
   /** Open a row of this database over it (a relation to the same database — a card's parent — opens there). */
   openRow?: (id: number) => void;
 };
@@ -193,7 +198,7 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
 }
 
 /** An editor that needs more than one field (a list to pick from, two dates, a text and its AI button): it opens over the table, not squeezed into the cell. */
-export const needsRoom = (p: Property) => ["select", "status", "multi_select", "person", "todo", "relation", "date", "ai"].includes(p.type);
+export const needsRoom = (p: Property) => ["select", "status", "multi_select", "person", "todo", "relation", "date", "ai", "formula"].includes(p.type);
 
 /** A panel under a cell (above it when there is no room below), over everything — the table's scrolling box doesn't cut it off. */
 function CellPanel({ anchor, children }: { anchor: React.RefObject<HTMLElement | null>; children: React.ReactNode }) {
@@ -216,7 +221,7 @@ function CellPanel({ anchor, children }: { anchor: React.RefObject<HTMLElement |
     };
   }, [anchor]);
   return createPortal(
-    <div className="fixed z-50 max-w-[min(28rem,calc(100vw-16px))] rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5 dark:border-zinc-700 dark:bg-zinc-900" style={pos ?? { visibility: "hidden", left: 0, top: 0 }}>
+    <div className="fixed z-50 max-w-[min(28rem,calc(100vw-16px))] rounded-xl border border-zinc-200 bg-white p-1.5 shadow-xl ring-1 ring-black/5 dark:border-zinc-700 dark:bg-zinc-900" style={pos ?? { opacity: 0, left: 0, top: 0 }}>
       {children}
     </div>,
     document.body,
@@ -227,7 +232,9 @@ function CellPanel({ anchor, children }: { anchor: React.RefObject<HTMLElement |
 export function Cell({ p, row, ctx, className = "", empty }: { p: Property; row: Row; ctx: CellCtx; className?: string; /** Shown when the cell has no value (the row page). */ empty?: React.ReactNode }) {
   const [editing, setEditing] = useState(false);
   const anchor = useRef<HTMLButtonElement>(null);
-  if (isComputed(p) || p.type === "checkbox" || !ctx.editable) {
+  // A formula's cell opens its column's formula (where it can be changed); other computed cells only show.
+  const formula = p.type === "formula" && !!ctx.setFormula && ctx.editable;
+  if ((isComputed(p) && !formula) || p.type === "checkbox" || !ctx.editable) {
     return (
       <div className={`ws-cell ${className}`} style={{ cursor: "default" }}>
         <CellView p={p} row={row} ctx={ctx} />
@@ -508,6 +515,7 @@ export function CellEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: 
   const ft = p.type === "custom" ? ctx.data.extras?.fieldTypes?.find((f) => f.id === p.custom) : undefined;
   if (ft?.display === "rating") return <StarsEditor p={p} row={row} ctx={ctx} max={ft.max ?? 5} done={done} />;
   if (p.type === "ai") return <AiEditor p={p} row={row} ctx={ctx} done={done} />;
+  if (p.type === "formula") return <FormulaEditor p={p} row={row} ctx={ctx} done={done} />;
   if (p.type === "date") return <DateEditor p={p} row={row} ctx={ctx} done={done} />;
   if (p.type === "select" || p.type === "status" || p.type === "multi_select") return <OptionEditor p={p} row={row} ctx={ctx} done={done} />;
   if (p.type === "person" || p.type === "todo" || p.type === "relation") return <LinkEditor p={p} row={row} ctx={ctx} done={done} />;

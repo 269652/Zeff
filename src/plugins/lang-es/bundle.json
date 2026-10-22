@@ -6807,5 +6807,11 @@
   "Counts into “{name}”": "Cuenta en «{name}»",
   "{name} = {fn} over {n} columns: {value}": "{name} = {fn} sobre {n} columnas: {value}",
   "Take this column out of “{name}”": "Quitar esta columna de «{name}»",
-  "{pct} % paid off": "{pct} % pagado"
+  "{pct} % paid off": "{pct} % pagado",
+  "Formula of “{name}”": "Fórmula de «{name}»",
+  "for the whole column": "para toda la columna",
+  "No property “{name}”": "No hay propiedad «{name}»",
+  "This row:": "Esta fila:",
+  "Type a function or a property — Ctrl+Space offers them.": "Escribe una función o una propiedad — Ctrl+Espacio las ofrece.",
+  "Enter saves · Shift+Enter a new line": "Intro guarda · Mayús+Intro nueva línea"
 }

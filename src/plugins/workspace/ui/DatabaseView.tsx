@@ -970,6 +970,14 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   const cols = columnOrder(view, schema).filter((id) => id === TITLE || visible.some((p) => p.id === id));
   const byId = new Map(visible.map((p) => [p.id, p]));
   const sort = useSortable((from, to, after) => setView({ ...view, order: moveBefore(columnOrder(view, schema), from, to, after) }), "x", "text/ws-col");
+  // A formula cell open: its column's formula changed from there; the columns it names coloured meanwhile.
+  const [refs, setRefs] = useState<Record<string, string> | null>(null);
+  const cellCtx: CellCtx = { ...ctx, showRefs: setRefs, setFormula: (id, formula) => api.changeSchema((s) => ({ ...s, properties: s.properties.map((q) => (q.id === id ? { ...q, formula } : q)) })) };
+  const refColor = (id: string) => (refs ? refs[(id === TITLE ? schema.titleName : (byId.get(id)?.name ?? "")).toLowerCase()] : undefined);
+  const tint = (id: string): React.CSSProperties | undefined => {
+    const c = refColor(id);
+    return c ? { background: `${c}14`, boxShadow: `inset 2px 0 0 ${c}, inset -2px 0 0 ${c}` } : undefined;
+  };
   // A column's content type from its header; a formula needs its expression: the properties open for that.
   const retypeColumn = (id: string, type: PropType) => {
     api.changeSchema((s) => ({ ...s, properties: s.properties.map((q) => (q.id === id ? retype(q, type) : q)) }));
@@ -1059,13 +1067,13 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
           const drag = { ...sort.handle(id), ...sort.target(id) };
           if (!p)
             return (
-              <th key={id} data-col={id} className={`${fixed ? "" : "min-w-56"} cursor-grab ${sort.mark(id)}`} title={t("Drag to move the column")} {...drag}>
+              <th key={id} data-col={id} className={`${fixed ? "" : "min-w-56"} cursor-grab ${sort.mark(id)}`} style={refColor(id) ? { boxShadow: `inset 0 -3px 0 ${refColor(id)}` } : undefined} title={t("Drag to move the column")} {...drag}>
                 <span>{schema.titleName}</span>
                 {handle(id)}
               </th>
             );
           return (
-          <th key={p.id} data-col={p.id} className={`cursor-grab ${sort.mark(p.id)}`} title={t("Drag to move the column")} {...drag}>
+          <th key={p.id} data-col={p.id} className={`cursor-grab ${sort.mark(p.id)}`} style={refColor(p.id) ? { boxShadow: `inset 0 -3px 0 ${refColor(p.id)}` } : undefined} title={t("Drag to move the column")} {...drag}>
             <Dropdown label={<span>{p.name}</span>} className="flex items-center gap-1 text-left">
               {(close) => (
                 <>
@@ -1154,11 +1162,11 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                   {cols.map((id) => {
                     const p = byId.get(id);
                     return p ? (
-                      <td key={p.id}>
-                        <Cell p={p} row={r} ctx={ctx} />
+                      <td key={p.id} style={tint(p.id)}>
+                        <Cell p={p} row={r} ctx={cellCtx} />
                       </td>
                     ) : (
-                      <td key={id}>
+                      <td key={id} style={tint(id)}>
                         <TitleCell row={r} ctx={ctx} openRow={openRow} autoEdit={justAdded === r.id} onEdited={onEdited} />
                       </td>
                     );

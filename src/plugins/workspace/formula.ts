@@ -430,3 +430,40 @@ export function formulaToStored(v: FormulaValue): string | number | boolean | nu
 
 /** The formula for "days since" a date property (the rollup wizard adds it beside a rollup of the latest date): counts up as the date goes by. */
 export const daysSinceFormula = (prop: string): string => `dateBetween(today(), prop(${JSON.stringify(prop)}), "days")`;
+
+// ---------------------------------------------------------------------------
+// The editor's help: references and completions
+// ---------------------------------------------------------------------------
+
+/** The properties a formula names — each prop("…") with where it stands (a text that doesn't parse: those that are whole). */
+export function formulaRefs(src: string): { name: string; from: number; to: number }[] {
+  const out: { name: string; from: number; to: number }[] = [];
+  for (const m of src.matchAll(/\bprop\s*\(\s*(["'])((?:(?!\1).)*)\1\s*\)/g)) out.push({ name: m[2], from: m.index, to: m.index + m[0].length });
+  return out;
+}
+
+export type FormulaCompletion = { kind: "function" | "property"; label: string; insert: string };
+
+/**
+ * What can be put in at the caret: inside prop("… the property names (the rest of the name and the closing ") put in);
+ * else, a word begun, the functions it starts and the properties it starts (as prop("…")). `from`–`to` is what is replaced.
+ */
+export function formulaCompletions(src: string, caret: number, props: string[]): { from: number; to: number; items: FormulaCompletion[] } {
+  const before = src.slice(0, caret);
+  const ranked = (names: string[], q: string) => {
+    const w = q.toLowerCase();
+    return [...names.filter((n) => n.toLowerCase().startsWith(w)), ...names.filter((n) => !n.toLowerCase().startsWith(w) && n.toLowerCase().includes(w))];
+  };
+  const inProp = /\bprop\s*\(\s*(["'])([^"']*)$/.exec(before);
+  if (inProp) {
+    const q = inProp[2];
+    return { from: caret - q.length, to: caret, items: ranked(props, q).map((n) => ({ kind: "property", label: n, insert: `${n}${inProp[1]})` })) };
+  }
+  const word = /(?:^|[^\w."'])([A-Za-z_]\w*)$/.exec(before);
+  if (!word) return { from: caret, to: caret, items: [] };
+  const q = word[1];
+  const w = q.toLowerCase();
+  const fns = FORMULA_FUNCTIONS.filter((f) => f.toLowerCase().startsWith(w) && f !== "prop").map((f) => ({ kind: "function" as const, label: f, insert: `${f}(` }));
+  const ps = props.filter((n) => n.toLowerCase().startsWith(w)).map((n) => ({ kind: "property" as const, label: n, insert: `prop(${JSON.stringify(n)})` }));
+  return { from: caret - q.length, to: caret, items: [...fns, ...ps] };
+}
