@@ -53,6 +53,7 @@ export const PROMPTS: PromptEntry[] = [
   { key: "people-normalize", group: "People", title: "One identity per person", uses: "People profiles kept to one identity each", plugin: "people", builtIn: async () => (await import("@/plugins/people/normalize")).INSTRUCTIONS },
   { key: "people-import", group: "People", title: "People from your context", uses: "The people you deal with, from the last days", plugin: "people", builtIn: async () => (await import("@/plugins/people/import")).INSTRUCTIONS },
   { key: "people-extract", group: "People", title: "Facts about people", uses: "What new messages say about people", plugin: "people", builtIn: async () => (await import("@/plugins/people/extract")).INSTRUCTIONS },
+  { key: "loops-close", group: "People", title: "Open loops: kept?", uses: "Whether a message shows an open promise kept", plugin: "loops", builtIn: async () => (await import("@/plugins/loops/close")).CLOSE_INSTRUCTIONS },
   { key: "people-compile", group: "People", title: "Person overview", uses: "A person's short overview", plugin: "people", builtIn: async () => (await import("@/plugins/people/compile")).INSTRUCTIONS },
   { key: "news-digest", group: "News", title: "News: the day's digest", uses: "The overview of your unread news", plugin: "news", builtIn: async () => (await import("@/plugins/news/digest")).DIGEST_INSTRUCTIONS },
   { key: "news-ask", group: "News", title: "News: ask", uses: "A question answered from your news", plugin: "news", builtIn: async () => (await import("@/plugins/news/ask")).ASK_INSTRUCTIONS },

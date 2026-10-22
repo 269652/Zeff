@@ -7,7 +7,7 @@
  */
 import { getSqlite } from "@/db";
 import { recordFeedback } from "@/lib/learning/ledger";
-import { claimFeedback, linkFeedback } from "@/lib/learning/sources";
+import { claimFeedback, linkFeedback, loopFeedback } from "@/lib/learning/sources";
 import { emitChange } from "@/lib/events";
 import { claimReviewed, flushSoon } from "./knowledge-sync";
 import { getPerson, listPeople, namesOf } from "./store";
@@ -181,16 +181,23 @@ export function deleteClaim(id: number): void {
   if (db().prepare("delete from people_claims where id = ?").run(id).changes) changed();
 }
 
-export function reviewClaim(id: number, op: "confirm" | "reject" | "done" | "recheck" | "supersede"): void {
+/** reopen: a commitment ticked off (by you, by its source or the AI) open again. */
+export function reviewClaim(id: number, op: "confirm" | "reject" | "done" | "recheck" | "supersede" | "reopen"): void {
   const d = db();
   const row = d.prepare("select * from people_claims where id = ?").get(id) as CRow | undefined;
   if (!row) return;
-  // Your word on what the AI read: the feedback ledger (a recheck or done isn't one).
+  // Your word on what the AI read: the feedback ledger (a recheck isn't one).
   if ((op === "confirm" && row.status !== "confirmed") || (op === "reject" && row.status !== "rejected")) recordFeedback(claimFeedback(row, op === "confirm" ? "accepted" : "rejected"));
+  // A commitment you ticked off: it was an open loop (the Open loops' ledger).
+  if (op === "done" && row.kind === "commitment" && !row.done_at) {
+    const who = getPerson(row.person_id)?.name ?? "";
+    recordFeedback(loopFeedback({ ref: `claim:${row.id}`, kind: "commitment", direction: row.direction, origin: "ai", text: row.text, quote: row.evidence, who, sourceRef: row.source_ref }, "accepted", "close"));
+  }
   const shelf = SHELF_LIFE[row.kind as ClaimKind];
   if (op === "confirm") d.prepare("update people_claims set status = 'confirmed', confirmed_at = ?, expires_at = ? where id = ?").run(now(), shelf ? days(shelf) : null, id);
   else if (op === "recheck") d.prepare("update people_claims set confirmed_at = ?, expires_at = ? where id = ?").run(now(), days(shelf ?? 120), id);
   else if (op === "done") d.prepare("update people_claims set done_at = ? where id = ?").run(now(), id);
+  else if (op === "reopen") d.prepare("update people_claims set done_at = null where id = ?").run(id);
   else if (op === "supersede") d.prepare("update people_claims set status = 'superseded' where id = ?").run(id);
   else d.prepare("update people_claims set status = 'rejected' where id = ?").run(id);
   // Confirmed: knowledge of their entity on the knowledge server (taken out again when rejected or superseded later).

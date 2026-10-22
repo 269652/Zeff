@@ -32,6 +32,7 @@ export const STEPS = {
   wsAiFilter: "ws-ai-filter",
   wsAiField: "ws-ai-field",
   todoDone: "todo-done",
+  openLoops: "open-loops",
 } as const;
 
 export type Feedback = {

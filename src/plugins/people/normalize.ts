@@ -130,6 +130,8 @@ export async function normalizePeople(): Promise<NormalizeResult> {
     // What the new messages say about them — a failure here doesn't undo the matching.
     try {
       const x = await (await import("./extract")).extractKnowledge();
+      // The promises kept since (the Open loops plugin): closed by their threads, or proposed closed by the AI — a failure there doesn't fail the step.
+      if (isInstalled("loops")) await (await import("@/plugins/loops/close")).afterExtraction().catch((e) => console.error("[loops] after the extraction:", e));
       return { ...r, claims: x.claims, links: x.links + x.derived };
     } catch {
       return r;
