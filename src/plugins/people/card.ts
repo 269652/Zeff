@@ -19,7 +19,7 @@ export type CardExtras = {
   away: { until: string; text: string } | null;
 };
 
-const CARD_DETAILS: DetailKey[] = ["phone", "address", "iban"];
+const CARD_DETAILS: DetailKey[] = ["phone", "address", "iban", "revtag"];
 
 export function personCardExtras(personId: number, today: string): CardExtras {
   const claims = claimsOf(personId);

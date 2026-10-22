@@ -522,6 +522,10 @@ export async function doneBrowserOpAction(todoId: number, index: number): Promis
             ? op.amount
               ? t("Transfer of {amount} to {name} sent.", { amount: `${Number(op.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`, name: op.name })
               : t("Transfer to {name} sent.", { name: op.name })
+            : op.type === "revolut-pay"
+            ? op.amount
+              ? t("Paid {amount} to {name} with Revolut.", { amount: `${Number(op.amount).toLocaleString("de-DE", { minimumFractionDigits: 2 })} €`, name: op.name })
+              : t("Paid {name} with Revolut.", { name: op.name })
             : op.type === "mail-compose"
             ? op.to
               ? t("Mail “{subject}” to {to} sent.", { subject: op.subject, to: op.to.replace(/;/g, ", ") })
@@ -530,7 +534,7 @@ export async function doneBrowserOpAction(todoId: number, index: number): Promis
     addTodoUserNote(todo.id, `✓ ${what}`);
     // A mail that answers or asks — the todo itself, done with it.
     // A transfer: paying is the todo (only the todos that ask you to pay get one) — done with it, whatever else is on it.
-    const settles = (op.type === "mail-compose" && !left.length && todo.owner === "me" && ["reply", "comment", "clarify", "update"].includes(todo.kind)) || op.type === "bank-transfer";
+    const settles = (op.type === "mail-compose" && !left.length && todo.owner === "me" && ["reply", "comment", "clarify", "update"].includes(todo.kind)) || op.type === "bank-transfer" || op.type === "revolut-pay";
     if (settles) {
       const { attributed } = await import("@/lib/boards/activity");
       attributed("you", () => setTodoStatus(todo.id, "done", `Done: ${what}`));

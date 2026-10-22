@@ -55,3 +55,23 @@ test("details: kept with the profile from what was read — a rejected claim tak
   assert.ok(keys().includes("phone: 0761 123456"));
   assert.equal(detailsOf(p).find((d) => d.key === "phone")?.confirmed, true, "yours is confirmed");
 });
+
+test("details: a RevTag — after RevTag or Revolut, or as a revolut.me link — kept as @tag; a mail address or an @-mention without Revolut is none", async () => {
+  const { detailsFromText } = await import("@/plugins/people/details");
+  const pick = (text: string) => detailsFromText(text).map((d) => `${d.key}: ${d.value}`);
+  assert.deepEqual(pick("Chris' RevTag ist @Chris.B."), ["revtag: @chris.b"]);
+  assert.deepEqual(pick("Revolut: @chrisb93"), ["revtag: @chrisb93"]);
+  assert.deepEqual(pick("Zahlen geht über https://revolut.me/chrisb93"), ["revtag: @chrisb93"]);
+  assert.deepEqual(pick("Mail an chris@example.org, im Chat @chris erwähnt"), []);
+});
+
+test("the Revolut action: a payment by RevTag opens their revolut.me page — never without a tag", async () => {
+  const { REVOLUT_ACTIONS, revtagOf } = await import("@/plugins/revolut/actions");
+  const a = REVOLUT_ACTIONS[0];
+  const op = a.clean({ name: "Chris Ballhaus", revtag: "@ChrisB93", amount: "150 €", note: "Zurück, danke!" }, { ticket: "" })!;
+  assert.deepEqual(op, { type: "revolut-pay", name: "Chris Ballhaus", revtag: "chrisb93", amount: "150.00", note: "Zurück, danke!" });
+  assert.equal(a.href!(op), "https://revolut.me/chrisb93");
+  assert.match(a.title(op), /150,00 €.*Chris Ballhaus/);
+  assert.equal(a.clean({ name: "Chris", revtag: "" }, { ticket: "" }), null);
+  assert.equal(revtagOf("revolut.me/chrisb93?x=1"), "chrisb93");
+});

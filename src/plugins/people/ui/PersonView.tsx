@@ -554,7 +554,7 @@ const KIND_LABEL: Record<string, string> = { fact: "Fact", role: "Role", owns: "
 const REL_LABEL: Record<string, string> = { "reports-to": "reports to", manages: "manages", "works-with": "works with", decides: "decides on", owns: "is responsible for", "on-ticket": "is on", "commented-on": "commented on", authored: "wrote in", "active-in": "is active in", "knows-about": "knows about" };
 
 type Tr = ReturnType<typeof useT>;
-const detailLabels = (t: Tr): Record<string, string> => ({ iban: "IBAN", bic: "BIC", bank: t("Bank"), address: t("Address"), phone: t("Phone"), hours: t("Office hours") });
+const detailLabels = (t: Tr): Record<string, string> => ({ iban: "IBAN", bic: "BIC", bank: t("Bank"), revtag: "RevTag", address: t("Address"), phone: t("Phone"), hours: t("Office hours") });
 
 /** Their bank account, addresses, phone, office hours — properties of the profile, to copy; read off what was said, or yours. */
 function Details({ d, run }: { d: PersonBundle; run: RunFn }) {

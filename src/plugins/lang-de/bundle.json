@@ -6845,5 +6845,10 @@
   "The database is gone.": "Die Datenbank ist weg.",
   "The account isn't known yet — enter the IBAN once, Zeff keeps it with the contact.": "Das Konto ist noch nicht bekannt — trag die IBAN einmal ein, Zeff merkt sie sich am Kontakt.",
   "Saved — the account is kept with {name}.": "Gespeichert — das Konto ist bei {name} gemerkt.",
-  "IBAN of {name}": "IBAN von {name}"
+  "IBAN of {name}": "IBAN von {name}",
+  "Paid {amount} to {name} with Revolut.": "{amount} an {name} mit Revolut bezahlt.",
+  "Paid {name} with Revolut.": "{name} mit Revolut bezahlt.",
+  "Pay {amount} to {name} with Revolut": "{amount} an {name} mit Revolut zahlen",
+  "Pay {name} with Revolut": "{name} mit Revolut zahlen",
+  "Pay with Revolut": "Mit Revolut zahlen"
 }

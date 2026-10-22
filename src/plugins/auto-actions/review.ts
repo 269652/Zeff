@@ -97,13 +97,17 @@ Regeln:
 async function accountsOf(text: string): Promise<string[]> {
   const { isInstalled } = await import("@/plugins/state");
   if (!isInstalled("people")) return [];
-  const { payees } = await import("@/plugins/people/details");
-  return payees()
-    .filter((p) => p.names(text))
+  const { detailsOf } = await import("@/plugins/people/details");
+  const { listPeople, namesThem } = await import("@/plugins/people/store");
+  return listPeople()
+    .filter((p) => namesThem(p, text))
+    .map((p) => ({ name: p.name, details: detailsOf(p.id) }))
     .flatMap((p) => {
       const iban = p.details.find((d) => d.key === "iban")?.value;
       const bic = p.details.find((d) => d.key === "bic")?.value;
-      return iban ? [`- ${p.name}: ${iban}${bic ? ` (BIC ${bic})` : ""}`] : [];
+      const revtag = p.details.find((d) => d.key === "revtag")?.value;
+      const parts = [iban ? `IBAN ${iban}${bic ? ` (BIC ${bic})` : ""}` : "", revtag ? `RevTag ${revtag}` : ""].filter(Boolean);
+      return parts.length ? [`- ${p.name}: ${parts.join(" · ")}`] : [];
     });
 }
 
@@ -344,7 +348,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
         "# Adressbuch (Mail-Adressen aus meinen Mails)",
         ...(book.length ? book : ["(keine passenden)"]),
         "",
-        "# Konten meiner Kontakte (für bank-transfer)",
+        "# Konten meiner Kontakte (für bank-transfer / revolut-pay)",
         ...(accounts.length ? accounts : ["(keins bekannt — bei einer Rückzahlung an eine Person die IBAN leer lassen)"]),
         "",
         "# Meine belegten Zeiten (nächste Tage)",

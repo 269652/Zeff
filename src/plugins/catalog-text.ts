@@ -213,6 +213,8 @@ export const catalogTexts = (t: T) => [
   t("Open in Gmail"),
   t("Transfer (GiroCode)"),
   t("Transfer"),
+  t("Pay with Revolut"),
+  t("Pay"),
   t("Add"),
   t("Open in Google"),
   // The texts of the mounted integrations' plugins (Chrono, Punch): their repositories list them.
