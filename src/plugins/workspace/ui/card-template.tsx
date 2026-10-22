@@ -92,7 +92,8 @@ export function draw(n: VNode, key: number, ext?: DrawExt): ReactNode {
     case "badge":
       return (
         <span key={key} className="ws-tag" data-color={n.a.color ?? "gray"} style={{ borderRadius: 999 }}>
-          {kids}
+          {/* (Its content in a line of its own: the tag lays out as a flex box, which drops the spaces between words and tags.) */}
+          <span>{kids}</span>
         </span>
       );
     case "bar": {
