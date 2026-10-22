@@ -399,6 +399,45 @@ function run(n: Node, ctx: FormulaContext): FormulaValue {
 /** The function names, for the editor's help. */
 export const FORMULA_FUNCTIONS = ["if", "ifs", "prop", ...Object.keys(FUNCTIONS)].sort();
 
+/** How each function is called — the editor shows it beside the name. */
+export const FORMULA_SIGNATURES: Record<string, string> = {
+  prop: 'prop("Name")',
+  if: "if(condition, then, else)",
+  ifs: "ifs(condition, value, …, else)",
+  concat: "concat(text, …)",
+  join: 'join(list, ", "?)',
+  length: "length(text or list)",
+  lower: "lower(text)",
+  upper: "upper(text)",
+  trim: "trim(text)",
+  replace: "replace(text, find, with)",
+  contains: "contains(text or list, value)",
+  slice: "slice(text, start, end?)",
+  empty: "empty(value)",
+  round: "round(number, digits?)",
+  floor: "floor(number)",
+  ceil: "ceil(number)",
+  abs: "abs(number)",
+  sqrt: "sqrt(number)",
+  pow: "pow(number, power)",
+  min: "min(number, …)",
+  max: "max(number, …)",
+  sum: "sum(number, …)",
+  mean: "mean(number, …)",
+  toNumber: "toNumber(value)",
+  text: "text(value)",
+  now: "now()",
+  today: "today()",
+  year: "year(date)",
+  month: "month(date)",
+  day: "day(date)",
+  weekday: "weekday(date)",
+  dateAdd: 'dateAdd(date, n, "days")',
+  dateSubtract: 'dateSubtract(date, n, "days")',
+  dateBetween: 'dateBetween(date, date, "days")',
+  formatDate: 'formatDate(date, "DD.MM.YYYY"?)',
+};
+
 /** Syntax check only: null when the formula parses, else what is wrong. */
 export function checkFormula(src: string): string | null {
   try {
@@ -448,7 +487,7 @@ export type FormulaCompletion = { kind: "function" | "property"; label: string; 
  * What can be put in at the caret: inside prop("… the property names (the rest of the name and the closing ") put in);
  * else, a word begun, the functions it starts and the properties it starts (as prop("…")). `from`–`to` is what is replaced.
  */
-export function formulaCompletions(src: string, caret: number, props: string[]): { from: number; to: number; items: FormulaCompletion[] } {
+export function formulaCompletions(src: string, caret: number, props: string[], opts: { all?: boolean } = {}): { from: number; to: number; items: FormulaCompletion[] } {
   const before = src.slice(0, caret);
   const ranked = (names: string[], q: string) => {
     const w = q.toLowerCase();
@@ -460,10 +499,12 @@ export function formulaCompletions(src: string, caret: number, props: string[]):
     return { from: caret - q.length, to: caret, items: ranked(props, q).map((n) => ({ kind: "property", label: n, insert: `${n}${inProp[1]})` })) };
   }
   const word = /(?:^|[^\w."'])([A-Za-z_]\w*)$/.exec(before);
-  if (!word) return { from: caret, to: caret, items: [] };
-  const q = word[1];
+  // Nothing begun: nothing — unless the whole list is asked for.
+  if (!word && !opts.all) return { from: caret, to: caret, items: [] };
+  const q = word?.[1] ?? "";
   const w = q.toLowerCase();
-  const fns = FORMULA_FUNCTIONS.filter((f) => f.toLowerCase().startsWith(w) && f !== "prop").map((f) => ({ kind: "function" as const, label: f, insert: `${f}(` }));
+  // prop first: the way to a property (its name offered next).
+  const fns = ["prop", ...FORMULA_FUNCTIONS.filter((f) => f !== "prop")].filter((f) => f.toLowerCase().startsWith(w)).map((f) => ({ kind: "function" as const, label: f, insert: f === "prop" ? 'prop("' : `${f}(` }));
   const ps = props.filter((n) => n.toLowerCase().startsWith(w)).map((n) => ({ kind: "property" as const, label: n, insert: `prop(${JSON.stringify(n)})` }));
   return { from: caret - q.length, to: caret, items: [...fns, ...ps] };
 }

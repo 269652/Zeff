@@ -44,3 +44,15 @@ test("completions at the caret: the functions a word starts, the property names 
   assert.equal(formulaCompletions("1 + ", 4, props).items.length, 0);
   assert.equal(formulaCompletions("12", 2, props).items.length, 0);
 });
+
+test("the whole list when asked (Ctrl+Space, the button) — nothing begun: every function, then the properties; prop offered as prop(\" (the names follow); every function with its signature", async () => {
+  const { FORMULA_FUNCTIONS, FORMULA_SIGNATURES } = await import("../src/plugins/workspace/formula");
+  const props = ["Pro Monat", "Status"];
+  const all = formulaCompletions("1 + ", 4, props, { all: true });
+  assert.equal(all.items.filter((i) => i.kind === "function").length, FORMULA_FUNCTIONS.length);
+  assert.deepEqual(all.items.filter((i) => i.kind === "property").map((i) => i.label), props);
+  const pr = formulaCompletions("pr", 2, props);
+  assert.deepEqual(pr.items.find((i) => i.label === "prop")?.insert, 'prop("');
+  assert.equal(pr.items[0].label, "prop", "prop first — the way to a property");
+  for (const f of FORMULA_FUNCTIONS) assert.ok((FORMULA_SIGNATURES[f] ?? "").startsWith(`${f}(`), f);
+});

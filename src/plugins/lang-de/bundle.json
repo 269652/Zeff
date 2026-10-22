@@ -6813,5 +6813,7 @@
   "No property “{name}”": "Keine Eigenschaft „{name}“",
   "This row:": "Diese Zeile:",
   "Type a function or a property — Ctrl+Space offers them.": "Tippe eine Funktion oder Eigenschaft — Strg+Leertaste schlägt sie vor.",
-  "Enter saves · Shift+Enter a new line": "Enter speichert · Umschalt+Enter neue Zeile"
+  "Enter saves · Shift+Enter a new line": "Enter speichert · Umschalt+Enter neue Zeile",
+  "All functions and properties (Ctrl+Space)": "Alle Funktionen und Eigenschaften (Strg+Leertaste)",
+  "Functions": "Funktionen"
 }

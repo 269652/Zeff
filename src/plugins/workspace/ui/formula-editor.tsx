@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
-import { checkFormula, evalFormula, formulaCompletions, formulaRefs, formulaToStored, type FormulaValue } from "../formula";
+import { checkFormula, evalFormula, formulaCompletions, formulaRefs, formulaToStored, FORMULA_SIGNATURES, type FormulaValue } from "../formula";
 import { formatNumber, type Property, type Row } from "../model";
 import type { CellCtx } from "./cells";
 import { useDismiss } from "./kit";
@@ -32,6 +32,8 @@ export function FormulaEditor({ p, row, ctx, done }: { p: Property; row: Row; ct
   const [caret, setCaret] = useState((p.formula ?? "").length);
   const [pick, setPick] = useState(0);
   const [closed, setClosed] = useState(true);
+  // The whole list (Ctrl+Space, the button): every function and property, also with nothing typed.
+  const [all, setAll] = useState(false);
   const area = useRef<HTMLTextAreaElement>(null);
   const mirror = useRef<HTMLDivElement>(null);
   const box = useRef<HTMLDivElement>(null);
@@ -60,7 +62,7 @@ export function FormulaEditor({ p, row, ctx, done }: { p: Property; row: Row; ct
     });
     return r;
   }, [src, error, schema, row, t]);
-  const offer = closed ? { from: caret, to: caret, items: [] } : formulaCompletions(src, caret, names);
+  const offer = closed ? { from: caret, to: caret, items: [] } : formulaCompletions(src, caret, names, { all });
   const at = Math.min(pick, Math.max(0, offer.items.length - 1));
 
   // The cells it names (in this row — a formula reads its own row), coloured in the table while it is open.
@@ -79,7 +81,9 @@ export function FormulaEditor({ p, row, ctx, done }: { p: Property; row: Row; ct
     setSrc(next);
     setCaret(pos);
     setPick(0);
-    setClosed(c.kind === "property");
+    setAll(false);
+    // A property's name ends it; a function's arguments come next (prop(": its names offered).
+    setClosed(c.kind === "property" || c.insert !== 'prop("');
     requestAnimationFrame(() => {
       area.current?.focus();
       area.current?.setSelectionRange(pos, pos);
@@ -114,10 +118,26 @@ export function FormulaEditor({ p, row, ctx, done }: { p: Property; row: Row; ct
 
   return (
     <div ref={box} className="w-[26rem] max-w-full space-y-2 p-1">
-      <div className="flex items-baseline justify-between gap-2">
+      <div className="flex items-center justify-between gap-2">
         <span className="text-xs font-medium text-zinc-500">
           {t("Formula of “{name}”", { name: p.name })} · <span className="text-zinc-400">{t("for the whole column")}</span>
         </span>
+        <button
+          type="button"
+          className={`rounded-md px-1.5 py-0.5 font-mono text-xs ${all && !closed ? "bg-indigo-100 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
+          aria-pressed={all && !closed}
+          title={t("All functions and properties (Ctrl+Space)")}
+          onMouseDown={(e) => e.preventDefault()}
+          onClick={() => {
+            const open = !(all && !closed);
+            setAll(open);
+            setClosed(!open);
+            setPick(0);
+            area.current?.focus();
+          }}
+        >
+          ƒ {t("Functions")}
+        </button>
       </div>
       <div className="relative rounded-lg border border-zinc-300 bg-white focus-within:border-indigo-400 focus-within:ring-2 focus-within:ring-indigo-200 dark:border-zinc-700 dark:bg-zinc-950 dark:focus-within:ring-indigo-900">
         <div ref={mirror} aria-hidden className="pointer-events-none absolute inset-0 overflow-hidden px-2.5 py-2 font-mono text-[13px] leading-5 break-words whitespace-pre-wrap text-zinc-800 dark:text-zinc-100">
@@ -137,6 +157,7 @@ export function FormulaEditor({ p, row, ctx, done }: { p: Property; row: Row; ct
             setSrc(e.target.value);
             setCaret(e.target.selectionStart);
             setPick(0);
+            setAll(false);
             setClosed(false);
           }}
           onSelect={(e) => setCaret(e.currentTarget.selectionStart)}
@@ -156,6 +177,7 @@ export function FormulaEditor({ p, row, ctx, done }: { p: Property; row: Row; ct
                 e.preventDefault();
                 e.stopPropagation();
                 setClosed(true);
+                setAll(false);
                 return;
               }
             }
@@ -166,6 +188,7 @@ export function FormulaEditor({ p, row, ctx, done }: { p: Property; row: Row; ct
             }
             if (e.key === " " && e.ctrlKey) {
               e.preventDefault();
+              setAll(true);
               setClosed(false);
             }
           }}
@@ -182,8 +205,8 @@ export function FormulaEditor({ p, row, ctx, done }: { p: Property; row: Row; ct
                   onClick={() => take(n)}
                 >
                   <span className={`w-5 shrink-0 text-center font-mono text-xs ${c.kind === "function" ? "text-violet-600 dark:text-violet-400" : "text-emerald-600 dark:text-emerald-400"}`}>{c.kind === "function" ? "ƒ" : "#"}</span>
-                  <span className="truncate font-mono">{c.kind === "function" ? `${c.label}()` : c.label}</span>
-                  <span className="ml-auto text-xs text-zinc-400">{c.kind === "function" ? t("Function") : t("Property")}</span>
+                  <span className="shrink-0 font-mono">{c.label}</span>
+                  <span className="ml-auto truncate pl-2 font-mono text-[11px] text-zinc-400">{c.kind === "function" ? (FORMULA_SIGNATURES[c.label] ?? t("Function")) : t("Property")}</span>
                 </button>
               </li>
             ))}

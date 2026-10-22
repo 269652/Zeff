@@ -6813,5 +6813,7 @@
   "No property “{name}”": "No hay propiedad «{name}»",
   "This row:": "Esta fila:",
   "Type a function or a property — Ctrl+Space offers them.": "Escribe una función o una propiedad — Ctrl+Espacio las ofrece.",
-  "Enter saves · Shift+Enter a new line": "Intro guarda · Mayús+Intro nueva línea"
+  "Enter saves · Shift+Enter a new line": "Intro guarda · Mayús+Intro nueva línea",
+  "All functions and properties (Ctrl+Space)": "Todas las funciones y propiedades (Ctrl+Espacio)",
+  "Functions": "Funciones"
 }
