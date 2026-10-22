@@ -6900,5 +6900,15 @@
   "New rows start with today": "Las filas nuevas empiezan con hoy",
   "The selected text isn't there any more — nothing replaced.": "El texto seleccionado ya no está — no se reemplazó nada.",
   "Translate": "Traducir",
-  "Spelling": "Ortografía"
+  "Spelling": "Ortografía",
+  "Run the automation": "Ejecutar la automatización",
+  "Start the job": "Iniciar el trabajo",
+  "Every step, one after the other": "Cada paso, uno tras otro",
+  "Started: {name}": "Iniciado: {name}",
+  "The agent is at work.": "El agente está trabajando.",
+  "{n} jobs started": "{n} trabajos iniciados",
+  "Run a command: syncs, agents, automations, jobs": "Ejecutar un comando: sincronizaciones, agentes, automatizaciones, trabajos",
+  "Search commands": "Buscar comandos",
+  "Run a command: sync, agent, automation, job …": "Ejecutar un comando: sincronización, agente, automatización, trabajo …",
+  "{n} commands — ↑↓ to choose, Enter to run, Esc to close": "{n} comandos — ↑↓ para elegir, Enter para ejecutar, Esc para cerrar"
 }

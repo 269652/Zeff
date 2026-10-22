@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { filterPalette, opensPalette, opensShortcuts, type PaletteItem } from "../src/lib/palette";
+import { filterPalette, opensCommands, opensPalette, opensShortcuts, parseCommand, type PaletteItem } from "../src/lib/palette";
 
 const items: PaletteItem[] = [
   { id: "a", label: "Connections", hint: "Chrome or API, per service", href: "/connections", group: "Pages" },
@@ -27,4 +27,19 @@ test("shortcut keys", () => {
   assert.ok(!opensPalette(k("/", { tagName: "TEXTAREA" })));
   assert.ok(opensShortcuts(k("?", null)));
   assert.ok(!opensShortcuts(k("?", { tagName: "INPUT" })));
+});
+test("Ctrl/Cmd+Shift+K opens the commands, not the pages — in a field too", () => {
+  const k = (key: string, target: { tagName?: string } | null, extra = {}) => ({ key, ctrlKey: false, metaKey: false, altKey: false, shiftKey: false, target, ...extra });
+  assert.ok(opensCommands(k("K", { tagName: "INPUT" }, { ctrlKey: true, shiftKey: true })));
+  assert.ok(opensCommands(k("k", null, { metaKey: true, shiftKey: true })));
+  assert.ok(!opensPalette(k("K", null, { ctrlKey: true, shiftKey: true })), "not both at once");
+  assert.ok(opensPalette(k("k", null, { ctrlKey: true })));
+  assert.ok(!opensCommands(k("k", null, { ctrlKey: true })));
+  assert.ok(!opensCommands(k("K", null, { ctrlKey: true, shiftKey: true, altKey: true })));
+});
+test("a command's href: what and its argument", () => {
+  assert.deepEqual(parseCommand("zeff:sync:jira"), { what: "sync", arg: "jira" });
+  assert.deepEqual(parseCommand("zeff:new-page"), { what: "new-page", arg: "" });
+  assert.deepEqual(parseCommand("zeff:sync:google-drive:x"), { what: "sync", arg: "google-drive:x" });
+  assert.equal(parseCommand("/workspace/3"), null);
 });

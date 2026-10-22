@@ -6900,5 +6900,15 @@
   "New rows start with today": "Neue Zeilen beginnen mit heute",
   "The selected text isn't there any more — nothing replaced.": "Der markierte Text steht nicht mehr da — nichts ersetzt.",
   "Translate": "Übersetzen",
-  "Spelling": "Rechtschreibung"
+  "Spelling": "Rechtschreibung",
+  "Run the automation": "Automation ausführen",
+  "Start the job": "Auftrag starten",
+  "Every step, one after the other": "Jeder Schritt, einer nach dem anderen",
+  "Started: {name}": "Gestartet: {name}",
+  "The agent is at work.": "Der Agent arbeitet.",
+  "{n} jobs started": "{n} Aufträge gestartet",
+  "Run a command: syncs, agents, automations, jobs": "Befehl ausführen: Syncs, Agenten, Automationen, Aufträge",
+  "Search commands": "Befehle suchen",
+  "Run a command: sync, agent, automation, job …": "Befehl ausführen: Sync, Agent, Automation, Auftrag …",
+  "{n} commands — ↑↓ to choose, Enter to run, Esc to close": "{n} Befehle — ↑↓ wählen, Enter ausführen, Esc schließen"
 }

@@ -34,9 +34,18 @@ export function filterPalette(items: PaletteItem[], query: string, limit = 30): 
 }
 
 /** A key press that should open the palette: Ctrl/Cmd+K anywhere, "/" only when not typing in a field. */
-export function opensPalette(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; target: EventTarget | { tagName?: string } | null }): boolean {
-  if ((e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === "k") return true;
+export function opensPalette(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey?: boolean; target: EventTarget | { tagName?: string } | null }): boolean {
+  if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey && e.key.toLowerCase() === "k") return true;
   return e.key === "/" && !typing(e) && !e.ctrlKey && !e.metaKey && !e.altKey;
+}
+/** Ctrl/Cmd+Shift+K opens the commands (what Zeff can run by hand: syncs, routines, jobs …) — anywhere, in a field too. */
+export function opensCommands(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; shiftKey?: boolean }): boolean {
+  return (e.ctrlKey || e.metaKey) && !!e.shiftKey && !e.altKey && e.key.toLowerCase() === "k";
+}
+/** A command's href ("zeff:sync:jira") taken apart: what it does and what on; null for a page's href. */
+export function parseCommand(href: string): { what: string; arg: string } | null {
+  const m = /^zeff:([^:]+):?(.*)$/.exec(href);
+  return m ? { what: m[1], arg: m[2] } : null;
 }
 /** "?" opens the shortcuts help — not while typing. */
 export function opensShortcuts(e: { key: string; ctrlKey: boolean; metaKey: boolean; altKey: boolean; target: EventTarget | { tagName?: string } | null }): boolean {
