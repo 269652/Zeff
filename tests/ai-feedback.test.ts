@@ -117,3 +117,30 @@ test("a confirmed mail rule never holds back must-do mails, chats or questions",
   assert.equal(mailRuleFor(mail("Invoice 12"), rules), null, "another kind");
   assert.equal(mailRuleFor({ ...mail("Reminder: course 12"), fromEmail: "other@corp.com" }, rules), null, "another sender");
 });
+
+/** What agents read (MCP ai_quality, /api/ai-quality): each step's rates as a table, the proposed rules with it. */
+test("the quality view lists steps, patterns and proposed rules for agents", async () => {
+  const { aiQualityView, aiQualityText } = await import("@/lib/learning");
+  const v = aiQualityView();
+  assert.ok(v.steps.some((s) => s.step === "booking"));
+  assert.ok(v.labels["booking"]);
+  const text = aiQualityText(v);
+  assert.match(text, /\| booking \(/);
+  assert.match(text, /Learned rules/);
+  assert.equal(aiQualityView({ step: "booking" }).steps.length, 1);
+});
+
+/** The review queue brings the proposed rules; a yes there confirms one. */
+test("proposed rules wait in the review queue", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("todos", true);
+  const { reviewAct, reviewItems } = await import("@/lib/review");
+  const { learnedRules } = await import("@/lib/learning/rules");
+  const { recordFeedback } = await import("@/lib/learning/ledger");
+  for (let i = 0; i < 3; i++) recordFeedback({ step: "mail-review", itemRef: `todo:${300 + i}`, verdict: "rejected", sender: "deals@x.de", kind: "deal of the day" });
+  const items = (await reviewItems()).items.filter((x) => x.source === "ai-rule");
+  const before = learnedRules({ status: "confirmed" }).length;
+  assert.ok(items.some((x) => x.title.includes("deals@x.de")));
+  await reviewAct(items.find((x) => x.title.includes("deals@x.de"))!.key, "yes");
+  assert.equal(learnedRules({ status: "confirmed" }).length, before + 1);
+});

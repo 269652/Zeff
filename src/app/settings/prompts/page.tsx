@@ -130,6 +130,11 @@ function Quality({ q, all }: { q: AiQuality; all: boolean }) {
       <div className="flex flex-wrap items-baseline justify-between gap-2">
         <div>
           <h2 className="font-medium">{t("How well it did")}</h2>
+          <p className="text-sm">
+            <Link href="/settings/ai-quality" className="text-indigo-600 hover:underline dark:text-indigo-400">
+              {t("Every AI step's acceptance, the most rejected patterns and the rules from repetition: AI quality")}
+            </Link>
+          </p>
           <p className="text-sm text-zinc-500">
             {rich(
               t(

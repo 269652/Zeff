@@ -6,7 +6,8 @@ import type { ReviewSource } from "@/lib/review/point";
 /**
  * What Todos has you confirm, for the review queue: the todos a worker, an agent or the AI review says are done
  * (closing them is yours), and the actions the auto-actions proposed on a todo (one click runs them). A todo whose
- * agent asks you something isn't here — that wants an answer, not a yes. The buttons are the todo's own.
+ * agent asks you something isn't here — that wants an answer, not a yes. The buttons are the todo's own. And the rules the
+ * feedback ledger proposes from repetition (the same kind from the same sender, dropped again and again) — yours to confirm.
  */
 
 const title = (todo: TodoView) => (todo.ticket ? `${todo.ticket} · ${todo.text}` : todo.text);
@@ -64,6 +65,29 @@ export const TODOS_REVIEW: ReviewSource[] = [
     act: async (id, action) => {
       if (action === "yes") return done((await import("./server-actions")).runTodoOpsAction(Number(id)));
       if (action === "no") return dropProposedOps(Number(id));
+      unknown(action);
+    },
+  },
+  {
+    id: "ai-rule",
+    get label() {
+      return t("Rules from repetition");
+    },
+    list: async () => {
+      const { proposeRules } = await import("@/lib/learning/rules");
+      const { stepLabel } = await import("@/lib/learning");
+      return proposeRules().map((r) => ({
+        id: String(r.id),
+        title: `${stepLabel(r.step)}: ${t("Leave alone: from {sender}, like “{kind}”", { sender: r.sender, kind: r.kind })}`,
+        detail: `${t("rejected {n}×", { n: r.evidence.length })}: ${r.evidence.map((e) => `„${e.text}“`).join(" · ")}`,
+        href: "/settings/ai-quality#rules",
+        actions: [{ id: "yes", label: t("Confirm rule") }, { id: "no", label: t("Dismiss") }],
+      }));
+    },
+    act: async (id, action) => {
+      const { decideRule } = await import("@/lib/learning/rules");
+      if (action === "yes") return void decideRule(Number(id), "confirmed");
+      if (action === "no") return void decideRule(Number(id), "dismissed");
       unknown(action);
     },
   },
