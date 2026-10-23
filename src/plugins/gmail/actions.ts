@@ -1,7 +1,9 @@
 /**
  * Gmail's action for Auto-Aktionen (its extension "Mail schreiben"): a mail drafted in Gmail —
  * the click opens Gmail's compose window, filled in, in your browser; you check and send it
- * yourself. Client-safe.
+ * yourself. With Gmail's write access (Connections page) the todo also shows "Send" and "Save as
+ * draft in Gmail": your click on one runs it through Gmail's API (gmail/run.ts) — never the
+ * todo's "Run", a worker or an agent. Client-safe.
  */
 import { action, EN, str } from "../actions/types";
 

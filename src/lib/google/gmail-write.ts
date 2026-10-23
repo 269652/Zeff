@@ -66,7 +66,7 @@ export async function changeGmail(c: GmailChange): Promise<{ changed: number; cr
   if (!c.addLabels?.length && !c.removeLabels?.length && !c.markRead && !c.spam) throw new Error(t("There is nothing to change."));
   if (c.refs.length > MAX_CHANGE) throw new Error(t("At most {n} mails at once.", { n: MAX_CHANGE }));
   const ids = [...new Set(c.refs.map(apiId))];
-  if (!gmailCanWrite()) throw new Error(t("Google was only asked for read access. Allow changes to Gmail on the Connections page and sign in to Google again."));
+  if (!gmailCanWrite()) throw new Error(t("Google was only asked for read access. Allow writing to Gmail on the Connections page and sign in to Google again."));
   const created: string[] = [];
   const known = await gmailLabels();
   const add = await resolveLabels(c.addLabels ?? [], known, created);
@@ -101,7 +101,7 @@ function criteriaQuery(c: FilterCriteria): string {
  * trash, ever. `applyToExisting`: the mails that match now get the same changes (Gmail's own "apply to existing" has no API).
  */
 export async function createGmailFilter(f: NewFilter): Promise<{ filterId: string; createdLabels: string[]; applied: number }> {
-  if (!gmailCanFilter()) throw new Error(t("Google was not asked for filters yet. Allow changes to Gmail on the Connections page and sign in to Google again."));
+  if (!gmailCanFilter()) throw new Error(t("Google was not asked for filters yet. Allow writing to Gmail on the Connections page and sign in to Google again."));
   const q = criteriaQuery(f.criteria ?? {});
   if (!q) throw new Error(t("Say what mails the filter is for (sender, subject or words)."));
   if (!f.addLabels?.length && !f.skipInbox && !f.markRead) throw new Error(t("The filter has nothing to do: a label, skipping the inbox or marking read."));
@@ -128,7 +128,7 @@ export type GmailFilterRow = { id: string; from: string; to: string; subject: st
 
 /** The filters Gmail has now. */
 export async function listGmailFilters(): Promise<GmailFilterRow[]> {
-  if (!gmailCanFilter()) throw new Error(t("Google was not asked for filters yet. Allow changes to Gmail on the Connections page and sign in to Google again."));
+  if (!gmailCanFilter()) throw new Error(t("Google was not asked for filters yet. Allow writing to Gmail on the Connections page and sign in to Google again."));
   const r = await apiGet<{ filter?: { id: string; criteria?: Record<string, string>; action?: { addLabelIds?: string[]; removeLabelIds?: string[] } }[] }>("google", `${GM}/settings/filters`);
   return (r.filter ?? []).map((x) => ({ id: x.id, from: x.criteria?.from ?? "", to: x.criteria?.to ?? "", subject: x.criteria?.subject ?? "", query: x.criteria?.query ?? "", addLabelIds: x.action?.addLabelIds ?? [], removeLabelIds: x.action?.removeLabelIds ?? [] }));
 }

@@ -73,13 +73,28 @@ export async function testProviderAction(provider: string): Promise<ActionState>
   }
 }
 
+/**
+ * Whether Google is asked for the right to write to Google Calendar (events made, moved, edited, invitations answered — never
+ * deleted) at the next sign-in. The sign-in stays; it has to be made again to hold the new right.
+ */
+export async function setCalendarWriteAction(on: boolean): Promise<ActionState> {
+  try {
+    const { extraOf, updateConnector } = await import("@/lib/connectors/store");
+    updateConnector("google", { extra: JSON.stringify({ ...extraOf("google"), calendarWrite: on ? "1" : "0" }) });
+    revalidateAll();
+    return { ok: true, message: on ? t("Allowed. Sign in to Google again to hold the new right.") : t("Switched off. Zeff no longer writes to Google Calendar.") };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
 /** Whether Google is asked for the right to change Gmail (labels, read, spam) at the next sign-in. The sign-in stays; it has to be made again to hold the new right. */
 export async function setGmailWriteAction(on: boolean): Promise<ActionState> {
   try {
     const { extraOf, updateConnector } = await import("@/lib/connectors/store");
     updateConnector("google", { extra: JSON.stringify({ ...extraOf("google"), gmailWrite: on ? "1" : "0" }) });
     revalidateAll();
-    return { ok: true, message: on ? t("Allowed. Sign in to Google again to hold the new right.") : t("Switched off. Agents can no longer change Gmail.") };
+    return { ok: true, message: on ? t("Allowed. Sign in to Google again to hold the new right.") : t("Switched off. Zeff no longer writes to Gmail.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

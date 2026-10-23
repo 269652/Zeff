@@ -10,6 +10,10 @@ import { ActionCard, TOOL_BUTTON } from "./ActionCard";
 import { toast } from "../Toaster";
 import { CheckIcon, CloseIcon, PencilIcon } from "../icons";
 import { useT } from "@/components/I18nProvider";
+import { useGrant } from "@/components/PluginFlags";
+import type { ActionState } from "@/app/action-helpers";
+import { runGmailComposeAction } from "@/plugins/gmail/server-actions";
+import { acceptProposedEventAction } from "@/plugins/calendar/server-actions";
 import { TransferCard } from "@/plugins/cases/ui/TransferCard";
 import { RevolutCard } from "@/plugins/revolut/ui/RevolutCard";
 
@@ -144,6 +148,7 @@ function OpChip({
     <ActionCard tone={look.tone} icon={look.icon} title={heading} detail={detailNode} action={action} tools={tools}>
       {transfer && <TransferCard op={transfer} todoId={todoId} index={index} />}
       {revolut && <RevolutCard op={revolut} />}
+      {todoId !== undefined && !editing && <ApiOpButtons op={op} todoId={todoId} index={index} />}
       {href && !pay && (
         <a
           href={href}
@@ -232,6 +237,49 @@ function OpChip({
         ))}
     </ActionCard>
   );
+}
+
+/**
+ * A mail or an appointment Zeff may write itself — Google holds the right (Connections page): its buttons, your click sends the
+ * mail (or saves it as a draft in Gmail) or enters the appointment in Google Calendar. Nothing without the click; the window
+ * filled in stays beside them.
+ */
+function ApiOpButtons({ op, todoId, index }: { op: TodoView["ops"][number]; todoId: number; index: number }) {
+  const t = useT();
+  const router = useRouter();
+  const [pending, start] = useTransition();
+  const gmail = useGrant("gmail-send");
+  const gcal = useGrant("gcal-write");
+  const go = (fn: () => Promise<ActionState>) =>
+    start(async () => {
+      const r = await fn();
+      toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
+      router.refresh();
+    });
+  if (op.type === "gmail-compose" && gmail)
+    return (
+      <span className="flex flex-wrap items-center gap-1.5">
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          disabled={pending || !op.to}
+          title={op.to ? t("Sends it now from your Gmail — replying in the conversation it answers") : t("No recipient — open it in Gmail")}
+          onClick={() => window.confirm(t("Send this mail to {to} now?", { to: op.to })) && go(() => runGmailComposeAction(todoId, index, "send"))}
+        >
+          {pending ? "…" : t("Send")}
+        </button>
+        <button type="button" className="btn btn-sm" disabled={pending || !op.to} title={t("Saves it in Gmail's drafts — you send it there")} onClick={() => go(() => runGmailComposeAction(todoId, index, "draft"))}>
+          {t("Save as draft in Gmail")}
+        </button>
+      </span>
+    );
+  if (op.type === "gcal-event" && gcal)
+    return (
+      <button type="button" className="btn btn-sm btn-primary self-start" disabled={pending} title={t("Enters it in your Google Calendar now")} onClick={() => go(() => acceptProposedEventAction(todoId, index, op.title))}>
+        {pending ? "…" : t("Add to Google Calendar")}
+      </button>
+    );
+  return null;
 }
 
 /** Where an action's pre-filled window opens, by its address: Gmail, Google Calendar, Outlook. */

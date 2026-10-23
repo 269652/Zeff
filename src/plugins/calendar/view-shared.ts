@@ -28,7 +28,7 @@ export type Item = {
   end: string;
   allDay: boolean;
   color: string;
-  /** Changeable here: Zeff's own calendars (Google's and Outlook's open in their source). */
+  /** Changeable here: Zeff's own calendars, and your events in Google's you may write to (an invitation is answered; the others open in their source). */
   editable: boolean;
   event?: CalendarEventView;
   calendar?: CalendarView;
@@ -59,7 +59,7 @@ export function calendarItems(
       .map((e): Item => {
         const id = e.occurrence ? `e${e.id}@${e.occurrence}` : `e${e.id}`;
         const cal = byId.get(e.calendarId);
-        return { id, title: e.title, start: moved[id]?.start ?? e.start, end: moved[id]?.end ?? e.end, allDay: e.allDay, color: cal?.color ?? "#7A869A", editable: cal?.source === "zeff", event: e, calendar: cal };
+        return { id, title: e.title, start: moved[id]?.start ?? e.start, end: moved[id]?.end ?? e.end, allDay: e.allDay, color: cal?.color ?? "#7A869A", editable: cal?.source === "zeff" || (!!cal?.writable && (!e.response || e.response === "organizer")), event: e, calendar: cal };
       }),
     // An appointment a todo proposes can be dragged like one of Zeff's own: its action gets the new time.
     ...(showProposed ? proposed.map((p, i): Item => ({ id: `p${i}`, title: p.title, start: moved[`p${i}`]?.start ?? p.start, end: moved[`p${i}`]?.end ?? p.end, allDay: false, color: "#6366F1", editable: MOVABLE_PROPOSALS.has(p.type), proposed: p })) : []),

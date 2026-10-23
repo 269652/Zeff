@@ -3,11 +3,15 @@
 import { useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
+import { useGrant } from "@/components/PluginFlags";
+import { gmailRowChangeAction } from "@/plugins/gmail/server-actions";
 import { draftRowReplyAction, rowActionAction } from "@/plugins/workspace/actions";
 
 /**
  * A reply to a mail: to, subject, text — written, or drafted by the AI from the conversation — opened as a draft in
- * Outlook (Gmail) to send there (Zeff's mail action: you send it yourself).
+ * Outlook (Gmail) to send there (Zeff's mail action: you send it yourself). Gmail, once Google holds Gmail's write access:
+ * sent from here on your click (or saved in Gmail's drafts), in the mail's conversation — and the conversation archived or
+ * marked unread.
  */
 export function MailReply({ rowId, account, to: to0, subject: subject0 }: { rowId: number; account: string; to: string; subject: string }) {
   const t = useT();
@@ -16,6 +20,8 @@ export function MailReply({ rowId, account, to: to0, subject: subject0 }: { rowI
   const [subject, setSubject] = useState(subject0);
   const [body, setBody] = useState("");
   const [busy, setBusy] = useState(false);
+  const gmailSends = useGrant("gmail-send");
+  const api = account === "Gmail" && gmailSends;
   const draft = async () => {
     setBusy(true);
     const r = await draftRowReplyAction(rowId);
@@ -25,11 +31,35 @@ export function MailReply({ rowId, account, to: to0, subject: subject0 }: { rowI
     if (r.to) setTo(r.to);
     setOpen(true);
   };
-  const send = async () => {
-    const r = await rowActionAction(rowId, { type: account === "Gmail" ? "gmail-compose" : "mail-compose", to, subject, body });
+  const send = async (mode?: "send" | "draft") => {
+    if (mode === "send" && !window.confirm(t("Send this mail to {to} now?", { to }))) return;
+    setBusy(true);
+    const r = await rowActionAction(rowId, { type: account === "Gmail" ? "gmail-compose" : "mail-compose", to, subject, body }, mode);
+    setBusy(false);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     if (r.href) window.open(r.href, "_blank");
+    else if (r.what) {
+      toast(r.what, { tone: "ok" });
+      setOpen(false);
+      setBody("");
+    }
   };
+  const change = async (what: "archive" | "unread") => {
+    setBusy(true);
+    const r = await gmailRowChangeAction(rowId, what);
+    setBusy(false);
+    toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
+  };
+  const manage = api && (
+    <>
+      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void change("archive")} title={t("Out of the inbox — still in All Mail; nothing is deleted")}>
+        {t("Archive")}
+      </button>
+      <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void change("unread")}>
+        {t("Mark unread")}
+      </button>
+    </>
+  );
   if (!open)
     return (
       <div className="flex gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
@@ -39,6 +69,7 @@ export function MailReply({ rowId, account, to: to0, subject: subject0 }: { rowI
         <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void draft()}>
           {busy ? "…" : `✨ ${t("Draft a reply with AI")}`}
         </button>
+        {manage}
       </div>
     );
   return (
@@ -54,13 +85,27 @@ export function MailReply({ rowId, account, to: to0, subject: subject0 }: { rowI
       <input className="input w-full text-sm" value={subject} aria-label={t("Subject")} onChange={(e) => setSubject(e.target.value)} />
       <textarea className="input min-h-32 w-full text-sm" value={body} placeholder={t("Your reply …")} aria-label={t("Reply")} onChange={(e) => setBody(e.target.value)} />
       <div className="flex flex-wrap items-center gap-2">
-        <button type="submit" className="btn btn-primary btn-sm" disabled={!body.trim()}>
-          ↗ {t("Open as a draft in {app}", { app: account })}
-        </button>
+        {api ? (
+          <>
+            <button type="button" className="btn btn-primary btn-sm" disabled={busy || !body.trim() || !to.trim()} onClick={() => void send("send")}>
+              {t("Send")}
+            </button>
+            <button type="button" className="btn btn-sm" disabled={busy || !body.trim() || !to.trim()} onClick={() => void send("draft")}>
+              {t("Save as draft in Gmail")}
+            </button>
+            <button type="submit" className="btn btn-sm" disabled={!body.trim()}>
+              ↗ {t("Open in {app}", { app: account })}
+            </button>
+          </>
+        ) : (
+          <button type="submit" className="btn btn-primary btn-sm" disabled={!body.trim()}>
+            ↗ {t("Open as a draft in {app}", { app: account })}
+          </button>
+        )}
         <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void draft()}>
           {busy ? "…" : `✨ ${t("Draft with AI")}`}
         </button>
-        <span className="text-xs text-zinc-500">{t("You send it there.")}</span>
+        <span className="text-xs text-zinc-500">{api ? t("Sent from your Gmail, in this conversation.") : t("You send it there.")}</span>
         <span className="flex-1" />
         <button type="button" className="text-xs text-zinc-500 hover:underline" onClick={() => setOpen(false)}>
           {t("Cancel")}

@@ -226,6 +226,7 @@ test("the calendar app: a new event in a Google calendar you may write goes ther
     assert.deepEqual(post.body.attendees, [{ email: "anna@example.com" }]);
     const ev = ir.eventsBetween("2026-11-05", "2026-11-06").find((e) => e.title === "Laufen")!;
     assert.ok(ev, "read back at once");
+    assert.equal(ev.response, "organizer", "your own meeting with a guest: nothing to answer");
 
     const moved = await saveEventAction({ id: ev.id, calendarId: cal.id, title: "Laufen", start: "2026-11-05T18:00", end: "2026-11-05T19:00" });
     assert.equal(moved!.ok, true, moved!.error);
@@ -264,7 +265,27 @@ test("the calendar app: a new event in a Google calendar you may write goes ther
     assert.equal(ok!.ok, true, ok!.error);
     assert.ok(writes(g).some((s) => s.method === "POST" && s.body?.summary === "Reifenwechsel"));
     assert.equal(store.getTodo(todo.id)!.ops.length, 0);
+
+    // What the calendar app is told: your Google calendar writable — learnt from Google once when no sync said so.
+    const { setPref } = await import("@/lib/prefs");
+    setPref("google-calendar:writable", null);
+    const { calendarViewData } = await import("@/plugins/calendar/view-data");
+    assert.equal((await calendarViewData("week", "2026-11-05")).calendars.find((c) => c.key === `google:${ME}`)!.writable, true);
+    await signIn(READ);
+    assert.equal((await calendarViewData("week", "2026-11-05")).calendars.find((c) => c.key === `google:${ME}`)!.writable, undefined, "without the right: read-only");
   } finally {
     g.close();
   }
+});
+
+test("in the calendar views: your events of a writable Google calendar can be changed, invitations only answered, the rest read-only", async () => {
+  const { calendarItems } = await import("@/plugins/calendar/view-shared");
+  const base = { key: "", visible: true, busy: true, book: false, todos: false, color: "#000" };
+  const cals = [
+    { ...base, id: 1, key: "google:me@example.com", source: "google" as const, name: "Moritz", writable: true },
+    { ...base, id: 2, key: "google:ro@group.calendar.google.com", source: "google" as const, name: "Feiertage" },
+  ];
+  const ev = (id: number, calendarId: number, response: string | null) => ({ id, calendarId, key: `k${id}`, title: `e${id}`, start: "2026-11-05T10:00", end: "2026-11-05T11:00", allDay: false, location: "", description: "", showAs: "busy", cancelled: false, response, private: false, online: false, organizer: "", attendees: [], url: "", todoId: null, recurrence: null, occurrence: null, seriesId: null });
+  const items = calendarItems([ev(1, 1, null), ev(2, 1, "organizer"), ev(3, 1, "notResponded"), ev(4, 2, null)], [], cals, () => true, false);
+  assert.deepEqual(items.map((i) => [i.title, i.editable]), [["e1", true], ["e2", true], ["e3", false], ["e4", false]]);
 });

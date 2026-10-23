@@ -3,12 +3,13 @@
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
+import { useGrant } from "@/components/PluginFlags";
 import { SOURCE_LABELS, type SeriesScope } from "@/lib/calendar/ir-shared";
 import { describeRecurrence } from "@/lib/calendar/recurrence";
 import type { T } from "@/lib/i18n/shared";
 import { ScopeChoice } from "./EventEditor";
 import { doneBrowserOpAction, removeTodoOpAction } from "@/plugins/todos/server-actions";
-import { acceptProposedEventAction, deleteEventAction, saveEventAction } from "./server-actions";
+import { acceptProposedEventAction, deleteEventAction, respondEventAction, saveEventAction } from "./server-actions";
 import { whenText, type Item } from "./view-shared";
 import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 
@@ -38,6 +39,10 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
   const [pending, start] = useTransition();
   const e = item.event;
   const series = !!(e && e.occurrence);
+  // Google's: changed through its API (a calendar you may write to) — answered when it's an invitation; never deleted from here.
+  const google = item.calendar?.source === "google";
+  const gcalWrite = useGrant("gcal-write");
+  const invitation = google && !!item.calendar?.writable && !!e?.response && e.response !== "organizer";
 
   // Beside the appointment where there's room (right, else left), inside the window — a phone: at the bottom.
   useLayoutEffect(() => {
@@ -73,11 +78,14 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
   // A todo's proposed appointment: accepted (entered in Zeff's calendar — or Google's / Outlook's form
   // opened, filled in, and noted on the todo) or dismissed; only that action of the todo.
   const p = item.proposed;
+  // Google Calendar's, with its write access: entered there through the API on this click (no form to open).
+  const viaApi = !!p && p.type === "gcal-event" && gcalWrite;
   const accept = () => {
     if (!p) return;
-    if (p.href) window.open(p.href, "_blank", "noopener,noreferrer");
-    start(async () => onDone(p.href ? await doneBrowserOpAction(p.todoId, p.index) : await acceptProposedEventAction(p.todoId, p.index, p.title)));
+    if (p.href && !viaApi) window.open(p.href, "_blank", "noopener,noreferrer");
+    start(async () => onDone(p.href && !viaApi ? await doneBrowserOpAction(p.todoId, p.index) : await acceptProposedEventAction(p.todoId, p.index, p.title)));
   };
+  const respond = (answer: "accepted" | "tentative" | "declined") => e && start(async () => onDone(await respondEventAction(e.id, answer)));
   const dismiss = () => p && start(async () => onDone(await removeTodoOpAction(p.todoId, p.index)));
 
   const remove = (scope?: SeriesScope) =>
@@ -116,7 +124,7 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
                   ✎
                 </button>
               )}
-              {item.editable && !item.proposed && (
+              {item.editable && !item.proposed && !google && (
                 <button type="button" className="icon-btn" disabled={pending} onClick={() => (series ? setAsking(true) : remove())} aria-label={t("Delete")} title={t("Delete")}>
                   🗑
                 </button>
@@ -157,8 +165,8 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
           <div className="flex flex-wrap gap-2 pt-1">
             {p && (
               <>
-                <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={accept} title={p.href ? t("Opens {target}'s form, filled in — save it there; it's noted on {ref}", { target: p.target, ref: p.todoRef }) : t("Enters it in {target} now", { target: p.target })}>
-                  {pending ? "…" : p.href ? t("Accept — open in {target} ↗", { target: p.target }) : t("Accept")}
+                <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={accept} title={p.href && !viaApi ? t("Opens {target}'s form, filled in — save it there; it's noted on {ref}", { target: p.target, ref: p.todoRef }) : t("Enters it in {target} now", { target: p.target })}>
+                  {pending ? "…" : p.href && !viaApi ? t("Accept — open in {target} ↗", { target: p.target }) : t("Accept")}
                 </button>
                 <button type="button" className="btn btn-sm" disabled={pending} onClick={dismiss} title={t("Takes the proposal off {ref}", { ref: p.todoRef })}>
                   {t("Dismiss")}
@@ -175,7 +183,23 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
                 {item.calendar ? t("Open in {source} ↗", { source: SOURCE_LABELS[item.calendar.source] }) : t("Open in source ↗")}
               </a>
             )}
-            {!item.editable && !item.proposed && item.calendar && <p className="text-xs text-zinc-600 dark:text-zinc-400">{t("Read-only here — change it in {source}.", { source: SOURCE_LABELS[item.calendar.source] })}</p>}
+            {invitation && (
+              <span className="flex flex-wrap gap-1.5" role="group" aria-label={t("Your answer")}>
+                {(
+                  [
+                    ["accepted", t("Accept"), "accepted"],
+                    ["tentative", t("Maybe"), "tentativelyAccepted"],
+                    ["declined", t("Decline"), "declined"],
+                  ] as const
+                ).map(([answer, label, shown]) => (
+                  <button key={answer} type="button" className={`btn btn-sm ${e?.response === shown ? "btn-primary" : ""}`} aria-pressed={e?.response === shown} disabled={pending} onClick={() => respond(answer)} title={t("Answers the invitation in Google Calendar — the organiser is told")}>
+                    {label}
+                  </button>
+                ))}
+              </span>
+            )}
+            {!item.editable && !item.proposed && !invitation && item.calendar && <p className="text-xs text-zinc-600 dark:text-zinc-400">{t("Read-only here — change it in {source}.", { source: SOURCE_LABELS[item.calendar.source] })}</p>}
+            {item.editable && google && !item.proposed && <p className="text-xs text-zinc-500">{t("Zeff never deletes Google events — delete it in Google Calendar.")}</p>}
           </div>
         </>
       )}

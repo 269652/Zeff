@@ -23,6 +23,8 @@ export type CalendarView = {
   book: boolean;
   /** Its appointments become todos on their day (today's and tomorrow's). */
   todos: boolean;
+  /** A Google calendar Zeff may write to (you own it or may write; Google holds Calendar's write access) — set by the calendar app's data. */
+  writable?: boolean;
 };
 
 export type CalendarEventView = {

@@ -66,7 +66,8 @@ export function useCalendarBody({
     setLastEvents(events);
     setMoved({});
   }
-  const own = calendars.filter((c) => c.source === "zeff");
+  // Where a new appointment can go: Zeff's own calendars, then Google's you may write to (written there through its API).
+  const own = [...calendars.filter((c) => c.source === "zeff"), ...calendars.filter((c) => c.source === "google" && c.writable)];
   const { days } = viewRange(view, day);
   const today = now.slice(0, 10);
 
@@ -91,7 +92,7 @@ export function useCalendarBody({
   const create = useCallback(
     (v: { start: string; end: string; allDay: boolean }) => {
       setPicked(null);
-      setEditor({ calendarId: own[0]?.id ?? 0, title: "", start: v.start, end: v.end, allDay: v.allDay, location: "", description: "", recurrence: null });
+      setEditor({ calendarId: own.find((c) => c.source === "zeff")?.id ?? 0, title: "", start: v.start, end: v.end, allDay: v.allDay, location: "", description: "", recurrence: null });
     },
     [own],
   );
@@ -118,7 +119,8 @@ export function useCalendarBody({
       const r = await saveEventAction({ id: ev.id, calendarId: ev.calendarId, title: ev.title, start: s, end: e, allDay: ev.allDay, location: ev.location, description: ev.description, occurrence: ev.occurrence, scope });
       if (!r?.ok) setMoved((m) => Object.fromEntries(Object.entries(m).filter(([k]) => k !== it.id)));
       // Undo: the same handler with the old times (not for one occurrence of a series — it has moved to another day's id).
-      done(r, undoable && !ev.occurrence ? () => save({ ...it, start: s, end: e }, was, wasEnd, undefined, false) : undefined);
+      // (A Google event is read back with a new id here: its undo is in Google Calendar.)
+      done(r, undoable && !ev.occurrence && it.calendar?.source !== "google" ? () => save({ ...it, start: s, end: e }, was, wasEnd, undefined, false) : undefined);
     });
   };
   /** A proposed appointment dragged or resized: shown where it went, saved in the todo's action. */

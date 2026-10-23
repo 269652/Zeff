@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { disconnectProviderAction, saveProviderAction, setDriverAction, setGmailWriteAction, testProviderAction } from "./actions";
+import { disconnectProviderAction, saveProviderAction, setCalendarWriteAction, setDriverAction, setGmailWriteAction, testProviderAction } from "./actions";
 import type { ActionState } from "@/app/action-helpers";
 import { Field } from "@/components/Field";
 import { toast } from "@/components/Toaster";
@@ -14,10 +14,12 @@ export type ProviderView = {
   clientId: string;
   hasSecret: boolean;
   tenant: string;
-  /** Google: changes to Gmail (labels, read, spam) are asked for at sign-in. */
+  /** Google: writing to Gmail (sending, drafts, labels, read, archive, spam, filters) is asked for at sign-in. */
   gmailWrite: boolean;
+  /** Google: writing to Google Calendar (events made, moved, answered) is asked for at sign-in. */
+  calendarWrite: boolean;
   /** What the sign-in holds now (Google). */
-  granted: { gmailRead: boolean; gmailModify: boolean; gmailFilters: boolean; calendar: boolean };
+  granted: { gmailRead: boolean; gmailModify: boolean; gmailFilters: boolean; calendar: boolean; calendarWrite: boolean };
   connected: boolean;
   account: string;
   redirectUri: string;
@@ -65,6 +67,7 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
   const clientSaved = clientId === v.clientId && !secret && (google || tenant === v.tenant);
   const hasClient = clientSaved && !!v.clientId && (!google || v.hasSecret);
   const needsReSignIn = google && v.connected && v.gmailWrite && !(v.granted.gmailModify && v.granted.gmailFilters);
+  const calendarNeedsReSignIn = google && v.connected && v.calendarWrite && !v.granted.calendarWrite;
   const copy = async () => {
     await navigator.clipboard?.writeText(v.redirectUri).catch(() => undefined);
     toast(t("Copied."), { tone: "ok" });
@@ -203,17 +206,37 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
               <div className="flex flex-wrap gap-1.5">
                 <Pill tone={v.connected && v.granted.gmailRead ? "ok" : "idle"}>{v.connected && v.granted.gmailRead ? "✓" : "–"} {t("Read Gmail")}</Pill>
                 <Pill tone={v.connected && v.granted.calendar ? "ok" : "idle"}>{v.connected && v.granted.calendar ? "✓" : "–"} {t("Read the calendar")}</Pill>
-                <Pill tone={v.connected && v.granted.gmailModify ? "ok" : "idle"}>{v.connected && v.granted.gmailModify ? "✓" : "–"} {t("Change Gmail (labels, read, spam)")}</Pill>
+                <Pill tone={v.connected && v.granted.gmailModify ? "ok" : "idle"}>{v.connected && v.granted.gmailModify ? "✓" : "–"} {t("Send and change Gmail (drafts, labels, read, archive, spam)")}</Pill>
                 <Pill tone={v.connected && v.granted.gmailFilters ? "ok" : "idle"}>{v.connected && v.granted.gmailFilters ? "✓" : "–"} {t("Make Gmail filters")}</Pill>
+                <Pill tone={v.connected && v.granted.calendarWrite ? "ok" : "idle"}>{v.connected && v.granted.calendarWrite ? "✓" : "–"} {t("Write to Google Calendar (events, answers)")}</Pill>
               </div>
               <label className="flex items-start gap-2 text-sm">
                 <input type="checkbox" className="mt-1" checked={v.gmailWrite} disabled={pending} onChange={(e) => run(() => setGmailWriteAction(e.target.checked))} />
                 <span>
-                  {t("Allow changes to Gmail")}
-                  <span className="block text-xs text-zinc-500">{t("Labels, read/unread, spam and filters — only for agents whose permissions say so. Nothing is deleted, forwarded or sent.")}</span>
+                  {t("Allow writing to Gmail")}
+                  <span className="block text-xs text-zinc-500">
+                    {t("Sending and drafts on your click (a todo's mail, a reply in the inbox), archive and unread; labels, read, spam and filters also for agents whose permissions say so. Agents never send — they propose, you click. Nothing is ever deleted or forwarded.")}
+                  </span>
                 </span>
               </label>
               {needsReSignIn && (
+                <p className="text-xs text-amber-700 dark:text-amber-400">
+                  {t("Google doesn't hold this right yet — sign in again to grant it.")}{" "}
+                  <a className={link} href="/api/connectors/google/connect">
+                    {t("Connect again")}
+                  </a>
+                </p>
+              )}
+              <label className="flex items-start gap-2 text-sm">
+                <input type="checkbox" className="mt-1" checked={v.calendarWrite} disabled={pending} onChange={(e) => run(() => setCalendarWriteAction(e.target.checked))} />
+                <span>
+                  {t("Allow writing to Google Calendar")}
+                  <span className="block text-xs text-zinc-500">
+                    {t("On your click only: events made, moved or edited in calendars you own or may write, invitations answered, a todo's appointment entered. Agents only propose. Nothing is ever deleted or cancelled.")}
+                  </span>
+                </span>
+              </label>
+              {calendarNeedsReSignIn && (
                 <p className="text-xs text-amber-700 dark:text-amber-400">
                   {t("Google doesn't hold this right yet — sign in again to grant it.")}{" "}
                   <a className={link} href="/api/connectors/google/connect">

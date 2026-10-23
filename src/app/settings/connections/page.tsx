@@ -31,11 +31,13 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
       hasSecret: !!client.clientSecret,
       tenant: id === "microsoft" ? (extraOf("microsoft").tenant ?? "") : "",
       gmailWrite: id === "google" && extraOf("google").gmailWrite === "1",
+      calendarWrite: id === "google" && extraOf("google").calendarWrite === "1",
       granted: {
         gmailRead: row.scope.includes("gmail.readonly") || row.scope.includes("gmail.modify"),
         gmailModify: row.scope.includes("gmail.modify"),
         gmailFilters: row.scope.includes("gmail.settings.basic"),
         calendar: row.scope.includes("calendar"),
+        calendarWrite: row.scope.split(/\s+/).some((x) => x === "https://www.googleapis.com/auth/calendar.events" || x === "https://www.googleapis.com/auth/calendar"),
       },
       connected: apiConnected(row),
       account: row.account,

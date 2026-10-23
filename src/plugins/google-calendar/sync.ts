@@ -56,6 +56,21 @@ async function chromeUp(): Promise<boolean> {
 export const writableGoogleCalendars = (): string[] => getPref<string[]>("google-calendar:writable", []);
 
 /**
+ * Which Google calendars you may write to, asked of Google once when nobody has yet (Calendar read through the automation
+ * Chrome, which doesn't say) — one read of the calendar list. Quietly nothing when it can't be read.
+ */
+export async function learnWritableGoogleCalendars(): Promise<void> {
+  if (getPref<string[] | null>("google-calendar:writable", null) !== null) return;
+  try {
+    const { apiGet } = await import("@/lib/connectors/http");
+    const r = await apiGet<{ items?: { id: string; accessRole?: string }[] }>("google", "/calendar/v3/users/me/calendarList?maxResults=250&minAccessRole=writer");
+    setPref("google-calendar:writable", (r.items ?? []).filter((c) => c.accessRole === "owner" || c.accessRole === "writer").map((c) => c.id));
+  } catch {
+    // (not signed in through the API, offline …: the next sync or write learns it)
+  }
+}
+
+/**
  * What was read, into Zeff's calendars: each Google calendar one of Zeff's, the appointments of the days read replacing what was
  * there; the calendars you may write to remembered (the API says so; the Chrome driver doesn't). How many appointments.
  */

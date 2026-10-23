@@ -64,7 +64,8 @@ function toEvent(e: GEvent, calendarId: string): (EventInput & { calendarId: str
     location: e.location?.trim() || "",
     ...(e.description ? { description: e.description.slice(0, 2000) } : {}),
     showAs: e.transparency === "transparent" ? "free" : e.status === "tentative" ? "tentative" : "busy",
-    response: me?.responseStatus ? (RESPONSES[me.responseStatus] ?? null) : null,
+    // (Your own meeting with guests: you organise it — no invitation to answer.)
+    response: e.organizer?.self && e.attendees?.some((a) => !a.self) ? "organizer" : me?.responseStatus ? (RESPONSES[me.responseStatus] ?? null) : null,
     private: e.visibility === "private" || e.visibility === "confidential",
     online: !!(e.hangoutLink || e.conferenceData),
     ...(e.organizer ? { organizer: e.organizer.displayName || e.organizer.email || "" } : {}),

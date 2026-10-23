@@ -15,7 +15,12 @@ export async function calendarViewData(viewIn: string | undefined, dayIn: string
   const { from, to } = viewRange(view, day);
   // The entries with a start time as a calendar of their own ("Done"): read again from them for what is shown.
   if (isInstalled("zeiterfassung")) (await import("@/lib/calendar/done")).syncDoneCalendar(from, to);
-  const calendars = listCalendars();
+  // Google's calendars you may write to (and Google holds the right): changed here, through Google's API.
+  const { googleGrants } = await import("@/lib/google/grants");
+  const gcal = googleGrants().includes("gcal-write") ? await import("@/plugins/google-calendar/sync") : null;
+  if (gcal) await gcal.learnWritableGoogleCalendars();
+  const writable = new Set(gcal?.writableGoogleCalendars() ?? []);
+  const calendars = listCalendars().map((c) => (c.source === "google" && writable.has(c.key.replace(/^google:/, "")) ? { ...c, writable: true } : c));
   const events = eventsBetween(from, to).map(({ calendar: _c, ...e }) => e);
   // The appointments todos propose (their actions — not entered yet).
   const proposed: ProposedEvent[] = listTodos({ status: "open" })

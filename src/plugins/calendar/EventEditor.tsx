@@ -20,6 +20,8 @@ export type EditorInit = {
   description: string;
   recurrence: Recurrence | null;
   occurrence?: string | null;
+  /** A new event in a Google calendar: its guests' addresses ("a@b.de, c@d.de") — Google invites them. */
+  guests?: string;
 };
 
 type Result = { ok: boolean; message?: string; error?: string } | null;
@@ -72,7 +74,8 @@ export function ScopeChoice({ title, onPick, onCancel, pending }: { title: strin
 /**
  * A new appointment, or one of Zeff's own calendars changed: title, all day or from–to, calendar,
  * repeat (a preset or a rule of your own, ending never / on a day / after n times), place, notes.
- * A series' occurrence asks first: this one, it and the following, or all.
+ * A series' occurrence asks first: this one, it and the following, or all. In a Google calendar you
+ * may write to: no series and no delete from here; a new one can invite guests (Google mails them).
  */
 export function EventEditor({ init, calendars, onClose, onDone }: { init: EditorInit; calendars: CalendarView[]; onClose: () => void; onDone: (r: Result, undo?: () => unknown) => void }) {
   const t = useT();
@@ -139,9 +142,10 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
           allDay: v.allDay,
           location: v.location,
           description: v.description,
-          recurrence: v.recurrence,
+          recurrence: google ? undefined : v.recurrence,
           occurrence: series ? init.occurrence : null,
           scope,
+          ...(google && !v.id && v.guests?.trim() ? { attendees: v.guests.split(/[\s,;]+/).filter(Boolean) } : {}),
         }),
       ),
     );
@@ -154,6 +158,7 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
       ),
     );
   const calendar = calendars.find((c) => c.id === v.calendarId);
+  const google = calendar?.source === "google";
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/40 p-0 sm:items-center sm:p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
@@ -195,39 +200,43 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
                 <select className="input" value={v.calendarId} disabled={!!v.id} onChange={(e) => set({ calendarId: Number(e.target.value) })}>
                   {calendars.map((c) => (
                     <option key={c.id} value={c.id}>
-                      {c.name}
+                      {c.source === "google" ? `${c.name} (Google)` : c.name}
                     </option>
                   ))}
                 </select>
               </label>
-              <label className="block text-sm">
-                <span className="label">{t("Repeat")}</span>
-                <select
-                  className="input"
-                  value={custom ? "custom" : presetKey}
-                  onChange={(e) => {
-                    const k = e.target.value;
-                    if (k === "custom") {
-                      setCustom(true);
-                      if (!rule) setRule({ freq: "weekly", interval: 1, byDay: [weekdayOf(local(startDay))] });
-                      return;
-                    }
-                    setCustom(false);
-                    const o = options.find((x) => x.key === k);
-                    set({ recurrence: o?.rule ? { ...o.rule, ...(rule?.until ? { until: rule.until } : rule?.count ? { count: rule.count } : {}) } : null });
-                  }}
-                >
-                  {options.map((o) => (
-                    <option key={o.key} value={o.key}>
-                      {o.label}
-                    </option>
-                  ))}
-                  <option value="custom">{t("Custom…")}</option>
-                </select>
-              </label>
+              {google ? (
+                <p className="self-end pb-2 text-xs text-zinc-500">{t("Saved in Google Calendar — series are made there.")}</p>
+              ) : (
+                <label className="block text-sm">
+                  <span className="label">{t("Repeat")}</span>
+                  <select
+                    className="input"
+                    value={custom ? "custom" : presetKey}
+                    onChange={(e) => {
+                      const k = e.target.value;
+                      if (k === "custom") {
+                        setCustom(true);
+                        if (!rule) setRule({ freq: "weekly", interval: 1, byDay: [weekdayOf(local(startDay))] });
+                        return;
+                      }
+                      setCustom(false);
+                      const o = options.find((x) => x.key === k);
+                      set({ recurrence: o?.rule ? { ...o.rule, ...(rule?.until ? { until: rule.until } : rule?.count ? { count: rule.count } : {}) } : null });
+                    }}
+                  >
+                    {options.map((o) => (
+                      <option key={o.key} value={o.key}>
+                        {o.label}
+                      </option>
+                    ))}
+                    <option value="custom">{t("Custom…")}</option>
+                  </select>
+                </label>
+              )}
             </div>
 
-            {rule && (
+            {rule && !google && (
               <div className="space-y-2 rounded-lg border border-zinc-200 p-3 text-sm dark:border-zinc-800">
                 {custom && (
                   <>
@@ -301,6 +310,9 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
               </div>
             )}
 
+            {google && !v.id && (
+              <input className="input" placeholder={t("Invite guests (mail addresses)")} aria-label={t("Invite guests (mail addresses)")} value={v.guests ?? ""} onChange={(e) => set({ guests: e.target.value })} />
+            )}
             <input className="input" placeholder={t("Add location")} value={v.location} onChange={(e) => set({ location: e.target.value })} />
             <textarea className="input min-h-20 resize-y" placeholder={t("Add description")} value={v.description} onChange={(e) => set({ description: e.target.value })} />
 
@@ -309,7 +321,8 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
             </span>
             {error && <p role="alert" className="alert-error text-sm">{error}</p>}
             <div className="flex items-center gap-2 pt-1">
-              {v.id && (
+              {v.id && google && <span className="text-xs text-zinc-500">{t("Zeff never deletes Google events — delete it in Google Calendar.")}</span>}
+              {v.id && !google && (
                 <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" disabled={pending} onClick={() => (series ? setAsking("delete") : remove())}>
                   {t("Delete")}
                 </button>
