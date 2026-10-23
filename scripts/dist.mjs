@@ -189,6 +189,9 @@ function buildApp() {
   } else {
     const next = path.join(app, "node_modules", "next", "dist", "bin", "next");
     const env = { ...process.env, NEXT_TELEMETRY_DISABLED: "1" };
+    // The integrations' mount files (src/lib/integrations/mounted-*.ts) are generated, not committed: written for what
+    // the copy has under integrations/ — a release has none (submodules aren't in a commit), so they come out empty.
+    run(process.execPath, [path.join(app, "scripts", "integrations.mjs")], { cwd: app, env });
     if (release) {
       // The build's workers would each create and migrate a fresh database at once ("database is locked"):
       // one made and migrated first, outside the bundle.
