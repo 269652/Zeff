@@ -415,7 +415,7 @@ export async function runTicketActionAction(runId: number, ticket: string, idx: 
   }
 }
 
-/** A todo done another way (one of its alternatives — "Rico zuweisen", "Merge into main"): its operations replaced, then run. */
+/** A todo done another way (one of its alternatives — "Sarah zuweisen", "Merge into main"): its operations replaced, then run. */
 export async function runTodoAlternativeAction(todoId: number, label: string): Promise<ActionState> {
   try {
     const { getTodo, setTodoOps } = await import("@/lib/boards/store");

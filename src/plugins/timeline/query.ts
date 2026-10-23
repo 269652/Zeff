@@ -1,6 +1,6 @@
 /**
  * The timeline as callers ask for it (the Timeline plugin) — the API methods, the MCP tools and the pages share these: an entity's
- * events by its ref or by a name ("Julia", "PROJ-12"), and what changed since a time, grouped by entity, with labels and links —
+ * events by its ref or by a name ("Laura", "PROJ-12"), and what changed since a time, grouped by entity, with labels and links —
  * each without what the reader may not see (boundaries.ts: secret sources and databases for nobody, personal ones only with
  * clearance). Server only.
  */

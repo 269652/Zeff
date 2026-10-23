@@ -115,7 +115,7 @@ export const DELIVERY_OP_TYPES = ACTIONS.filter((a) => a.delivery).map((a) => a.
 /** The operations an AI may propose: the offered actions of all plugins (which are installed is checked where they're offered). */
 export const TODO_OP_TYPES = OFFERED_ACTIONS.map((a) => a.type);
 
-/** An operation in a few words: "PROJ-415 → Testing", "PROJ-415 zuweisen: clorenz", "Thread note:461450 auflösen" — in English (one argument, so `ops.map(opLabel)` works; shown: opTitle). */
+/** An operation in a few words: "PROJ-415 → Testing", "PROJ-415 zuweisen: tbecker", "Thread note:461450 auflösen" — in English (one argument, so `ops.map(opLabel)` works; shown: opTitle). */
 export function opLabel(op: TodoOp): string {
   return opTitle(op, translator("en"));
 }
@@ -655,7 +655,7 @@ export const BOARD_RESULT_SCHEMA = {
                 source: {
                   type: "string",
                   description:
-                    "Worauf es sich stützt, kurz: z. B. „Kommentar Julia Freidank 24.09.“",
+                    "Worauf es sich stützt, kurz: z. B. „Kommentar Laura Schulz 24.09.“",
                 },
                 due: {
                   type: "string",
@@ -752,7 +752,7 @@ export const BOARD_RESULT_SCHEMA = {
                 label: {
                   type: "string",
                   description:
-                    "Kurz wie ein Knopf: „→ Testing“, „Zuweisen: Christopher Lorenz“, „Kommentar: Stand melden“.",
+                    "Kurz wie ein Knopf: „→ Testing“, „Zuweisen: Thomas Becker“, „Kommentar: Stand melden“.",
                 },
                 to: {
                   type: "string",

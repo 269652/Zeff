@@ -155,7 +155,7 @@ export const WORK_RESULT_SCHEMA = {
           text: { type: "string", description: "Ein Satz, Verb zuerst, prüfbar." },
           channel: { type: "string", enum: ["jira", "teams", "gitlab", "none"], description: "Wohin es geht (none: Arbeit, keine Nachricht)." },
           target: { type: "string", description: "jira: der Ticket-Key · teams: teams:<Kennung> der Nachricht, auf die geantwortet wird · gitlab: gitlab:note:<id>." },
-          draft: { type: "string", description: "Der fertige Text (Kommentar, Antwort) oder die Änderung (z. B. „Status → Testing, zuweisen an Julia Freidank“)." },
+          draft: { type: "string", description: "Der fertige Text (Kommentar, Antwort) oder die Änderung (z. B. „Status → Testing, zuweisen an Laura Schulz“)." },
           ops: TODO_OPS_SCHEMA,
         },
       },

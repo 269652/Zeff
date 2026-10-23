@@ -66,7 +66,7 @@ export function suggestionText(s: Suggestion, nameOf: (id: number) => string | u
   return s.kind === "alias" ? t("“{alias}” is another name of {name}", { alias: s.name, name: target }) : t("New profile for {name}", { name: s.name });
 }
 
-/** A link without its person: "works-with Rico Clemen", "on-ticket PC-1", "works-at Acme" (an organisation or place by its name). */
+/** A link without its person: "works-with Sarah Klein", "on-ticket PC-1", "works-at Acme" (an organisation or place by its name). */
 export const linkText = (l: Pick<Link, "rel" | "targetType" | "targetRef"> & { label?: string }, who: (id: number) => string) =>
   `${l.rel} ${l.targetType === "person" ? who(Number(l.targetRef)) : (l.targetType === "org" || l.targetType === "place") && l.label ? l.label : l.targetRef}`;
 

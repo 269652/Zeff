@@ -148,7 +148,7 @@ export default async function Home({ searchParams }: { searchParams: Promise<{ q
             <form action={compile}>
               <button className="btn">Compile only</button>
             </form>
-            <Link href="/normalisieren" className="btn" title="Merge entities that are the same (“Moritz”, “author” → “Moritz Roessler”)">
+            <Link href="/normalisieren" className="btn" title="Merge entities that are the same (“Max”, “author” → “Max Mustermann”)">
               Normalize
             </Link>
           </div>

@@ -1,7 +1,7 @@
 /**
  * Who and what an event concerns, by rule (the Timeline plugin) — no AI: people by their mail address, their name, an alias, their
  * chat's name or their Jira username (a form two people share names neither), and by the names a text mentions; ticket keys in a
- * text (of the projects Zeff knows). And the other way round: a free text an agent or you give ("Julia", "PROJ-12", "Relaunch") as
+ * text (of the projects Zeff knows). And the other way round: a free text an agent or you give ("Laura", "PROJ-12", "Relaunch") as
  * the ref it means, and a ref's label for the pages. Server only.
  */
 import { getSqlite } from "@/db";
@@ -119,7 +119,7 @@ export function resolveQuery(q: string): { ref: string; label: string } | null {
   if (job) return { ref: `job:${job.number}`, label: `${job.number} ${job.name}` };
   const page = safeAll<{ id: number; title: string }>("select id, title from ws_pages where archived_at is null and lower(title) = ? order by db_id is null, id limit 1", lower)[0];
   if (page) return { ref: `page:${page.id}`, label: page.title };
-  // A name that contains the text, when only one does ("Julia F").
+  // A name that contains the text, when only one does ("Laura S").
   const loose = r.people.filter((p) => namesOf(p).some((n) => n.toLowerCase().includes(lower)));
   if (lower.length >= 3 && loose.length === 1) return { ref: `person:${loose[0].id}`, label: loose[0].name };
   return null;

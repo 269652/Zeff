@@ -25,7 +25,7 @@ export function wordOverlap(a: string, b: string): number {
 
 /**
  * Whether two todo texts say the same: mostly the same words — or one is a part of the other (all the words of
- * the shorter among the longer's: "die Darstellung auf Live prüfen" in "… prüfen und Jens Bescheid geben").
+ * the shorter among the longer's: "die Darstellung auf Live prüfen" in "… prüfen und Jan Bescheid geben").
  */
 export function similarText(a: string, b: string): boolean {
   if (wordOverlap(a, b) >= 0.5) return true;

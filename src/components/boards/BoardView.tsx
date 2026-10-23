@@ -83,7 +83,7 @@ const ACTION_ICON: Record<TicketAction["type"], string> = {
 };
 
 /**
- * A change to the ticket the run suggests — "→ Testing", "Zuweisen: Christopher Lorenz", a
+ * A change to the ticket the run suggests — "→ Testing", "Zuweisen: Thomas Becker", a
  * comment: asked once more (with the comment's text), then done in Jira through Zeff's Jira
  * connection. Done, it says what happened and when; failed, why (and it can be tried again).
  */

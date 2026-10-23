@@ -7,7 +7,7 @@
  *
  * How it reads: Google Calendar's week view in a fresh tab, week by week — the calendars in its
  * sidebar (name, colour, shown or not) and each appointment's chip, whose screen-reader line says
- * it all ("09:00 bis 17:00, Arbeit, Moritz Roessler, Kein Ort, 5. Oktober 2026") — then the tab is
+ * it all ("09:00 bis 17:00, Arbeit, Max Mustermann, Kein Ort, 5. Oktober 2026") — then the tab is
  * closed. Nothing is opened, moved or answered: no appointment changes.
  *
  * Tools:

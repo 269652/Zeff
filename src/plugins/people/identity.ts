@@ -1,7 +1,7 @@
 /**
  * Identity resolution (the People plugin): one person under every name the sources know them by.
- * Teams, mail, Jira and GitLab each write a person differently ("Lorenz, Christopher", "chrlorenz1",
- * "Chris R."); this reads those names and the addresses and usernames that come with them and
+ * Teams, mail, Jira and GitLab each write a person differently ("Becker, Thomas", "thobecke1",
+ * "Thomas B."); this reads those names and the addresses and usernames that come with them and
  * proposes — never applies by itself — which are the same person: a name to add as an alias, two
  * profiles to merge, a profile for someone who keeps turning up. A proposal waits in the review
  * queue until you accept it; a rejected one is remembered and not made again. Server only.
@@ -100,7 +100,7 @@ export function observedNames(): Seen[] {
     s.replied += extra.replied ?? 0;
     if (extra.email?.includes("@")) s.emails.add(extra.email.toLowerCase());
     if (extra.user) s.users.add(extra.user);
-    // The fuller way of writing it is the one shown ("Christopher Lorenz" over "Lorenz").
+    // The fuller way of writing it is the one shown ("Thomas Becker" over "Becker").
     if (display.length > s.name.length) s.name = display;
     seen.set(key, s);
   };
@@ -252,7 +252,7 @@ export function findIdentitySuggestions(): number {
       q({ key: keyOf("alias", near[0].id, normalizeName(s.name)), kind: "alias", personId: near[0].id, otherId: 0, name: s.name, emails: [], jira: "", evidence: `"${s.name}" in ${[...s.sources].join(", ")} reads like ${near[0].name}`, confidence: 0.8 });
       continue;
     }
-    // A full name that continues exactly one profile's first name, with the same address/user nowhere else: "Julia" → "Julia Freidank".
+    // A full name that continues exactly one profile's first name, with the same address/user nowhere else: "Laura" → "Laura Schulz".
     const words = normalizeName(s.name).split(" ");
     if (words.length >= 2 && s.sources.size >= 1) {
       const first = people.filter((p) => !p.name.includes(" ") && normalizeName(p.name) === words[0]);

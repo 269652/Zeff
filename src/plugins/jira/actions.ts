@@ -35,7 +35,7 @@ export const JIRA_ACTIONS = [
     offer: {
       when: "Das Ticket soll jemand anderem gehören (z. B. dem Tester).",
       fields: { ticket: "der Ticket-Key", assignee: "der Jira-Benutzername (bei den Beteiligten in Klammern hinter dem Namen)" },
-      example: { type: "jira-assign", ticket: "PROJ-415", assignee: "clorenz" },
+      example: { type: "jira-assign", ticket: "PROJ-415", assignee: "tbecker" },
     },
     clean: (o, c) => (str(o.assignee) ? { type: "jira-assign", ticket: ticketKey(o.ticket, c.ticket), assignee: str(o.assignee) } : null),
     title: (op, t = EN) => t("Assign {ticket}: {assignee}", { ticket: op.ticket, assignee: op.assignee }),

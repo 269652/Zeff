@@ -15,7 +15,7 @@ export function PersonCombobox({
   people,
   id,
   name,
-  placeholder = "Jenny Lehrl",
+  placeholder = "Nina Wolf",
 }: {
   value: string;
   onChange: (v: string) => void;

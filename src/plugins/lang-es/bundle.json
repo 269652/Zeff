@@ -1630,7 +1630,7 @@
   "Duplicate todos": "Todos duplicados",
   "Duplicates among the open todos, merged into the oldest": "Duplicados entre los todos abiertos, fusionados en el más antiguo",
   "e.g.\n- Answer briefly, without filler.\n- Always address customers formally.\n- Never push anything to main.": "p. ej.\n- Responde brevemente, sin relleno.\n- Trata siempre de usted a los clientes.\n- Nunca hagas push de nada a main.",
-  "e.g.\nI'm a developer on the PROJ project (TYPO3).\nChristopher Lorenz tests, Rico Clemen is the PM.": "p. ej.\nSoy desarrollador en el proyecto PROJ (TYPO3).\nChristopher Lorenz prueba, Rico Clemen es el PM.",
+  "e.g.\nI'm a developer on the PROJ project (TYPO3).\nThomas Becker tests, Sarah Klein is the PM.": "p. ej.\nSoy desarrollador en el proyecto PROJ (TYPO3).\nThomas Becker prueba, Sarah Klein es el PM.",
   "e.g. “ignore newsletters from X”, “always reply on first-name terms”, “customer meetings take priority”": "p. ej. “ignora los boletines de X”, “responde siempre tuteando”, “las reuniones con clientes tienen prioridad”",
   "E.g. a OneDrive folder, so the backups aren't only on this computer. Now: {dir}": "P. ej. una carpeta de OneDrive, para que las copias no estén solo en este equipo. Ahora: {dir}",
   "e.g. mother, landlord": "p. ej. madre, casero",

@@ -1,14 +1,14 @@
 /**
  * People named in a text (a todo's): every way a person is called — their name, aliases, WhatsApp
- * chat, and the parts of their name nobody else shares ("Kruger" for Christopher Kruger, also as
- * "Herr Kruger") — found as whole words, in the genitive too ("Paulas"). A form two people share
+ * chat, and the parts of their name nobody else shares ("Hoffmann" for Peter Hoffmann, also as
+ * "Herr Hoffmann") — found as whole words, in the genitive too ("Paulas"). A form two people share
  * names neither. Client-safe.
  */
 
 /** A person as texts are matched against: the forms they're called by (each theirs alone). */
 export type PersonIndexEntry = { id: number; name: string; forms: string[] };
 
-/** Words in front of a name that belong to the mention ("Herr Kruger", "Frau Dr. Meier"). */
+/** Words in front of a name that belong to the mention ("Herr Hoffmann", "Frau Dr. Meier"). */
 const HONORIFIC = String.raw`(?:(?:Herrn?|Frau|Fr\.|Hr\.|Dr\.|Prof\.)\s+){0,2}`;
 const TITLES = new Set(["herr", "herrn", "frau", "dr.", "prof.", "hr.", "fr."]);
 const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -35,7 +35,7 @@ export function buildPeopleIndex(people: { id: number; name: string; aliases: st
   return own.map((p, i) => ({ ...p, forms: [...new Set([...p.forms, ...parts[i]])].filter((f) => count.get(f.toLowerCase()) === 1) })).filter((p) => p.forms.length);
 }
 
-/** One regex for everyone's forms (the longest first: "Christopher Kruger" before "Kruger"), and which person each names. */
+/** One regex for everyone's forms (the longest first: "Peter Hoffmann" before "Hoffmann"), and which person each names. */
 export function mentionMatcher(index: PersonIndexEntry[]): { re: RegExp; who: Map<string, PersonIndexEntry> } | null {
   const who = new Map<string, PersonIndexEntry>();
   for (const p of index) for (const f of p.forms) who.set(f.toLowerCase(), p);

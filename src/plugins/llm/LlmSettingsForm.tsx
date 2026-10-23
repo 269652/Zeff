@@ -72,7 +72,7 @@ export function LlmSettingsForm({
             className="input min-h-36 w-full text-sm"
             value={context}
             onChange={(e) => setContext(e.target.value)}
-            placeholder={t("e.g.\nI'm a developer on the PROJ project (TYPO3).\nChristopher Lorenz tests, Rico Clemen is the PM.")}
+            placeholder={t("e.g.\nI'm a developer on the PROJ project (TYPO3).\nThomas Becker tests, Sarah Klein is the PM.")}
           />
         </label>
       </div>

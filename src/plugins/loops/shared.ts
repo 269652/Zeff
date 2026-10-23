@@ -109,7 +109,7 @@ export const isSendPromise = (text: string): boolean => /\b(schick|send|anhang|d
 
 const escape = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
-/** A text addressed to you: one of your names or handles (@morrossl, [~morrossl]) as a word of its own — your first name too. */
+/** A text addressed to you: one of your names or handles (@mmuster, [~mmuster]) as a word of its own — your first name too. */
 export function addressedTo(text: string, names: string[], handles: string[] = []): boolean {
   const s = String(text ?? "");
   const words = new Set<string>();

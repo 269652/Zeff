@@ -145,7 +145,7 @@ export function entityWhoWhen(e: Sourced): { author: string | null; at: string |
   return { author: g.author, at: g.kind === "branch" ? g.updatedAt : g.createdAt };
 }
 
-/** A line naming it: "Christopher Lorenz in Chat with Christopher Lorenz", "!167 Title", "Todo T-12 on PROJ-364". */
+/** A line naming it: "Thomas Becker in Chat with Thomas Becker", "!167 Title", "Todo T-12 on PROJ-364". */
 export function entityHeadline(e: Sourced): string {
   if (e.source === "mail") return `${mailSender(e.mail)}: ${e.mail.subject}`;
   if (e.source === "teams") return [e.teams.senderName ?? "Teams message", e.teams.place ? `in ${e.teams.place}` : ""].filter(Boolean).join(" ");

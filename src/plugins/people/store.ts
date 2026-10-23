@@ -168,7 +168,7 @@ export function removeAccount(id: number, kind: "jira", value: string): void {
   changed();
 }
 
-/** Who has this account (e.g. the Jira user "chrlorenz1"). */
+/** Who has this account (e.g. the Jira user "thobecke1"). */
 export function personByAccount(kind: "jira", value: string): Person | null {
   const v = value.trim().toLowerCase();
   return listPeople().find((p) => p.accounts.some((a) => a.kind === kind && a.value.toLowerCase() === v)) ?? null;

@@ -15,7 +15,7 @@ export const OP_CHIP =
   "rounded border border-sky-200 bg-sky-50 px-1.5 py-0.5 text-xs text-sky-900 dark:border-sky-900 dark:bg-sky-950/40 dark:text-sky-100";
 
 /**
- * A todo's other ways to be done ("Rene zuweisen", "Merge into main"), each a row of its own:
+ * A todo's other ways to be done ("Jan zuweisen", "Merge into main"), each a row of its own:
  * its chip — what it does — and its button, which runs it at once (a merge asks first).
  */
 export function TodoAlternatives({

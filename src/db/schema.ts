@@ -557,7 +557,7 @@ export const contexts = sqliteTable("contexts", {
   kind: text("kind").notNull().default("note"),
   /** A short headline (optional — the message's first line stands in). */
   title: text("title"),
-  /** Who wrote it, e.g. "Jenny Lehrl". */
+  /** Who wrote it, e.g. "Nina Wolf". */
   author: text("author"),
   /** The message itself, as pasted. */
   body: text("body").notNull().default(""),

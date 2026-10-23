@@ -330,7 +330,7 @@ async function teamsSend({ to, text, dryRun = false }) {
     // Their chat open already (the window title names them): no reload — else to it.
     const open = (await page.title()).split("|").map((x) => x.trim()).includes(who.displayName) && (await page.locator(COMPOSE).first().isVisible().catch(() => false));
     if (!open) await page.goto(route, { waitUntil: "domcontentloaded", timeout: 60000 });
-    // Theirs: the window title names them ("Chat | Christopher Lorenz | Microsoft Teams").
+    // Theirs: the window title names them ("Chat | Thomas Becker | Microsoft Teams").
     const theirs = await page
       .waitForFunction((n) => document.title.split("|").map((x) => x.trim()).includes(n), who.displayName, { timeout: 60000 })
       .then(() => true)
@@ -419,7 +419,7 @@ const TOOLS = [
     inputSchema: {
       type: "object",
       properties: {
-        to: { type: "string", description: "The colleague's display name, e.g. 'Christopher Lorenz'." },
+        to: { type: "string", description: "The colleague's display name, e.g. 'Thomas Becker'." },
         text: { type: "string", description: "The message (plain text; new lines are kept)." },
         dryRun: { type: "boolean", description: "Only open the chat and check it — nothing typed or sent." },
       },

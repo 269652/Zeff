@@ -30,7 +30,7 @@ export const GMAIL_ACTIONS = [
         subject: "der Betreff (bei einer Antwort: „Re: “ und der Betreff der Mail)",
         body: "der fertige Text mit Anrede und Gruß",
       },
-      example: { type: "gmail-compose", to: "kundenservice@example.com", subject: "Re: Ihre Angaben", body: "Hallo,\n\nanbei die gewünschten Angaben …\n\nViele Grüße\nMoritz" },
+      example: { type: "gmail-compose", to: "kundenservice@example.com", subject: "Re: Ihre Angaben", body: "Hallo,\n\nanbei die gewünschten Angaben …\n\nViele Grüße\nMax" },
     },
     clean: (o) =>
       str(o.body) ? { type: "gmail-compose", to: str(o.to).slice(0, 300), subject: str(o.subject).slice(0, 300), body: str(o.body).slice(0, 8000) } : null,

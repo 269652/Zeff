@@ -15,7 +15,7 @@ export const metadata: Metadata = { title: "Normalize" };
 const day = (iso: string) => formatDateTime(iso);
 
 /**
- * Normalizing the entities: the AI finds the ones that are the same ("Moritz Roessler", "Moritz",
+ * Normalizing the entities: the AI finds the ones that are the same ("Max Mustermann", "Max",
  * "Verfasser") and proposes to make them one — here you take or reject each proposal (its name
  * changeable), or all at once. Run it when you like; compiling doesn't need it.
  */
@@ -79,7 +79,7 @@ export default async function NormalizePage({ searchParams }: { searchParams: Pr
           <Link href="/graph" className="text-indigo-600 hover:underline dark:text-indigo-400">
             graph
           </Link>{" "}
-          (“Moritz Roessler”, “Moritz”, “Verfasser”), the same system in several spellings. The AI looks through the {c.entities} entities for what really is the same and proposes merging it: pages and relations move to the one, the
+          (“Max Mustermann”, “Max”, “Verfasser”), the same system in several spellings. The AI looks through the {c.entities} entities for what really is the same and proposes merging it: pages and relations move to the one, the
           other names become its aliases — and new compiling finds it under them again.
         </p>
       </div>
@@ -90,7 +90,7 @@ export default async function NormalizePage({ searchParams }: { searchParams: Pr
         <form action={owner} className="flex flex-wrap items-end gap-2">
           <label className="block min-w-64 flex-1 text-sm">
             <span className="label">Whose knowledge base is this?</span>
-            <input name="owner" defaultValue={s.owner} placeholder="Your name, e.g. Moritz Roessler — “I”, “author” (or “Ich”, “Verfasser”) then mean you" className="input" />
+            <input name="owner" defaultValue={s.owner} placeholder="Your name, e.g. Max Mustermann — “I”, “author” (or “Ich”, “Verfasser”) then mean you" className="input" />
           </label>
           <button className="btn">Save</button>
         </form>

@@ -45,7 +45,7 @@ const template = (t: T) => `<state name="keep" value=""/>
       <part name="person.input" field="aliases" label="${t("Also called (comma-separated)")}"/>
       <part name="person.input" field="emails" label="${t("Mail addresses (comma-separated)")}"/>
       <part name="person.input" field="whatsapp" label="${t("WhatsApp chat (its name)")}"/>
-      <part name="person.input" field="jira" label="${t("Jira usernames (comma-separated) — for @-mentions in Jira comments")}" placeholder="chrlorenz1"/>
+      <part name="person.input" field="jira" label="${t("Jira usernames (comma-separated) — for @-mentions in Jira comments")}" placeholder="thobecke1"/>
     </box>
 
     <box>

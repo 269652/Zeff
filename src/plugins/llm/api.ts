@@ -94,7 +94,7 @@ export const LLM_API: ApiContribution = {
           extra: "der vollständige neue Anweisungstext des Schritts (die bestehenden Anweisungen, angepasst) — leer lassen, wenn nur Zahlen geändert werden",
           numbers: 'optional: ein JSON-Objekt (als Text) mit den Zahlen des Schritts, z. B. {"maxChars": 30, "words": 4} — nur was sich ändert',
         },
-        example: { step: "branchname", extra: "Branch-Namen nach dem Code Change benennen, nicht nach dem Ticket-Titel (Absprache mit Christopher).", numbers: '{"words": 3}' },
+        example: { step: "branchname", extra: "Branch-Namen nach dem Code Change benennen, nicht nach dem Ticket-Titel (Absprache mit Thomas).", numbers: '{"words": 3}' },
         check: (raw) => {
           const step = raw.step?.trim() ?? "";
           if (!isStep(step)) return null;

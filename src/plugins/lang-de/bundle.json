@@ -1630,7 +1630,7 @@
   "Duplicate todos": "Doppelte Todos",
   "Duplicates among the open todos, merged into the oldest": "Duplikate unter den offenen Todos, in das älteste zusammengeführt",
   "e.g.\n- Answer briefly, without filler.\n- Always address customers formally.\n- Never push anything to main.": "z. B.\n- Kurz antworten, ohne Füllwörter.\n- Kunden immer siezen.\n- Nie etwas nach main pushen.",
-  "e.g.\nI'm a developer on the PROJ project (TYPO3).\nChristopher Lorenz tests, Rico Clemen is the PM.": "z. B.\nIch bin Entwickler im PROJ-Projekt (TYPO3).\nChristopher Lorenz testet, Rico Clemen ist der PM.",
+  "e.g.\nI'm a developer on the PROJ project (TYPO3).\nThomas Becker tests, Sarah Klein is the PM.": "z. B.\nIch bin Entwickler im PROJ-Projekt (TYPO3).\nThomas Becker testet, Sarah Klein ist der PM.",
   "e.g. “ignore newsletters from X”, “always reply on first-name terms”, “customer meetings take priority”": "z. B. „Newsletter von X ignorieren“, „immer per du antworten“, „Kundentermine haben Vorrang“",
   "E.g. a OneDrive folder, so the backups aren't only on this computer. Now: {dir}": "Z. B. ein OneDrive-Ordner, damit die Backups nicht nur auf diesem Rechner liegen. Jetzt: {dir}",
   "e.g. mother, landlord": "z. B. Mutter, Vermieter",

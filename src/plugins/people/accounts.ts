@@ -91,7 +91,7 @@ export function nameSimilar(a: string, b: string): boolean {
 
 /**
  * The Jira usernames a person of this name probably has: here they are the first three letters of the first name
- * and the first five of the last (Jonas Teichrueb → jonteich), with a digit when there are two of them (…1, …2).
+ * and the first five of the last (Felix Hartmann → felhartm), with a digit when there are two of them (…1, …2).
  * In the order to try them. A single name gives none.
  */
 export function usernameCandidates(name: string): string[] {
@@ -218,7 +218,7 @@ function tagForms(people: Person[]): Map<string, Person> {
 }
 
 /**
- * A note's words for Jira: each @-tagged person (@Christopher Lorenz, @Chris, @chrlorenz1) becomes
+ * A note's words for Jira: each @-tagged person (@Thomas Becker, @Thomas, @thobecke1) becomes
  * their Jira mention ([~username]); one without a Jira account stays as plain words (reported in
  * `noAccount`). Names without an @ are left alone.
  */

@@ -54,7 +54,7 @@ export type PersonCardData = {
   todos: { id: number; ref: string; text: string }[];
   /** What was read from messages: roles, responsibilities, facts (confirmed, or the AI's sure ones). */
   claims: { kind: string; text: string; confirmed: boolean }[];
-  /** What they are linked to: tickets, topics, people — "is on PROJ-364", "manages Rico Clemen". */
+  /** What they are linked to: tickets, topics, people — "is on PROJ-364", "manages Sarah Klein". */
   links: string[];
   /** Open commitments with them: who owes what, by when. */
   owed: { direction: "mine" | "theirs"; text: string; due: string }[];
@@ -73,7 +73,7 @@ export async function personCardAction(id: number): Promise<PersonCardData | nul
   if (!p) return null;
   const { contactsOf, datesOf, peopleIndex, relationsOf } = await import("./store");
   const { mentionMatcher, splitMentions } = await import("./mentions");
-  // Named in a text the way todos show it (aliases, "Herr Kruger", "Paulas").
+  // Named in a text the way todos show it (aliases, "Herr Hoffmann", "Paulas").
   const matcher = mentionMatcher(await peopleIndex());
   const names = (text: string) => splitMentions(text, matcher).some((m) => m.person?.id === p.id);
   const { dateText, daysBetween, inDaysText, isoDay, nextOccurrence, upcomingShort } = await import("./shared");

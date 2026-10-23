@@ -130,7 +130,7 @@ export function savePage(page: PageRow, x: Extracted["pages"][number]): void {
          summary = case when length(excluded.summary) > length(entities.summary) then excluded.summary else entities.summary end
        returning id, aliases`,
     );
-    // A name normalizing merged into another entity ("Moritz" → "Moritz Roessler"): that one, the name kept as an alias.
+    // A name normalizing merged into another entity ("Max" → "Max Mustermann"): that one, the name kept as an alias.
     const merged = d.prepare("select e.key from entity_keys k join entities e on e.id = k.entity_id where k.key = ?");
     for (const e of x.entities ?? []) {
       const own = keyOf(e.name ?? "");

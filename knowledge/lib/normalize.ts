@@ -4,11 +4,11 @@ import { ai, backendFor } from "./llm";
 
 /**
  * Normalizing the entities: compiling makes one entity per name, so the same person or thing ends
- * up as several — "Moritz Roessler", "Moritz", "Verfasser"; "PROJ-123", "PROJ 123"; "Fileadmin",
+ * up as several — "Max Mustermann", "Max", "Verfasser"; "PROJ-123", "PROJ 123"; "Fileadmin",
  * "fileadmin-Ordner". This finds them and makes them one, apart from compiling, when you run it:
  *
  * 1. Candidates, without AI: names alike — the same written together, a typo apart, one inside
- *    the other ("Moritz" in "Moritz Roessler"), a first name the start of another ("Chris"), a
+ *    the other ("Max" in "Max Mustermann"), a first name the start of another ("Chris"), a
  *    name another one's alias. Every person (and every word for "me": Ich, Verfasser, Autor …)
  *    goes to the AI anyway, all together: who's who needs the whole list.
  * 2. The AI says which really are the same (not just related) and how the one should be named.
@@ -174,7 +174,7 @@ const SCHEMA = {
 const line = (e: Ent) => `${e.id} | ${e.type} | ${e.name}${e.aliases.length ? ` | auch: ${e.aliases.slice(0, 6).join(", ")}` : ""} | ${e.pages} Seiten | ${e.summary.replace(/\s+/g, " ").slice(0, 140)}`;
 
 function promptOf(blocks: Ent[][], owner: string): string {
-  return `Du räumst die Wissensbasis eines Menschen auf: Beim Auswerten seiner Seiten (Confluence, Notizen, Chats, Mails) ist pro Name eine Entität entstanden — dieselbe Person, dasselbe System, derselbe Begriff steht deshalb oft mehrfach da ("Moritz Roessler", "Moritz", "Verfasser"; "PROJ-123" und "PROJ 123"; "Fileadmin" und "Fileadmin-Ordner").
+  return `Du räumst die Wissensbasis eines Menschen auf: Beim Auswerten seiner Seiten (Confluence, Notizen, Chats, Mails) ist pro Name eine Entität entstanden — dieselbe Person, dasselbe System, derselbe Begriff steht deshalb oft mehrfach da ("Max Mustermann", "Max", "Verfasser"; "PROJ-123" und "PROJ 123"; "Fileadmin" und "Fileadmin-Ordner").
 ${owner ? `Die Wissensbasis gehört ${owner}. Wörter wie "Ich", "Verfasser", "Autor", "Nutzer", "Owner" meinen ${owner} — führe sie mit ${owner} zusammen.` : `Die Wissensbasis gehört einer Person (ihre eigenen Notizen, Chats, Mails). Wörter wie "Ich", "Verfasser", "Autor" meinen sie — führe sie mit ihr zusammen, wenn sie in der Liste klar erkennbar ist (z. B. wer mit Abstand auf den meisten Seiten steht), sonst nicht.`}
 
 Unten stehen Gruppen von Entitäten (je Zeile: id | Typ | Name | auch: andere Schreibweisen | Seiten | was sie ist). Finde in jeder Gruppe die, die WIRKLICH dasselbe meinen, und gib sie als Zusammenführung zurück:
@@ -224,8 +224,8 @@ const sameSet = (a: number[], b: number[]) => a.length === b.length && a.every((
 
 /**
  * The AI's merges made consistent across its calls: those it gave the same name are one (persons
- * come in parts — "Verfasser + Autor" in one, "Moritz + Moritz Roessler" in another, both named
- * "Moritz Roessler"); an entity already called that joins and stays (no two of the same name).
+ * come in parts — "Verfasser + Autor" in one, "Max + Max Mustermann" in another, both named
+ * "Max Mustermann"); an entity already called that joins and stays (no two of the same name).
  */
 function consolidate(found: Answer["groups"], all: Ent[]): Answer["groups"] {
   const byName = new Map<string, Answer["groups"][number]>();

@@ -80,7 +80,7 @@ export const OUTLOOK_CALENDAR_ACTIONS = [
         attendees: "Mail-Adressen der Teilnehmer, mit ; getrennt (leer: nur für dich)",
         body: "worum es geht, 1–3 Sätze",
       },
-      example: { type: "calendar-event", subject: "PROJ-415 VideoHub-Migration gemeinsam prüfen", start: "2026-10-13 14:00", minutes: "30", attendees: "chris.lorenz@example.org", body: "Wir gehen die migrierten Video-Einträge auf Test durch." },
+      example: { type: "calendar-event", subject: "PROJ-415 VideoHub-Migration gemeinsam prüfen", start: "2026-10-13 14:00", minutes: "30", attendees: "thomas.becker@example.org", body: "Wir gehen die migrierten Video-Einträge auf Test durch." },
     },
     clean: (o) =>
       str(o.subject) && localIso(str(o.start))

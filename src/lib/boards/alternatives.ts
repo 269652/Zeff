@@ -14,7 +14,7 @@ import { isInstalled } from "@/plugins/state";
 import { awayFor } from "@/plugins/people/away";
 import type { TodoAlternative, TodoView } from "./shared";
 
-/** "Rico Clemen" → "rico clemen" (no accents), for matching a Jira username. */
+/** "Sarah Klein" → "sarah klein" (no accents), for matching a Jira username. */
 const plainName = (s: string) =>
   s
     .normalize("NFD")
@@ -24,7 +24,7 @@ const plainName = (s: string) =>
 
 /**
  * Whether a Jira username is this person's — the house pattern: first three letters of the first
- * name, then the last name's start (riccleme = Rico Clemen, chrlorenz1 = Christopher Lorenz).
+ * name, then the last name's start (sarklein = Sarah Klein, thobecke1 = Thomas Becker).
  */
 function isUserOf(user: string, name: string): boolean {
   const u = user.toLowerCase().replace(/\d+$/, "");
@@ -37,7 +37,7 @@ function isUserOf(user: string, name: string): boolean {
   );
 }
 
-/** "Rico Clemen"-like name pairs in a text. */
+/** "Sarah Klein"-like name pairs in a text. */
 const namesIn = (text: string) =>
   [
     ...text.matchAll(
@@ -47,7 +47,7 @@ const namesIn = (text: string) =>
 
 /**
  * Other ways to settle each open todo with operations, one click each (no AI):
- * - a Jira comment that @-mentions someone: assign the ticket to them ("Rico zuweisen") — on its own;
+ * - a Jira comment that @-mentions someone: assign the ticket to them ("Sarah zuweisen") — on its own;
  * - a delivery step (push, open a merge request): merge straight into the default branch instead.
  */
 export function todoAlternatives(
