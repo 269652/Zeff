@@ -6,7 +6,7 @@ import { index, integer, primaryKey, real, sqliteTable, text, uniqueIndex } from
  */
 export const jobs = sqliteTable("jobs", {
   id: integer("id").primaryKey({ autoIncrement: true }),
-  /** Human-facing job number, e.g. "2026-0815" or "PROJ-PROJ". Unique. */
+  /** Human-facing job number, e.g. "2026-0815" or "ACME-PROJ". Unique. */
   number: text("number").notNull().unique(),
   name: text("name").notNull(),
   customer: text("customer"),

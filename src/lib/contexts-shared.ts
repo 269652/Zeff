@@ -55,8 +55,8 @@ export function kindOfUrl(url: string): Exclude<ContextKind, "note"> | null {
 }
 
 /**
- * What a GitLab link points at, as GitLab writes it: "proj-bund !167" (a merge request),
- * "proj-bund #12" (an issue), "proj-bund @1a2b3c4" (a commit) — "comment" added for a link to
+ * What a GitLab link points at, as GitLab writes it: "acme-web !167" (a merge request),
+ * "acme-web #12" (an issue), "acme-web @1a2b3c4" (a commit) — "comment" added for a link to
  * one of their comments (#note_…). Null when the address doesn't say.
  */
 export function describeGitlabLink(url: string | null | undefined, t: T = en): string | null {
@@ -102,7 +102,7 @@ export function describeTeamsLink(url: string | null | undefined): { place: stri
 }
 
 /**
- * A link's label: its own, else what it points at ("PROJ-337 comment", "Teams · PROJ › General", "proj-bund !167", the host).
+ * A link's label: its own, else what it points at ("PROJ-337 comment", "Teams · ACME › General", "acme-web !167", the host).
  * In English by default — as posted to Jira (jiraCommentMarkdown, its sync hash); the UI passes its t.
  */
 export function linkLabel(link: ContextLink, t: T = en): string {

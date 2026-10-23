@@ -67,7 +67,7 @@ export function extractTicket(subject: string): string | undefined {
 export type MeetingJobRule = {
   /** Case-insensitive substring the meeting title must contain (e.g. "Mob Programming"). */
   match: string;
-  /** Job number to book the meeting on (e.g. "AB123-000001-00"). */
+  /** Job number to book the meeting on (e.g. "AB123-000002-00"). */
   jobNumber: string;
   /** A group meeting (a mob day): its entry collects the day's work — what you implement is itemized under it, not booked on top. */
   group?: boolean;

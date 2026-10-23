@@ -7,8 +7,8 @@
 import { createJob, getJobByNumber } from "../src/lib/jobs";
 
 const JOBS = [
-  { number: "AB123-000001-00", name: "PROJ Support" },
-  { number: "AB123-000001-00", name: "PROJ Relaunch" },
+  { number: "AB123-000001-00", name: "ACME Support" },
+  { number: "AB123-000002-00", name: "ACME Relaunch" },
 ];
 
 let created = 0;

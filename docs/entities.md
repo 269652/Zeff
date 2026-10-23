@@ -19,7 +19,7 @@ What an entity is known by and linked to is in `ent_links (ref, rel, target, lab
 | rel | target | e.g. |
 | --- | --- | --- |
 | `alias` | another name | `Büro`, `Acme GmbH` |
-| `domain` | an organisation's registrable mail domain | `example.com` |
+| `domain` | an organisation's registrable mail domain | `acme.de` |
 | `job` | a job number (besides the project's own job) | `AB123-000001-00` |
 | `jira` | a Jira project key | `PROJ` |
 | `board` | a Jira board id | `3359` |
@@ -36,8 +36,8 @@ theirs at the organisation's domain, or a role claim naming it), `located-at` �
 ```ts
 import { resolveEntity, resolveRefs, projectOf } from "@/plugins/entities/resolve";
 
-resolveEntity("anna.weber@example.com"); // [{ ref: "person:4", kind: "person", via: "email" }, { ref: "org:2", kind: "org", via: "domain" }]
-resolveEntity("example.com");            // [{ ref: "org:2", … via: "domain" }]
+resolveEntity("anna.weber@acme.de"); // [{ ref: "person:4", kind: "person", via: "email" }, { ref: "org:2", kind: "org", via: "domain" }]
+resolveEntity("acme.de");            // [{ ref: "org:2", … via: "domain" }]
 resolveEntity("Acme GmbH");           // [{ ref: "org:2", … via: "name" }]   (legal forms ignored)
 resolveEntity("Büro");                     // [{ ref: "place:7", … via: "alias" }]
 resolveEntity("PROJ-12");                   // [{ ref: "project:3", … via: "ticket" }]
@@ -48,7 +48,7 @@ projectOf("entry:812");      // the entry's project, else its job's
 projectOf("job:AB123-000001-00");
 projectOf("todo:55");        // its ticket's
 projectOf("repo:2");
-projectOf("mr:customer-proj/proj-frontend!17"); // via the repo of that GitLab project
+projectOf("mr:customer-acme/acme-frontend!17"); // via the repo of that GitLab project
 projectOf("page:26");        // a database linked to a project, or a row of one
 ```
 

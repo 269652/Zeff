@@ -499,7 +499,7 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
         <Check label={t("With a comment in that time")} on={j.commented} set={(v) => setJ({ commented: v })} />
         <label className="flex items-center gap-1.5 text-sm">
           {t("Projects")}
-          <input className="input w-40 text-sm" placeholder="PROJ, DISNEY" value={(j.projects ?? []).join(", ")} onChange={(e) => setJ({ projects: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />
+          <input className="input w-40 text-sm" placeholder="PROJ, SHOP" value={(j.projects ?? []).join(", ")} onChange={(e) => setJ({ projects: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />
         </label>
         <SyncEvery syncKey="jira" name="Jira" />
       </div>

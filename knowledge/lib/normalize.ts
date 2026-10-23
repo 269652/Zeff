@@ -103,7 +103,7 @@ function candidateBlocks(all: Ent[]): Ent[][] {
     }
     for (const t of new Set(e.key.split(" ").filter((t) => t.length >= 3 && !/^\d+$/.test(t)))) byToken.set(t, [...(byToken.get(t) ?? []), e.id]);
   }
-  // The same key or written together the same (an alias of one the name of another; "PROJ 123" / "PROJ-123" / "bmg123").
+  // The same key or written together the same (an alias of one the name of another; "PROJ 123" / "PROJ-123" / "proj123").
   for (const ids of [...byKey.values(), ...byCompact.values()]) for (const id of ids.slice(1)) join(ids[0], id, 80);
   // One name all inside another ("Fileadmin" / "Fileadmin Ordner") — through tokens not too common to mean anything.
   const byId = new Map(others.map((e) => [e.id, e]));

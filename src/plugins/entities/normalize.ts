@@ -23,7 +23,7 @@ const SECOND_LEVEL = new Set(["co", "com", "org", "net", "gov", "ac", "edu", "or
 /** Shared endings under a generic one ("sharepoint.eu.com" is SharePoint's, not "eu.com"'s). */
 const SHARED_SUFFIXES = new Set(["eu.com", "us.com", "uk.com", "de.com", "br.com", "cn.com", "gr.com", "jpn.com", "ru.com", "sa.com", "za.com", "uk.net", "eu.org"]);
 
-/** The part of a host an organisation registers: "mail.example.com" → "example.com", "shop.example.co.uk" → "example.co.uk". */
+/** The part of a host an organisation registers: "mail.acme.de" → "acme.de", "shop.example.co.uk" → "example.co.uk". */
 export function registrableDomain(host: string): string {
   const parts = host.trim().toLowerCase().replace(/^@/, "").replace(/\.$/, "").split(".").filter(Boolean);
   if (parts.length <= 2) return parts.join(".");
@@ -47,7 +47,7 @@ export function isFreemail(domain: string): boolean {
   return FREEMAIL.has(reg.slice(0, dot)) && FREEMAIL_TLDS.test(reg.slice(dot + 1));
 }
 
-/** A name for the organisation behind a domain: its label, each part capitalised ("example.com" → "Acme", "it-dienst.de" → "It-Dienst"). */
+/** A name for the organisation behind a domain: its label, each part capitalised ("acme.de" → "Acme", "it-dienst.de" → "It-Dienst"). */
 export function orgNameFromDomain(domain: string): string {
   const label = registrableDomain(domain).split(".")[0] ?? "";
   return label.replace(/(^|[-_])(\p{L})/gu, (_m, sep: string, c: string) => sep + c.toUpperCase()).replace(/_/g, " ");

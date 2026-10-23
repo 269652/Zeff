@@ -28,7 +28,7 @@ export function registerEntityTools(server: McpServer, h: Helpers): void {
         "Find the organisations (org:<id>), projects (project:<id>) and places (place:<id>) Zeff knows — by a name or another name, a mail address or domain (the organisation behind it), a Jira ticket key or job number (its project), an address. " +
         "Also lists the people an address or name resolves to (person:<id>). Read one with entity_get for its links, people, tickets, mails, money, hours.",
       inputSchema: z.object({
-        query: z.string().min(1).describe("A name, an address, a domain (example.com), a mail address, a ticket key (PROJ-12), a job number, a street."),
+        query: z.string().min(1).describe("A name, an address, a domain (acme.de), a mail address, a ticket key (PROJ-12), a job number, a street."),
         kind: z.enum(ENTITY_KINDS).optional().describe("Only this kind: org, project or place."),
         limit: z.number().int().min(1).max(50).optional(),
       }),

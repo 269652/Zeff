@@ -171,7 +171,7 @@ export function WorkSettingsForm({
           rows={3}
           className="input text-sm"
           defaultValue={s.instructions}
-          placeholder={t("e.g. Run the Playwright suite with npm run test:e2e in packages/proj-core/Build.")}
+          placeholder={t("e.g. Run the Playwright suite with npm run test:e2e in packages/acme-core/Build.")}
         />
       </div>
       )}

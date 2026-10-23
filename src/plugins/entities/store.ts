@@ -106,7 +106,7 @@ export function removeEntityLink(ref: string, rel: EntityRel, target: string): v
 
 export const entityLinks = (ref: string): EntityLink[] => (entDb().prepare("select * from ent_links where ref = ? order by rel, id").all(ref) as LRow[]).map(toLink);
 
-/** The entities linked to a target ("domain", "example.com" → the organisation's links). */
+/** The entities linked to a target ("domain", "acme.de" → the organisation's links). */
 export const linksTargeting = (rel: EntityRel, target: string): EntityLink[] => (entDb().prepare("select * from ent_links where rel = ? and target = ?").all(rel, cleanTarget(rel, target)) as LRow[]).map(toLink);
 
 /** All links of one kind (every domain, every job number …). */

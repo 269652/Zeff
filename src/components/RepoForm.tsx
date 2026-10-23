@@ -71,14 +71,14 @@ export function RepoForm({ repo, choices, onDone }: { repo?: RepoView; choices: 
           <label className="label" htmlFor={`${id}-name`}>
             {t("Name")}
           </label>
-          <input id={`${id}-name`} name="name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="proj-bund" />
+          <input id={`${id}-name`} name="name" className="input" value={name} onChange={(e) => setName(e.target.value)} placeholder="acme-web" />
         </div>
       </div>
       <div>
         <label className="label" htmlFor={`${id}-path`}>
           {t("Folder on this machine")}
         </label>
-        <input id={`${id}-path`} name="path" className="input font-mono text-xs" value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="C:\Users\…\proj-bund" required />
+        <input id={`${id}-path`} name="path" className="input font-mono text-xs" value={folder} onChange={(e) => setFolder(e.target.value)} placeholder="C:\Users\…\acme-web" required />
         {repo && (
           <p className={`mt-1 text-xs ${repo.ok ? "text-zinc-500" : "text-red-600 dark:text-red-400"}`}>
             {repo.ok ? t("A git repo — on {branch}.", { branch: repo.branch ?? "?" }) : t("Not a git repo (any more) — work can't go here.")}
@@ -134,7 +134,7 @@ export function RepoForm({ repo, choices, onDone }: { repo?: RepoView; choices: 
           rows={2}
           className="input text-sm"
           defaultValue={repo?.instructions}
-          placeholder={t("e.g. Tests: npm run test:e2e in packages/proj-core/Build (needs Storybook on :6006).")}
+          placeholder={t("e.g. Tests: npm run test:e2e in packages/acme-core/Build (needs Storybook on :6006).")}
         />
       </div>
       <div className="flex flex-wrap items-center gap-3">

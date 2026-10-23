@@ -6,7 +6,7 @@
  * the mail review, the document reader). It forwards the call into the container with `docker exec -i`: arguments, the working
  * folder and the stream-json on stdin/stdout as they are — only paths and the address of Zeff's MCP server are put right:
  *
- *   C:\Users\you\Documents\PROJ\repo   →  /host/documents/PROJ/repo     (the mounts: ZEFF_CLAUDE_MOUNTS)
+ *   C:\Users\you\Documents\ACME\repo   →  /host/documents/ACME/repo     (the mounts: ZEFF_CLAUDE_MOUNTS)
  *   http://127.0.0.1:9333/api/mcp/…   →  http://host.docker.internal:9333/api/mcp/…
  *
  *   claude-docker.mjs <claude arguments>     the shim (what Zeff runs)

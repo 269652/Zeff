@@ -20,7 +20,7 @@ Zeff starts Claude in several places (the workers, live sessions, the mail revie
 `CLAUDE_CLI` names — `scripts/claude-docker.mjs`. It forwards the call into the container with `docker exec -i`: the arguments, the
 stream-json on stdin/stdout and the exit code stay as they are. Only these are put right:
 
-- **the working folder and every argument that is a mounted path** — `C:\Users\you\Documents\PROJ\repo` → `/host/documents/PROJ/repo`;
+- **the working folder and every argument that is a mounted path** — `C:\Users\you\Documents\ACME\repo` → `/host/documents/ACME/repo`;
 - **Zeff's MCP server** — `127.0.0.1:9333` → `host.docker.internal:9333` (the config is read on the host and handed over inline);
 - **the environment** — only Claude's own variables and the run's identity go in, none of the host's.
 

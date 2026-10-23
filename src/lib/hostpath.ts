@@ -1,6 +1,6 @@
 /**
  * In a container, the host's folders sit elsewhere (a bind mount): the repos you gave Zeff on Windows —
- * C:\Users\me\Documents\PROJ\repo — are /host/documents/PROJ/repo in there. ZEFF_PATH_MAP says how:
+ * C:\Users\me\Documents\ACME\repo — are /host/documents/ACME/repo in there. ZEFF_PATH_MAP says how:
  *
  *   ZEFF_PATH_MAP="C:\Users\me\Documents=/host/documents;D:\Work=/host/work"
  *

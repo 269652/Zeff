@@ -73,7 +73,7 @@ export function entitySuggestionText(s: EntitySuggestion, nameOf: (ref: string) 
   }
 }
 
-/** An entity in one line, for lists: "Acme (organisation) — example.com". */
+/** An entity in one line, for lists: "Acme (organisation) — acme.de". */
 export function entityLine(e: EntityHit): string {
   const where = e.kind === "project" ? (e.address ? t("Job {number}", { number: e.address }) : "") : e.address !== e.name ? e.address : "";
   const parts = [e.domains.join(", "), where].filter(Boolean);
