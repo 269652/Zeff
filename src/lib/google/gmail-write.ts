@@ -2,10 +2,11 @@
  * Changes to Gmail through Google's API — labels, read/unread, spam. Nothing is deleted or sent from here, and nothing is
  * changed unless Google was asked for it (the "gmail.modify" access, switched on on the Connections page). Server only.
  */
-import { apiGet, apiRequest } from "@/lib/connectors/http";
+import { apiGet } from "@/lib/connectors/http";
 import { getConnector } from "@/lib/connectors/store";
 import { t } from "@/lib/i18n/server";
 import { apiId, flat, getMeta, GM, header, parseFrom, refOf, search, unescapeHtml } from "./gmail-api";
+import { googleWrite } from "./write-guard";
 
 export const MODIFY_SCOPE = "https://www.googleapis.com/auth/gmail.modify";
 /** The most mails one change touches (an agent's slip is then a small one). */
@@ -50,7 +51,7 @@ async function resolveLabels(names: string[], known: Label[], created: string[])
       ids.push(have.id);
       continue;
     }
-    const r = await apiRequest<Label>("google", `${GM}/labels`, { method: "POST", body: { name, labelListVisibility: "labelShow", messageListVisibility: "show" } });
+    const r = await googleWrite<Label>("POST", `${GM}/labels`, { name, labelListVisibility: "labelShow", messageListVisibility: "show" });
     if (r.status < 200 || r.status >= 300) throw new Error(t("Gmail would not make the label “{name}”.", { name }));
     known.push(r.body);
     created.push(name);
@@ -82,7 +83,7 @@ export async function changeGmail(c: GmailChange): Promise<{ changed: number; cr
 }
 
 async function batchModify(ids: string[], addLabelIds: string[], removeLabelIds: string[]): Promise<void> {
-  const r = await apiRequest("google", `${GM}/messages/batchModify`, { method: "POST", body: { ids, addLabelIds, removeLabelIds } });
+  const r = await googleWrite("POST", `${GM}/messages/batchModify`, { ids, addLabelIds, removeLabelIds });
   if (r.status < 200 || r.status >= 300) throw new Error(t("Gmail refused the change ({status}).", { status: r.status }));
 }
 
@@ -112,7 +113,7 @@ export async function createGmailFilter(f: NewFilter): Promise<{ filterId: strin
     criteria: { ...(c.from?.trim() ? { from: c.from.trim() } : {}), ...(c.to?.trim() ? { to: c.to.trim() } : {}), ...(c.subject?.trim() ? { subject: c.subject.trim() } : {}), ...(c.query?.trim() ? { query: c.query.trim() } : {}), ...(c.hasAttachment ? { hasAttachment: true } : {}) },
     action: { ...(addIds.length ? { addLabelIds: addIds } : {}), ...(removeIds.length ? { removeLabelIds: removeIds } : {}) },
   };
-  const r = await apiRequest<{ id?: string }>("google", `${GM}/settings/filters`, { method: "POST", body });
+  const r = await googleWrite<{ id?: string }>("POST", `${GM}/settings/filters`, body);
   if (r.status < 200 || r.status >= 300 || !r.body?.id) throw new Error(t("Gmail refused the filter ({status}).", { status: r.status }));
   let applied = 0;
   if (f.applyToExisting) {

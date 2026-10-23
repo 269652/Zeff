@@ -9,7 +9,8 @@ import { t } from "@/lib/i18n/server";
 import { isoDay } from "@/lib/text";
 
 export type GcalRead = {
-  calendars: { id: string; name: string; color: string; shown: boolean }[];
+  /** `role`: your access — owner / writer (Zeff may write there, with Google Calendar's write access), reader, freeBusyReader. */
+  calendars: { id: string; name: string; color: string; shown: boolean; role?: string }[];
   events: (EventInput & { calendarId: string })[];
   unparsed: number;
   from: string;
@@ -72,8 +73,11 @@ function toEvent(e: GEvent, calendarId: string): (EventInput & { calendarId: str
   };
 }
 
-/** The calendars, and the appointments of the days from `from` up to `to` (local days, YYYY-MM-DD; `to` not included) — recurring ones as their single occurrences. */
-export async function readCalendar(o: { from: string; to: string }): Promise<GcalRead> {
+/**
+ * The calendars, and the appointments of the days from `from` up to `to` (local days, YYYY-MM-DD; `to` not included) — recurring
+ * ones as their single occurrences. `only`: just that calendar (its id) — what a write changed, read again.
+ */
+export async function readCalendar(o: { from: string; to: string; only?: string }): Promise<GcalRead> {
   const start = new Date(`${o.from}T00:00:00`);
   const end = new Date(`${o.to}T00:00:00`);
   if (!(end.getTime() > start.getTime())) throw new Error("readCalendar: an empty range.");
@@ -81,11 +85,12 @@ export async function readCalendar(o: { from: string; to: string }): Promise<Gca
   const calendars: GcalRead["calendars"] = [];
   let token = "";
   do {
-    const r = await apiGet<{ items?: { id: string; summary?: string; summaryOverride?: string; backgroundColor?: string; selected?: boolean; hidden?: boolean }[]; nextPageToken?: string }>(
+    const r = await apiGet<{ items?: { id: string; summary?: string; summaryOverride?: string; backgroundColor?: string; selected?: boolean; hidden?: boolean; accessRole?: string }[]; nextPageToken?: string }>(
       "google",
       `/calendar/v3/users/me/calendarList?maxResults=250${token ? `&pageToken=${encodeURIComponent(token)}` : ""}`,
     );
-    for (const c of r.items ?? []) calendars.push({ id: c.id, name: c.summaryOverride || c.summary || c.id, color: c.backgroundColor ?? "", shown: c.selected === true && !c.hidden });
+    for (const c of r.items ?? [])
+      if (!o.only || c.id === o.only) calendars.push({ id: c.id, name: c.summaryOverride || c.summary || c.id, color: c.backgroundColor ?? "", shown: c.selected === true && !c.hidden, ...(c.accessRole ? { role: c.accessRole } : {}) });
     token = r.nextPageToken ?? "";
   } while (token);
 

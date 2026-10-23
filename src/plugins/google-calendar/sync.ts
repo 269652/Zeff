@@ -9,7 +9,7 @@ import { ensureCalendar, replaceEvents, type EventInput } from "@/lib/calendar/i
 import { driverOf } from "@/lib/connectors/store";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { getPref } from "@/lib/prefs";
+import { getPref, setPref } from "@/lib/prefs";
 import { automationEnv, automationUp, driverPath } from "@/plugins/drivers";
 
 /** `weeks`: how far ahead it reads; `pastMonths`: how far back (the API — from the 1st of that month). */
@@ -39,7 +39,7 @@ const flag = globalThis as { __zeffGcalSyncing?: boolean };
 export const gcalSyncing = () => !!flag.__zeffGcalSyncing;
 
 type Read = {
-  calendars: { id: string; name: string; color: string; shown: boolean }[];
+  calendars: { id: string; name: string; color: string; shown: boolean; role?: string }[];
   events: (Omit<EventInput, "key"> & { key: string; calendarId: string })[];
   unparsed: number;
   from: string;
@@ -50,6 +50,37 @@ const NOT_BUSY = /birthdays@|tasks@|holiday@|#holiday@|#contacts@|\.v\.calendar\
 
 async function chromeUp(): Promise<boolean> {
   return automationUp();
+}
+
+/** The Google calendars you may write to (owner or writer — as the API's last read said), by their Google id. */
+export const writableGoogleCalendars = (): string[] => getPref<string[]>("google-calendar:writable", []);
+
+/**
+ * What was read, into Zeff's calendars: each Google calendar one of Zeff's, the appointments of the days read replacing what was
+ * there; the calendars you may write to remembered (the API says so; the Chrome driver doesn't). How many appointments.
+ */
+export function applyRead(data: Read, days: DayRange): number {
+  let events = 0;
+  for (const c of data.calendars) {
+    const cal = ensureCalendar(`google:${c.id}`, { source: "google", name: c.name, color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : undefined, visible: c.shown, busy: !NOT_BUSY.test(c.id) });
+    // A calendar hidden in Google shows nothing there: what Zeff has of it stays.
+    if (!c.shown) continue;
+    events += replaceEvents(
+      cal.id,
+      data.events.filter((e) => e.calendarId === c.id).map(({ calendarId: _c, ...e }) => e),
+      days,
+    );
+  }
+  const roles = data.calendars.filter((c) => c.role);
+  if (roles.length) {
+    const writable = new Set(writableGoogleCalendars());
+    for (const c of roles) {
+      if (c.role === "owner" || c.role === "writer") writable.add(c.id);
+      else writable.delete(c.id);
+    }
+    setPref("google-calendar:writable", [...writable]);
+  }
+  return events;
 }
 
 /** `range`: the days shown (a month gone by) — read too, besides the window of the settings (the API only). */
@@ -80,17 +111,7 @@ export async function syncGoogleCalendar({ background = false, range }: { backgr
       reads.push({ data, range: { from: data.from, to: isoDay(to) } });
     }
     let events = 0;
-    for (const { data, range: days } of reads)
-      for (const c of data.calendars) {
-        const cal = ensureCalendar(`google:${c.id}`, { source: "google", name: c.name, color: /^#[0-9a-f]{6}$/i.test(c.color) ? c.color : undefined, visible: c.shown, busy: !NOT_BUSY.test(c.id) });
-        // A calendar hidden in Google shows nothing there: what Zeff has of it stays.
-        if (!c.shown) continue;
-        events += replaceEvents(
-          cal.id,
-          data.events.filter((e) => e.calendarId === c.id).map(({ calendarId: _c, ...e }) => e),
-          days,
-        );
-      }
+    for (const { data, range: days } of reads) events += applyRead(data, days);
     const data = reads[0].data;
     clearAttention("login:gcalendar");
     return {
