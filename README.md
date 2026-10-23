@@ -2,6 +2,9 @@
 
 **A local work assistant that extends and changes itself.**
 
+**Website: [getzeff.com](https://getzeff.com)** · Contact: [info@getzeff.com](mailto:info@getzeff.com) · Licence: free for
+personal, non-commercial use during alpha and beta — see [LICENSE](LICENSE)
+
 Zeff reads your tickets, mail, chats and calendars, tells you what's to do, and puts AI agents to work on
 it in your own repos — on your machine, with your data in a local SQLite file. And it doesn't stop at what
 we built: **Zeff loads plugins while it runs.** Drop a folder next to it and its **Work tab** gains new rules, commands,
@@ -292,3 +295,10 @@ data/                  the databases, backups, logs, plugins (git-ignored)
 - A job can only be deleted while no time is booked on it. Deactivate it instead.
 - The web UI has no login. Run it on localhost (the launcher binds 127.0.0.1).
 - External plugins are code someone wrote: turn on only ones you trust, and read what a plugin asks for first.
+
+## Licence
+
+Zeff is free for personal, non-commercial use while it is in alpha and beta (versions below 1.0); commercial use needs a
+licence, and from 1.0 on Zeff is paid. The terms are in [LICENSE](LICENSE); questions and commercial licences:
+[info@getzeff.com](mailto:info@getzeff.com). The landing page lives in [site/](site) and is published to
+[getzeff.com](https://getzeff.com) with `node scripts/site-deploy.mjs`.
