@@ -1,0 +1,67 @@
+Zeff Alpha and Beta Licence
+Version 1, 23 October 2026
+
+Copyright (c) 2026 Moritz Roessler. All rights reserved, except as granted below.
+
+1. What this licence covers
+
+   This licence applies to the software "Zeff" in its alpha and beta versions, meaning every version numbered below 1.0.0
+   (for example 0.1.0 or 0.9.3), in any form you received it: the program, its source code where it was made available to
+   you, and its documentation (together, "the Software").
+
+2. What you may do
+
+   While the Software is in alpha or beta, you may download, install and use the Software free of charge, for personal,
+   non-commercial purposes only, on computers you own or control.
+
+   "Personal, non-commercial purposes" means your own private life and your own private projects, for which you receive no
+   payment and which do not serve a business, an employer, a client, a public authority or any other organisation.
+
+3. What you may not do
+
+   You may not, without a separate written licence from the copyright holder:
+
+   a) use the Software for any commercial purpose, including for paid work, as an employee or freelancer, inside a company,
+      public authority or other organisation, or to provide services to others;
+   b) sell, rent, lease, sublicense, distribute, publish or otherwise make the Software or copies of it available to others,
+      whether or not for payment (a link to the official download page is fine);
+   c) modify, adapt, translate, or create derivative works of the Software, except to the extent you need to for your own
+      permitted personal use, and never to distribute them;
+   d) remove or change any copyright notice, this licence, or any notice that the Software is an alpha or beta version;
+   e) use the Software to build a product or service that competes with it.
+
+4. End of the free alpha and beta use
+
+   The rights in section 2 apply to alpha and beta versions only. They do not apply to version 1.0.0 or any later version;
+   those versions are offered under a separate, paid licence. The copyright holder may end the free alpha or beta use at any
+   time by publishing a notice on the official website; you may then keep using the copy you already have under these terms
+   until version 1.0.0 is released, but you will not be entitled to updates.
+
+   Your rights under this licence end automatically if you break any of its terms.
+
+5. Your data
+
+   The Software stores your data on your own computer. This licence gives the copyright holder no rights to your data.
+
+6. No warranty
+
+   Alpha and beta versions are unfinished. They may contain errors, lose data or change without notice; keep backups. The
+   Software is provided free of charge and "as is", without any warranty, express or implied, including fitness for a
+   particular purpose, to the extent permitted by applicable law.
+
+7. Limitation of liability
+
+   To the extent permitted by applicable law, the copyright holder is not liable for any damage arising from the use of or the
+   inability to use the Software, including loss of data, except for damage caused intentionally or by gross negligence, and
+   except for injury to life, body or health. Liability under the German Product Liability Act (Produkthaftungsgesetz)
+   remains unaffected.
+
+8. Commercial licences and questions
+
+   For a commercial licence, a licence for version 1.0.0 or later, or any question about this licence, write to:
+   info@getzeff.com
+
+9. Law
+
+   This licence is governed by the laws of the Federal Republic of Germany. If any provision is invalid, the rest remains in
+   effect.
