@@ -1,7 +1,7 @@
 /**
  * The People plugin and the knowledge server (the Knowledge plugin): what you confirm about someone
- * becomes knowledge of their entity there, and one person the knowledge keeps twice ("U. Nathanael",
- * "Nathanael") is merged once you say so. Sending waits in an outbox (knowledge_outbox) while the
+ * becomes knowledge of their entity there, and one person the knowledge keeps twice ("U. Wagner",
+ * "Wagner") is merged once you say so. Sending waits in an outbox (knowledge_outbox) while the
  * server is down: it is sent on the next confirmation or the next sync. Server only.
  */
 import { getSqlite } from "@/db";

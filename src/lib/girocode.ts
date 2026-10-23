@@ -27,7 +27,7 @@ export const BIC_RE = /\bBIC:?\s*([A-Z]{6}[A-Z0-9]{2}(?:[A-Z0-9]{3})?)\b/;
 /** The IBANs in a text, with their check digits right. */
 export const ibansIn = (text: string): string[] => [...text.matchAll(IBAN_RE)].map((m) => m[0]).filter(ibanValid);
 
-/** The BIC a text names ("BIC GENODE61BBB"), if any. */
+/** The BIC a text names ("BIC BYLADEM1001"), if any. */
 export const bicIn = (text: string): string | null => BIC_RE.exec(text)?.[1] ?? null;
 
 const compact = (iban: string) => iban.replace(/\s+/g, "").toUpperCase();
@@ -56,7 +56,7 @@ export function amountIn(text: string): number | null {
 
 const RECIPIENT = /(?<![\p{L}])(?:Zahlungsempfänger|Empfänger|Kontoinhaber)(?:in)?:?\s+([^,;\n]+?)(?=\s*(?:[,;\n(]|\.(?:\s|$)|\s(?:IBAN|BIC)\b|$))/u;
 
-/** The recipient a text names ("Empfänger Nathanael Dienstkonto, IBAN …"), or null. */
+/** The recipient a text names ("Empfänger Wagner Dienstkonto, IBAN …"), or null. */
 export function recipientIn(text: string): string | null {
   const v = RECIPIENT.exec(text)?.[1]?.trim();
   return v && !/\d/.test(v) ? v.slice(0, 70) : null;

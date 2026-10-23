@@ -1,7 +1,7 @@
 /**
  * People named in a text (a todo's): every way a person is called — their name, aliases, WhatsApp
  * chat, and the parts of their name nobody else shares ("Kruger" for Christopher Kruger, also as
- * "Herr Kruger") — found as whole words, in the genitive too ("Nadines"). A form two people share
+ * "Herr Kruger") — found as whole words, in the genitive too ("Paulas"). A form two people share
  * names neither. Client-safe.
  */
 

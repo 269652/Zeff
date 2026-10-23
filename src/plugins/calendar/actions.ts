@@ -46,7 +46,7 @@ export const CALENDAR_ACTIONS = [
     offer: {
       when: "Ein Zeitblock, eine Erinnerung oder ein Termin für mich selbst (etwas erledigen, besorgen, vorbereiten; ein Datum, an dem es weitergeht) — eingetragen in meinen Zeff-Kalender (calendar: sein Name, leer: der erste).",
       fields: { calendar: "der Name des Zeff-Kalenders (leer: der erste)", ...FIELDS },
-      example: { type: "calendar-entry", calendar: "", title: "Geschenk für Nadine besorgen", start: "2026-10-14 18:00", minutes: "60", body: "Nadine hat am 16.10. Geburtstag — Geschenk besorgen." },
+      example: { type: "calendar-entry", calendar: "", title: "Geschenk für Paula besorgen", start: "2026-10-14 18:00", minutes: "60", body: "Paula hat am 16.10. Geburtstag — Geschenk besorgen." },
     },
     clean: (o) => {
       const start = localStamp(str(o.start));
@@ -67,7 +67,7 @@ export const CALENDAR_ACTIONS = [
     offer: {
       when: "Ein Termin, Zeitblock oder eine Erinnerung in meinem Google-Kalender (Privates, Verabredungen, Besorgungen, Fristen) — Google Calendar öffnet sich mit dem fertigen Termin; ich speichere ihn selbst.",
       fields: FIELDS,
-      example: { type: "gcal-event", title: "Geschenk für Nadine besorgen", start: "2026-10-14 18:00", minutes: "60", body: "Nadine hat am 16.10. Geburtstag — Geschenk besorgen." },
+      example: { type: "gcal-event", title: "Geschenk für Paula besorgen", start: "2026-10-14 18:00", minutes: "60", body: "Paula hat am 16.10. Geburtstag — Geschenk besorgen." },
     },
     clean: (o) => {
       const start = localStamp(str(o.start));

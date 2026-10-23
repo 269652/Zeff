@@ -111,7 +111,7 @@ export function observedNames(): Seen[] {
       return []; // the plugin behind it never ran
     }
   };
-  // One address, several ways of writing it ("ogv.nathanael", the address itself, a cut-off "Obergerichtsvollzie."):
+  // One address, several ways of writing it ("ogv.wagner", the address itself, a cut-off "Obergerichtsvollzie."):
   // those count for the real name the address also writes, the most frequent — else each stands on its own.
   const byAddress = new Map<string, { n: string; c: number }[]>();
   for (const r of all<{ n: string | null; e: string | null; c: number }>("select from_name n, lower(from_email) e, count(*) c from emails where folder not in ('WhatsApp', 'Signal') and from_name is not null and from_name != 'Ich' group by n, e")) {
@@ -157,7 +157,7 @@ export function observedNames(): Seen[] {
 
 /**
  * An address of their own: a word of the name before the @, none in the domain
- * (ogv.nathanael@gvjustiz.de for "Obergerichtsvollzieherin Nathanael" — not jobs@mail.xing.com for "XING Jobs").
+ * (ogv.wagner@example.org for "Obergerichtsvollzieherin Wagner" — not jobs@mail.xing.com for "XING Jobs").
  */
 function ownAddress(email: string, words: string[]): boolean {
   const [local, domain = ""] = email.toLowerCase().split("@");
@@ -167,7 +167,7 @@ function ownAddress(email: string, words: string[]): boolean {
 
 /**
  * The knowledge's entities that are this profile: one of its names, aliases or addresses is the
- * entity's name or alias (the knowledge may keep someone twice — "U. Nathanael" and "Nathanael").
+ * entity's name or alias (the knowledge may keep someone twice — "U. Wagner" and "Wagner").
  * The one carrying the profile's address first, then the one with more pages.
  */
 export function knowledgeEntitiesOf<E extends { id: number; name: string; aliases: string[]; pages: number }>(p: Pick<Person, "name" | "aliases" | "emails" | "whatsapp">, entities: E[]): E[] {

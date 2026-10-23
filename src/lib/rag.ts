@@ -125,7 +125,7 @@ export const SEARCHERS: Record<Exclude<RagSource, "knowledge">, Searcher> = {
     const { pageHits } = await import("@/plugins/workspace/store");
     return pageHits(words).map((h) => ({ source: "pages" as const, ref: h.ref, title: h.title, text: clip(h.text, 400), when: h.when, score: h.score }));
   },
-  // What Zeff learned about people (the People plugin): their claims and details — "IBAN Nathanael", "Dienstkonto".
+  // What Zeff learned about people (the People plugin): their claims and details — "IBAN Wagner", "Dienstkonto".
   people: async (words) => {
     if (!(await import("@/plugins/state")).isInstalled("people")) return [];
     const { searchPeople } = await import("@/plugins/people/search");

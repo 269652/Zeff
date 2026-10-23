@@ -4,7 +4,7 @@ import { decideVersion, disputes, getVersion, staleBatch, type Decision, type Fa
 
 /**
  * Trust in facts, in the review queue (server only): a value that contradicts what Zeff holds — "IBAN of
- * Nathanael changed: old … → new …", each with its source and date — to take, to keep the old or to keep both;
+ * Wagner changed: old … → new …", each with its source and date — to take, to keep the old or to keep both;
  * and values past their time ("still true?"), a few a day. Your answer goes to the writer that recorded the
  * value (its module is loaded first, so it is listening — see onTrustDecision). Zeff's own sources: the queue
  * (@/lib/review) lists them after the plugins'.

@@ -48,7 +48,7 @@ export type PersonCardData = {
   summary: { connection: string; keyFacts: string[]; funFacts: string[]; at: string } | null;
   dates: { label: string; when: string }[];
   facts: { subject: string; text: string }[];
-  /** "Mutter", "Tochter von Nadine", "Sohn: Max" — who they are to you / to others. */
+  /** "Mutter", "Tochter von Paula", "Sohn: Max" — who they are to you / to others. */
   relations: string[];
   messages: { who: string; text: string; at: string; folder: string }[];
   todos: { id: number; ref: string; text: string }[];
@@ -73,7 +73,7 @@ export async function personCardAction(id: number): Promise<PersonCardData | nul
   if (!p) return null;
   const { contactsOf, datesOf, peopleIndex, relationsOf } = await import("./store");
   const { mentionMatcher, splitMentions } = await import("./mentions");
-  // Named in a text the way todos show it (aliases, "Herr Kruger", "Nadines").
+  // Named in a text the way todos show it (aliases, "Herr Kruger", "Paulas").
   const matcher = mentionMatcher(await peopleIndex());
   const names = (text: string) => splitMentions(text, matcher).some((m) => m.person?.id === p.id);
   const { dateText, daysBetween, inDaysText, isoDay, nextOccurrence, upcomingShort } = await import("./shared");

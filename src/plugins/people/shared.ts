@@ -134,7 +134,7 @@ export const daysBetween = (today: Date, on: Date) => Math.round((on.getTime() -
 export const inDaysText = (n: number, on?: string, t: T = EN) =>
   n === 0 ? t("today") : n === 1 ? t("tomorrow") : n < 14 || !on ? t("in {n} days", { n }) : t("on {date}", { date: formatDate(on, { weekday: false }) });
 
-/** "Nadine's", "James’" — a name's possessive. */
+/** "Paula's", "James’" — a name's possessive. */
 export const genitive = (name: string) => (/s$/i.test(name.trim()) ? `${name.trim()}’` : `${name.trim()}’s`);
 
 /** (1st), (2nd), (3rd), (4th), (11th), (21st) … */
@@ -143,10 +143,10 @@ const ordinal = (n: number, t: T) => {
   return end === "st" ? t("({n}st)", { n }) : end === "nd" ? t("({n}nd)", { n }) : end === "rd" ? t("({n}rd)", { n }) : t("({n}th)", { n });
 };
 
-/** "Nadine’s birthday", "James’ birthday". */
+/** "Paula’s birthday", "James’ birthday". */
 const birthdayOf = (name: string, t: T) => (/s$/i.test(name.trim()) ? t("{name}’ birthday", { name: name.trim() }) : t("{name}’s birthday", { name: name.trim() }));
 
-/** A reminder's line: "Nadine’s birthday (turns 30)" — in the language of `t` (English without). */
+/** A reminder's line: "Paula’s birthday (turns 30)" — in the language of `t` (English without). */
 export const upcomingTitle = (u: Upcoming, t: T = EN) =>
   u.date.kind === "birthday"
     ? `${birthdayOf(u.person.name, t)}${u.turns ? ` ${t("(turns {n})", { n: u.turns })}` : ""}`

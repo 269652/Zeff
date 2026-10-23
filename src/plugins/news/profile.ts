@@ -2,7 +2,7 @@ import { tokens, type ProfileTerm } from "./shared";
 
 /**
  * What Zeff knows about you that news can be matched against — gathered on this PC, never sent anywhere:
- *   · your facts (hobbies, family, places: "Julias Hobby — klettert", "Nadine: Rennrad"),
+ *   · your facts (hobbies, family, places: "Julias Hobby — klettert", "Paula: Rennrad"),
  *   · what your open todos are about (the words that come up, with the todo that made them: T-132),
  *   · what your open tickets are about (PROJ-364 …).
  * The scoring gives an item with such a word a lift and says why ("work: T-132"), so a headline about the thing you are

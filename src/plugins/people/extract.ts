@@ -86,7 +86,7 @@ Unten stehen die Profile (id, Name, schon Bekanntes), danach die Nachrichten mit
 claims — Aussagen über eine Person:
 - role: ihre Rolle oder Aufgabe („Projektleiterin Relaunch“, „Frontend-Entwickler“).
 - owns: wofür sie zuständig ist („verantwortet das Figma-Handover“, „Ansprechpartner für die Migration“).
-- fact: eine andere dauerhafte Tatsache (Erreichbarkeit, Standort, Urlaub, Arbeitsweise; Kontaktdaten und Bankverbindung wie IBAN, BIC und Bank, ein Revolut-RevTag (immer als „RevTag @name“ geschrieben) — vollständig abgeschrieben, auch wenn ich sie mir selbst geschickt habe („IBAN von Andreas: …“); laufende Vorgänge oder Verfahren mit ihrem Aktenzeichen).
+- fact: eine andere dauerhafte Tatsache (Erreichbarkeit, Standort, Urlaub, Arbeitsweise; Kontaktdaten und Bankverbindung wie IBAN, BIC und Bank, ein Revolut-RevTag (immer als „RevTag @name“ geschrieben) — vollständig abgeschrieben, auch wenn ich sie mir selbst geschickt habe („IBAN von Tobias: …“); laufende Vorgänge oder Verfahren mit ihrem Aktenzeichen).
 - preference: was sie mag oder wie sie arbeiten will.
 - commitment: eine konkrete Zusage oder Bitte mit Folgen. direction: theirs, wenn sie MIR etwas zugesagt hat bzw. ich auf sie warte; mine, wenn ICH ihr etwas zugesagt habe oder sie etwas von mir will. due: nur wenn ein Datum genannt ist (YYYY-MM-DD; „Freitag“ rechnest du ab dem Datum der Nachricht aus), sonst leer.
 links — Verbindungen: rel reports-to / manages (Person → Person: target_type person, target = id des Profils), works-with, decides (wer entscheidet worüber), owns, knows-about (Person → Ticket, Repo, Projekt oder Thema: target_type ticket/repo/project/topic, target = der Key bzw. das Thema in 1–3 Wörtern).

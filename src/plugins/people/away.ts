@@ -31,7 +31,7 @@ export type Away = { personId: number; name: string; until: string };
 export function awayFor(list: Pick<TodoView, "id" | "text" | "note">[], today: string): Record<number, { away: Away[] }> {
   const away = awayPeople(today);
   if (!away.size) return {};
-  // Named as people write them — "Frau Nathanael" too, a last name that is no one else's.
+  // Named as people write them — "Frau Wagner" too, a last name that is no one else's.
   const matcher = mentionMatcher(buildPeopleIndex(listPeople()));
   const out: Record<number, { away: Away[] }> = {};
   for (const todo of list) {

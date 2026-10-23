@@ -54,7 +54,7 @@ export const KANBAN_API: ApiContribution = {
         label: "Kanban card",
         when: "Etwas, das als Aufgabe auf eines meiner Kanban-Boards gehört (kein Jira-Ticket, keine Nachricht): eine Karte mit Titel und kurzer Beschreibung. Board und Spalte als Namen; ohne Angabe das erste Board / die erste Spalte.",
         fields: { board: "der Name des Boards (siehe „Bestehendes in Zeff“)", column: "der Name der Spalte — ohne Angabe die erste", title: "der Titel der Karte (kurz)", description: "kurze Beschreibung, optional" },
-        example: { board: "Privat", column: "Open", title: "Geschenk für Nadine besorgen", description: "Geburtstag am 16.10." },
+        example: { board: "Privat", column: "Open", title: "Geschenk für Paula besorgen", description: "Geburtstag am 16.10." },
         check: (raw) => {
           const title = (raw.title ?? "").trim().slice(0, 300);
           if (!title) return null;

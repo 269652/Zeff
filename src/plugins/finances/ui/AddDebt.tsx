@@ -9,7 +9,7 @@ import { createDebtAction, debtFromClaimAction } from "../server-actions";
 
 /**
  * A debt of your own written down — to whom (a contact, or a new one), what for, how much, by when — and your promises with an
- * amount offered as debts ("Johanna: 200 € zurücküberweisen" → a debt to Johanna).
+ * amount offered as debts ("Lotte: 200 € zurücküberweisen" → a debt to Lotte).
  */
 export function AddDebt({ dir = "owe", contacts, suggestions, onDone, startOpen = false, hideButton = false, open: openProp, onOpenChange }: { dir?: Direction; contacts: ContactOption[]; suggestions: DebtSuggestion[]; onDone: () => void; startOpen?: boolean; /** Only the promises offered (the button is elsewhere). */ hideButton?: boolean; /** The form opened from elsewhere (a button beside "Print"). */ open?: boolean; onOpenChange?: (open: boolean) => void }) {
   const t = useT();

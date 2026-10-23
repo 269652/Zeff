@@ -21,7 +21,7 @@ export async function GET(req: Request) {
       .slice(0, 8)
       .map((todo) => ({ id: `todo:${todo.id}`, label: `${todo.ref} ${todo.text}`.slice(0, 140), hint: todo.ticket || undefined, href: `/todos#todo-${todo.id}`, group: "Todos" }));
     const { isInstalled } = await import("@/plugins/state");
-    // People, by what Zeff learned about them (their claims and details: "IBAN Nathanael", "Luisenstraße").
+    // People, by what Zeff learned about them (their claims and details: "IBAN Wagner", "Musterstraße").
     if (isInstalled("people")) hits.push(...(await (await import("@/plugins/people/search")).peoplePaletteItems(q)));
     // The Workspace's pages, by what they say and what they're called.
     if (isInstalled("workspace")) {

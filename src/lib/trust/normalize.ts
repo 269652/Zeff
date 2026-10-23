@@ -166,7 +166,7 @@ const SUBJECT_KINDS: [RegExp, string][] = [
   [/\brolle\b|position|funktion|zuständig|\brole\b/i, "role"],
 ];
 
-/** The attribute a fact's subject is about ("Nadines Geburtstag" → birthday); "text" when it names none. */
+/** The attribute a fact's subject is about ("Paulas Geburtstag" → birthday); "text" when it names none. */
 export function attributeOfSubject(subject: string): string {
   return SUBJECT_KINDS.find(([re]) => re.test(subject))?.[1] ?? "text";
 }

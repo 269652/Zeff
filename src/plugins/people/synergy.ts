@@ -1,5 +1,5 @@
 /**
- * Zeff's facts (the mail review's "Obergerichtsvollzieherin Nathanael Abwesenheit: nicht im Dienst bis …")
+ * Zeff's facts (the mail review's "Obergerichtsvollzieherin Wagner Abwesenheit: nicht im Dienst bis …")
  * on the profiles they are about: a fact whose subject or text names a profile (a name, an alias, a part
  * of the name no one else has, an address of theirs) is mirrored as a claim of that person — kind "fact",
  * from "fact:<id>", to confirm (yours: confirmed). What the profile knows already, in other words, isn't
@@ -35,7 +35,7 @@ function same(a: string, b: string): boolean {
   return (b.match(DATE) ?? []).some((d) => dates.has(d)) && wordOverlap(a, b) >= 0.3;
 }
 
-/** A fact as a claim: its text — with its subject in front when the text doesn't say it ("Nadines Geburtstag: 16.10."). */
+/** A fact as a claim: its text — with its subject in front when the text doesn't say it ("Paulas Geburtstag: 16.10."). */
 const claimText = (f: Pick<Fact, "subject" | "text">) => {
   const text = f.text.trim();
   const subject = f.subject.trim();

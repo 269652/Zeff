@@ -6,7 +6,7 @@ import { listPeople, namesOf } from "./store";
 /**
  * People found by what Zeff learned about them (the People plugin): the claims read from messages
  * (confirmed or proposed — not the rejected ones) and their details (IBAN, address, phone …), with
- * their names — "IBAN Nathanael", "Dienstkonto", "Luisenstraße". A name alone isn't a hit: this
+ * their names — "IBAN Wagner", "Dienstkonto", "Musterstraße". A name alone isn't a hit: this
  * searches what is known of them. For the context search (rag.ts) and the command palette. Server only.
  */
 

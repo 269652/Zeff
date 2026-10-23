@@ -58,7 +58,7 @@ export function contactFor(name: string, make: boolean, kind?: Kind, creditor = 
   const low = n.toLowerCase();
   const exact = people.find((p) => [p.name, ...p.aliases].some((x) => x.toLowerCase() === low));
   if (exact) return exact.id;
-  // The longest name in it wins ("Gerichtsvollzieherin Nathanael, AG Freiburg" → the one with the alias "Nathanael").
+  // The longest name in it wins ("Gerichtsvollzieherin Wagner, AG Musterstadt" → the one with the alias "Wagner").
   const named = people.filter((p) => namesThem(p, n)).sort((a, b) => b.name.length - a.name.length)[0];
   if (named) return named.id;
   if (!make) return null;

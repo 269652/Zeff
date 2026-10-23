@@ -12,7 +12,7 @@ import { attributeSpec, normalizeValue, sameValue, shelfLife } from "./normalize
  *
  * The writers (the facts, the People plugin's details, the Knowledge plugin's project systems) record what they
  * read here and keep their own store; a value that contradicts the current one isn't written over it — it waits
- * in the review queue ("IBAN of Nathanael changed: old … → new …"), and your answer goes back to the writer
+ * in the review queue ("IBAN of Wagner changed: old … → new …"), and your answer goes back to the writer
  * (see apply.ts). What you said yourself replaces at once.
  */
 
@@ -22,7 +22,7 @@ export type FactVersion = {
   id: number;
   /** What it is about: "person:12", "repo:3", "subject:<a fact's subject>". */
   subject: string;
-  /** How the subject is called, for the review queue ("Nathanael"). */
+  /** How the subject is called, for the review queue ("Wagner"). */
   subjectLabel: string;
   attribute: string;
   value: string;

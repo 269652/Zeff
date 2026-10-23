@@ -3,7 +3,7 @@ import type { TodoView } from "@/lib/boards/shared";
 import { accountFor, amountIn, bicIn, ibansIn, recipientIn, sameIban, type Account } from "@/lib/girocode";
 
 /**
- * A todo that is a payment ("Restforderung 11,52 € (Az. DR II 810/26) … überweisen") as a GiroCode: who gets it
+ * A todo that is a payment ("Restforderung 24,80 € (Az. DR II 456/26) … überweisen") as a GiroCode: who gets it
  * — an IBAN in its text or your notes, the bank account of a person it names or whose case number it carries,
  * one the knowledge it was given names — the first amount in its text, and its case number as the purpose
  * (else its text). Pure: the people come in as payees (see payees() in the People plugin).

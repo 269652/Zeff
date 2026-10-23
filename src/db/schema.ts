@@ -774,7 +774,7 @@ export const jiraBoards = sqliteTable("jira_boards", {
  * header's sync menu. Teams, GitLab and the Boards run keep theirs in their own tables.
  */
 /**
- * Facts the AI found in your messages — "Nadines Geburtstag: 16.10." — with where they come from
+ * Facts the AI found in your messages — "Paulas Geburtstag: 16.10." — with where they come from
  * (the messages, "mail:<key>"): knowledge of your own, linked to the todos that need it, and
  * exported to the knowledge server. One per subject (a newer one replaces its text).
  */

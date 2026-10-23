@@ -57,7 +57,7 @@ function dayOf(s: string): string {
   return "";
 }
 
-/** Revolut writes the other side into the description: "To Nathanael Dienstkonto", "Transfer to …", "From …". */
+/** Revolut writes the other side into the description: "To Wagner Dienstkonto", "Transfer to …", "From …". */
 const fromText = (text: string) => /^(?:transfer\s+)?(?:to|from|an|von)\s+(.+)$/i.exec(text.trim())?.[1]?.trim() ?? "";
 
 /** The bookings of a statement (CSV, comma or semicolon) — the ones not yet completed (Revolut's PENDING) left for later. */

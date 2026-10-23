@@ -69,7 +69,7 @@ function documentsOf(p: NonNullable<ReturnType<typeof getPerson>>): PersonBundle
     return []; // the Documents plugin never ran
   }
   const emails = p.emails.map((e) => e.toLowerCase());
-  // Their name as people write it — a last name alone too, when it is no one else's ("U. Nathanael").
+  // Their name as people write it — a last name alone too, when it is no one else's ("U. Wagner").
   const matcher = mentionMatcher(buildPeopleIndex(listPeople()));
   const named = (text: string) => splitMentions(text, matcher).some((m) => m.person?.id === p.id);
   return rows

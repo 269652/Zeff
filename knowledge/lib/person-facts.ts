@@ -8,7 +8,7 @@ import { OWN_PREFIX, OWN_SPACE } from "./own";
  * What Zeff confirmed about a person, kept with their entity: one page of your own per person entity
  * ("own:person-<id>"), a line per confirmed fact (by its ref in Zeff, "claim:12") — linked to the entity
  * at once and marked compiled, so compiling neither waits for it nor makes new entities of it. And
- * merging a person kept twice ("U. Nathanael", "Nathanael") into one, as Zeff's profile asks.
+ * merging a person kept twice ("U. Wagner", "Wagner") into one, as Zeff's profile asks.
  */
 
 const NOT_FOUND = "not found";

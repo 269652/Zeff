@@ -472,7 +472,7 @@ export type TodoSource =
     }
   /** A note (Google Keep's or one of your Keep boards') it follows from or is about. */
   | { source: "keep"; note: import("@/plugins/keep/shared").KeepNoteBrief }
-  /** A fact of yours it needs ("Nadines Geburtstag: 16.10.") — found in your messages. */
+  /** A fact of yours it needs ("Paulas Geburtstag: 16.10.") — found in your messages. */
   | { source: "fact"; fact: import("@/lib/facts-shared").FactView }
   /** A document of the store attached to it (by hand) — its abstract is its context. */
   | { source: "document"; doc: import("@/plugins/documents/shared").DocView }

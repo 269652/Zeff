@@ -301,7 +301,7 @@ export function markReminded(dateId: number, occurrence: string): void {
 // What else Zeff knows of them
 // ---------------------------------------------------------------------------
 
-// The name as a word of its own — in the genitive too ("Nadines Geburtstag", "Hans’ Auto", "Karla's").
+// The name as a word of its own — in the genitive too ("Paulas Geburtstag", "Hans’ Auto", "Karla's").
 const word = (n: string) => new RegExp(`(^|[^\\p{L}\\p{N}])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}(?:s|['’]s?)?(?=$|[^\\p{L}\\p{N}])`, "iu");
 
 /** Whether a text names them (a name or alias, as a whole word — names shorter than 3 letters left out). */

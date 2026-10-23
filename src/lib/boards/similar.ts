@@ -62,7 +62,7 @@ export function duplicateTodo(c: { text: string; ops: TodoOp[] }, open: TodoView
   return open.find((t) => repeatsByRecord(c, t) || similarText(c.text, t.text));
 }
 
-/** The case numbers (Aktenzeichen) in a text — "DR II 810/26", "AG 55/26", "12 O 345/26" — normalized; none for dates, fractions and invoice numbers. */
+/** The case numbers (Aktenzeichen) in a text — "DR II 456/26", "AG 55/26", "12 O 345/26" — normalized; none for dates, fractions and invoice numbers. */
 export function caseRefs(text: string): string[] {
   const found = [...text.matchAll(/(?<![\p{L}\p{N}])(?:\d{1,2}\s)?[A-ZÄÖÜ]{1,4}(?:\s[IVX]{1,4})?\s\d{1,6}\/\d{2,4}(?![\p{L}\p{N}\/])/gu)].map((m) => m[0].replace(/\s+/g, " ").toUpperCase());
   return [...new Set(found)];

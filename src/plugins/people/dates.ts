@@ -11,7 +11,7 @@ import { addDate, getPerson, listPeople, namesOf, namesThem } from "./store";
 
 /**
  * A person's dates found — as proposals you confirm (no reminder before you do):
- * - from the facts the Mail-Durchsicht kept ("Nadines Geburtstag: 16.10."), without AI;
+ * - from the facts the Mail-Durchsicht kept ("Paulas Geburtstag: 16.10."), without AI;
  * - by the AI (LLM task "Personen-Daten"), from what the knowledge, the facts and your messages
  *   say of them — only dates something says outright.
  */

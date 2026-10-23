@@ -39,7 +39,7 @@ export const CASES_ACTIONS = [
         amount: "der Betrag in Euro (z. B. 11,52) — leer, wenn er nicht feststeht",
         purpose: "der Verwendungszweck, wie verlangt (meist das Aktenzeichen)",
       },
-      example: { type: "bank-transfer", name: "Nathanael Dienstkonto", iban: "DE22 6609 0800 0007 7773 02", bic: "GENODE61BBB", amount: "11,52", purpose: "DR II 810/26" },
+      example: { type: "bank-transfer", name: "Wagner Dienstkonto", iban: "DE02 1203 0000 0000 2020 51", bic: "BYLADEM1001", amount: "24,80", purpose: "DR II 456/26" },
     },
     clean: (o) => {
       // No IBAN yet (a contact's account isn't known): you enter it on the card, once — a wrong one is never kept.

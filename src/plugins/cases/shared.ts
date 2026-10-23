@@ -44,9 +44,9 @@ export type CaseSummary = {
 
 export type Case = {
   id: number;
-  /** The case number as compared: "DR II 1121/26" (a court's department number before it dropped). */
+  /** The case number as compared: "DR II 789/26" (a court's department number before it dropped). */
   key: string;
-  /** As it was written last ("11 DR II 1121/26"). */
+  /** As it was written last ("11 DR II 789/26"). */
   label: string;
   status: CaseStatus;
   /** The profile on the other side (People), when known. */
