@@ -36,3 +36,30 @@ export async function saveGmailAccountsAction(list: { account: string; label: st
     return { ok: false, error: errorMessage(err) };
   }
 }
+
+/**
+ * A todo's mail — your click on its "Send" or "Save as draft" (with Gmail's write access): through Gmail's API, into the thread
+ * of the Gmail mail the todo came from; then off the todo and noted there.
+ */
+export async function runGmailComposeAction(todoId: number, index: number, mode: "send" | "draft"): Promise<ActionState> {
+  try {
+    const { runGmailComposeOnTodo } = await import("./run");
+    const r = await runGmailComposeOnTodo(Number(todoId), Number(index), mode === "draft" ? "draft" : "send");
+    revalidateAll();
+    return { ok: true, message: r.what };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** An inbox row's Gmail conversation archived (out of the inbox — nothing deleted) or marked unread: your click. */
+export async function gmailRowChangeAction(rowId: number, what: "archive" | "unread"): Promise<ActionState> {
+  try {
+    const { gmailRowChange } = await import("./run");
+    const message = await gmailRowChange(Number(rowId), what === "unread" ? "unread" : "archive");
+    revalidateAll();
+    return { ok: true, message };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}

@@ -141,11 +141,18 @@ export async function runTodoOpsNow(todoId: number, opts: { only?: number[] } = 
 
 /**
  * An action from a row of the Workspace — your click on it (no todo): checked as a row may run it, then a draft's address
- * (it opens for you) or run (a message, something done in Zeff).
+ * (it opens for you) or run (a message, something done in Zeff). `mode`: a Gmail mail sent — or saved as a draft — through
+ * Gmail's API (the reply's own buttons; with Gmail's write access), into the row's conversation; never from what an AI handed over.
  */
-export async function runRowOp(rowId: number, raw: Record<string, unknown>): Promise<{ href?: string; what?: string }> {
-  const { checkRowAction } = await import("@/plugins/workspace/row-actions");
+export async function runRowOp(rowId: number, raw: Record<string, unknown>, mode?: "send" | "draft"): Promise<{ href?: string; what?: string }> {
+  const { checkRowAction, rowMailConv } = await import("@/plugins/workspace/row-actions");
   const { op, href } = await checkRowAction(rowId, raw);
+  if (mode && op.type === "gmail-compose") {
+    const conv = rowMailConv(rowId);
+    const { runGmailCompose } = await import("@/plugins/gmail/run");
+    const r = await runGmailCompose(op as unknown as Extract<TodoOp, { type: "gmail-compose" }>, { mode: mode === "draft" ? "draft" : "send", thread: conv?.startsWith("gmail:") ? conv : null, refs: [`page:${rowId}`] });
+    return { what: r.what };
+  }
   if (href) return { href };
   const runner = RUNNERS[op.type as TodoOp["type"]];
   if (!runner) throw new Error(t("Unknown action."));

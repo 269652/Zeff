@@ -57,6 +57,13 @@ function replyTarget(row: NonNullable<ReturnType<typeof getPage>>): { channel: s
   return { channel, to: String(p.commwhere ?? p.msgchat ?? ""), subject: "", conv };
 }
 
+/** The conversation a row of a mail is in ("gmail:<thread>", Outlook's …) — null: not a row, or not of a mail. */
+export function rowMailConv(rowId: number): string | null {
+  const row = getPage(rowId);
+  if (!row?.dbId) return null;
+  return replyTarget(row).conv || null;
+}
+
 /** A reply to a row (a mail, a message) drafted by the AI from its conversation — as the reply drafts are (System → Prompts). */
 export async function draftRowReply(rowId: number): Promise<{ text: string; to: string; subject: string; channel: string }> {
   const row = getPage(rowId);

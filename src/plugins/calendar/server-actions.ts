@@ -83,7 +83,9 @@ export async function deleteCalendarAction(id: number): Promise<ActionState> {
 /**
  * An appointment in one of Zeff's own calendars — new (no id) or changed; a series' occurrence
  * (`occurrence`: its day) changed alone, with the following ones, or all (`scope`). Dragging and
- * resizing in the app come here too (only the times change).
+ * resizing in the app come here too (only the times change). In a Google calendar you may write to
+ * (with Google Calendar's write access): made or changed there through Google's API — no series,
+ * `attendees` invited — and read back at once.
  */
 export async function saveEventAction(v: {
   id?: number;
@@ -98,6 +100,8 @@ export async function saveEventAction(v: {
   recurrence?: unknown;
   occurrence?: string | null;
   scope?: SeriesScope;
+  /** A Google calendar's event: its guests (mail addresses). */
+  attendees?: string[];
 }): Promise<ActionState> {
   return run(async () => {
     const ir = await import("@/lib/calendar/ir");
@@ -115,6 +119,11 @@ export async function saveEventAction(v: {
     if (!e.title) throw new Error(t("A title, please."));
     if (!e.start || !e.end || e.end < e.start || (!e.allDay && e.end === e.start)) throw new Error(t("A start and an end after it, please."));
     if (e.allDay && e.end === e.start) e.end = (await import("@/lib/calendar/recurrence")).addDays(e.start, 1);
+    // A Google calendar's: written there (the copy here follows from Google).
+    const before = v.id ? ir.eventById(Number(v.id)) : null;
+    if (v.id && !before) throw new Error(t("This event isn't there any more — reload the calendar."));
+    const cal = before?.calendar ?? (v.calendarId ? ir.listCalendars().find((c) => c.id === Number(v.calendarId)) : undefined);
+    if (cal?.source === "google") return saveGoogleEvent(cal.key, before?.key ?? null, { ...e, attendees: Array.isArray(v.attendees) ? v.attendees.map(String) : undefined });
     const occurrence = typeof v.occurrence === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v.occurrence) ? v.occurrence : null;
     if (v.id && occurrence) {
       const scope: SeriesScope = v.scope === "one" || v.scope === "following" ? v.scope : "all";
@@ -136,10 +145,52 @@ export async function saveEventAction(v: {
   });
 }
 
+/** The Google calendar's id of Zeff's calendar ("google:<id>"), and an event's id from Zeff's key for it. */
+async function googleIds(calendarKey: string, eventKey: string | null): Promise<{ calendarId: string; eventId: string | null }> {
+  const calendarId = calendarKey.replace(/^google:/, "");
+  if (!eventKey) return { calendarId, eventId: null };
+  const ids = (await import("@/lib/google/calendar-write")).gcalIdsOf(eventKey);
+  if (!ids) throw new Error(t("Zeff doesn't know this event's id in Google — change it in Google Calendar."));
+  return { calendarId, eventId: ids.eventId };
+}
+
+/** An event of a Google calendar made (no key) or changed through Google's API — what it says. */
+async function saveGoogleEvent(calendarKey: string, eventKey: string | null, e: { title: string; start: string; end: string; allDay: boolean; location: string; description: string; attendees?: string[] }): Promise<string> {
+  const gw = await import("@/lib/google/calendar-write");
+  const { journalGoogleWrite } = await import("@/lib/google/journal");
+  const { calendarId, eventId } = await googleIds(calendarKey, eventKey);
+  const fields = { title: e.title, start: e.start, end: e.end, allDay: e.allDay, location: e.location, description: e.description, ...(e.attendees ? { attendees: e.attendees } : {}) };
+  if (eventId) {
+    await gw.patchGcalEvent(calendarId, eventId, fields);
+    journalGoogleWrite({ kind: "calendar.changed", source: "gcalendar", sourceRef: `${eventId}:${Date.now()}`, title: e.title, summary: `${e.start} – ${e.end}` });
+    return t('"{title}" saved in Google Calendar.', { title: e.title });
+  }
+  const r = await gw.insertGcalEvent(calendarId, fields);
+  journalGoogleWrite({ kind: "calendar.created", source: "gcalendar", sourceRef: r.id, title: e.title, summary: `${e.start} – ${e.end}`, url: r.htmlLink });
+  return t('"{title}" added to Google Calendar.', { title: e.title });
+}
+
+/** Your answer to an invitation in a Google calendar — yes, maybe, no — sent to its organiser through Google's API. */
+export async function respondEventAction(id: number, response: "accepted" | "tentative" | "declined"): Promise<ActionState> {
+  return run(async () => {
+    const ir = await import("@/lib/calendar/ir");
+    const ev = ir.eventById(Number(id));
+    if (!ev || ev.calendar.source !== "google") throw new Error(t("Only invitations in a Google calendar can be answered here."));
+    const { calendarId, eventId } = await googleIds(ev.calendar.key, ev.key);
+    const answer = response === "accepted" || response === "declined" || response === "tentative" ? response : null;
+    if (!answer) throw new Error(t("An answer is accepted, declined or tentative."));
+    await (await import("@/lib/google/calendar-write")).respondGcalEvent(calendarId, eventId!, answer);
+    const { journalGoogleWrite } = await import("@/lib/google/journal");
+    journalGoogleWrite({ kind: "calendar.response", source: "gcalendar", sourceRef: `${eventId}:${answer}:${Date.now()}`, title: ev.title, summary: answer });
+    return answer === "accepted" ? t("Accepted — “{title}”.", { title: ev.title }) : answer === "declined" ? t("Declined — “{title}”.", { title: ev.title }) : t("Answered maybe — “{title}”.", { title: ev.title });
+  });
+}
+
 /** An appointment of Zeff's own calendars deleted — a series' occurrence alone, with the following ones, or the whole series. */
 export async function deleteEventAction(id: number, series?: { occurrence: string; scope: SeriesScope }): Promise<ActionState> {
   return run(async () => {
     const ir = await import("@/lib/calendar/ir");
+    if (ir.eventById(Number(id))?.calendar.source === "google") throw new Error(t("Zeff never deletes events in Google Calendar — delete it there if you must."));
     if (series && /^\d{4}-\d{2}-\d{2}$/.test(series.occurrence)) {
       const scope: SeriesScope = series.scope === "one" || series.scope === "following" ? series.scope : "all";
       ir.deleteOccurrence(Number(id), series.occurrence, scope);
@@ -185,15 +236,17 @@ export async function syncCalendarsAction(range?: { from: string; to: string }):
 }
 
 /**
- * A proposed appointment accepted in the calendar (Zeff's own calendar: entered now) — only that
- * action of its todo; it leaves the todo, noted on it. `title`: the one shown (the todo's actions may
- * have changed meanwhile).
+ * A proposed appointment accepted in the calendar (Zeff's own calendar: entered now; Google Calendar's, with its write access:
+ * entered there through Google's API) — only that action of its todo; it leaves the todo, noted on it. `title`: the one shown
+ * (the todo's actions may have changed meanwhile).
  */
 export async function acceptProposedEventAction(todoId: number, index: number, title: string): Promise<ActionState> {
   return run(async () => {
     const { getTodo, addTodoUserNote } = await import("@/lib/boards/store");
     const todo = getTodo(Number(todoId));
     const op = todo?.ops[Number(index)];
+    // Google Calendar's (with its write access): entered there through Google's API, on this click.
+    if (todo && op?.type === "gcal-event" && op.title === String(title)) return (await import("@/plugins/google-calendar/run")).runGcalEventOnTodo(todo.id, Number(index)).then((r) => r.what);
     if (!todo || !op || op.type !== "calendar-entry" || op.title !== String(title)) throw new Error(t("This proposal isn't on the todo any more — reload the calendar."));
     const { runCalendarEntry } = await import("./run");
     const r = await runCalendarEntry(op, { todo, note: () => {} });

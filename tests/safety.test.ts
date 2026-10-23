@@ -62,6 +62,45 @@ test("a todo's actions are run only from a click (or a worker you started)", () 
   assert.deepEqual(using("RUNNERS"), ["src/lib/ops.ts", "src/plugins/actions/run.ts"]);
 });
 
+/**
+ * Gmail and Google Calendar written through their API (a mail sent or drafted, a conversation archived or marked unread, an event
+ * made, moved or answered): only from your clicks — the buttons of a todo's mail or appointment (their server actions), an inbox
+ * row's reply (lib/ops runRowOp, with the reply's own mode), the calendar app. Never from an agent's tool (MCP), a worker or the
+ * todo's "Run": agents only propose (a todo's action, run on your click).
+ */
+const GOOGLE_WRITES: Record<string, string[]> = {
+  "sendGmail(": ["src/lib/google/gmail-send.ts", "src/plugins/gmail/run.ts"],
+  "createGmailDraft(": ["src/lib/google/gmail-send.ts", "src/plugins/gmail/run.ts"],
+  "sendGmailDraft(": ["src/lib/google/gmail-send.ts"],
+  "archiveGmail(": ["src/plugins/gmail/run.ts"],
+  "markGmailUnread(": ["src/plugins/gmail/run.ts"],
+  "insertGcalEvent(": ["src/lib/google/calendar-write.ts", "src/plugins/calendar/server-actions.ts", "src/plugins/google-calendar/run.ts"],
+  "patchGcalEvent(": ["src/lib/google/calendar-write.ts", "src/plugins/calendar/server-actions.ts"],
+  "respondGcalEvent(": ["src/lib/google/calendar-write.ts", "src/plugins/calendar/server-actions.ts"],
+  "runGmailCompose(": ["src/lib/ops.ts", "src/plugins/gmail/run.ts"],
+  "runGmailComposeOnTodo(": ["src/plugins/gmail/run.ts", "src/plugins/gmail/server-actions.ts"],
+  "gmailRowChange(": ["src/plugins/gmail/run.ts", "src/plugins/gmail/server-actions.ts"],
+  "runGcalEvent(": ["src/plugins/google-calendar/run.ts"],
+  "runGcalEventOnTodo(": ["src/plugins/calendar/server-actions.ts", "src/plugins/google-calendar/run.ts"],
+  // (The one door every write to Google goes through — and only these modules knock.)
+  "googleWrite": ["src/lib/google/calendar-write.ts", "src/lib/google/gmail-send.ts", "src/lib/google/gmail-write.ts", "src/lib/google/write-guard.ts"],
+};
+
+for (const [fn, allowed] of Object.entries(GOOGLE_WRITES))
+  test(`Google write "${fn.replace(/\($/, "")}" is only called from where a click runs it`, () => {
+    assert.deepEqual(using(fn), allowed);
+  });
+
+test("no agent tool (MCP), worker or todo's Run can send a mail or write an event — they only propose", () => {
+  const writers = /@\/lib\/google\/(gmail-send|calendar-write|write-guard)["']|(gmail|google-calendar)\/run["']/;
+  const agents = SRC.filter((x) => /^src\/mcp\/|\/mcp\.ts$|^src\/lib\/work\/|^src\/plugins\/auto-actions\/|^src\/plugins\/actions\/(run|zeff-run|server)\.ts$/.test(x.file));
+  assert.ok(agents.length > 5);
+  for (const f of agents) assert.ok(!writers.test(f.text), `${f.file} imports what writes to Google`);
+  // The todo's "Run" (and a worker's runTodoOps) has no runner for them: those stay Gmail's / Google's window, opened by you.
+  const runners = SRC.find((x) => x.file === "src/plugins/actions/run.ts")!.text;
+  assert.ok(!/"gmail-compose"|"gcal-event"/.test(runners), "gmail-compose / gcal-event in RUNNERS");
+});
+
 test("the automatic steps don't import what runs actions", () => {
   const automatic = [
     "src/lib/boards/run.ts",

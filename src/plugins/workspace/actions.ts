@@ -503,10 +503,13 @@ export async function rejudgeAction(dbId: number, stepId: string) {
   });
 }
 
-/** One of Zeff's actions from a row (a draft opened, a message sent, something done in Zeff) — no todo needed. */
-export async function rowActionAction(rowId: number, op: Record<string, unknown>) {
+/**
+ * One of Zeff's actions from a row (a draft opened, a message sent, something done in Zeff) — no todo needed. `mode`: a Gmail
+ * mail sent or saved as a draft through Gmail's API (the reply's own buttons).
+ */
+export async function rowActionAction(rowId: number, op: Record<string, unknown>, mode?: "send" | "draft") {
   return run(async () => {
-    const r = await (await import("@/lib/ops")).runRowOp(Number(rowId), op && typeof op === "object" ? op : {});
+    const r = await (await import("@/lib/ops")).runRowOp(Number(rowId), op && typeof op === "object" ? op : {}, mode === "send" || mode === "draft" ? mode : undefined);
     return { href: r.href ?? null, what: r.what ?? null };
   });
 }

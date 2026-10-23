@@ -162,7 +162,7 @@ export async function respondGcalEvent(calendarId: string, eventId: string, resp
 export function gcalIdsOf(key: string): { eventId: string; calendarId: string } | null {
   try {
     const [eventId, calendarId] = Buffer.from(String(key ?? ""), "base64url").toString("utf8").split(" ");
-    return eventId && calendarId && /^[\w.@%+-]+$/.test(calendarId) && /^[\w-]+$/.test(eventId) ? { eventId, calendarId } : null;
+    return eventId && calendarId && /^[\w-]+$/.test(eventId) ? { eventId, calendarId } : null;
   } catch {
     return null;
   }
