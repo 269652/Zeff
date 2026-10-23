@@ -65,7 +65,7 @@ export const REVOLUT_ACTIONS = [
         amount: "der Betrag in Euro (z. B. 150) — leer, wenn er nicht feststeht",
         note: "eine kurze Notiz für die Zahlung (wofür) — höchstens 64 Zeichen",
       },
-      example: { type: "revolut-pay", name: "Chris Ballhaus", revtag: "chrisb", amount: "150", note: "Zurück, danke fürs Leihen!" },
+      example: { type: "revolut-pay", name: "Chris Bauer", revtag: "chrisb", amount: "150", note: "Zurück, danke fürs Leihen!" },
     },
     clean: (o) => {
       const revtag = revtagOf(o.revtag);
