@@ -62,7 +62,9 @@ if (!["win32", "darwin", "linux"].includes(PLATFORM)) throw new Error(`No bundle
 /** The release's name for this platform: windows-x64, macos-arm64, linux-x64, … */
 const target = `${{ win32: "windows", darwin: "macos", linux: "linux" }[PLATFORM]}-${process.arch}`;
 
-const releaseDir = path.join(os.tmpdir(), "zeff-release");
+// (Windows: not under the user's profile — Next writes the build's absolute paths into .next, and a temp folder under
+// C:\Users\<name> put the builder's name into every release.)
+const releaseDir = WIN ? path.join(process.env.PUBLIC || "C:\\Users\\Public", "zeff-release") : path.join(os.tmpdir(), "zeff-release");
 /** The folder that gets packed: Zeff/ — with README.txt, and on macOS Zeff.app in it. */
 const top = path.join(release ? releaseDir : path.join(root, "dist"), "Zeff");
 /** The launcher: the bundle's folder (Windows, Linux) or Zeff.app. */
@@ -150,7 +152,8 @@ function buildApp() {
     run(tarExe, ["-x", "-f", tarFile, "-C", staging]);
     fs.rmSync(tarFile, { force: true });
     for (const e of fs.readdirSync(staging)) {
-      if (["launcher", "dist", "tests", "fixtures", ".github"].includes(e)) continue;
+      // (.gitmodules: where this machine keeps the integrations — a local path, and no submodule is in a release anyway.)
+      if (["launcher", "dist", "tests", "fixtures", ".github", ".gitmodules"].includes(e)) continue;
       fs.cpSync(path.join(staging, e), path.join(app, e), { recursive: true });
     }
     n = fs.readdirSync(app, { recursive: true, withFileTypes: true }).filter((e) => e.isFile()).length;
@@ -188,7 +191,8 @@ function buildApp() {
     copyDir(path.join(root, "knowledge", ".next"), path.join(app, "knowledge", ".next"), skipCache);
   } else {
     const next = path.join(app, "node_modules", "next", "dist", "bin", "next");
-    const env = { ...process.env, NEXT_TELEMETRY_DISABLED: "1" };
+    // Turbopack's root: the copy itself (its node_modules are real folders) — not next.config's fallback, the home folder.
+    const env = { ...process.env, NEXT_TELEMETRY_DISABLED: "1", ...(release ? { ZEFF_TURBOPACK_ROOT: app } : {}) };
     // The integrations' mount files (src/lib/integrations/mounted-*.ts) are generated, not committed: written for what
     // the copy has under integrations/ — a release has none (submodules aren't in a commit), so they come out empty.
     run(process.execPath, [path.join(app, "scripts", "integrations.mjs")], { cwd: app, env });
@@ -428,8 +432,35 @@ function sha256(file) {
   return hash.digest("hex");
 }
 
+/** A release names no one: the builder's user name in any text file of the bundle (paths Next or a tool wrote) stops it. */
+function noUserName(dir) {
+  const user = os.userInfo().username;
+  // (A container's or a CI runner's account names no one — and "root" is a word in many files.)
+  if (!user || user.length < 3 || ["root", "runner", "user", "admin", "node", "build", "ubuntu"].includes(user.toLowerCase())) return;
+  const needle = user.toLowerCase();
+  const found = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      if (e.isDirectory()) {
+        if (e.name !== "node_modules") walk(p);
+      } else if (e.isFile() && fs.statSync(p).size < 5_000_000) {
+        const b = fs.readFileSync(p);
+        if (b.subarray(0, 8000).includes(0)) continue; // (a binary)
+        if (b.toString("latin1").toLowerCase().includes(needle)) found.push(path.relative(dir, p));
+      }
+    }
+  };
+  walk(dir);
+  if (found.length) throw new Error(`The bundle names the builder ("${user}") in:\n  ${found.slice(0, 20).join("\n  ")}`);
+}
+
 let archive = null;
 if (args.has("--zip") || release) {
+  if (release) {
+    step("Checking for the builder's user name");
+    noUserName(top);
+  }
   step("Packing");
   const ext = PLATFORM === "linux" ? "tar.gz" : "zip";
   const name = release ? `Zeff-${version}-${target}.${ext}` : `Zeff.${ext}`;
