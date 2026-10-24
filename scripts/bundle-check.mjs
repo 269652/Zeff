@@ -242,7 +242,7 @@ const parent = path.dirname(root);
 for (const f of [path.join(root, "data"), path.join(root, "knowledge", "data"), path.join(root, ".env"), path.join(root, ".env.local"), path.join(parent, "zeff-launcher.json")]) {
   check(!fs.existsSync(f), `no ${path.relative(parent, f).replace(/\\/g, "/")}`, `${f} exists`);
 }
-const SECRET = /(ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|glpat-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{30,}|xox[bpa]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----)/;
+const SECRET = /(ghp_[A-Za-z0-9]{30,}|github_pat_[A-Za-z0-9_]{30,}|glpat-[A-Za-z0-9_-]{20,}|sk-[A-Za-z0-9]{30,}|xox[bpa]-[A-Za-z0-9-]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY-----\s*[A-Za-z0-9+/=]{40,})/; // (a key's header alone — a placeholder — is no key)
 const TEXT = /\.(json|mjs|cjs|js|ts|tsx|md|txt|sql|yml|yaml|toml|env|example|css|html|ps1|sh)$/i;
 let scanned = 0;
 const hits = [];
