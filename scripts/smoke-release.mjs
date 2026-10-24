@@ -60,8 +60,8 @@ if (!fs.existsSync(exe)) throw new Error(`${exe} isn't in the archive.`);
 const bundle = process.platform === "darwin" ? path.join(top, "Zeff.app", "Contents", "Resources", "zeff") : top;
 const nodeExe = path.join(bundle, "runtime", process.platform === "win32" ? "node.exe" : "node");
 
-// Free ports: the smoke test runs next to a Zeff on this machine (9333, 9555, the work host's 9334 …).
-const ports = { zeffPort: await freePort(), knowledgePort: await freePort(), workPort: await freePort() };
+// Free ports: the smoke test runs next to a Zeff on this machine (9333, 9555, the work host's 9334, the sync host's 9336 …).
+const ports = { zeffPort: await freePort(), knowledgePort: await freePort(), workPort: await freePort(), syncPort: await freePort() };
 const httpsPort = await freePort();
 const config = path.join(work, "zeff-launcher.json");
 fs.writeFileSync(config, JSON.stringify({ dataDir: data, ...ports, httpsPorts: [httpsPort], httpRedirect: false }, null, 2));

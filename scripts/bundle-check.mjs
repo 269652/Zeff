@@ -83,7 +83,9 @@ for (const dep of Object.keys(pkg.dependencies ?? {})) {
     import.meta.resolve(dep); // from this file: app/node_modules
     ok(dep);
   } catch (e) {
-    bad(`${dep}: ${String(e?.message ?? e).split(String.fromCharCode(10))[0]}`);
+    // A package of sub-paths only (@tiptap/pm: "@tiptap/pm/state" …) has no root to resolve: it's there if it is installed.
+    if (e?.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" && fs.existsSync(path.join(root, "node_modules", dep, "package.json"))) ok(`${dep} (sub-paths only)`);
+    else bad(`${dep}: ${String(e?.message ?? e).split(String.fromCharCode(10))[0]}`);
   }
 }
 // The ones the drivers and the work hosts load at run time: really imported.

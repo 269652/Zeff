@@ -1,9 +1,10 @@
+import os from "node:os";
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  // Turbopack's root: ZEFF_TURBOPACK_ROOT (the image build: /app); on this Windows machine the folder above the worktrees (their
-  // node_modules are junctions); elsewhere Next's own guess.
-  ...(process.env.ZEFF_TURBOPACK_ROOT ? { turbopack: { root: process.env.ZEFF_TURBOPACK_ROOT } } : process.platform === "win32" ? { turbopack: { root: "C:/Users/morrossl" } } : {}),
+  // Turbopack's root: ZEFF_TURBOPACK_ROOT (the image build: /app); on Windows the user's home folder (above the checkout and its
+  // worktrees, whose node_modules are junctions — forward slashes, as it always was written); elsewhere Next's own guess.
+  ...(process.env.ZEFF_TURBOPACK_ROOT ? { turbopack: { root: process.env.ZEFF_TURBOPACK_ROOT } } : process.platform === "win32" ? { turbopack: { root: os.homedir().split("\\").join("/") } } : {}),
   // `npm run deploy` builds into a side folder (ZEFF_DIST_DIR=.next-build) while prod keeps
   // serving .next, and swaps the two just before the restart (scripts/swap-dist.mjs). Everything
   // else — next start, next dev (.next/dev), a plain next build — uses .next.
