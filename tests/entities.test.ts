@@ -19,9 +19,9 @@ test("entities: freemail domains are no organisation; a domain is its registrabl
   assert.equal(registrableDomain("mail.xing.com"), "xing.com");
   assert.equal(registrableDomain("email.example.ai"), "example.ai");
   assert.equal(registrableDomain("shop.example.co.uk"), "example.co.uk");
-  assert.equal(registrableDomain("Acme.COM"), "example.com");
+  assert.equal(registrableDomain("Example.COM"), "example.com");
   assert.equal(registrableDomain("sharepoint.eu.com"), "sharepoint.eu.com");
-  assert.equal(orgNameFromDomain("example.com"), "Acme");
+  assert.equal(orgNameFromDomain("example.com"), "Example");
   assert.equal(orgNameFromDomain("it-dienst.de"), "It-Dienst");
   assert.equal(normalizeOrgName("Acme GmbH"), normalizeOrgName("ACME"));
   assert.equal(normalizeOrgName("Müller & Söhne GmbH & Co. KG"), "mueller & soehne");
@@ -47,7 +47,7 @@ test("entities: a mail domain becomes an organisation to confirm — freemail ne
   assert.ok(findEntitySuggestions() >= 1);
   assert.equal(listEntities("org").length, 0, "proposals only");
   const open = pendingEntitySuggestions();
-  const org = open.find((s) => s.kind === "org" && s.name === "Acme");
+  const org = open.find((s) => s.kind === "org" && s.name === "Example");
   assert.ok(org, JSON.stringify(open));
   assert.deepEqual(org!.data.domains, ["example.com"]);
   assert.ok(org!.evidence.includes("example.com"));
@@ -60,12 +60,12 @@ test("entities: a mail domain becomes an organisation to confirm — freemail ne
   const works = linksOf(anna).find((l) => l.rel === "works-at");
   assert.equal(works?.targetType, "org");
   assert.equal(`org:${works?.targetRef}`, ref);
-  assert.equal(works?.label, "Acme");
+  assert.equal(works?.label, "Example");
   assert.ok(getPerson(anna));
 
   assert.deepEqual(resolveEntity("someone@example.com").map((r) => r.ref), [ref]);
   assert.deepEqual(resolveEntity("example.com").map((r) => r.ref), [ref]);
-  assert.deepEqual(resolveEntity("Acme GmbH").map((r) => r.ref), [ref]);
+  assert.deepEqual(resolveEntity("Example GmbH").map((r) => r.ref), [ref]);
   const annaRefs = resolveEntity("anna.weber@example.com").map((r) => r.ref);
   assert.ok(annaRefs.includes(`person:${anna}`) && annaRefs.includes(ref!));
   assert.deepEqual(resolveEntity("friend@gmail.com"), []);
@@ -119,9 +119,9 @@ test("entities: a project gathers its job number, Jira key and board, repos and 
   const { getProject, createProject } = await import("@/lib/projects");
   const d = getSqlite();
   const job = createJob({ number: "AB123-000001-00", name: "PROJ Support" });
-  createJob({ number: "AB123-000001-00", name: "PROJ Relaunch" });
+  createJob({ number: "AB123-000002-00", name: "PROJ Relaunch" });
   getDb().insert(schema.jiraBoards).values({ id: 3359, name: "PROJ Support", projectKey: "PROJ", jobNumber: "AB123-000001-00", enabled: true } as never).run();
-  getDb().insert(schema.jiraBoards).values({ id: 3396, name: "PROJ - Relaunch", projectKey: "PROJ", jobNumber: "AB123-000001-00", enabled: true } as never).run();
+  getDb().insert(schema.jiraBoards).values({ id: 3396, name: "PROJ - Relaunch", projectKey: "PROJ", jobNumber: "AB123-000002-00", enabled: true } as never).run();
   getDb().insert(schema.jiraTickets).values({ key: "PROJ-12", summary: "Footer", boardId: 3359 } as never).run();
   getDb().insert(schema.jiraTickets).values({ key: "PROJ-40", summary: "Relaunch nav", boardId: 3396 } as never).run();
   const repo = getDb().insert(schema.repos).values({ name: "proj-frontend", path: "C:/x/proj-frontend", gitlabProject: "customer-proj/proj-frontend", boards: "[3359]" } as never).returning().get() as { id: number };
@@ -228,7 +228,7 @@ test("entities: an organisation as a Workspace row — its page gathers people a
   const { ORGS_SOURCE, PROJECTS_SOURCE } = await import("@/plugins/entities/workspace-source");
   const { getEntity, listEntities } = await import("@/plugins/entities/store");
   const records = await ORGS_SOURCE.read();
-  const pixel = listEntities("org").find((o) => o.name === "Acme")!;
+  const pixel = listEntities("org").find((o) => o.name === "Example")!;
   const rec = records.find((r) => r.ref === pixel.ref)!;
   assert.ok(rec, "a row per organisation");
   assert.equal(rec.typed?.find((f) => f.id === "entdomains")?.value, "example.com");
@@ -237,7 +237,7 @@ test("entities: an organisation as a Workspace row — its page gathers people a
   const row = { id: 1, title: "Acme", cells: { srcref: pixel.ref, srcedited: rec.updatedAt, entaliases: "PXP, Acme", entdomains: "example.com, example.de", entnote: "Arbeitgeber" } };
   await ORGS_SOURCE.pull!(0, [row as never], {} as never);
   const after = getEntity(pixel.ref)!;
-  assert.deepEqual(after.aliases.sort(), ["PXP", "Acme"]);
+  assert.deepEqual(after.aliases.sort(), ["Acme", "PXP"]);
   assert.deepEqual(after.domains.sort(), ["example.com", "example.de"]);
   assert.equal(after.note, "Arbeitgeber");
   const projects = await PROJECTS_SOURCE.read();

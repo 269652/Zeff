@@ -21,9 +21,9 @@ test("jira source: 'mine' is limited to the selected boards once any is selected
   ticket("DISNEY-2", { followed: 1 }); // followed on purpose
   const keys = async (c: object) => (await jiraRecords(c as never)).map((r) => r.key).sort();
   assert.deepEqual(await keys({ mine: true }), ["PROJ-1"]);
-  assert.deepEqual(await keys({ mine: true, involved: true }), ["PROJ-1", "DISNEY-2"], "followed tickets stay");
+  assert.deepEqual(await keys({ mine: true, involved: true }), ["DISNEY-2", "PROJ-1"], "followed tickets stay");
 
   // No board selected at all: nothing to limit by — mine is mine.
   db.update(schema.jiraBoards).set({ enabled: false }).run();
-  assert.deepEqual(await keys({ mine: true }), ["PROJ-1", "DISNEY-1", "DISNEY-2"]);
+  assert.deepEqual(await keys({ mine: true }), ["DISNEY-1", "DISNEY-2", "PROJ-1"]);
 });
