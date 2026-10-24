@@ -326,7 +326,9 @@ async function start() {
   if (!fs.existsSync(syncTokenFile)) fs.writeFileSync(syncTokenFile, require("node:crypto").randomBytes(24).toString("hex"), { mode: 0o600 });
   const syncToken = fs.readFileSync(syncTokenFile, "utf8").trim();
   // The sync host runs from a build of its own (.next-sync: a deploy swaps .next under the pages' server, not under it).
-  const syncDist = ".next-sync";
+  // (A fresh install — the release archive — has no .next-sync until its first deploy: then it runs from .next, read as
+  // the pages' server reads it.)
+  const syncDist = fs.existsSync(path.join(paths.app, ".next-sync", "BUILD_ID")) ? ".next-sync" : ".next";
   const syncMarker = path.join(paths.app, syncDist, "BUILD_ID");
   const env = {
     ...process.env,
