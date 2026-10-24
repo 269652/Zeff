@@ -190,7 +190,8 @@ export function mustDoLeftOut<M extends { key: string; fromName: string | null; 
   }
   return [...groups.values()].map((mails) => {
     const m = mails[mails.length - 1];
-    const what = plain(m.preview, 140).replace(/^(external to the groupe[^.]*\.?|acme groupe)\s*/i, "");
+    // (A company's banner before the text — "External to the Groupe …", "<Name> Groupe" — is cut off.)
+    const what = plain(m.preview, 140).replace(/^(external to the groupe[^.]*\.?|\p{L}+ groupe)\s*/iu, "");
     return { mails, text: `Pflicht aus Mail erledigen: „${plain(m.subject, 100)}“ — ${what}`.slice(0, 300) };
   });
 }

@@ -84,3 +84,14 @@ test("a must-do mail the AI left out gets a todo, once per course", async () => 
   // The next reminder of b (same subject and words as the open todo's mail): nothing new.
   assert.equal(mustDoLeftOut([{ ...b, key: "b2" }], new Set(), open, mailOf).length, 0);
 });
+
+/** A company's banner before a must-do mail's text ("External to the Groupe …", "<Name> Groupe") is cut off the todo — any company's, none named. */
+test("a must-do todo's text starts with the mail's own words, not the company's banner", async () => {
+  const { mustDoLeftOut } = await import("@/lib/boards/mail-todos");
+  const m = (key: string, preview: string) => ({ key, fromName: "Lernplattform", fromEmail: null, subject: "Reminder: Course Pending", preview, folder: "Posteingang" });
+  for (const banner of ["Acme Groupe ", "Muster Groupe ", "External to the Groupe / en provenance de l'extérieur. "]) {
+    const x = m("k", `${banner}You have not yet completed the mandatory course Security 2026.`);
+    const left = mustDoLeftOut([x], new Set(), [], () => x);
+    assert.match(left[0].text, /— You have not yet completed/, banner);
+  }
+});
