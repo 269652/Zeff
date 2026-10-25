@@ -46,7 +46,7 @@ type Finder = (e: Evidence, found: readonly string[]) => string[];
 type Settler = (ref: string, e: Evidence, amount: number | null, found: readonly string[]) => boolean | { undo: unknown };
 /** Takes back what settling a ref did — with what the settler kept, and the proof's key. */
 type Unsettler = (ref: string, undo: unknown, key: string) => void;
-/** A ref's name and page, for the views ("Vorgang DR II 1121/26"). */
+/** A ref's name and page, for the views ("Vorgang DR II 789/26"). */
 type Labeler = (ref: string) => { title: string; href: string | null } | null;
 
 const finders: Finder[] = [];
@@ -107,7 +107,7 @@ function table() {
   return sqlite;
 }
 
-/** The euro amounts a text names ("40 € und 20 €" → [40, 20]; "3.618,13 €" → 3618.13), in order. */
+/** The euro amounts a text names ("40 € und 20 €" → [40, 20]; "1.234,56 €" → 1234.56), in order. */
 export function euroAmounts(text: string): number[] {
   const out: number[] = [];
   for (const m of text.matchAll(/(\d{1,3}(?:\.\d{3})+(?:,\d{1,2})?|\d+(?:[.,]\d{1,2})?)\s*(?:€|eur\b|euro\b)/gi)) {

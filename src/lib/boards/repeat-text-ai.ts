@@ -18,7 +18,7 @@ export const INSTRUCTIONS = `Jedes dieser Todos kommt regelmäßig wieder — z.
 
 - Lass weg, was nur fürs erste Mal gilt: „erste Rate“, „Anzahlung“, „sofort“, „heute“, „zunächst“, ein festes Datum, bis zu dem es fällig war (das Fälligkeitsdatum steht am Todo), und Angaben über den ganzen Plan (Folgeraten, Laufzeit, Schlusszahlung, was passiert, wenn man in Rückstand gerät).
 - Behalte, was jede Zahlung braucht: Betrag, Empfänger, Aktenzeichen bzw. Verwendungszweck, Konto.
-- Kurz, als Aufgabe formuliert, in der Sprache des Todos (z. B. „Rate 300 € (Az. DR II 1121/26) an die Gerichtsvollzieherin überweisen“).
+- Kurz, als Aufgabe formuliert, in der Sprache des Todos (z. B. „Rate 300 € (Az. DR II 789/26) an die Gerichtsvollzieherin überweisen“).
 - Passt der Text schon für jede Wiederholung, gib ihn unverändert zurück.
 - Erfinde nichts dazu.`;
 
