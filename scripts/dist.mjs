@@ -132,7 +132,7 @@ const copyDir = (from, to, skip = () => false) =>
   fs.cpSync(from, to, { recursive: true, verbatimSymlinks: true, filter: (src) => !skip(path.relative(from, src)) });
 
 /** app/: Zeff's sources, node_modules, both builds, minus dev dependencies — and runtime/node. */
-function buildApp() {
+async function buildApp() {
   if (fs.existsSync(path.join(app, "data")) || fs.existsSync(path.join(app, "knowledge", "data"))) {
     throw new Error(`${path.join(app, "data")} exists — the bundle in dist/ was run and has data. Move it away first.`);
   }
@@ -215,12 +215,73 @@ function buildApp() {
 
   step("Dropping dev dependencies (npm prune --omit=dev)");
   npm(["prune", "--omit=dev", "--no-audit", "--no-fund"], app);
+  if (release) await stripSources(app);
 
   step("Node runtime");
   fs.mkdirSync(path.dirname(nodeExe), { recursive: true });
   fs.copyFileSync(process.execPath, nodeExe);
   fs.chmodSync(nodeExe, 0o755);
   console.log(`${process.version} (${target}) from ${process.execPath}`);
+}
+
+/** The build tooling: not run by a bundle (scripts/bundle-check.mjs stays — the smoke test runs it). */
+const BUILD_ONLY = ["AGENTS.md", "CLAUDE.md", "eslint.config.mjs", "postcss.config.mjs", "tsconfig.tsbuildinfo", "site", "assets", "scripts/dist.mjs", "scripts/deploy.mjs", "scripts/site-deploy.mjs", "scripts/swap-dist.mjs", "scripts/integrations.mjs", "scripts/keep-write-check.mjs", "knowledge/postcss.config.mjs", "knowledge/tsconfig.tsbuildinfo"];
+/** What a bundle runs from its builds alone: TypeScript and CSS (next.config.ts stays — next start reads it). */
+const SOURCE = /\.(tsx?|mts|cts|css)$/;
+const KEEP = new Set(["next.config.ts", path.join("knowledge", "next.config.ts")]);
+
+/**
+ * A release ships no sources: the builds (.next, knowledge/.next) are what runs. Out go the TypeScript and CSS, the build
+ * tooling and the folders left empty; the plain JavaScript a bundle does run as it is (the drivers, the hosts, the MCP
+ * scripts, the launcher) is minified.
+ */
+async function stripSources(dir) {
+  step("Stripping the sources (a release runs from its builds)");
+  for (const f of BUILD_ONLY) fs.rmSync(path.join(dir, f), { recursive: true, force: true });
+  const skip = (rel) => rel === "node_modules" || rel.endsWith(`${path.sep}node_modules`) || /(^|[\\/])\.next(-sync)?$/.test(rel);
+  let removed = 0;
+  const js = [];
+  const walk = (d) => {
+    for (const e of fs.readdirSync(d, { withFileTypes: true })) {
+      const p = path.join(d, e.name);
+      const rel = path.relative(dir, p);
+      if (e.isDirectory()) {
+        if (skip(rel)) continue;
+        walk(p);
+        if (!fs.readdirSync(p).length) fs.rmdirSync(p);
+      } else if (SOURCE.test(e.name) && !KEEP.has(rel)) {
+        fs.rmSync(p);
+        removed++;
+      } else if (/\.(mjs|cjs|js)$/.test(e.name)) js.push(p);
+    }
+  };
+  walk(dir);
+  console.log(`${removed} source files removed`);
+  // The builds' source maps hold the sources themselves (sourcesContent), and their types/ the routes as TypeScript.
+  let maps = 0;
+  for (const build of [".next", path.join("knowledge", ".next")]) {
+    fs.rmSync(path.join(dir, build, "types"), { recursive: true, force: true });
+    for (const f of fs.readdirSync(path.join(dir, build), { recursive: true })) {
+      if (!f.endsWith(".map")) continue;
+      fs.rmSync(path.join(dir, build, f));
+      maps++;
+    }
+  }
+  console.log(`${maps} source maps removed`);
+  await minify(js);
+}
+
+/** Plain JavaScript, minified in place with esbuild (the checkout's — dev dependencies are pruned from the copy). */
+async function minify(files) {
+  const { transform } = await import("esbuild");
+  for (const f of files) {
+    const src = fs.readFileSync(f, "utf8");
+    const loader = "js";
+    const format = f.endsWith(".cjs") ? "cjs" : f.endsWith(".mjs") ? "esm" : undefined;
+    const out = await transform(src, { loader, format, minify: true, target: "node22", legalComments: "none" });
+    fs.writeFileSync(f, out.code);
+  }
+  console.log(`${files.length} script files minified`);
 }
 
 /** The README next to the launcher: how to start it here, where the data is. */
@@ -296,7 +357,7 @@ ${data}
 }
 
 /** The launcher: Electron's files (renamed for Zeff), the launcher code in resources/app, README.txt. */
-function packLauncher() {
+async function packLauncher() {
   step("Launcher (Electron)");
   const electronDir = path.join(electronFrom, "node_modules", "electron");
   if (!fs.existsSync(electronDir)) npm(["ci", "--no-audit", "--no-fund"], electronFrom);
@@ -329,6 +390,7 @@ function packLauncher() {
   for (const f of ["package.json", "main.js", "preload.js", "status.html", "status.js", "icon.ico", "icon.png", "lib", "ps"]) {
     fs.cpSync(path.join(launcher, f), path.join(code, f), { recursive: true });
   }
+  if (release) await minify(fs.readdirSync(code, { recursive: true }).filter((f) => /\.(js|cjs|mjs)$/.test(f)).map((f) => path.join(code, f)));
   console.log(`Electron ${electronVersion} → ${path.basename(out)}, launcher → ${path.relative(out, code)}`);
 
   fs.writeFileSync(path.join(top, "README.txt"), readme());
@@ -406,9 +468,9 @@ if (args.has("--launcher-only")) {
   // A bundle without app/ is fine: zeff-launcher.json's "appDir" can point it at a checkout.
   if (!fs.existsSync(bundle)) throw new Error(`${bundle} doesn't exist yet — run without --launcher-only first.`);
 } else {
-  buildApp();
+  await buildApp();
 }
-packLauncher();
+await packLauncher();
 
 if (release) {
   // Nothing of this machine: no launcher options (they'd point at this checkout), no data, no secrets.

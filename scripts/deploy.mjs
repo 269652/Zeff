@@ -22,7 +22,9 @@
  * Flags: --wait (wait for runs instead of stopping), --knowledge (also build + restart the
  * knowledge servers), --sync (also wait until the sync host is idle and restart it), --sync-only (no build:
  * the host takes the build that waits), --no-sync (leave the sync host alone), --skip-checks (no
- * typecheck/lint/tests — only in an emergency).
+ * typecheck/lint/tests — only in an emergency), --sync-host (only the sync host: built without the checks and
+ * rolled out once it is idle — the pages' server, its build and the knowledge stay as they are;
+ * `npm run deploy:sync`).
  */
 import { execFileSync, spawnSync } from "node:child_process";
 import fs from "node:fs";
@@ -193,10 +195,11 @@ function run(label, cmd, cmdArgs) {
  * at .next-build/types — put back as it was, for tsc and next dev. tsconfig.json lists
  * .next-build/types already, so the build leaves it alone.
  */
-function build(label, app) {
+function build(label, app, { typecheck = true } = {}) {
   const envFile = path.join(app, "next-env.d.ts");
   const before = fs.existsSync(envFile) ? fs.readFileSync(envFile, "utf8") : null;
-  const status = exec(label, "npx", ["next", "build", ...(app === ROOT ? [] : [path.relative(ROOT, app)])], { ZEFF_DIST_DIR: STAGE });
+  // (Without the checks: without the build's own type check too — next.config.ts, ZEFF_SKIP_TYPECHECK.)
+  const status = exec(label, "npx", ["next", "build", ...(app === ROOT ? [] : [path.relative(ROOT, app)])], { ZEFF_DIST_DIR: STAGE, ...(typecheck ? {} : { ZEFF_SKIP_TYPECHECK: "1" }) });
   if (before !== null && fs.readFileSync(envFile, "utf8") !== before) fs.writeFileSync(envFile, before);
   if (status !== 0) fail(`${label} fehlgeschlagen (exit ${status}).`);
 }
@@ -301,6 +304,21 @@ async function main() {
     log("✓ Sync-Host ausgerollt.");
     return;
   }
+  // Only the sync host: a build for it (no checks), taken over once it is idle — the pages' server isn't touched.
+  if (args.has("--sync-host")) {
+    if (!fs.existsSync(path.join(ROOT, SYNC.LIVE, "BUILD_ID"))) fail(`Es gibt noch keinen Sync-Host (${SYNC.LIVE} fehlt) — einmal: npm run deploy -- --sync`);
+    clearStage(ROOT);
+    run("Integrationen", "node", ["scripts/integrations.mjs"]);
+    log("⚠ Ohne Typecheck (auch nicht im Build), Lint und Tests (--sync-host).");
+    build("Build (Sync-Host)", ROOT, { typecheck: false });
+    copyForSyncHost(ROOT);
+    // (The pages' stage emptied again — its cache stays for the next build.)
+    clearStage(ROOT);
+    log(`Build für den Sync-Host: ${SYNC.STAGE}`);
+    await swapSyncHost(true);
+    log("✓ Sync-Host ausgerollt (die Seiten laufen weiter auf ihrem Build).");
+    return;
+  }
   await waitIdle("before");
   const apps = [ROOT, ...(args.has("--knowledge") ? [path.join(ROOT, "knowledge")] : [])];
   for (const app of apps) clearStage(app);
@@ -311,8 +329,8 @@ async function main() {
     run("Lint (Fehler)", "npx", ["eslint", "src", "--quiet"]);
     run("Tests", "npm", ["test", "--silent"]);
   } else log("⚠ Ohne Typecheck, Lint und Tests (--skip-checks).");
-  build("Build", ROOT);
-  if (args.has("--knowledge")) build("Build (Wissens-Server)", apps[1]);
+  build("Build", ROOT, { typecheck: !args.has("--skip-checks") });
+  if (args.has("--knowledge")) build("Build (Wissens-Server)", apps[1], { typecheck: !args.has("--skip-checks") });
   // The sync host (once there is one, or with --sync the first time): its copy of the build, before the pages' swap moves it away.
   const hostWanted = !args.has("--no-sync") && (args.has("--sync") || fs.existsSync(path.join(ROOT, SYNC.LIVE, "BUILD_ID")));
   if (hostWanted) {

@@ -9,9 +9,12 @@ const nextConfig: NextConfig = {
   // serving .next, and swaps the two just before the restart (scripts/swap-dist.mjs). Everything
   // else — next start, next dev (.next/dev), a plain next build — uses .next.
   ...(process.env.ZEFF_DIST_DIR ? { distDir: process.env.ZEFF_DIST_DIR } : {}),
+  // A deploy without its checks (`npm run deploy:sync`, --skip-checks) skips the build's own type check too — the longest part of it.
+  ...(process.env.ZEFF_SKIP_TYPECHECK === "1" ? { typescript: { ignoreBuildErrors: true } } : {}),
   // The launcher's dev mode runs `next dev` behind https://zeff: those origins may load dev assets and the HMR socket
-  // (ZEFF_DEV_ORIGINS = the launcher's host names, comma separated). Ignored by `next start`.
-  ...(process.env.ZEFF_DEV_ORIGINS ? { allowedDevOrigins: [...process.env.ZEFF_DEV_ORIGINS.split(","), "127.0.0.1"] } : {}),
+  // (ZEFF_DEV_ORIGINS = the launcher's host names, comma separated) — and the phone through `tailscale serve` (<machine>.<tailnet>.ts.net,
+  // reachable from the own tailnet only). Ignored by `next start`.
+  ...(process.env.ZEFF_DEV_ORIGINS ? { allowedDevOrigins: [...process.env.ZEFF_DEV_ORIGINS.split(","), "127.0.0.1", "**.ts.net"] } : {}),
   // `data/` holds only local runtime state (the SQLite DB + WAL, and the Chrono
   // Chrome profile). None of it is a build dependency, and some files are held
   // open by another process (the dev server has the DB open; a running Chrono

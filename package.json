@@ -15,6 +15,7 @@
     "typecheck": "tsc --noEmit",
     "test": "node --import tsx --test \"tests/**/*.test.ts\" \"integrations/*/tests/**/*.test.ts\"",
     "deploy": "node scripts/deploy.mjs",
+    "deploy:sync": "node scripts/deploy.mjs --sync-host",
     "claude:up": "node scripts/claude-docker.mjs --up",
     "claude:down": "node scripts/claude-docker.mjs --down",
     "claude:build": "node scripts/claude-docker.mjs --build",
