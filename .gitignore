@@ -51,6 +51,7 @@ next-env.d.ts
 
 # zeff: local SQLite database
 /data/
+/.deploy-db/
 
 # local tooling, not part of the project
 CLAUDE.md

@@ -154,7 +154,7 @@ function UndoRun({ run }: { run: number }) {
           if (!window.confirm(t("Take back run #{run}? Its todos you haven't touched are dismissed.", { run }))) return;
           const r = await undoLageRunAction(run);
           if (!r.ok) return void toast(r.error, { tone: "error" });
-          toast(t("{n} todos of the run dismissed, {kept} kept (you worked on them).", { n: r.dismissed, kept: r.kept }), { tone: "ok" });
+          toast(`${t("{n} todos of the run dismissed, {kept} kept (you worked on them).", { n: r.dismissed, kept: r.kept })}${r.claims ? ` ${t("{n} promises and facts it read removed.", { n: r.claims })}` : ""}`, { tone: "ok" });
           router.refresh();
         }}
       >

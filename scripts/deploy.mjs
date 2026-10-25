@@ -195,11 +195,33 @@ function run(label, cmd, cmdArgs) {
  * at .next-build/types — put back as it was, for tsc and next dev. tsconfig.json lists
  * .next-build/types already, so the build leaves it alone.
  */
+/**
+ * The database a build opens (pages rendered at build time): a copy of the live one, made now — the build's workers opening the live
+ * one held its lock for seconds at a time ("database is locked" in the running pages' and the sync host's writes). Null: none to copy.
+ */
+function buildDatabase() {
+  const live = path.join(ROOT, "data", "zeff.db");
+  if (!fs.existsSync(live)) return null;
+  const dir = path.join(ROOT, ".deploy-db");
+  fs.rmSync(dir, { recursive: true, force: true });
+  fs.mkdirSync(dir, { recursive: true });
+  const Database = createRequire(import.meta.url)("better-sqlite3");
+  const src = new Database(live, { readonly: true, fileMustExist: true });
+  try {
+    fs.writeFileSync(path.join(dir, "zeff.db"), src.serialize());
+  } finally {
+    src.close();
+  }
+  return path.join(dir, "zeff.db");
+}
+
 function build(label, app, { typecheck = true } = {}) {
   const envFile = path.join(app, "next-env.d.ts");
   const before = fs.existsSync(envFile) ? fs.readFileSync(envFile, "utf8") : null;
+  const db = app === ROOT ? buildDatabase() : null;
   // (Without the checks: without the build's own type check too — next.config.ts, ZEFF_SKIP_TYPECHECK.)
-  const status = exec(label, "npx", ["next", "build", ...(app === ROOT ? [] : [path.relative(ROOT, app)])], { ZEFF_DIST_DIR: STAGE, ...(typecheck ? {} : { ZEFF_SKIP_TYPECHECK: "1" }) });
+  const status = exec(label, "npx", ["next", "build", ...(app === ROOT ? [] : [path.relative(ROOT, app)])], { ZEFF_DIST_DIR: STAGE, ...(typecheck ? {} : { ZEFF_SKIP_TYPECHECK: "1" }), ...(db ? { DATABASE_PATH: db } : {}) });
+  if (db) fs.rmSync(path.dirname(db), { recursive: true, force: true });
   if (before !== null && fs.readFileSync(envFile, "utf8") !== before) fs.writeFileSync(envFile, before);
   if (status !== 0) fail(`${label} fehlgeschlagen (exit ${status}).`);
 }

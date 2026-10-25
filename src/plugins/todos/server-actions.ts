@@ -639,7 +639,7 @@ export async function saveTodoDisplayFormAction(fd: FormData): Promise<void> {
 }
 
 /** A Lage run taken back: its todos you haven't touched dismissed (lib/boards/run-undo.ts). */
-export async function undoLageRunAction(runId: number): Promise<{ ok: true; dismissed: number; kept: number } | { ok: false; error: string }> {
+export async function undoLageRunAction(runId: number): Promise<{ ok: true; dismissed: number; kept: number; claims: number } | { ok: false; error: string }> {
   try {
     const r = (await import("@/lib/boards/run-undo")).undoLageRun(Number(runId));
     revalidateAll();

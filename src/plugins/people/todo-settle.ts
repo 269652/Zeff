@@ -1,7 +1,8 @@
 import { euroAmounts, refDue, refLabeler, todoAmounts, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
 import { isInstalled } from "@/plugins/state";
 import { detailsOf } from "./details";
-import { claimsFrom, claimsOf, openCommitments, reviewClaim, type Claim } from "./graph";
+import { onRunUndone } from "@/lib/boards/run-undo";
+import { claimById, claimsFrom, claimsOf, dropRunClaims, openCommitments, reviewClaim, type Claim } from "./graph";
 import { listPeople, namesThem } from "./store";
 
 /**
@@ -56,6 +57,9 @@ todoSettler(
 refDue("claim", { dueOf: (ref) => openCommitments().find((c) => c.id === Number(ref.slice(6)))?.due || null });
 
 refLabeler("claim", (ref) => {
-  const c = openCommitments().find((x) => x.id === Number(ref.slice(6)));
+  const c = claimById(Number(ref.slice(6)));
   return c ? { title: `${c.personName}: ${c.text}`, href: null } : null;
 });
+
+// A Lage run taken back: the promises and facts read in it that you haven't looked at go with its todos.
+onRunUndone((runId) => (isInstalled("people") ? dropRunClaims(runId) : 0));

@@ -72,6 +72,18 @@ export type Link = {
   seenAt: string;
 };
 
+let withRun = false;
+
+/** The Lage run going on now (a claim read during it is its — run-undo.ts takes it back with it); null: none. */
+function runNow(): number | null {
+  try {
+    const r = getSqlite().prepare("select id from board_runs where status = 'running' and started_at >= datetime('now', '-3 hours') order by id desc limit 1").get() as { id: number } | undefined;
+    return r?.id ?? null;
+  } catch {
+    return null;
+  }
+}
+
 function db() {
   const d = getSqlite();
   d.exec(`
@@ -80,6 +92,11 @@ function db() {
     create table if not exists people_links (id integer primary key autoincrement, person_id integer not null references people(id) on delete cascade, rel text not null, target_type text not null, target_ref text not null, label text not null default '', evidence text not null default '', source text not null default 'ai', source_ref text not null default '', confidence real not null default 0.7, status text not null default 'proposed', created_at text not null, confirmed_at text, seen_at text not null, unique (person_id, rel, target_type, target_ref));
     create index if not exists people_links_target on people_links (target_type, target_ref);
   `);
+  // (The run a claim was read in came later: added to a table from before.)
+  if (!withRun) {
+    if (!(d.prepare("pragma table_info(people_claims)").all() as { name: string }[]).some((c) => c.name === "run_id")) d.exec("alter table people_claims add column run_id integer");
+    withRun = true;
+  }
   return d;
 }
 
@@ -138,8 +155,8 @@ export function addClaim(v: ClaimInput): boolean {
   const confirmed = v.status === "confirmed";
   const shelf = SHELF_LIFE[v.kind];
   const r = db()
-    .prepare("insert or ignore into people_claims (person_id, kind, text, evidence, source_ref, confidence, status, direction, due, created_at, confirmed_at, expires_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(v.personId, v.kind, text, clip(v.evidence, 300), clip(v.sourceRef, 120), Math.max(0, Math.min(1, v.confidence ?? 0.7)), v.status ?? "proposed", v.direction ?? "", clip(v.due, 10), now(), confirmed ? now() : null, shelf ? days(shelf) : null);
+    .prepare("insert or ignore into people_claims (person_id, kind, text, evidence, source_ref, confidence, status, direction, due, created_at, confirmed_at, expires_at, run_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
+    .run(v.personId, v.kind, text, clip(v.evidence, 300), clip(v.sourceRef, 120), Math.max(0, Math.min(1, v.confidence ?? 0.7)), v.status ?? "proposed", v.direction ?? "", clip(v.due, 10), now(), confirmed ? now() : null, shelf ? days(shelf) : null, runNow());
   if (r.changes) changed();
   return r.changes > 0;
 }
@@ -364,4 +381,17 @@ export function rejectedExamples(limit = 25): { claims: string[]; links: string[
     claims: (d.prepare("select p.name, c.text from people_claims c join people p on p.id = c.person_id where c.status = 'rejected' order by c.id desc limit ?").all(limit) as { name: string; text: string }[]).map((r) => `${r.name}: ${r.text}`),
     links: (d.prepare("select p.name, l.rel, l.target_ref from people_links l join people p on p.id = l.person_id where l.status = 'rejected' and l.source = 'ai' order by l.id desc limit ?").all(limit) as { name: string; rel: string; target_ref: string }[]).map((r) => `${r.name} ${r.rel} ${r.target_ref}`),
   };
+}
+
+/** A Lage run taken back (run-undo.ts): the claims read in it that you haven't looked at (not confirmed, not done, not rejected) go. How many. */
+export function dropRunClaims(runId: number): number {
+  const r = db().prepare("delete from people_claims where run_id = ? and status = 'proposed' and confirmed_at is null and done_at is null").run(runId);
+  if (r.changes) changed();
+  return r.changes;
+}
+
+/** A claim by its id, whatever became of it (a promise kept is still named in a view). */
+export function claimById(id: number): (Claim & { personName: string }) | null {
+  const r = db().prepare("select c.*, p.name person_name from people_claims c join people p on p.id = c.person_id where c.id = ?").get(id) as (CRow & { person_name: string }) | undefined;
+  return r ? { ...toClaim(r), personName: r.person_name } : null;
 }

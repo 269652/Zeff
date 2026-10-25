@@ -7457,5 +7457,7 @@
   "Try the rules on what the pipelines read now — nothing is changed, no job made": "Die Regeln an dem ausprobieren, was die Pipelines jetzt lesen — nichts wird geändert, kein Auftrag angelegt",
   "The rules tried — nothing was changed": "Regeln ausprobiert — nichts wurde geändert",
   "{n} records of {dbs}": "{n} Datensätze aus {dbs}",
-  "No pipeline applies these rules yet (a rules step in a database's pipeline).": "Noch keine Pipeline wendet diese Regeln an (ein Regel-Schritt in der Pipeline einer Datenbank)."
+  "No pipeline applies these rules yet (a rules step in a database's pipeline).": "Noch keine Pipeline wendet diese Regeln an (ein Regel-Schritt in der Pipeline einer Datenbank).",
+  "{n} promises and facts it read removed.": "{n} Zusagen und Fakten aus dem Lauf entfernt.",
+  "Future days are locked by Chrono and skipped. Jobs are matched by number (e.g. <code>AB100-013209-00</code>).": "Künftige Tage sperrt Chrono, sie werden übersprungen. Jobs werden über ihre Nummer zugeordnet (z. B. <code>AB100-013209-00</code>)."
 }

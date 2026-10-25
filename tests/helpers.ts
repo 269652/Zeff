@@ -10,6 +10,8 @@ export function setupTempData(): string {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-test-"));
   process.env.DATABASE_PATH = path.join(dir, "zeff.db");
   process.env.ZEFF_TEAMS_SYNC = "off";
+  // (The calendar inbox is a file beside the data, not in the database: the tests' own — else they read this computer's appointments.)
+  process.env.ZEFF_CALENDAR_INBOX = path.join(dir, "calendar-inbox.json");
   // Gone when the test run ends (the database may still be open then: what can't be removed is left).
   process.on("exit", () => {
     try {

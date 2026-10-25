@@ -4,7 +4,8 @@ import { evidenceOfTodo, refDue, refLabeler, refPayable, rowRefs, todoAmount, to
 import { getSqlite } from "@/db";
 import { isInstalled } from "@/plugins/state";
 import { caseStanding, openOf, paymentsOf } from "./bank";
-import { getPage } from "@/plugins/workspace/store";
+import { getPref } from "@/lib/prefs";
+import { getPage, rawRows } from "@/plugins/workspace/store";
 import { casesOfRef, getCase, updateCase } from "./store";
 
 /**
@@ -141,5 +142,9 @@ refDue("case", {
 
 refLabeler("case", (ref) => {
   const c = getCase(Number(ref.slice(5)));
-  return c ? { title: `${c.compiled?.title || c.label} (${c.label})`, href: null } : null;
+  if (!c) return null;
+  // Its page: its row in the cases database (pref workspace.casesDb, as database.ts keeps it).
+  const db = getPref<number | null>("workspace.casesDb", null);
+  const row = db ? rawRows(db).find((r) => r.cells.srcref === ref) : undefined;
+  return { title: `${c.compiled?.title || c.label} (${c.label})`, href: row ? `/workspace/${row.id}` : null };
 });
