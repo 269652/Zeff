@@ -9,9 +9,10 @@ import { useEffect, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { archivePageAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
+import { archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
+import { DayEntry } from "./day-entry";
 import { seedPerson } from "@/plugins/people/ui/PersonView";
 import type { PersonBundle } from "@/plugins/people/blocks";
 import { Editor, type SaveState } from "./Editor";
@@ -138,6 +139,9 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
   }, []);
   const titleTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const titleRef = useRef<HTMLTextAreaElement>(null);
+  // The big title stays hidden behind the last breadcrumb until it is clicked (an empty title is always shown, so a new page can be named).
+  const [titleOpen, setTitleOpen] = useState(false);
+  const showTitle = titleOpen || !title;
 
   // The title grows with its text.
   useEffect(() => {
@@ -146,7 +150,11 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
       el.style.height = "auto";
       el.style.height = `${el.scrollHeight}px`;
     }
-  }, [title]);
+  }, [title, showTitle]);
+
+  useEffect(() => {
+    if (titleOpen) titleRef.current?.focus();
+  }, [titleOpen]);
 
   const patch = async (p: Parameters<typeof savePageAction>[1]) => {
     const r = await savePageAction(page.id, p);
@@ -243,6 +251,14 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
               </Link>
             </span>
           ))}
+          {title && (
+            <span className="flex items-center gap-1">
+              ›
+              <button type="button" className="max-w-48 truncate hover:underline" aria-expanded={showTitle} title={t("Title")} onClick={() => setTitleOpen(!titleOpen)}>
+                {icon} {title}
+              </button>
+            </span>
+          )}
         </nav>
         <span className="flex-1 max-sm:hidden" />
         <span className={`text-xs ${status === "error" || status === "conflict" ? "text-red-600" : "text-zinc-400"} ${status === "saving" || status === "error" || status === "conflict" ? "" : "max-sm:hidden"}`} role="status">
@@ -260,6 +276,51 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
         >
           {favorite ? "★" : "☆"}
         </button>
+        {/* An entry closed: locked, under its database in the tree, and the next one made (its ticks unticked) — or opened again. */}
+        {page.isRow &&
+          (locked ? (
+            <button
+              type="button"
+              className="btn btn-sm"
+              title={t("Open it again for changes — the entry its closing made goes to the trash if nothing was put in it")}
+              onClick={async () => {
+                const r = await reopenRowAction(page.id);
+                if (!r.ok) return toast(r.error, { tone: "error" });
+                setLocked(false);
+                toast(r.discarded ? t("Open again — the next entry is in the trash.") : t("Open again."), { tone: "ok" });
+                router.refresh();
+              }}
+            >
+              ↺ {t("Open again")}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn btn-sm"
+              title={t("Close this entry (it can't be changed then) and start the next one — every tick unticked, the next day")}
+              onClick={async () => {
+                const r = await closeRowAction(page.id);
+                if (!r.ok) return toast(r.error, { tone: "error" });
+                setLocked(true);
+                const closedId = page.id;
+                toast(t("Closed — here is the next one."), {
+                  tone: "ok",
+                  action: {
+                    label: t("Undo"),
+                    run: async () => {
+                      const u = await reopenRowAction(closedId);
+                      if (!u.ok) return toast(u.error, { tone: "error" });
+                      router.push(`/workspace/${closedId}`);
+                      router.refresh();
+                    },
+                  },
+                });
+                router.push(`/workspace/${r.id}`);
+              }}
+            >
+              ✓ {t("Close")}
+            </button>
+          ))}
         <button type="button" className="btn btn-sm max-sm:hidden" onClick={() => setHistory(true)}>
           🕘 {t("History")}
         </button>
@@ -401,7 +462,7 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
       )}
 
       <div className={`mx-auto w-full space-y-3 ${width}`}>
-        <div className="flex items-start gap-2">
+        <div className={`${showTitle ? "flex" : "hidden"} items-start gap-2`}>
           {editable ? (
             <EmojiPicker
               value={icon}
@@ -431,7 +492,7 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
             }}
             placeholder={page.kind === "database" ? t("Untitled database") : t("Untitled")}
             aria-label={t("Title")}
-            className="min-w-0 flex-1 resize-none overflow-hidden bg-transparent text-4xl leading-tight font-bold outline-none focus:outline-none focus-visible:outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700"
+            className={`min-w-0 flex-1 resize-none overflow-hidden bg-transparent text-4xl leading-tight font-bold outline-none focus:outline-none focus-visible:outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700`}
           />
           {editable && !cover && (
             <Dropdown label="⋯" title={t("Add cover")} align="right" className="mt-2 rounded-md px-2 py-1 text-zinc-400 hover:bg-zinc-100 dark:hover:bg-zinc-800">
@@ -441,7 +502,8 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
         </div>
 
         {/* A row with a custom view (a person) shows its fields in that view. */}
-        {row && !row.initial.extras?.rowView && <RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />}
+        {/* A day's entry of a daily list's log: a table like the list, its fields folded away under it. */}
+        {row && !row.initial.extras?.rowView && <DayEntry rowId={page.id} fields={<RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />} />}
 
         <SystemPageBar pageId={page.id} />
         {page.kind === "database" ? (

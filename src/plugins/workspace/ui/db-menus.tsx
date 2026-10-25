@@ -1,10 +1,11 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
-import type { DatabaseData } from "../actions";
+import { routineChoicesAction, type DatabaseData } from "../actions";
 import { checkFormula, FORMULA_FUNCTIONS } from "../formula";
-import { choiceColor, isComputed, columnOrder, condsFor, COLORS, CREATED, hasDependents, isFilter, moveBefore, needsValue, newId, removeProperty, PROP_LABELS, PROP_TYPES, retype, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
+import { AUTO_TYPES } from "../auto-fill";
+import { choiceColor, isComputed, isDayList, columnOrder, condsFor, COLORS, CREATED, hasDependents, isFilter, moveBefore, needsValue, newId, removeProperty, PROP_LABELS, PROP_TYPES, retype, ROLLUP_FNS, TITLE, UPDATED, type Cond, type DbSchema, type Filter, type Option, type Property, type PropType, type Rule, type Sort, type View } from "../model";
 import { makeOption, Tag } from "./cells";
 import { Modal, useSortable } from "./kit";
 import { RollupWizard } from "./rollup-wizard";
@@ -277,6 +278,7 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
   const t = useT();
   const [open, setOpen] = useState(false);
   const formulaError = p.type === "formula" && p.formula ? checkFormula(p.formula) : null;
+  const autoError = p.auto?.formula ? checkFormula(p.auto.formula) : null;
   const rel = p.type === "rollup" ? schema.properties.find((x) => x.id === p.rollup?.relation) : undefined;
   const relKey = rel?.relationSource ?? rel?.relationDb;
   const relatedProps = relKey !== undefined ? data.related[relKey]?.properties ?? [] : [];
@@ -330,7 +332,17 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
                 <option value="euro">€</option>
                 <option value="dollar">$</option>
                 <option value="hours">{t("Hours")}</option>
+                <option value="unit">{t("Unit …")}</option>
               </select>
+              {/* A unit of your own after the number: mg, ml, km, pieces. */}
+              {p.format === "unit" && (
+                <input className="input w-24 text-sm" defaultValue={p.unit ?? ""} placeholder="mg" maxLength={12} aria-label={t("Unit")} onBlur={(e) => e.target.value.trim() !== (p.unit ?? "") && onChange({ ...p, unit: e.target.value.trim().slice(0, 12) || undefined })} />
+              )}
+            </label>
+          )}
+          {p.type === "checkbox" && (
+            <label className="flex items-center gap-2" title={t("A field beside it gets the time of each tick — a medicine taken at 8:30 — and the list keeps a log, one entry a day (the day turns at 4:00; after it the ticks start unticked)")}>
+              <input type="checkbox" checked={!!p.stampTime} onChange={(e) => onChange({ ...p, stampTime: e.target.checked || undefined })} /> {t("Record the time when ticked")}
             </label>
           )}
           {p.type === "date" && (
@@ -401,6 +413,36 @@ function PropertyEditor({ p, schema, data, dbId, onChange, onRemove, databases, 
               {formulaError ? <p className="text-xs text-red-600 dark:text-red-400">{formulaError}</p> : <p className="text-xs text-zinc-500">{t("Functions: {list}", { list: FORMULA_FUNCTIONS.join(", ") })}</p>}
             </div>
           )}
+          {/* Filled by itself (auto-fill.ts): when a field it watches changes in a row, the formula's result goes in — still settable by hand. */}
+          {AUTO_TYPES.includes(p.type) && (
+            <div className="space-y-1">
+              <label className="flex items-center gap-2" title={t("When one of the fields chosen here changes in a row, the formula is worked out and its result goes into this field — you can still change it by hand")}>
+                <input type="checkbox" checked={!!p.auto} onChange={(e) => onChange({ ...p, auto: e.target.checked ? { on: [], formula: "" } : undefined })} /> {t("Fill in by itself")}
+              </label>
+              {p.auto && (
+                <>
+                  <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+                    <span className="text-zinc-500">{t("When this changes:")}</span>
+                    {schema.properties
+                      .filter((x) => x.id !== p.id && !isComputed(x))
+                      .map((x) => (
+                        <label key={x.id} className="flex items-center gap-1">
+                          <input
+                            type="checkbox"
+                            checked={p.auto!.on.includes(x.id)}
+                            onChange={(e) => onChange({ ...p, auto: { ...p.auto!, on: e.target.checked ? [...p.auto!.on, x.id] : p.auto!.on.filter((id) => id !== x.id) } })}
+                          />
+                          {x.name}
+                        </label>
+                      ))}
+                  </div>
+                  <textarea className="input w-full font-mono text-xs" rows={2} value={p.auto.formula} placeholder={'if(prop("Erledigt"), now(), "")'} onChange={(e) => onChange({ ...p, auto: { ...p.auto!, formula: e.target.value } })} aria-label={t("Formula")} />
+                  {autoError ? <p className="text-xs text-red-600 dark:text-red-400">{autoError}</p> : !p.auto.on.length ? <p className="text-xs text-amber-600 dark:text-amber-400">{t("Pick the fields it watches — without one it is never filled.")}</p> : <p className="text-xs text-zinc-500">{t("now() is the time of the change. Functions: {list}", { list: FORMULA_FUNCTIONS.join(", ") })}</p>}
+                </>
+              )}
+            </div>
+          )}
+          {p.type === "button" && <ButtonSettings p={p} onChange={onChange} />}
           {p.type === "relation" && !p.backOf && p.relationSource !== undefined && (
             <p className="text-xs text-zinc-500">{t("Linked to {name} by matching values.", { name: data.related[p.relationSource]?.title ?? p.relationSource })}</p>
           )}
@@ -523,6 +565,10 @@ export function SchemaModal({ schema, data, dbId, databases, onSave, onClose }: 
           {t("Name of the title column")}
           <input className="input text-sm" value={draft.titleName} onChange={(e) => setDraft({ ...draft, titleName: e.target.value })} />
         </label>
+        {/* A daily list (day-log.ts): its days logged, unticked at 4:00, "Close the day". */}
+        <label className="flex items-center gap-2 text-sm" title={t("Each change goes into the day's entry of a log under the list (its ticks, numbers and times); at 4:00 the ticks start the day unticked; “Close the day” closes it earlier")}>
+          <input type="checkbox" checked={isDayList(draft)} onChange={(e) => setDraft({ ...draft, dayList: e.target.checked })} /> {t("Daily list")}
+        </label>
         <ul className="max-h-[55vh] space-y-2 overflow-y-auto">
           {draft.properties.map((p, i) => (
             <PropertyEditor
@@ -573,7 +619,7 @@ export function SchemaModal({ schema, data, dbId, databases, onSave, onClose }: 
             className="btn btn-primary btn-sm"
             disabled={busy}
             onClick={async () => {
-              const bad = draft.properties.find((p) => p.type === "formula" && p.formula && checkFormula(p.formula));
+              const bad = draft.properties.find((p) => (p.type === "formula" && p.formula && checkFormula(p.formula)) || (p.auto?.formula && checkFormula(p.auto.formula)));
               if (bad) return setErr(t("The formula of “{name}” has an error.", { name: bad.name }));
               setBusy(true);
               const e = await onSave(draft);
@@ -587,5 +633,40 @@ export function SchemaModal({ schema, data, dbId, databases, onSave, onClose }: 
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** A button field's settings: the routine it runs on the row (an automation or an agent), and the button's text. */
+function ButtonSettings({ p, onChange }: { p: Property; onChange: (p: Property) => void }) {
+  const t = useT();
+  const [routines, setRoutines] = useState<{ id: number; title: string; kind: string }[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    void routineChoicesAction().then((r) => live && setRoutines(r.ok ? r.routines : []));
+    return () => {
+      live = false;
+    };
+  }, []);
+  return (
+    <div className="space-y-1">
+      <label className="flex items-center gap-2">
+        {t("Runs")}
+        <select className="input text-sm" value={p.button?.routine ?? ""} aria-label={t("The routine it runs")} onChange={(e) => onChange({ ...p, button: e.target.value === "" ? undefined : { ...p.button, routine: Number(e.target.value) } })}>
+          <option value="">{routines ? "—" : "…"}</option>
+          {(routines ?? []).map((r) => (
+            <option key={r.id} value={r.id}>
+              {r.kind === "agent" ? "🤖" : "⚙️"} {r.title}
+            </option>
+          ))}
+        </select>
+      </label>
+      {p.button?.routine !== undefined && (
+        <label className="flex items-center gap-2">
+          {t("Button text")}
+          <input className="input text-sm" value={p.button.label ?? ""} placeholder={p.name} onChange={(e) => onChange({ ...p, button: { ...p.button!, label: e.target.value || undefined } })} />
+        </label>
+      )}
+      <p className="text-xs text-zinc-500">{routines && !routines.length ? t("No routine yet — make a page a routine (⚙️ automation) first.") : t("Each row gets the button; pressed, the routine runs with that row in hand.")}</p>
+    </div>
   );
 }

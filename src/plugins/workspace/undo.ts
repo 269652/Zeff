@@ -1,5 +1,6 @@
 import { AsyncLocalStorage } from "node:async_hooks";
 import { getSqlite } from "@/db";
+import { withCause } from "@/lib/cause";
 
 /**
  * Undo for whole actions: what the AI did in an answer, what an automation did in a run, a bulk edit, a move of rows. While such an action
@@ -47,7 +48,7 @@ type Actor = UndoEntry["actor"];
  * before it failed: those are kept as well. Inside another such action it belongs to that one.
  */
 export function journaled<T>(label: string, fn: () => T, actor: Actor = "you", onSaved?: (undoId: number | null) => void): T {
-  if (scope.getStore()) return fn();
+  if (scope.getStore()) return withCause(label, fn);
   const s: Scope = { before: new Map(), made: new Set() };
   const done = () => {
     save(s, label, actor);
@@ -55,7 +56,7 @@ export function journaled<T>(label: string, fn: () => T, actor: Actor = "you", o
   };
   let out: T;
   try {
-    out = scope.run(s, fn);
+    out = scope.run(s, () => withCause(label, fn));
   } catch (e) {
     done();
     throw e;

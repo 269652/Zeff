@@ -90,6 +90,8 @@ function ActivityView(p: NodeViewProps) {
                         <span className="text-zinc-400 line-through">{l.from || "∅"}</span> → <span>{l.to || "∅"}</span>
                       </>
                     ) : null}
+                    {/* What made it (cause.ts): a routine, a field filled by itself after it … */}
+                    {l.cause && <span className="block text-xs text-zinc-400">{t("by {cause}", { cause: l.cause })}</span>}
                   </span>
                   <span className="flex shrink-0 items-baseline gap-1.5 text-xs text-zinc-400" title={new Date(l.at).toLocaleString()}>
                     {(!(l.field in FIELD) || l.field === "title") && (

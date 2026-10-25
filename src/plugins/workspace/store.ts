@@ -14,11 +14,15 @@ import { emitChange } from "@/lib/events";
 import { emitRowEvent, isViaSource } from "./events";
 import { workspaceSources } from "./source-point";
 import { logChange } from "./activity";
+import { withCause } from "@/lib/cause";
 import { parseCustom } from "./field-types";
 import { made, touch } from "./undo";
 import { docRefs, docText, emptyDoc, sanitizeDoc, withTaskIds, type Doc, type DocRef } from "./doc";
 import { sourceTable } from "./source-table";
-import { cellText, computeRows, dateRange, defaultSchema, isComputed, SYSTEM_PROPS, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
+import { t } from "@/lib/i18n/server";
+import { followListRename, isDayList, startDayIfNew, writeDayLog } from "./day-log";
+import { evalAuto, followRenames, withStamps } from "./auto-fill";
+import { cellText, coerceCellValue, computeRows, defaultSchema, isComputed, SYSTEM_PROPS, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
 
 function db() {
   const d = getSqlite();
@@ -197,7 +201,7 @@ export function createPage(v: NewPage = {}): number {
       JSON.stringify(doc),
       docText(doc),
       JSON.stringify(v.props ?? {}),
-      kind === "database" ? JSON.stringify(v.schema ? normalizeSchema(v.schema) : defaultSchema()) : null,
+      kind === "database" ? JSON.stringify(v.schema ? withStamps(normalizeSchema(v.schema), t("at")) : defaultSchema()) : null,
       v.dbId ? Date.now() / 1000 : maxPosition(v.parentId ?? null),
       v.template ? 1 : 0,
       at,
@@ -317,6 +321,7 @@ export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResu
   if (doc) relink(id, doc);
   changed();
   if (cur.db_id && patch.title !== undefined) afterTodoRowChange(id);
+  if (cur.kind === "database" && patch.title !== undefined) followListRename(id, cur.title, clip(patch.title, 300)); // (a daily list's log is named after it — day-log.ts)
   if (cur.db_id && (patch.title !== undefined || doc)) syncLinkedFrom(id); // (its copies in other databases follow — links.ts)
   // A page with to-do lists that feed the Todo engine (or did): the engine follows (task-lists.ts).
   if (doc && (cur.content.includes('"engine":true') || JSON.stringify(doc).includes('"engine":true'))) void import("./task-lists").then((m) => m.syncPageLists(id)).catch(() => undefined);
@@ -734,7 +739,8 @@ export function updateSchema(id: number, next: unknown): DbSchema {
   noAgentOnSystem(id);
   const cur = getDatabase(id);
   if (!cur) throw new Error("No such database.");
-  const schema = normalizeSchema(next);
+  // (Renamed fields: the formulas follow; a checkbox recording the time: its field filled by itself — auto-fill.ts.)
+  const schema = withStamps(followRenames(cur.schema, normalizeSchema(next)), t("at"));
   const ids = new Set(schema.properties.map((p) => p.id));
   for (const p of schema.properties) {
     if (p.type === "relation" && p.relationDb !== undefined && !getDatabase(p.relationDb)) throw new Error(`Relation "${p.name}" points to a database that isn't there.`);
@@ -779,57 +785,22 @@ export function saveSchema(id: number, next: unknown, fallbackName = "Relation")
   return saved;
 }
 
-/** A cell value made to fit its property: what can't be is dropped (null). */
-export function coerceCell(p: Property, v: unknown): unknown {
-  if (v === null || v === undefined) return null;
-  switch (p.type) {
-    case "number": {
-      const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
-      return v === "" || Number.isNaN(n) ? null : n;
-    }
-    case "checkbox":
-      return !!v;
-    case "select":
-    case "status":
-      return p.options?.some((o) => o.id === v) ? v : null;
-    case "multi_select": {
-      const a = (Array.isArray(v) ? v : [v]).filter((x) => p.options?.some((o) => o.id === x));
-      return a.length ? [...new Set(a)] : null;
-    }
-    case "date": {
-      const r = dateRange(v);
-      if (!r || !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(r.start) || (r.end !== undefined && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(r.end))) return null;
-      return r.end ? { start: r.start, end: r.end } : r.start;
-    }
-    case "person":
-    case "todo":
-    case "relation": {
-      const a = (Array.isArray(v) ? v : [v]).map(Number).filter((n) => Number.isInteger(n) && n > 0);
-      return a.length ? [...new Set(a)] : null;
-    }
-    case "ticket": {
-      const a = (Array.isArray(v) ? v : [v]).map((x) => String(x).trim().toUpperCase()).filter((x) => /^[A-Z][A-Z0-9]+-\d+$/.test(x));
-      return a.length ? [...new Set(a)] : null;
-    }
-    case "url":
-    case "email":
-    case "phone":
-      return String(v).trim().slice(0, 500) || null;
-    case "custom":
-      return parseCustom(p.custom, v);
-    case "text":
-    case "markdown":
-    case "ai":
-      return String(v).slice(0, 20000) || null;
-    default:
-      return null; // computed: never stored
-  }
-}
+/** A cell value made to fit its property: what can't be is dropped (null) — the table's (model.ts), with the custom field types. */
+export const coerceCell = (p: Property, v: unknown): unknown => coerceCellValue(p, v, parseCustom);
 
 /** One cell of a row set (null clears it). Computed properties can't be set. */
-export function setCell(rowId: number, propId: string, value: unknown): void {
+/** `quiet`: no day-log entry for it (day-log.ts: the night's unticking, a tick's own time). */
+export function setCell(rowId: number, propId: string, value: unknown, opts: { quiet?: boolean; depth?: number } = {}): void {
+  // A list ticked through every day (day-log.ts): after 4:00 it starts the day unticked — before this change goes in.
+  if (!opts.quiet) {
+    const dbId = getPage(rowId)?.dbId;
+    const s = dbId ? getDatabase(dbId)?.schema : undefined;
+    if (dbId && s && isDayList(s)) startDayIfNew(dbId);
+  }
   const row = getPage(rowId);
   if (!row?.dbId) throw new Error("No such row.");
+  // A closed entry (locked — close-row.ts, or "Lock the page") stays as it is, in a table or a card too; a source's own records go on.
+  if (row.locked && !isViaSource()) throw new Error("This entry is closed — open it again to change it.");
   if (propId === TITLE) {
     updatePage(rowId, { title: String(value ?? "") });
     return;
@@ -856,6 +827,34 @@ export function setCell(rowId: number, propId: string, value: unknown): void {
   afterJobChange(rowId, propId); // (a card moved into Ready: the agents take it — jobs.ts)
   emitRowEvent("row.changed", { db: row.dbId, row: rowId, field: p.name, value: cellText(p, v) });
   afterTodoRowChange(rowId);
+  // The fields filled by themselves that watch this one (auto-fill.ts) — a timed tick's time among them.
+  if (was !== cellText(p, v)) fillAuto(row.dbId, rowId, propId, opts.depth ?? 0);
+  // A list ticked through every day: the day's entry of its log follows at once (the dose, the time it was taken).
+  if (!opts.quiet && schema && isDayList(schema)) writeDayLog(row.dbId);
+}
+
+/** The fields of a row filled by themselves that watch `changed`: each one's formula worked out, its result put in (a chain: 5 deep at most). */
+function fillAuto(dbId: number, rowId: number, changed: string, depth: number): void {
+  if (depth >= 5) return;
+  let schema = getDatabase(dbId)?.schema;
+  // A timed tick from before its field was made by the schema: made now.
+  if (schema && schema.properties.some((p) => p.id === changed && p.type === "checkbox" && p.stampTime) && withStamps(schema, t("at")) !== schema) schema = updateSchema(dbId, schema);
+  const targets = (schema?.properties ?? []).filter((q) => q.auto?.on.includes(changed) && q.id !== changed && !isComputed(q));
+  if (!schema || !targets.length) return;
+  const row = rowsOf(dbId)?.rows.find((r) => r.id === rowId);
+  if (!row) return;
+  const props = schema.properties;
+  const value = (name: string) => {
+    const n = name.toLowerCase();
+    const q = props.find((x) => x.name.toLowerCase() === n);
+    if (q) return row.cells[q.id];
+    if (n === schema!.titleName.toLowerCase() || n === "title") return row.title;
+    throw new Error(`No property "${name}"`);
+  };
+  for (const q of targets) {
+    const v = evalAuto(q, value);
+    if (v !== undefined) withCause(`${t("Auto")}: ${q.name}`, () => setCell(rowId, q.id, v, { quiet: true, depth: depth + 1 }));
+  }
 }
 
 /**

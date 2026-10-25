@@ -55,7 +55,8 @@ export const agentDoc = (instructions: string): DocNode => ({ type: "doc", conte
 /** An agent's page: its controls first, then its instructions — scheduled, allowed to write beside it (the journal), off until switched on. */
 function agentPage(parentId: number, title: string, icon: string, instructions: string, trigger: Trigger): number {
   const id = createPage({ parentId, title, icon, content: agentDoc(instructions) });
-  createRoutine(id, "agent", { triggers: [trigger], permissions: { scope: "parent" } });
+  // (A journal is personal data — the reviews are made to read it; still off until you switch them on.)
+  createRoutine(id, "agent", { triggers: [trigger], permissions: { scope: "parent", personal: true } });
   return id;
 }
 
@@ -139,6 +140,7 @@ export function reviewInstructions(which: "week" | "month", v: { entries: number
     t("If there is a review of this period in “{reviews}” (id {reviewsId}) already, stop. If there are no entries, stop too.", { reviews: t("Reviews"), reviewsId: v.reviews }),
     t("Write the review as a new row of “{reviews}” (workspace_add_row) — {kind}: “{kindName}”, the title the period (e.g. “Week 43” or “October 2026”); {fields}. The summary: two or three sentences.", { reviews: t("Reviews"), kind: v.kind.name, kindName: v.kind.options[week ? 0 : 1].name, fields }),
     t("The row's page (markdown): how the period was, in a few sentences; the themes that came up again and again; what went well and what weighed; how mood and energy moved; open thoughts and questions worth taking further; and one or two suggestions for the next period."),
+    t("For connections (what goes along with energy or mood), call Zeff's MCP tool correlations (database: “{entries}”, field: “{energy}” or “{mood}”, days: 90) and take over only the findings it lists, word for word with their figures (n, ρ, group means); if it lists none — or the tool isn't there — write that no reliable connection shows yet. Invent no patterns.", { entries: t("Journal entries"), energy: t("Energy"), mood: t("Mood") }),
     week ? "" : t("Read the month's weekly reviews in “{reviews}” too — the month is more than their sum: what changed over the weeks?", { reviews: t("Reviews") }),
     t("Write warmly and honestly, in the language the entries are written in. Quote the entries briefly where it helps; invent nothing."),
   ];

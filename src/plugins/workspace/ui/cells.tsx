@@ -17,6 +17,10 @@ export type CellCtx = {
   data: DatabaseData;
   /** Set a stored value. */
   set: (rowId: number, propId: string, value: unknown) => void;
+  /** A button field pressed: its routine runs on the row (none: the button only shows). */
+  press?: (rowId: number, propId: string) => Promise<void>;
+  /** A cell written but not confirmed yet: shown faded until the server answers (and put back if it says no). */
+  pending?: (rowId: number, propId: string) => boolean;
   /** Add an option to a select / multi-select / status property; returns its id. */
   addOption: (propId: string, name: string) => string;
   editable: boolean;
@@ -65,6 +69,8 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
       return <input type="checkbox" checked={!!v} disabled={!ctx.editable} onChange={(e) => ctx.set(row.id, p.id, e.target.checked)} aria-label={p.name} className="size-4 accent-indigo-600" />;
     case "number":
       return typeof v === "number" ? <span>{formatNumber(p, v)}</span> : null;
+    case "button":
+      return <PressButton p={p} row={row} ctx={ctx} />;
     case "date": {
       const r = dateRange(v);
       return r ? <span>{r.end ? `${r.start.replace("T", " ")} → ${r.end.replace("T", " ")}` : r.start.replace("T", " ")}</span> : null;
@@ -237,9 +243,10 @@ export function Cell({ p, row, ctx, className = "", empty }: { p: Property; row:
   const anchor = useRef<HTMLButtonElement>(null);
   // A formula's cell opens its column's formula (where it can be changed); other computed cells only show.
   const formula = p.type === "formula" && !!ctx.setFormula && ctx.editable;
+  const faded = ctx.pending?.(row.id, p.id) ? "opacity-50" : "";
   if ((isComputed(p) && !formula) || p.type === "checkbox" || !ctx.editable) {
     return (
-      <div className={`ws-cell ${className}`} style={{ cursor: "default" }}>
+      <div className={`ws-cell ${className} ${faded}`} style={{ cursor: "default" }}>
         <CellView p={p} row={row} ctx={ctx} />
       </div>
     );
@@ -247,7 +254,7 @@ export function Cell({ p, row, ctx, className = "", empty }: { p: Property; row:
   if (!editing || needsRoom(p))
     return (
       <>
-        <button ref={anchor} type="button" className={`ws-cell ${className} ${editing ? "ws-cell-active" : ""}`} onClick={() => setEditing(true)} aria-label={p.name} aria-expanded={needsRoom(p) ? editing : undefined}>
+        <button ref={anchor} type="button" className={`ws-cell ${className} ${faded} ${editing ? "ws-cell-active" : ""}`} onClick={() => setEditing(true)} aria-label={p.name} aria-expanded={needsRoom(p) ? editing : undefined}>
           {empty && (row.cells[p.id] === undefined || row.cells[p.id] === null || row.cells[p.id] === "") ? empty : <CellView p={p} row={row} ctx={ctx} />}
         </button>
         {editing && (
@@ -539,5 +546,29 @@ export function PopCell({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx }
     <Dropdown label={empty ? hint : <CellView p={p} row={row} ctx={ctx} />} className="flex min-h-7 flex-wrap items-center gap-1 rounded-md px-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800">
       {(close) => <CellEditor p={p} row={row} ctx={ctx} done={close} />}
     </Dropdown>
+  );
+}
+
+/** A button field's button: its routine runs on the row; busy while it runs. */
+function PressButton({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx }) {
+  const [busy, setBusy] = useState(false);
+  if (!p.button?.routine) return null;
+  return (
+    <button
+      type="button"
+      className="btn btn-sm"
+      disabled={busy || !ctx.press || !ctx.editable}
+      onClick={async (e) => {
+        e.stopPropagation();
+        setBusy(true);
+        try {
+          await ctx.press?.(row.id, p.id);
+        } finally {
+          setBusy(false);
+        }
+      }}
+    >
+      {busy ? "…" : (p.button.label ?? p.name)}
+    </button>
   );
 }

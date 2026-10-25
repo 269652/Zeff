@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { useT } from "@/components/I18nProvider";
+import { DateField } from "@/components/DateField";
 import { autoHideTitlesAction } from "../actions";
 import { Dropdown, MenuItem } from "./kit";
 
@@ -24,17 +25,8 @@ export function TodoCheck({ checked, onChange, disabled, label }: { checked: boo
 /** A due date: red when it is past and the item is open; quiet (shown on hover) while there is none. */
 export function TodoDue({ value, onChange, disabled, done, label }: { value: string | null | undefined; onChange: (v: string | null) => void; disabled?: boolean; done?: boolean; label: string }) {
   const late = !!value && !done && value < todayIso();
-  return (
-    <input
-      type="date"
-      className={`ws-todo-due ${late ? "is-late" : ""} ${value ? "" : "is-empty"}`}
-      value={value ?? ""}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value || null)}
-      aria-label={label}
-      contentEditable={false}
-    />
-  );
+  // (Picked in the calendar: saved at once; typed: on Enter or leaving the field — see DateField.)
+  return <DateField className={`ws-todo-due ${late ? "is-late" : ""} ${value ? "" : "is-empty"}`} value={value} disabled={disabled} onCommit={onChange} aria-label={label} contentEditable={false} />;
 }
 
 // ---------------------------------------------------------------------------

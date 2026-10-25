@@ -6,7 +6,7 @@
  */
 import { evalFormula, formulaToStored, type FormulaValue } from "./formula";
 
-export const PROP_TYPES = ["text", "markdown", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone", "person", "relation", "custom", "rollup", "formula", "created_time", "updated_time", "todo", "ticket", "ai"] as const;
+export const PROP_TYPES = ["text", "markdown", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone", "person", "relation", "custom", "rollup", "formula", "created_time", "updated_time", "todo", "ticket", "ai", "button"] as const;
 export type PropType = (typeof PROP_TYPES)[number];
 export const PROP_LABELS: Record<PropType, string> = {
   text: "Text",
@@ -30,6 +30,7 @@ export const PROP_LABELS: Record<PropType, string> = {
   todo: "Zeff todo",
   ticket: "Jira ticket",
   ai: "AI",
+  button: "Button",
 };
 export const COLORS = ["gray", "brown", "orange", "yellow", "green", "blue", "purple", "pink", "red"] as const;
 
@@ -44,6 +45,10 @@ export type Property = {
   id: string;
   name: string;
   type: PropType;
+  /** Button: the routine it runs with the row in hand (row-button.ts), and the button's text (else the property's name). Stores nothing. */
+  button?: { routine: number; label?: string };
+  /** A column of a daily list's log (day-log.ts): the item and field of the list it keeps ("<row id>:<property id>") — its name follows theirs. */
+  dayKey?: string;
   options?: Option[];
   /** Relation: the database it points to; `backOf`: this is the other side of that property there (computed, not stored). */
   relationDb?: number;
@@ -67,10 +72,18 @@ export type Property = {
   aiColors?: Record<string, string>;
   /** AI: instructions (pages under KI-Anweisungen) whose text goes with the prompt. */
   aiInstructions?: number[];
-  format?: "number" | "percent" | "euro" | "dollar" | "hours";
+  format?: "number" | "percent" | "euro" | "dollar" | "hours" | "unit";
+  /** Number, format "unit": what comes after the number ("mg", "ml", "km", "Stück"). */
+  unit?: string;
   includeTime?: boolean;
   /** Date: a new row starts with today (when nothing else is given). */
   defaultToday?: boolean;
+  /** Filled by itself (auto-fill.ts): when one of the fields `on` (ids) changes in a row, the formula's result goes in — still settable by hand. */
+  auto?: { on: string[]; formula: string };
+  /** Checkbox: when it is ticked, the time goes into a date field of its own (`stampOf` names this one, filled by itself) — a medicine taken at 8:30. */
+  stampTime?: boolean;
+  /** Date (with the time): the checkbox whose ticks it times. */
+  stampOf?: string;
   /** Date: a deadline — its rows show in "Needs attention" so many days before it (and once it is past). */
   remind?: number;
 };
@@ -165,6 +178,8 @@ export type DbSchema = {
   rules?: boolean;
   /** A database of jobs for agents: a row is a job a worker can be given (a click), its result comes back into the row. */
   jobs?: boolean;
+  /** A daily list (day-log.ts): a log of each day, unticked at 4:00, "Close the day". Unset: on when a checkbox records the time. */
+  dayList?: boolean;
   /** A form that adds rows (workspace/form/<id>): which fields it asks, which are required, what is prefilled. */
   form?: FormSpec;
   /** A todo list: which checkbox says done and which date says due (ids), and whether its open rows are todos of the Todo engine too (todo-engine.ts). */
@@ -451,7 +466,7 @@ export const newId = (prefix = "x"): string => `${prefix}${Math.random().toStrin
 export const emptyFilter = (): Filter => ({ op: "and", rules: [] });
 export const isFilter = (r: Rule | Filter): r is Filter => "rules" in r;
 
-export const isComputed = (p: Property): boolean => p.type === "rollup" || p.type === "formula" || p.type === "created_time" || p.type === "updated_time" || (p.type === "relation" && (!!p.backOf || !!p.match));
+export const isComputed = (p: Property): boolean => p.type === "button" || p.type === "rollup" || p.type === "formula" || p.type === "created_time" || p.type === "updated_time" || (p.type === "relation" && (!!p.backOf || !!p.match));
 
 export function defaultOptions(type: PropType): Option[] | undefined {
   if (type === "status")
@@ -541,10 +556,13 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [], card: typeof v.card === "string" && v.card.trim() ? v.card.slice(0, 8000) : undefined, nav: (v.nav === "workspace" || v.nav === "off") && v.app ? v.nav : undefined, navHidden: Array.isArray(v.navHidden) && v.navHidden.length ? v.navHidden.filter((x): x is string => typeof x === "string").slice(0, 100) : undefined }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);
+
+/** A list ticked through every day (day-log.ts): switched on in its settings — unset, a checkbox recording the time makes it one. */
+export const isDayList = (schema: Pick<DbSchema, "properties" | "dayList">): boolean => schema.dayList ?? schema.properties.some((p) => p.type === "checkbox" && p.stampTime);
 
 /** What Zeff keeps on a row for itself (a moved card's ticket key, a moved note's ref): not shown among its properties. */
 export const SYSTEM_PROPS = new Set(["ticketkey", "noteref", "srcref", "srcedited"]);
@@ -566,6 +584,63 @@ export function dateRange(v: unknown): { start: string; end?: string } | null {
 }
 
 const asArray = (v: unknown): unknown[] => (Array.isArray(v) ? v : v === null || v === undefined || v === "" ? [] : [v]);
+
+/**
+ * A cell value made to fit its property, as it is stored: what can't be is dropped (null). The server's (store.ts coerceCell, which
+ * passes the custom field types' parser) and the table's, which shows an edit at once as it will come back.
+ */
+export function coerceCellValue(p: Property, v: unknown, parseCustom: (typeId: string | undefined, v: unknown) => unknown = (_, x) => x): unknown {
+  if (v === null || v === undefined) return null;
+  switch (p.type) {
+    case "number": {
+      const n = typeof v === "number" ? v : Number(String(v).replace(",", "."));
+      return v === "" || Number.isNaN(n) ? null : n;
+    }
+    case "checkbox":
+      return !!v;
+    case "select":
+    case "status":
+      return p.options?.some((o) => o.id === v) ? v : null;
+    case "multi_select": {
+      const a = (Array.isArray(v) ? v : [v]).filter((x) => p.options?.some((o) => o.id === x));
+      return a.length ? [...new Set(a)] : null;
+    }
+    case "date": {
+      const r = dateRange(v);
+      if (!r || !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(r.start) || (r.end !== undefined && !/^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(r.end))) return null;
+      return r.end ? { start: r.start, end: r.end } : r.start;
+    }
+    case "person":
+    case "todo":
+    case "relation": {
+      const a = (Array.isArray(v) ? v : [v]).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+      return a.length ? [...new Set(a)] : null;
+    }
+    case "ticket": {
+      const a = (Array.isArray(v) ? v : [v]).map((x) => String(x).trim().toUpperCase()).filter((x) => /^[A-Z][A-Z0-9]+-\d+$/.test(x));
+      return a.length ? [...new Set(a)] : null;
+    }
+    case "url":
+    case "email":
+    case "phone":
+      return String(v).trim().slice(0, 500) || null;
+    case "custom":
+      return parseCustom(p.custom, v);
+    case "text":
+    case "markdown":
+    case "ai":
+      return String(v).slice(0, 20000) || null;
+    default:
+      return null; // computed: never stored
+  }
+}
+
+/** The rows with one cell (or the title) changed — as it will be stored, so a table shows an edit at once and as it comes back. */
+export function withCell(rows: Row[], props: Property[], rowId: number, propId: string, value: unknown): Row[] {
+  const p = propId === TITLE ? undefined : propById(props, propId);
+  const v = p ? coerceCellValue(p, value) : value;
+  return rows.map((r) => (r.id !== rowId ? r : propId === TITLE ? { ...r, title: String(value ?? "") } : { ...r, cells: { ...r.cells, [propId]: v === null || v === "" ? undefined : v } }));
+}
 
 export function isEmptyValue(p: Property | undefined, v: unknown): boolean {
   if (v === null || v === undefined) return true;
@@ -634,6 +709,8 @@ export function formatNumber(p: Property, n: number): string {
       return `$${r.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
     case "hours":
       return `${r} h`;
+    case "unit":
+      return p.unit?.trim() ? `${r} ${p.unit.trim()}` : String(r);
     default:
       return String(r);
   }

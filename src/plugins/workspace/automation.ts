@@ -33,6 +33,8 @@ export type RunOptions = {
   deps?: Partial<Deps>;
   limits?: { steps?: number; depth?: number };
   depth?: number;
+  /** A dry run (dryRunRoutine): what reaches outside the Workspace is not done — its log line says what would be. */
+  dry?: boolean;
 };
 
 export type RunResult = { runId: number; status: Exclude<RunStatus, "running">; log: StepLog[]; error?: string };
@@ -84,7 +86,9 @@ export async function runAutomation(pageId: number, trigger: Trigger, opts: RunO
   const runId = startRun(pageId, trigger);
   const log: StepLog[] = [];
   let count = 0;
-  const say = (step: Step, status: StepLog["status"], note: string, level: number) => log.push({ step: step.id, kind: step.kind, status, note, ...(level ? { depth: level } : {}) });
+  const OUTSIDE = new Set<Step["kind"]>(["pipeline", "run", "notify", "call", "signal"]);
+  const say = (step: Step, status: StepLog["status"], note: string, level: number) =>
+    log.push({ step: step.id, kind: step.kind, status, note: opts.dry && status === "ok" && OUTSIDE.has(step.kind) ? `Would: ${note}` : note, ...(level ? { depth: level } : {}) });
 
   const exec = async (steps: Step[], row: number | undefined, level: number): Promise<void> => {
     for (const step of steps) {
@@ -187,6 +191,61 @@ export async function runAutomation(pageId: number, trigger: Trigger, opts: RunO
     }
   }
   finishRun(runId, { status, log, ...(error ? { error } : {}) });
-  emitChange("workspace");
+  if (!opts.dry) emitChange("workspace");
   return { runId, status, log, ...(error ? { error } : {}) };
+}
+
+export type DryRun = RunResult & {
+  /** The fields it would set (the rows it would make are in `made`, not here). */
+  changes: { page: number; title: string; field: string; from: string; to: string; cause: string | null }[];
+  made: { page: number; title: string }[];
+  trashed: { page: number; title: string }[];
+};
+
+let dryRunning = false;
+
+/**
+ * A routine tried without changing anything: its steps run for real inside a savepoint that is rolled back — what they would set, make
+ * and move to the trash comes back (and what follows from it: fields filled by themselves …), with the step log. What reaches outside
+ * (a source read again, a plugin's method, a signal, a note, an agent) is not done; another automation it calls is tried the same way.
+ * Its run, its undo entry and the rows' events are gone with the rollback. Synchronous at heart: nothing else writes while it runs.
+ */
+export async function dryRunRoutine(pageId: number, ctx: { row?: number; payload?: Record<string, string> } = {}): Promise<DryRun> {
+  if (dryRunning) throw new Error("A dry run is going on already.");
+  const { getSqlite } = await import("@/db");
+  const { activitySince, lastActivityId } = await import("./activity");
+  const { quietly } = await import("./events");
+  const { journaled } = await import("./undo");
+  const sqlite = getSqlite();
+  const deps: Deps = {
+    refresh: async () => undefined,
+    notify: () => undefined,
+    call: async () => null,
+    signal: async () => undefined,
+    runRoutine: async (page, trigger, c) => {
+      if (getRoutine(page)?.kind !== "automation") return { status: "started" };
+      const r = await runAutomation(page, trigger, { ...c, deps, dry: true });
+      return { status: r.status, error: r.error };
+    },
+  };
+  const title = getPage(pageId)?.title || "Automation";
+  dryRunning = true;
+  const mark = lastActivityId();
+  const lastPage = (sqlite.prepare("select coalesce(max(id), 0) n from ws_pages").get() as { n: number }).n;
+  sqlite.exec("savepoint zeff_dry_run");
+  try {
+    const result = await quietly(() => journaled(title, () => runAutomation(pageId, { kind: "manual" }, { ...ctx, deps, dry: true }), "source"));
+    const lines = activitySince(mark);
+    const madeIds = new Set((sqlite.prepare("select id from ws_pages where id > ?").all(lastPage) as { id: number }[]).map((r) => r.id));
+    const made = [...madeIds].map((id) => ({ page: id, title: getPage(id)?.title ?? "" }));
+    const trashed = lines.filter((l) => l.field === "trash" && !madeIds.has(l.pageId)).map((l) => ({ page: l.pageId, title: l.title }));
+    const changes = lines
+      .filter((l) => !madeIds.has(l.pageId) && !["created", "trash", "restored", "text"].includes(l.field))
+      .map((l) => ({ page: l.pageId, title: l.title, field: l.field, from: l.from, to: l.to, cause: l.cause }));
+    return { ...result, changes, made, trashed };
+  } finally {
+    sqlite.exec("rollback to zeff_dry_run");
+    sqlite.exec("release zeff_dry_run");
+    dryRunning = false;
+  }
 }

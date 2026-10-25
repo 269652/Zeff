@@ -5,7 +5,7 @@ import { lazy, Suspense, useCallback, useEffect, useMemo, useState, type Compone
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { rowViewAction, setCellAction, setRowTemplateAction, type DatabaseData } from "../actions";
-import type { DbSchema, Row, View } from "../model";
+import { withCell, type DbSchema, type Row, type View } from "../model";
 import { rowViewMeta } from "../view-apps";
 import type { TplError } from "../view-template";
 import type { AppViewProps, ViewAppModule } from "./app-view";
@@ -47,13 +47,24 @@ export function RowViewHost({ rowId }: { rowId: number }) {
     void rowViewAction(rowId).then((r) => setGot(r.ok ? r : null));
   }, [rowId]);
   useEffect(load, [load]);
-  // The row's cells changed in place (a <field>, a set button): written, then read again.
+  // The row's cells changed in place (a <field>, a set button): shown at once, as it will be stored; written, then read again
+  // (what follows from it) — or, refused, put back as it was.
+  const set = useCallback(
+    (id: number, prop: string, value: unknown) => {
+      setGot((g) => (g?.row && g.schema && g.row.id === id ? { ...g, row: withCell([g.row], g.schema.properties, id, prop, value)[0] } : g));
+      void setCellAction(id, prop, value).then((r) => {
+        if (!r.ok) toast(r.error, { tone: "error" });
+        load();
+      });
+    },
+    [load],
+  );
   const ctx: CellCtx | undefined = useMemo(
     () =>
       got?.schema && got.row
-        ? { data: { id: got.dbId, title: got.title, schema: got.schema, rows: [got.row], labels: { people: {}, pages: {}, todos: {} } } as unknown as DatabaseData, set: (id, prop, value) => void setCellAction(id, prop, value).then(load), addOption: () => "", editable: true }
+        ? { data: { id: got.dbId, title: got.title, schema: got.schema, rows: [got.row], labels: { people: {}, pages: {}, todos: {} } } as unknown as DatabaseData, set, addOption: () => "", editable: true }
         : undefined,
-    [got, load],
+    [got, set],
   );
   if (got === undefined) return <p className="text-sm text-zinc-400">…</p>;
   const Page = got?.view ? PAGES[got.view] : undefined;

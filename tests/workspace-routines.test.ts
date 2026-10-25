@@ -123,6 +123,37 @@ test("routineView: what the controls block shows — the routine, its newest run
   assert.equal(a.problem, null, "an automation needs no worker");
 });
 
+test("routineView.live: a run going on — its worker run, how the worker stands and what it did last (the controls show it and hold Run back)", async () => {
+  const w = await pageWorkspace();
+  const r = await import("@/plugins/workspace/routines");
+  const { routineView } = await import("@/plugins/workspace/routine-view");
+  const page = w.createPage({ title: "Läuft" });
+  r.createRoutine(page, "agent", { triggers: [{ kind: "manual" }] });
+  const running = { status: "running" };
+  assert.equal(routineView(page, { workRun: () => running })!.live, null, "nothing going on");
+  // started, its worker not there yet
+  const run = r.startRun(page, { kind: "manual" });
+  const early = routineView(page, { workRun: () => undefined, activity: () => null })!.live!;
+  assert.equal(early.runId, run);
+  assert.equal(early.workRunId, null);
+  assert.deepEqual(early.activity, []);
+  // its worker works: its status and its last lines (tools, its words — not your prompt), the newest last
+  r.setWorkRun(run, 91);
+  const lines = [
+    { k: "you", text: "Die Anweisungen" },
+    ...Array.from({ length: 8 }, (_, i) => ({ k: "tool", tool: "Bash", text: `schritt ${i}` })),
+    { k: "say", text: "Ich räume jetzt auf." },
+  ];
+  const v = routineView(page, { workRun: () => running, activity: (id) => (id === 91 ? { status: "running", lines: lines as never } : null) })!;
+  assert.equal(v.live!.workRunId, 91);
+  assert.equal(v.live!.workStatus, "running");
+  assert.equal(v.live!.activity.length, 5, "the last few");
+  assert.equal(v.live!.activity.at(-1), "Ich räume jetzt auf.");
+  assert.equal(v.live!.activity[0], "Bash: schritt 4");
+  // its worker ended: the run ends, nothing goes on
+  assert.equal(routineView(page, { workRun: () => ({ status: "done", summary: "ok" }) })!.live, null);
+});
+
 test("an if step being built keeps its place: with no rule yet it is kept — and holds for every row until a rule is added", async () => {
   const { normalizeSteps } = await import("@/plugins/workspace/routines");
   const { conditionHolds } = await import("@/plugins/workspace/routine-conditions");

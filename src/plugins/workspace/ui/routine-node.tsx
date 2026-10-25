@@ -5,8 +5,10 @@ import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tip
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
+import { Switch } from "@/components/Switch";
 import { toast } from "@/components/Toaster";
-import { approveReportAction, makeRoutineAction, routineChoicesAction, routineReportsAction, routineRunsAction, routineViewAction, runRoutineAction, saveRoutineAction } from "../actions";
+import { approveReportAction, dryRunRoutineAction, makeRoutineAction, routineChoicesAction, routineReportsAction, routineRunsAction, routineViewAction, runRoutineAction, saveRoutineAction } from "../actions";
+import type { DryRun } from "../automation";
 import type { RoutineView } from "../routine-view";
 import type { Condition, Step, Trigger } from "../routines";
 import { FILTER_OPS } from "../model";
@@ -46,6 +48,8 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
   const t = useT();
   const { view, setView, choices, save, load } = useRoutine(pageId);
   const [busy, setBusy] = useState(false);
+  /** A dry run's result, shown until the next run or closed. */
+  const [plan, setPlan] = useState<(DryRun & { row: { id: number; title: string } | null }) | null>(null);
   const [tab, setTab] = useState<"schedule" | "permissions" | "reports" | "log">("schedule");
   const [reports, setReports] = useState<Awaited<ReturnType<typeof routineReportsAction>> extends infer R ? (R extends { ok: true; reports: infer L } ? L : never) : never>([]);
   const [older, setOlder] = useState<NonNullable<typeof view>["runs"]>([]);
@@ -75,7 +79,15 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
   };
   const schedules = view.triggers.filter((x) => x.kind === "schedule");
   const setTriggers = (triggers: Trigger[]) => void save({ triggers });
+  const tryIt = async () => {
+    setBusy(true);
+    const r = await dryRunRoutineAction(pageId);
+    setBusy(false);
+    if (!r.ok) return void toast(r.error, { tone: "error" });
+    setPlan({ ...r.plan, row: r.row });
+  };
   const run = async () => {
+    setPlan(null);
     setBusy(true);
     const r = await runRoutineAction(pageId);
     setBusy(false);
@@ -92,17 +104,21 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
           {view.kind === "agent" ? "🤖" : "⚙️"}
         </span>
         <span className="font-semibold">{view.kind === "agent" ? t("Agent") : t("Automation")}</span>
-        <label className="ml-2 flex items-center gap-1.5" title={t("Switched on, its schedule and events run it by themselves.")}>
-          <input type="checkbox" checked={view.enabled} disabled={!editable} onChange={(e) => void save({ enabled: e.target.checked })} />
-          {view.enabled ? t("On") : t("Off")}
-        </label>
+        <Switch className="ml-2 text-sm" checked={view.enabled} disabled={!editable} onChange={(on) => void save({ enabled: on })} labelOn={t("On")} labelOff={t("Off")} label={t("Switched on")} title={t("Switched on, its schedule and events run it by themselves.")} />
         <span className="flex-1" />
         {view.nextRunAt && <span className="text-xs text-zinc-500">{t("Next: {when}", { when: new Date(view.nextRunAt).toLocaleString() })}</span>}
-        <button type="button" className="btn btn-primary btn-sm" disabled={busy || !!view.problem} title={view.problem ?? undefined} onClick={() => void run()}>
-          {busy ? "…" : `▶ ${t("Run now")}`}
+        {view.kind === "automation" && (
+          <button type="button" className="btn btn-sm" disabled={busy || !!view.problem} title={t("Try it: what it would change — nothing is changed, nothing sent")} onClick={() => void tryIt()}>
+            🧪 {t("Try it")}
+          </button>
+        )}
+        <button type="button" className="btn btn-primary btn-sm" disabled={busy || !!view.live || !!view.problem} title={view.problem ?? (view.live ? t("It is running — wait until this run has ended.") : undefined)} onClick={() => void run()}>
+          {busy ? "…" : view.live ? t("Running…") : `▶ ${t("Run now")}`}
         </button>
       </div>
       {view.problem && <p className="text-xs text-amber-700 dark:text-amber-400">{view.problem}</p>}
+      {view.live && <LiveRun live={view.live} />}
+      {plan && <DryRunPanel plan={plan} onClose={() => setPlan(null)} />}
 
       {view.kind === "automation" && (
         <div className="space-y-1.5">
@@ -291,6 +307,35 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
         </>
       )}
     </section>
+  );
+}
+
+/** The run going on: since when, how its worker stands, what it did last — and its session on the Code tab. */
+function LiveRun({ live }: { live: NonNullable<RoutineView["live"]> }) {
+  const t = useT();
+  return (
+    <div className="space-y-1 rounded-md border border-indigo-200 bg-indigo-50/50 p-2 text-xs dark:border-indigo-900 dark:bg-indigo-950/30" role="status">
+      <div className="flex flex-wrap items-center gap-2">
+        <span className="size-2 animate-pulse rounded-full bg-indigo-500" aria-hidden />
+        <span className="font-medium">{t("Running since {when}", { when: new Date(live.startedAt).toLocaleTimeString() })}</span>
+        <span className="text-zinc-500">{live.workRunId ? (live.workStatus ?? "") : t("The worker is starting …")}</span>
+        <span className="flex-1" />
+        {live.workRunId && (
+          <Link href={`/work?run=${live.workRunId}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
+            {t("Open the session")} W-{live.workRunId} ↗
+          </Link>
+        )}
+      </div>
+      {live.activity.length > 0 && (
+        <ul className="space-y-0.5 font-mono text-zinc-600 dark:text-zinc-400">
+          {live.activity.map((a, i) => (
+            <li key={i} className={`truncate ${i === live.activity.length - 1 ? "text-zinc-900 dark:text-zinc-100" : ""}`} title={a}>
+              {a}
+            </li>
+          ))}
+        </ul>
+      )}
+    </div>
   );
 }
 
@@ -657,3 +702,47 @@ export const ZeffRoutine = Node.create<{ pageId: number }>({
     return ReactNodeViewRenderer(RoutineBlockView);
   },
 });
+
+/** What a routine would do (a dry run): the fields it would set, the rows it would make and move to the trash, the step log. */
+function DryRunPanel({ plan, onClose }: { plan: DryRun & { row: { id: number; title: string } | null }; onClose: () => void }) {
+  const t = useT();
+  const nothing = !plan.changes.length && !plan.made.length && !plan.trashed.length;
+  return (
+    <div className="space-y-2 rounded-md border border-dashed border-indigo-300 bg-indigo-50/50 p-2.5 text-xs dark:border-indigo-800 dark:bg-indigo-950/30">
+      <div className="flex items-center gap-2">
+        <span className="font-semibold">🧪 {t("Tried — nothing was changed")}</span>
+        {plan.row && <span className="text-zinc-500">{t("on “{row}”", { row: plan.row.title || t("Untitled") })}</span>}
+        <span className="flex-1" />
+        <button type="button" className="rounded px-1 text-zinc-500 hover:bg-zinc-200 dark:hover:bg-zinc-800" aria-label={t("Close")} onClick={onClose}>
+          ✕
+        </button>
+      </div>
+      {plan.error && <p className="text-red-600 dark:text-red-400">{plan.error}</p>}
+      {nothing ? (
+        <p className="text-zinc-500">{t("It would change nothing in the Workspace.")}</p>
+      ) : (
+        <ul className="space-y-0.5">
+          {plan.changes.map((c, i) => (
+            <li key={`c${i}`}>
+              <span className="font-medium">{c.title || t("Untitled")}</span> · {c.field}: <span className="text-zinc-400 line-through">{c.from || "∅"}</span> → {c.to || "∅"}
+              {c.cause?.includes(" › ") && <span className="text-zinc-400"> ({c.cause.split(" › ").slice(1).join(" › ")})</span>}
+            </li>
+          ))}
+          {plan.made.map((m) => (
+            <li key={`m${m.page}`}>＋ {t("New row")}: <span className="font-medium">{m.title || t("Untitled")}</span></li>
+          ))}
+          {plan.trashed.map((m) => (
+            <li key={`t${m.page}`}>🗑 {t("To the trash")}: <span className="font-medium">{m.title || t("Untitled")}</span></li>
+          ))}
+        </ul>
+      )}
+      <ol className="space-y-0.5 border-t border-indigo-200 pt-1.5 text-zinc-500 dark:border-indigo-900">
+        {plan.log.map((l, i) => (
+          <li key={i} style={{ paddingLeft: (l.depth ?? 0) * 12 }}>
+            {l.status === "failed" ? "✗" : l.status === "skipped" ? "–" : "✓"} {l.kind}: {l.note}
+          </li>
+        ))}
+      </ol>
+    </div>
+  );
+}

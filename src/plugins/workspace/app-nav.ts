@@ -2,7 +2,7 @@ import { getSqlite } from "@/db";
 import { t } from "@/lib/i18n/server";
 import type { NavEntry } from "@/plugins/documents/nav";
 import { appNavProviders } from "./app-nav-point";
-import type { View } from "./model";
+import { dateRange, type View } from "./model";
 import { getDatabase, labelFns, labelsFor, rowsOf } from "./store";
 import { viewAppMeta } from "./view-apps";
 import { navOf, renderView, viewDefaults } from "./view-template";
@@ -52,6 +52,31 @@ export async function appNavs(): Promise<Record<number, AppNav>> {
     if (!provider && !entries.length && !/<nav[\s>]/.test(templateOf(view))) continue;
     const hidden = new Set(view.navHidden ?? []);
     out[id] = { viewId: view.id, entries: entries.map((e) => ({ ...e, hidden: hidden.has(e.id) })) };
+  }
+  // The entries closed (close-row.ts): under their database too, the newest ten — those its own navigation shows already not twice.
+  const closed = getSqlite()
+    .prepare("select id, db_id, title, icon, props from ws_pages where db_id is not null and locked = 1 and archived_at is null and template = 0 order by updated_at desc")
+    .all() as { id: number; db_id: number; title: string; icon: string; props: string }[];
+  for (const dbId of [...new Set(closed.map((c) => c.db_id))]) {
+    const d = getDatabase(dbId);
+    if (!d || d.page.archivedAt) continue;
+    const has = out[dbId] ?? { viewId: d.schema.views[0]?.id ?? "", entries: [] };
+    const hidden = new Set(d.schema.views.find((v) => v.id === has.viewId)?.navHidden ?? []);
+    // (Named by its day too — a journal's entries often have no title: "22.10. · First Day".)
+    const date = d.schema.properties.find((p) => p.type === "date");
+    const dayOf = (props: string) => {
+      try {
+        const v = date ? dateRange((JSON.parse(props) as Record<string, unknown>)[date.id])?.start : undefined;
+        return v && /^\d{4}-\d{2}-\d{2}/.test(v) ? `${v.slice(8, 10)}.${v.slice(5, 7)}.` : "";
+      } catch {
+        return "";
+      }
+    };
+    const fresh = closed
+      .filter((c) => c.db_id === dbId && !has.entries.some((e) => e.id === `row:${c.id}`))
+      .slice(0, 10)
+      .map((c): AppNavEntry => ({ id: `row:${c.id}`, label: [dayOf(c.props), c.title].filter(Boolean).join(" · ") || t("Untitled"), icon: c.icon || "🔒", n: 0, group: t("Closed entries"), hidden: hidden.has(`row:${c.id}`), href: `/workspace/${c.id}` }));
+    if (fresh.length) out[dbId] = { ...has, entries: [...has.entries, ...fresh] };
   }
   return out;
 }

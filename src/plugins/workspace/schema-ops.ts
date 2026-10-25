@@ -16,7 +16,9 @@ export type PropIn = {
   /** custom: the id of the field type ("workspace.rating", "workspace.progress", a plugin's "plugin.what"). */
   custom?: string;
   aiPrompt?: string;
-  format?: "number" | "percent" | "euro" | "dollar" | "hours";
+  format?: "number" | "percent" | "euro" | "dollar" | "hours" | "unit";
+  /** format "unit": the unit after the number ("mg", "ml", "km"). */
+  unit?: string;
   includeTime?: boolean;
   relation?: { database?: number; /** Instead of a database: a source of Zeff's own ("time" = the booked time). Needs `match`. */ source?: string; twoWay?: boolean; /** Linked by itself: this row's `from` value (a property name or "title") equals the related row's `to` value. */ match?: { from: string; to: string } };
   rollup?: { relation: string; property: string; fn: string; /** Only the related rows that pass (properties of the related database or source, by name). */ filter?: FilterIn[] };
@@ -86,6 +88,7 @@ function fillProperty(schema: DbSchema, into: Property, v: PropIn, ctx: OpsConte
   if (p.type !== "custom") delete p.custom;
   if (v.aiPrompt !== undefined) p.aiPrompt = v.aiPrompt;
   if (v.format !== undefined) p.format = v.format;
+  if (v.unit !== undefined) p.unit = String(v.unit).trim().slice(0, 12) || undefined;
   if (v.includeTime !== undefined) p.includeTime = v.includeTime;
   if (v.relation) {
     if (v.relation.source) {

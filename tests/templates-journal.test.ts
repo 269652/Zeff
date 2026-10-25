@@ -55,4 +55,6 @@ test("the journal: its days and reviews drawn by their templates without errors,
     ["agent", false, [{ kind: "schedule", at: "07:00", days: [1] }], "parent"],
     ["agent", false, [{ kind: "schedule", at: "07:30", monthDay: 1 }], "parent"],
   ]);
+  assert.ok(agents.every((r) => r.permissions.personal === true), "the reviews may read the journal (personal data)");
+  assert.match(JSON.stringify(getPage(agents[0].pageId)!.content), /correlations/, "connections only from the correlations tool");
 });

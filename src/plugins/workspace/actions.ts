@@ -302,6 +302,8 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
       void jobs.pumpJobs(Number(dbId)).catch(() => undefined); // (the agents take what is Ready, when they are on)
     }
     if (store.getDatabase(Number(dbId))?.schema.receive) (await import("./links")).resyncInto(Number(dbId)); // (copies follow their originals, also those made before something travelled)
+    // A list ticked through every day (day-log.ts): opened after 4:00, it starts the day unticked.
+    (await import("./day-log")).startDayIfNew(Number(dbId));
     const d = store.rowsOf(Number(dbId));
     const page = store.getPage(Number(dbId));
     if (!d || !page) throw new Error(t("This database is gone."));
@@ -905,6 +907,37 @@ export async function archiveRowsAction(rowIds: number[]) {
     }
     return { gone, kept: [...new Set(kept)] };
   }));
+}
+
+/** A list's day closed by hand (day-log.ts): the day the ticks were made on — its entry locked, the ticks off. Its entry and day. */
+export async function closeDayAction(dbId: number) {
+  return run(async () => {
+    const log = await import("./day-log");
+    const day = log.openDay(Number(dbId));
+    return { id: log.closeDay(Number(dbId)), day };
+  });
+}
+
+/** The list's last close undone: the entry open again, the ticks back. */
+export async function undoCloseDayAction(dbId: number) {
+  return run(async () => {
+    (await import("./day-log")).undoCloseDay(Number(dbId));
+    return {};
+  });
+}
+
+/** A row closed (locked, under its database in the tree) and the next one made — its ticks unticked, the next day. */
+export async function closeRowAction(rowId: number) {
+  return run(async () => {
+    return { id: (await import("./close-row")).closeRow(Number(rowId)) };
+  });
+}
+
+/** A closed row open again — the row its close made gone, if nothing was put in it. */
+export async function reopenRowAction(rowId: number) {
+  return run(async () => {
+    return (await import("./close-row")).reopenRow(Number(rowId));
+  });
 }
 
 export async function duplicateRowAction(rowId: number) {
@@ -1525,4 +1558,31 @@ export async function belongsAction(pageId: number) {
 /** The search box over a database: its rows whose pages say what was typed (a document's text, a mail's body) — the cells it searches itself. */
 export async function rowsMatchingAction(dbId: number, q: string): Promise<number[]> {
   return (await import("./row-search")).rowsMatching(Number(dbId), String(q ?? "").slice(0, 300));
+}
+
+/** A day's entry of a daily list's log as a table like the list (day-log.ts) — null: the row is no such entry. */
+export async function dayEntryAction(rowId: number) {
+  return run(async () => ({ table: (await import("./day-log")).dayEntryTable(Number(rowId)) }));
+}
+
+/**
+ * A routine tried without changing anything (automation.ts dryRunRoutine): what it would set, make, move to the trash and do. A routine
+ * set off by a database's events is tried on that database's newest row (the row it would have in hand); `row` picks another.
+ */
+export async function dryRunRoutineAction(pageId: number, row?: number) {
+  return run(async () => {
+    const { dryRunRoutine } = await import("./automation");
+    const { getRoutine } = await import("./routines");
+    const routine = getRoutine(Number(pageId));
+    if (routine?.kind !== "automation") throw new Error(t("Only an automation can be tried — an agent's work is never the same twice."));
+    const db = routine.triggers.find((x): x is Extract<typeof x, { kind: "event" }> => x.kind === "event" && typeof x.db === "number")?.db;
+    const sample = row ?? (db ? store.rawRows(db).filter((r) => !store.getPage(r.id)?.archivedAt).at(-1)?.id : undefined);
+    const plan = await dryRunRoutine(Number(pageId), { row: sample });
+    return { plan, row: sample ? { id: sample, title: store.getPage(sample)?.title ?? "" } : null };
+  });
+}
+
+/** A button field pressed (row-button.ts): its routine runs with the row in hand. */
+export async function pressButtonAction(rowId: number, propId: string) {
+  return run(async () => (await import("./row-button")).pressButton(Number(rowId), String(propId)));
 }

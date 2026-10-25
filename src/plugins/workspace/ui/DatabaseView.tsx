@@ -5,8 +5,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { templateParamsAction, discardIfUntouchedAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { templateParamsAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, withCell, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { useProgressive } from "./progressive";
@@ -135,23 +135,62 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
     [dbId],
   );
 
+  /** The cells written but not yet confirmed ("<row>:<property>"): shown faded until the server answers. */
+  const [pending, setPending] = useState<ReadonlySet<string>>(() => new Set());
+  /** Each cell's latest edit: only that one's answer settles it (an earlier one still in flight doesn't). */
+  const edits = useRef(new Map<string, number>());
+
   const set = useCallback(
     (rowId: number, propId: string, value: unknown) => {
       const cur = dataRef.current;
       if (!cur) return;
-      // Shown at once …
-      const rows = cur.rows.map((r) => (r.id === rowId ? (propId === TITLE ? { ...r, title: String(value ?? "") } : { ...r, cells: { ...r.cells, [propId]: value === null || value === "" ? undefined : value } }) : r));
-      setData({ ...cur, rows });
-      // … saved after any schema change in flight (a new option must be there first), computed cells caught up after.
-      schemaSaving.current = schemaSaving.current.then(() => setCellAction(rowId, propId, value)).then((r) => {
+      const key = `${rowId}:${propId}`;
+      const old = cur.rows.find((r) => r.id === rowId);
+      const before = propId === TITLE ? old?.title : old?.cells[propId];
+      const n = (edits.current.get(key) ?? 0) + 1;
+      edits.current.set(key, n);
+      // Shown at once, as it will be stored (typed "12,5" is the number 12.5) …
+      const next = { ...cur, rows: withCell(cur.rows, cur.schema.properties, rowId, propId, value) };
+      dataRef.current = next;
+      setData(next);
+      setPending((s) => new Set(s).add(key));
+      // … saved after any schema change in flight (a new option must be there first); confirmed, or put back as it was.
+      const settle = (r: { ok: boolean; error?: string }) => {
+        if (edits.current.get(key) !== n) return r;
+        edits.current.delete(key);
+        setPending((s) => {
+          const left = new Set(s);
+          left.delete(key);
+          return left;
+        });
         if (!r.ok) {
-          toast((r as { error: string }).error, { tone: "error" });
-          void reload();
+          toast(r.error || t("Could not save."), { tone: "error" });
+          const now = dataRef.current;
+          if (now) setData({ ...now, rows: withCell(now.rows, now.schema.properties, rowId, propId, before ?? null) });
         } else if (cur.schema.properties.some(isComputed)) reloadSoon();
         return r;
-      });
+      };
+      schemaSaving.current = schemaSaving.current
+        .then(() => setCellAction(rowId, propId, value))
+        .then(
+          (r) => settle(r as { ok: boolean; error?: string }),
+          (e: unknown) => settle({ ok: false, error: e instanceof Error ? e.message : String(e) }),
+        );
     },
-    [reload, reloadSoon],
+    [reloadSoon, t],
+  );
+  const isPending = useCallback((rowId: number, propId: string) => pending.has(`${rowId}:${propId}`), [pending]);
+
+  /** A button field pressed: its routine runs on the row, then the rows are read again (what it changed). */
+  const press = useCallback(
+    async (rowId: number, propId: string) => {
+      const r = await pressButtonAction(rowId, propId);
+      if (!r.ok) return void toast(r.error, { tone: "error" });
+      if (r.status === "failed") toast(r.error || t("Failed."), { tone: "error" });
+      else if (r.status === "started") toast(t("The agent is running — it shows in the Code tab."));
+      await reload();
+    },
+    [reload, t],
   );
 
   const addOption = useCallback(
@@ -232,7 +271,7 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
   );
 
   void t;
-  return { data, error, reload, saveSchema, changeSchema, set, addOption, addRow, removeRow, duplicateRow, place };
+  return { data, error, reload, saveSchema, changeSchema, set, isPending, press, addOption, addRow, removeRow, duplicateRow, place };
 }
 
 // ---------------------------------------------------------------------------
@@ -339,7 +378,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
 
   const schema = data.schema;
   // A locked database (one a sync keeps, as Jira's) is shown, not changed: its cells, cards and columns stay as they are.
-  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: !data.locked, openRow: (id) => openRow(id) };
+  const ctx: CellCtx = { data, set: api.set, pending: api.isPending, press: api.press, addOption: api.addOption, editable: !data.locked, openRow: (id) => openRow(id) };
   const withRow = (id: number | null) => {
     const u = new URL(window.location.href);
     if (id) u.searchParams.set("row", String(id));
@@ -639,6 +678,34 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           </button>
         )}
         {!narrow && propsDropdown}
+        {/* A list ticked through every day (day-log.ts): the day closed by hand — the day the ticks were made on (the turn at 4:00 missed: the day before). */}
+        {isDayList(data.schema) && (
+          <button
+            type="button"
+            className="btn btn-sm shrink-0"
+            title={t("Close the day: its entry in the log is locked and every tick goes off. It is the day the ticks were made on — closed in the morning before the list turned at 4:00, the day before")}
+            onClick={async () => {
+              const r = await closeDayAction(dbId);
+              if (!r.ok) return void toast(r.error, { tone: "error" });
+              await api.reload();
+              router.refresh();
+              toast(t("Closed: {day}.", { day: new Date(`${r.day}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }) }), {
+                tone: "ok",
+                action: {
+                  label: t("Undo"),
+                  run: async () => {
+                    const u = await undoCloseDayAction(dbId);
+                    if (!u.ok) return void toast(u.error, { tone: "error" });
+                    await api.reload();
+                    router.refresh();
+                  },
+                },
+              });
+            }}
+          >
+            ✓ {t("Close the day")}
+          </button>
+        )}
         {!narrow && (view.type === "board" || view.type === "gallery") && (
           <button type="button" className={`btn btn-sm ${view.card ? "text-indigo-600 dark:text-indigo-400" : ""}`} title={t("How the cards look — a card template")} onClick={() => setCardOpen(true)}>
             {t("Card")}
@@ -2033,7 +2100,7 @@ export function RowProperties({ initial, dbId, rowId }: { initial: DatabaseData;
   const data = api.data;
   const row = data?.rows.find((r) => r.id === rowId);
   if (!data || !row) return null;
-  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: !data.locked };
+  const ctx: CellCtx = { data, set: api.set, pending: api.isPending, press: api.press, addOption: api.addOption, editable: !data.locked };
   if (!data.schema.properties.length) return null;
   return (
     <dl className="grid gap-x-4 gap-y-0.5 sm:grid-cols-[10rem_minmax(0,1fr)]" aria-label={t("Properties")}>
@@ -2056,7 +2123,7 @@ export function RowField({ initial, dbId, rowId, propId, showLabel = true }: { i
   const data = api.data;
   const row = data?.rows.find((r) => r.id === rowId);
   if (!data || !row) return null;
-  const ctx: CellCtx = { data, set: api.set, addOption: api.addOption, editable: !data.locked };
+  const ctx: CellCtx = { data, set: api.set, pending: api.isPending, press: api.press, addOption: api.addOption, editable: !data.locked };
   const p = data.schema.properties.find((x) => x.id === propId);
   const name = propId === "title" ? data.schema.titleName : (p?.name ?? "");
   return (
