@@ -55,7 +55,7 @@ test("a todo ticked off settles what hangs on it: the promises it pays kept, the
   assert.equal(getPage(debt)!.props[DEBT.open] ?? 0, 0);
 });
 
-test("a promise to pay that is due and has no todo gets one (once) — ticked off, the promise kept and the debt down; a plan years off stays as it is", async () => {
+test("a promise to pay that is due and has no todo gets one (once) — ticked off, the promise kept and the debt written down from it paid off", async () => {
   const { setInstalled } = await import("@/plugins/state");
   for (const p of ["people", "todos", "finances", "workspace"]) setInstalled(p, true);
   const { createPerson } = await import("@/plugins/people/store");
@@ -67,7 +67,7 @@ test("a promise to pay that is due and has no todo gets one (once) — ticked of
   const { ensureDebtsDatabase } = await import("@/plugins/finances/database");
   await ensureDebtsDatabase();
   const { createDebt } = await import("@/plugins/finances/own");
-  const debt = createDebt({ dir: "owe", title: "Mama", creditorId: mum, amount: 30000, due: "2031-03-01", installment: 400, fromClaim: claim.id });
+  const debt = createDebt({ dir: "owe", title: "Mama", creditorId: mum, amount: 200, due: "2026-10-23", installment: null, fromClaim: claim.id });
   for (const m of ["@/plugins/people/server", "@/plugins/finances/server"]) await import(m);
   const { promiseTodos } = await import("@/plugins/people/promise-todos");
   const made = promiseTodos("2026-10-25");
@@ -81,8 +81,8 @@ test("a promise to pay that is due and has no todo gets one (once) — ticked of
   assert.ok(claimsOf(mum).find((c) => c.id === claim.id)!.doneAt, "the promise kept");
   const { getPage } = await import("@/plugins/workspace/store");
   const { DEBT } = await import("@/plugins/finances/fields");
-  assert.equal(getPage(debt)!.props[DEBT.open], 29800);
-  assert.equal(getPage(debt)!.props[DEBT.due], "2031-03-01", "paid ahead: the plan starts when it starts");
+  assert.equal(getPage(debt)!.props[DEBT.open] ?? 0, 0, "paid off");
+  assert.equal(getPage(debt)!.props[DEBT.due] ?? null, null, "nothing due any more");
 });
 
 test("a todo opened again takes back what it settled: the promises open, the debt as it was — and says why in the row's history", async () => {
@@ -120,18 +120,18 @@ test("a transfer on the statement with no todo for it (the fallback): the promis
   addClaim({ personId: mum, kind: "commitment", text: "Ich habe Johanna zugesagt, ihr die 200€ zurückzuüberweisen.", sourceRef: `mail:wa:J|${Math.random()}`, direction: "mine", due: "2026-10-23", confidence: 0.9 });
   const claim = claimsOf(mum)[0];
   const { createDebt } = await import("@/plugins/finances/own");
-  const debt = createDebt({ dir: "owe", title: "Mama", creditorId: mum, amount: 30000, due: "2031-03-01", installment: 400, fromClaim: claim.id });
+  const debt = createDebt({ dir: "owe", title: "Mama", creditorId: mum, amount: 200, due: "2026-10-23", installment: null, fromClaim: claim.id });
   const { addBookings, matchPayments } = await import("@/plugins/cases/bank");
   addBookings([{ date: "2026-10-24", amount: -200, currency: "EUR", text: "Rückzahlung", counterparty: "Johanna Testerin", iban: "", reference: "Rückzahlung" }], "Giro");
   matchPayments();
   assert.ok(claimsOf(mum).find((c) => c.id === claim.id)!.doneAt, "the promise kept by the booking");
   const { getPage } = await import("@/plugins/workspace/store");
   const { DEBT } = await import("@/plugins/finances/fields");
-  assert.equal(getPage(debt)!.props[DEBT.open], 29800);
+  assert.equal(getPage(debt)!.props[DEBT.open] ?? 0, 0, "paid off");
   const { settledBy } = await import("@/lib/boards/todo-settle");
   assert.match(settledBy(`debt:${debt}`)[0].subject, /^tx:/, "settled by the booking");
   matchPayments();
-  assert.equal(getPage(debt)!.props[DEBT.open], 29800, "read again: once");
+  assert.equal(settledBy(`debt:${debt}`).length, 1, "read again: once");
 });
 
 test("a booking of a debt's instalment to its creditor (no promise, no todo): the debt down — not when a todo paid it in the days before", async () => {
@@ -174,7 +174,8 @@ test("one due date: a todo hanging on a debt of yours takes its date — new one
   const source = `mail:wa:E|${Math.random()}`;
   addClaim({ personId: elmar, kind: "commitment", text: "Ich habe Elmar zugesagt, ihm 250 € zu überweisen", sourceRef: source, direction: "mine", confidence: 0.9 });
   const claim = claimsOf(elmar)[0];
-  const debt = createDebt({ dir: "owe", title: "Elmar", creditorId: elmar, amount: 1400, due: "2026-11-01", installment: 250, fromClaim: claim.id });
+  // (The debt is the promise: written down from it, its 250 €.)
+  const debt = createDebt({ dir: "owe", title: "Elmar", creditorId: elmar, amount: 250, due: "2026-11-01", installment: null, fromClaim: claim.id });
   const { addMailTodo, getTodo, setTodoDue } = await import("@/lib/boards/store");
   // A new todo from the message the promise was made in (the Mail-Durchsicht's): due when the debt's instalment is, at once.
   const todo = addMailTodo({ ticket: "", text: "Elmar 250 € überweisen", kind: "other", refs: [source], runId: null });
@@ -187,6 +188,23 @@ test("one due date: a todo hanging on a debt of yours takes its date — new one
   const { getPage } = await import("@/plugins/workspace/store");
   const { DEBT } = await import("@/plugins/finances/fields");
   assert.equal(getPage(debt)!.props[DEBT.due], "2026-11-05");
+});
+
+test("a big debt that only names a small promise (written down from it, its figures yours since): the promise kept, the debt untouched", async () => {
+  const mum = await family("Johanna Großschuld");
+  const { addClaim, claimsOf } = await import("@/plugins/people/graph");
+  const source = `mail:wa:JG|${Math.random()}`;
+  addClaim({ personId: mum, kind: "commitment", text: "Ich habe Johanna zugesagt, ihr die erbetenen 200€ in 9 Tagen zurückzuüberweisen.", sourceRef: source, direction: "mine", due: "2026-10-23", confidence: 0.9 });
+  const claim = claimsOf(mum)[0];
+  const { createDebt } = await import("@/plugins/finances/own");
+  const debt = createDebt({ dir: "owe", title: "Johanna", creditorId: mum, amount: 30000, due: "2031-03-01", installment: 400, fromClaim: claim.id });
+  const { addMailTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const todo = addMailTodo({ ticket: "", text: "Johanna 200 € zurückzahlen", kind: "other", refs: [source], runId: null });
+  setTodoStatus(todo.id, "done");
+  assert.ok(claimsOf(mum).find((c) => c.id === claim.id)!.doneAt, "the promise kept");
+  const { getPage } = await import("@/plugins/workspace/store");
+  const { DEBT } = await import("@/plugins/finances/fields");
+  assert.equal(getPage(debt)!.props[DEBT.open], 30000, "a debt of 30.000 € is not that promise of 200 €");
 });
 
 test("paid by hand, taken back: the debt as it was", async () => {

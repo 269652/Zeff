@@ -106,7 +106,8 @@ test("promises offered: yours with an amount as a debt, theirs as a claim — no
   addClaim({ personId: jo, kind: "commitment", text: "Ich rufe sie morgen an.", direction: "mine", confidence: 0.9 });
   const s = debtSuggestions();
   assert.deepEqual(s.map((x) => [x.name, x.dir, x.amount]).sort(), [["Johanna Roessler", "owe", 200], ["Lea Lustig", "owed", 50]], "Chris has a debt already");
-  createDebtFromClaim(s.find((x) => x.name === "Lea Lustig")!.claimId);
+  const made = createDebtFromClaim(s.find((x) => x.name === "Lea Lustig")!.claimId);
+  assert.equal((await import("@/plugins/workspace/store")).getPage(made)!.title, "Lea Lustig", "named after the person — not after the promise's words (they go stale once it is kept)");
   assert.deepEqual(debtSuggestions().map((x) => x.name), ["Johanna Roessler"], "taken");
 });
 

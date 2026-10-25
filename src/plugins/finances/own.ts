@@ -118,5 +118,6 @@ export function debtSuggestions(): DebtSuggestion[] {
 export function createDebtFromClaim(claimId: number): number {
   const s = debtSuggestions().find((x) => x.claimId === claimId);
   if (!s) throw new Error("This promise isn't open (or is a debt already).");
-  return createDebt({ dir: s.dir, title: s.text, creditorId: s.personId, amount: s.amount, due: s.due, installment: null, fromClaim: s.claimId });
+  // (Named after the person, not the promise's words: they go stale once it is kept, and a debt outlives it.)
+  return createDebt({ dir: s.dir, title: s.name, creditorId: s.personId, amount: s.amount, due: s.due, installment: null, fromClaim: s.claimId });
 }

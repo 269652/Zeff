@@ -1,5 +1,5 @@
-import { refDue, refLabeler, refPayable, rowRefs, settledBy, todoAmount, todoAmounts, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
-import { claimsOf } from "@/plugins/people/graph";
+import { euroAmounts, refDue, refLabeler, refPayable, rowRefs, settledBy, todoAmount, todoAmounts, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
+import { claimById, claimsOf } from "@/plugins/people/graph";
 import { peoplePaid, promisedAmount } from "@/plugins/people/todo-settle";
 import { isInstalled } from "@/plugins/state";
 import { getPage, rawRows, setCell } from "@/plugins/workspace/store";
@@ -39,7 +39,25 @@ todoLinkFinder((e, found) => {
   if (!db) return [];
   const claims = new Set(found.filter((r) => r.startsWith("claim:")).map((r) => Number(r.slice(6))));
   const cases = new Set(found.filter((r) => r.startsWith("case:")));
-  const linked = claims.size || cases.size ? rawRows(db).filter((r) => !getPage(r.id)?.archivedAt && (claims.has(Number(r.cells[DEBT.claim])) || cases.has(String(r.cells.srcref ?? "")))).map((r) => r.id) : [];
+  // A debt written down from a promise is the promises' money only while its total is no more than what you promised them in all
+  // (40 € and 20 € → a debt of 60 €; or it has none): one whose figures became a bigger debt since (30.000 € to the one who lent
+  // 200 €) only names it — the promise kept, the debt untouched.
+  const isThePromise = (r: { cells: Record<string, unknown> }) => {
+    const total = Number(r.cells[DEBT.total]);
+    if (!Number.isFinite(total) || total <= 0) return true;
+    const c = claimById(Number(r.cells[DEBT.claim]));
+    if (!c) return false;
+    const promised = claimsOf(c.personId)
+      .filter((x) => x.kind === "commitment" && x.direction === "mine" && x.status !== "rejected")
+      .reduce((s, x) => s + (euroAmounts(x.text)[0] ?? 0), 0);
+    return total <= promised + 0.005;
+  };
+  const linked =
+    claims.size || cases.size
+      ? rawRows(db)
+          .filter((r) => !getPage(r.id)?.archivedAt && ((claims.has(Number(r.cells[DEBT.claim])) && isThePromise(r)) || cases.has(String(r.cells.srcref ?? ""))))
+          .map((r) => r.id)
+      : [];
   const booked = e.key.startsWith("tx:") && !linked.length ? debtsPaid(e, db) : [];
   return [...linked, ...booked].map((id) => `debt:${id}`);
 });
