@@ -1625,3 +1625,11 @@ export async function undoPaidAction(key: string) {
 export async function tryRulesAction(dbId: number) {
   return run(async () => (await import("./rules")).tryRulesDatabase(Number(dbId)));
 }
+
+/** A payment released from a thing (a wrong match — lib/boards/todo-settle.ts releasePayment): its figures back. */
+export async function releasePaymentAction(paymentId: number, ref: string) {
+  return run(async () => {
+    (await import("@/lib/boards/todo-settle")).releasePayment(Number(paymentId), String(ref));
+    return {};
+  });
+}

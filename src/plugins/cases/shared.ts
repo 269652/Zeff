@@ -40,8 +40,10 @@ export type CaseSummary = {
   fromClaim?: number;
   at: string;
   sources: number;
-  /** The payments (their ids) this summary counted already — moved its due on, closed it (todo-paid.ts settleCase). */
+  /** Before the ledger: the payments (their ids) this summary counted already — read once to find where it started (todo-paid.ts). */
   settled?: string[];
+  /** What the letters say, before any payment: the due and whether it is done — \`nextDue\` and \`done\` are these moved on by the ledger's payments (settleCase). */
+  base?: { nextDue: string | null; done: boolean };
 };
 
 export type Case = {

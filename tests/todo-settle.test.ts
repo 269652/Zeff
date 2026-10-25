@@ -207,6 +207,39 @@ test("a big debt that only names a small promise (written down from it, its figu
   assert.equal(getPage(debt)!.props[DEBT.open], 30000, "a debt of 30.000 € is not that promise of 200 €");
 });
 
+test("a debt's open is computed from the ledger: a figure you type in yourself is the new start — later payments count from it", async () => {
+  const lea = await family("Lea Rechner");
+  const { createDebt } = await import("@/plugins/finances/own");
+  const debt = createDebt({ dir: "owe", title: "Lea", creditorId: lea, amount: 500, due: "2026-11-01", installment: 100 });
+  const { settleByHand } = await import("@/lib/boards/todo-settle");
+  const { getPage, setCell } = await import("@/plugins/workspace/store");
+  const { DEBT } = await import("@/plugins/finances/fields");
+  settleByHand(`debt:${debt}`, 100, "von Hand", "2026-10-30");
+  assert.equal(getPage(debt)!.props[DEBT.open], 400);
+  assert.equal(getPage(debt)!.props[DEBT.due], "2026-12-01", "the instalment due paid: the next one");
+  setCell(debt, DEBT.open, 350); // (you, in the table: 50 € more paid in cash)
+  settleByHand(`debt:${debt}`, 100, "von Hand", "2026-12-01");
+  assert.equal(getPage(debt)!.props[DEBT.open], 250, "from your 350, not from the 400 computed before");
+  const { allocationsOf } = await import("@/lib/money/ledger");
+  assert.equal(allocationsOf(`debt:${debt}`).length, 2, "both payments in the ledger");
+});
+
+test("a thing's payments shown with it — one released (a wrong match): off the thing, its figures back, the proof no longer settles it", async () => {
+  const kai = await family("Kai Zuordner");
+  const { createDebt } = await import("@/plugins/finances/own");
+  const debt = createDebt({ dir: "owe", title: "Kai", creditorId: kai, amount: 200, due: "2026-11-01", installment: null });
+  const { settleByHand, linksOf, refsOfRow, releasePayment, settledBy } = await import("@/lib/boards/todo-settle");
+  const { key } = settleByHand(`debt:${debt}`, 80, "von Hand", "2026-10-25");
+  const { getPage } = await import("@/plugins/workspace/store");
+  const { DEBT } = await import("@/plugins/finances/fields");
+  assert.equal(getPage(debt)!.props[DEBT.open], 120);
+  const thing = linksOf({ refs: refsOfRow(debt) }).things[0];
+  assert.deepEqual(thing.payments.map((p) => [p.key, p.amount, p.source]), [[key, 80, "hand"]], "its payments, from the ledger");
+  releasePayment(thing.payments[0].paymentId, `debt:${debt}`);
+  assert.equal(getPage(debt)!.props[DEBT.open], 200, "as before it");
+  assert.deepEqual(settledBy(`debt:${debt}`), [], "the proof no longer settles it");
+});
+
 test("paid by hand, taken back: the debt as it was", async () => {
   const karla = await family("Karla Testfrau");
   const { createDebt } = await import("@/plugins/finances/own");

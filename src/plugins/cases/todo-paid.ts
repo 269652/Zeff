@@ -2,6 +2,7 @@ import { getTodo } from "@/lib/boards/store";
 import type { TodoView } from "@/lib/boards/shared";
 import { evidenceOfTodo, refDue, refLabeler, refPayable, rowRefs, todoAmount, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
 import { getSqlite } from "@/db";
+import * as ledger from "@/lib/money/ledger";
 import { isInstalled } from "@/plugins/state";
 import { caseStanding, openOf, paymentsOf } from "./bank";
 import { getPref } from "@/lib/prefs";
@@ -58,54 +59,66 @@ export function payFromTodo(todoId: number, today = new Date().toLocaleDateStrin
 }
 
 /**
- * One case paid by a proof (a payment todo ticked off, "paid" by hand): its amount booked as a payment of its own (its key the
- * payment's id), the case brought up to it — and how the case's summary was before (null: no amount to book).
+ * One case paid by a proof (a payment todo ticked off, "paid" by hand): a payment in the ledger (its key the proof's), allocated to the
+ * case — its figures follow (settleCase, on the ledger's change). Whether there was an amount to book.
  */
-function payCase(caseId: number, e: Evidence, amount = todoAmount(e)): { compiled: unknown } | null {
+function payCase(caseId: number, e: Evidence, amount = todoAmount(e)): boolean {
   const s = getCase(caseId)?.compiled;
-  const before = s ? JSON.parse(JSON.stringify(s)) : null;
   const paid = amount ?? s?.installment ?? s?.open ?? null;
-  if (paid == null) return null;
-  paymentsOf(caseId); // (the payments' table there)
-  getSqlite().prepare("insert or ignore into case_payments (case_id, tx_id, amount, date) values (?, ?, ?, ?)").run(caseId, e.key, paid, e.date);
-  settleCase(caseId);
-  return { compiled: before };
+  if (paid == null) return false;
+  const source = e.key.startsWith("todo:") ? "todo" : e.key.startsWith("tx:") ? "bank" : "hand";
+  const p = ledger.recordPayment({ key: e.key, date: e.date, amount: paid, label: e.label, source, tx: source === "bank" ? e.key.slice(3) : null });
+  ledger.allocate(p.id, `case:${caseId}`, paid);
+  return true;
 }
 
-/** A payment taken back (its todo opened again): off the case, the summary as it was before — unless it was summed up anew since. */
-function unpayCase(caseId: number, undo: { compiled?: unknown } | null, key: string): void {
-  getSqlite().prepare("delete from case_payments where case_id = ? and tx_id = ?").run(caseId, key);
-  const now = getCase(caseId)?.compiled;
-  if (undo?.compiled && now?.settled?.includes(key)) updateCase(caseId, { compiled: undo.compiled as NonNullable<typeof now> });
+/** A payment taken back (its todo opened again, "paid" undone): its allocation to the case released — the figures follow. */
+function unpayCase(caseId: number, key: string): void {
+  const p = ledger.paymentByKey(key);
+  if (p) ledger.deallocate(p.id, `case:${caseId}`);
 }
+
+/** The due a month back (a summary from before the ledger moved it on by its payments: where it started). */
+const minusMonth = (iso: string, planDay?: number): string => {
+  const d = new Date(`${iso}T12:00:00`);
+  const want = planDay && planDay >= 1 && planDay <= 31 ? planDay : d.getDate();
+  d.setDate(1);
+  d.setMonth(d.getMonth() - 1);
+  d.setDate(Math.min(want, new Date(d.getFullYear(), d.getMonth() + 1, 0).getDate()));
+  return d.toLocaleDateString("sv-SE");
+};
 
 /**
- * A case's summary brought up to its payments: each payment since it was made that it has not counted yet moves the instalment due
- * on a month — or, with no instalment, pays what is open: nothing due any more. What is open paid in all: the case done. Each payment
- * counts once (the summary keeps which), so this can run any time — after a payment, after the AI summed the case up anew.
+ * A case's figures computed from its letters and its payments, never patched: the summary's due and done as the letters say (kept as
+ * `base`), moved on by the payments since the summary — each instalment-sized one a month (on the plan's day), a payment without
+ * an instalment pays what is open; what is open paid in all: the case done, nothing due. Runs on every change of its allocations and
+ * after the AI summed it up anew — any time, the same result.
  */
 export function settleCase(caseId: number): void {
   const c = getCase(caseId);
   const s = c?.compiled;
   if (!c || !s) return;
-  const counted = new Set(s.settled ?? []);
+  // (A summary from before: its due was moved on by the payments it had counted — moved back, that is where it started.)
+  const counted = s.settled ?? [];
+  const base = s.base ?? {
+    nextDue: counted.length && s.nextDue && s.installment != null ? counted.reduce((d) => minusMonth(d, s.installmentDay), s.nextDue) : counted.length ? null : s.nextDue,
+    done: counted.length ? false : s.done,
+  };
   const since = s.at.slice(0, 10);
-  const fresh = paymentsOf(caseId).filter((p) => p.date >= since && !counted.has(p.txId));
-  if (!fresh.length) return;
-  const next = { ...s };
-  for (const p of fresh) {
-    counted.add(p.txId);
-    if (!next.nextDue) continue;
-    if (next.installment != null && p.amount >= next.installment - 0.005) next.nextDue = plusMonth(next.nextDue, next.installmentDay);
-    else if (next.installment == null) next.nextDue = null;
+  let due = base.nextDue;
+  for (const p of paymentsOf(caseId).filter((x) => x.date >= since)) {
+    if (!due) break;
+    if (s.installment != null && p.amount >= s.installment - 0.005) due = plusMonth(due, s.installmentDay);
+    else if (s.installment == null) due = null;
   }
   const open = s.open != null ? caseStanding(caseId).open : null;
-  if (open === 0) {
-    next.done = true;
-    next.nextDue = null;
-  }
-  updateCase(caseId, { compiled: { ...next, settled: [...counted] } });
+  const { settled: _settled, ...rest } = s;
+  const next = { ...rest, base, nextDue: open === 0 ? null : due, done: open === 0 || base.done };
+  if (JSON.stringify(next) !== JSON.stringify(s)) updateCase(caseId, { compiled: next });
 }
+
+// The ledger: a case's allocations changed (a booking matched, a todo ticked off, one taken back) — its figures follow.
+ledger.onLedgerChange("case", (ref) => settleCase(Number(ref.slice(5))));
 
 // What hangs on a proof (lib/boards/todo-settle.ts): the cases a payment todo pays — settled by booking the payment. (A booking on the
 // statement is the cases' own: bank.ts matches it; "paid" by hand names its case.)
@@ -115,11 +128,8 @@ todoLinkFinder((e) => {
 });
 todoSettler(
   "case",
-  (ref, e, amount) => {
-    const r = payCase(Number(ref.slice(5)), e, amount);
-    return r ? { undo: r } : false;
-  },
-  (ref, undo, key) => unpayCase(Number(ref.slice(5)), undo as { compiled?: unknown } | null, key),
+  (ref, e, amount) => payCase(Number(ref.slice(5)), e, amount),
+  (ref, _undo, key) => unpayCase(Number(ref.slice(5)), key),
 );
 // A case's row in the Workspace (the cases database) stands for its case; "paid" by hand pays its instalment, else what is open.
 rowRefs((rowId) => {

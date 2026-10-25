@@ -3,6 +3,7 @@ import { getSqlite } from "@/db";
 import { caseRefs } from "@/lib/boards/similar";
 import { addManualTodo, addTodoUserNote, listTodos, setTodoDue, setTodoOps, setTodoStatus } from "@/lib/boards/store";
 import { settleEvidence } from "@/lib/boards/todo-settle";
+import * as ledger from "@/lib/money/ledger";
 import { t } from "@/lib/i18n/server";
 import { detailsOf } from "@/plugins/people/details";
 import { getPerson } from "@/plugins/people/store";
@@ -57,8 +58,29 @@ export function addBookings(bookings: Booking[], account: string): { added: numb
 
 export const listTransactions = (limit = 500): Transaction[] => (db().prepare("select * from bank_transactions order by date desc, id limit ?").all(limit) as TRow[]).map(toTx);
 
-export const paymentsOf = (caseId: number): { amount: number; date: string; txId: string }[] =>
-  (db().prepare("select amount, date, tx_id txId from case_payments where case_id = ? order by date").all(caseId) as { amount: number; date: string; txId: string }[]).map((r) => ({ ...r }));
+let migrated = false;
+/** The payments the cases kept before the ledger (case_payments): moved into it once — a booking's, a todo's ("todo:<id>"), by hand. */
+function migrateCasePayments(): void {
+  if (migrated) return;
+  migrated = true;
+  const rows = db().prepare("select case_id caseId, tx_id txId, amount, date from case_payments").all() as { caseId: number; txId: string; amount: number; date: string }[];
+  for (const r of rows) {
+    const todo = r.txId.startsWith("todo:");
+    const hand = r.txId.startsWith("hand:");
+    const key = todo || hand ? r.txId : `tx:${r.txId}`;
+    if (ledger.paymentByKey(key)) continue;
+    const p = ledger.recordPayment({ key, date: r.date, amount: r.amount, label: todo ? `T-${r.txId.slice(5)}` : hand ? t("by hand") : `${t("Booking")} ${deDay(r.date)}`, source: todo ? "todo" : hand ? "hand" : "bank", tx: todo || hand ? null : r.txId });
+    ledger.allocate(p.id, `case:${r.caseId}`, r.amount);
+  }
+  if (rows.length) db().prepare("delete from case_payments").run();
+}
+
+/** A case's payments (the ledger's allocations to it), oldest first — `txId`: the payment's key ("tx:…", "todo:…", "hand:…"). */
+export const paymentsOf = (caseId: number): { amount: number; date: string; txId: string; label: string; source: string; tx: string | null }[] => {
+  db();
+  migrateCasePayments();
+  return ledger.allocationsOf(`case:${caseId}`).map((a) => ({ amount: a.amount, date: a.date, txId: a.key, label: a.label, source: a.source, tx: a.tx }));
+};
 
 /** What is paid on a case since its summary was made, and what is open now. */
 export function caseStanding(caseId: number): { paidSince: number; open: number | null; last: { date: string; amount: number } | null } {
@@ -117,12 +139,16 @@ export function matchPayments(): { matched: number } {
       });
       caseId = c?.id ?? null;
     }
-    // The same payment read twice (a statement and the bank connection): counted once.
-    // (One ticked off by hand — a todo done, todo-paid.ts — books days later: up to ten days.)
-    const twin = caseId && paymentsOf(caseId).some((p) => sameAmount(p.amount, tx.amount) && Math.abs(Date.parse(p.date) - Date.parse(tx.date)) <= (p.txId.startsWith("todo:") ? 10 : 2) * 864e5);
-    if (twin) {
-      d.prepare("update bank_transactions set case_id = ?, matched_at = ? where id = ?").run(caseId, new Date().toISOString(), tx.id);
-      continue;
+    // The same payment twice: one ticked off or said by hand days before (the ledger's twin — confirmed by this booking), or the same
+    // booking read twice (a statement and the bank connection, within two days): counted once.
+    if (caseId) {
+      const ticked = ledger.twinOf({ amount: tx.amount, date: tx.date, refs: [`case:${caseId}`] });
+      const read = paymentsOf(caseId).some((p) => p.source === "bank" && sameAmount(p.amount, tx.amount) && Math.abs(Date.parse(p.date) - Date.parse(tx.date)) <= 2 * 864e5);
+      if (ticked || read) {
+        if (ticked) ledger.confirmByBank(ticked.id, tx.id, `${t("Booking")} ${deDay(tx.date)}`);
+        d.prepare("update bank_transactions set case_id = ?, matched_at = ? where id = ?").run(caseId, new Date().toISOString(), tx.id);
+        continue;
+      }
     }
     if (!todo && !caseId) {
       // No todo and no case took it (a transfer you made without a todo): what it pays anyway — a promise to whoever it paid, a debt
@@ -137,7 +163,10 @@ export function matchPayments(): { matched: number } {
       continue;
     }
     d.prepare("update bank_transactions set case_id = ?, todo_id = ?, matched_at = ? where id = ?").run(caseId, todo?.id ?? null, new Date().toISOString(), tx.id);
-    if (caseId) d.prepare("insert or ignore into case_payments (case_id, tx_id, amount, date) values (?, ?, ?, ?)").run(caseId, tx.id, Math.abs(tx.amount), tx.date);
+    if (caseId) {
+      const p = ledger.recordPayment({ key: `tx:${tx.id}`, date: tx.date, amount: tx.amount, label: `${t("Booking")} ${deDay(tx.date)}`, source: "bank", tx: tx.id });
+      ledger.allocate(p.id, `case:${caseId}`, Math.abs(tx.amount));
+    }
     if (todo) {
       settleTodo(todo.id, `✓ Bezahlt laut Kontoauszug (${tx.account}, ${deDay(tx.date)}): ${euro(tx.amount)} an ${tx.counterparty || todo.op.name}.`);
       todo.done = true;

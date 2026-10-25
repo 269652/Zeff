@@ -1,5 +1,6 @@
 import { getSqlite } from "@/db";
 import { withCause } from "@/lib/cause";
+import { allocationsOf, deallocate } from "@/lib/money/ledger";
 import { onTodoCreated, onTodoDone, onTodoReopened } from "./done-hooks";
 import type { TodoView } from "./shared";
 import { getTodo } from "./store";
@@ -219,7 +220,8 @@ type Payable = (ref: string) => number | null;
 const payables = new Map<string, Payable>();
 export const refPayable = (kind: string, p: Payable): void => void payables.set(kind, p);
 
-export type LinkedThing = { ref: string; title: string; href: string | null; settledBy: { subject: string; label: string; todoId: number | null; at: string }[]; pay: number | null };
+/** `payments`: what the ledger allocated to it (lib/money/ledger.ts) — each can be released (a wrong match). */
+export type LinkedThing = { ref: string; title: string; href: string | null; settledBy: { subject: string; label: string; todoId: number | null; at: string }[]; pay: number | null; payments: { paymentId: number; key: string; label: string; date: string; amount: number; source: string; tx: string | null }[] };
 
 /**
  * What hangs together with a thing, for its page: the thing (its name, what settled it and when, what "paid" pays), the open todos
@@ -233,7 +235,8 @@ export function linksOf(target: { refs: string[] } | { todoId: number }, opts: {
     } catch {
       pay = null;
     }
-    return { ...refLabel(ref), settledBy: settledBy(ref), pay };
+    const payments = allocationsOf(ref).map((a) => ({ paymentId: a.paymentId, key: a.key, label: a.label, date: a.date, amount: a.amount, source: a.source, tx: a.tx }));
+    return { ...refLabel(ref), settledBy: settledBy(ref), pay, payments };
   };
   if ("todoId" in target) {
     const todo = getTodo(target.todoId);
@@ -246,6 +249,16 @@ export function linksOf(target: { refs: string[] } | { todoId: number }, opts: {
   const open = (opts.openTodos ?? []).slice(0, 300);
   const todos = open.filter((t) => linkedRefs(t).some((r) => wanted.has(r))).map((t) => ({ id: t.id, ref: t.ref, text: t.text, due: t.due ?? null }));
   return { things: target.refs.map(thing), todos };
+}
+
+/**
+ * A payment released from a thing (it was matched wrongly — another person's transfer, another debt): its allocation off, the thing's
+ * figures back, and the proof it came from no longer settles it (opened again, it takes back nothing there).
+ */
+export function releasePayment(paymentId: number, ref: string): void {
+  const key = (allocationsOf(ref).find((a) => a.paymentId === paymentId) ?? null)?.key;
+  deallocate(paymentId, ref);
+  if (key) table().prepare("delete from settled where subject = ? and ref = ?").run(key, ref);
 }
 
 /** "Paid" said by hand on a thing (a debt, a case): a proof of its own, settled like any — its key, to take it back. */

@@ -4,9 +4,9 @@ import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { linksAction, markPaidAction, undoPaidAction } from "../actions";
+import { linksAction, markPaidAction, releasePaymentAction, undoPaidAction } from "../actions";
 
-type Thing = { ref: string; title: string; href: string | null; settledBy: { subject: string; label: string; todoId: number | null; at: string }[]; pay: number | null };
+type Thing = { ref: string; title: string; href: string | null; settledBy: { subject: string; label: string; todoId: number | null; at: string }[]; pay: number | null; payments: { paymentId: number; key: string; label: string; date: string; amount: number; source: string; tx: string | null }[] };
 type Links = { things: Thing[]; todos: { id: number; ref: string; text: string; due: string | null }[] };
 
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: "2-digit", month: "2-digit", year: "2-digit" });
@@ -80,6 +80,34 @@ export function LinkedPanel({ target, onChanged }: { target: { rowId: number } |
                   </button>
                 ))}
             </div>
+            {/* Its payments (the ledger): each from where it came — a booking, a todo, by hand — and released when it was matched wrongly. */}
+            {x.payments.length > 0 && (
+              <ul className="space-y-0.5 pl-3 text-xs text-zinc-600 dark:text-zinc-300">
+                {x.payments.map((p) => (
+                  <li key={p.paymentId} className="flex flex-wrap items-center gap-1.5">
+                    <span aria-hidden>{p.source === "bank" ? "🏦" : p.source === "todo" ? "☑" : "✍"}</span>
+                    <span className="tabular-nums">{p.amount.toLocaleString(undefined, { style: "currency", currency: "EUR" })}</span>
+                    <span className="text-zinc-500">
+                      · {day(`${p.date}T12:00:00`)} · {p.label}
+                      {p.tx && p.source !== "bank" ? ` · ${t("confirmed by the bank")}` : ""}
+                    </span>
+                    <button
+                      type="button"
+                      className="text-zinc-400 hover:text-red-600 hover:underline"
+                      title={t("Not a payment of this — release it: its figures go back as they were without it")}
+                      onClick={async () => {
+                        const r = await releasePaymentAction(p.paymentId, x.ref);
+                        if (!r.ok) return void toast(r.error, { tone: "error" });
+                        load();
+                        onChanged?.();
+                      }}
+                    >
+                      {t("release")}
+                    </button>
+                  </li>
+                ))}
+              </ul>
+            )}
             {x.settledBy.length > 0 && (
               <ul className="space-y-0.5 pl-3 text-xs text-zinc-500">
                 {x.settledBy.map((s) => (

@@ -7459,5 +7459,8 @@
   "{n} records of {dbs}": "{n} registros de {dbs}",
   "No pipeline applies these rules yet (a rules step in a database's pipeline).": "Ninguna canalización aplica aún estas reglas (un paso de reglas en la canalización de una base).",
   "{n} promises and facts it read removed.": "{n} compromisos y datos de la ejecución eliminados.",
-  "Future days are locked by Chrono and skipped. Jobs are matched by number (e.g. <code>AB100-013209-00</code>).": "Chrono bloquea los días futuros y se omiten. Los trabajos se asignan por su número (p. ej. <code>AB100-013209-00</code>)."
+  "Future days are locked by Chrono and skipped. Jobs are matched by number (e.g. <code>AB100-013209-00</code>).": "Chrono bloquea los días futuros y se omiten. Los trabajos se asignan por su número (p. ej. <code>AB100-013209-00</code>).",
+  "confirmed by the bank": "confirmado por el banco",
+  "release": "desvincular",
+  "Not a payment of this — release it: its figures go back as they were without it": "No es un pago de esto — desvincular: las cifras vuelven a como eran sin él"
 }
