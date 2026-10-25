@@ -47,3 +47,11 @@ test("after an evaluation: the open todos that name a repetition get their rule,
   assert.equal(days.length, 1 + 11, "the one-off and the 11 repeats to 15.09.2027 (15.11. … 15.09.)");
   assert.equal(detectRecurrences().set, 0, "once");
 });
+
+test("the words of the repeats: the first payment's (erste, sofort, heute, a date it is due by) and the rule's clause left out", async () => {
+  const { repeatText } = await import("@/lib/boards/recurrence-text");
+  assert.equal(repeatText("Erste Rate 300 € (Az. DR II 1121/26) sofort überweisen; Folgeraten jeweils 300 € am 15. bis 15.09.2027"), "Rate 300 € (Az. DR II 1121/26) überweisen");
+  assert.equal(repeatText("Rate 50 € (Az. DR II 810/26) bis 15.11.2026 überweisen, danach monatlich am 15. bis 15.01.2027"), "Rate 50 € (Az. DR II 810/26) überweisen");
+  assert.match(repeatText(T125), /^Rate von 300,00 € \(Az\. DR II 1121\/26, Sparkasse-Vollstreckung\) auf das Dienstkonto der Gerichtsvollzieherin .* überweisen$/);
+  assert.equal(repeatText("Miete an Herrn Simon überweisen"), "Miete an Herrn Simon überweisen", "plain words stay");
+});

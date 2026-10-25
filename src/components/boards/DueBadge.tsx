@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { regenerateRecurringAction, setTodoDueAction, setTodoRecurrenceAction } from "@/plugins/todos/server-actions";
+import { DateField } from "@/components/DateField";
 import { duePill, dueText } from "@/lib/boards/due-shared";
 import { formatDate } from "@/lib/format";
 import { toast } from "../Toaster";
@@ -29,15 +30,15 @@ export function DueBadge({ todoId, due, closed }: { todoId: number; due: string 
     return (
       <span className="inline-flex items-center gap-1">
         {" · "}
-        <input
-          type="date"
+        {/* (Picked in the calendar: saved at once; typed: on Enter or leaving the field — see DateField.) */}
+        <DateField
           className="rounded border border-zinc-300 px-1 text-xs dark:border-zinc-700 dark:bg-zinc-900"
-          defaultValue={due ?? ""}
+          value={due}
           autoFocus
           disabled={pending}
           aria-label={t("Due date")}
-          onChange={(e) => e.target.value && save(e.target.value)}
-          onKeyDown={(e) => e.key === "Escape" && setEditing(false)}
+          onCommit={save}
+          onCancel={() => setEditing(false)}
           onBlur={() => setEditing(false)}
         />
         {due && (

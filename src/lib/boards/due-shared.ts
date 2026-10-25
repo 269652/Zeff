@@ -28,3 +28,22 @@ export const dueTone = (due: string) => {
   const d = daysUntil(due);
   return d <= 0 ? "text-red-600 dark:text-red-400 font-medium" : d <= 3 ? "text-amber-600 dark:text-amber-400" : "text-zinc-500";
 };
+
+/** How far ahead a repeat (a rate on the 15th) is shown: it waits set aside until then, and ticking it off before asks first. */
+export const REPEAT_AHEAD_DAYS = 7;
+
+/** A todo that comes back and whose due day is still further off than that: the days to it — else null. */
+export const repeatNotYet = (todo: { recurrence?: unknown; due: string | null }): number | null => {
+  if (!todo.recurrence || !todo.due) return null;
+  const d = daysUntil(todo.due.slice(0, 10));
+  return d > REPEAT_AHEAD_DAYS ? d : null;
+};
+
+/**
+ * A date field's value worth saving: a whole date of a year that makes sense (1900–2200). While a year is typed the field says
+ * "0002-11-15", "0020-…", "0202-…" — saved, the todo moved away and the field was gone before the year was written.
+ */
+export const plausibleDate = (v: string): boolean => {
+  const m = /^(\d{4})-\d{2}-\d{2}$/.exec(v);
+  return !!m && Number(m[1]) >= 1900 && Number(m[1]) <= 2200;
+};

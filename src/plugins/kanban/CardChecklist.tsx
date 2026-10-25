@@ -3,7 +3,8 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { addCardTodoAction, setTodoStatusAction } from "@/plugins/todos/server-actions";
+import { setTodoStatusConfirmed } from "@/components/boards/todo-status";
+import { addCardTodoAction } from "@/plugins/todos/server-actions";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { dueText, dueTone } from "@/lib/boards/due-shared";
@@ -21,10 +22,12 @@ export function CardChecklist({ cardRef, todos }: { cardRef: string; todos: Card
   const [showDone, setShowDone] = useState(false);
   const open = todos.filter((x) => x.status !== "done");
   const done = todos.filter((x) => x.status === "done");
-  const act = (fn: () => Promise<{ ok: boolean; error?: string; message?: string } | null>, after?: () => void) =>
+  const act = (fn: () => Promise<{ ok: boolean; error?: string; message?: string; cancelled?: boolean } | null>, after?: () => void) =>
     start(async () => {
       const r = await fn();
-      if (!r?.ok) toast(r?.error ?? t("That didn't work."), { tone: "error" });
+      if (!r?.ok) {
+        if (!r?.cancelled) toast(r?.error ?? t("That didn't work."), { tone: "error" });
+      }
       else after?.();
       router.refresh();
     });
@@ -36,7 +39,7 @@ export function CardChecklist({ cardRef, todos }: { cardRef: string; todos: Card
         className="mt-0.5 size-4 shrink-0"
         checked={todo.status === "done"}
         disabled={pending}
-        onChange={(e) => act(() => setTodoStatusAction(todo.id, e.target.checked ? "done" : "open"))}
+        onChange={(e) => act(() => setTodoStatusConfirmed(todo.id, e.target.checked ? "done" : "open"))}
         aria-label={todo.status === "done" ? t("T-{id} reopen", { id: todo.id }) : t("T-{id} done", { id: todo.id })}
       />
       <span className={`min-w-0 flex-1 ${todo.status === "done" ? "text-zinc-400 line-through" : ""}`}>

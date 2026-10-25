@@ -111,3 +111,20 @@ test("a todo with its series in the calendar needs no appointment actions — th
   assert.deepEqual(withoutAppointments([entry, transfer] as never, true).map((o) => o.type), ["bank-transfer"]);
   assert.equal(withoutAppointments([entry] as never, false).length, 1, "a todo without a rule keeps its appointment");
 });
+
+test("the next one is a plain repeat: not the first payment's words (“Erste Rate … sofort”), not flagged — that one was", async () => {
+  const { addManualTodo, getTodo, listTodos, setTodoStatus, setTodoDue, setTodoFlagged } = await import("@/lib/boards/store");
+  const { setRecurrence } = await import("@/lib/boards/recurring");
+  const t = addManualTodo({ ticket: "KB-3", text: "Erste Rate 300 € (Az. DR II 4242/26) sofort überweisen; Folgeraten jeweils 300 € am 15. bis 15.09.2027" });
+  setTodoDue(t.id, "2026-10-20");
+  setRecurrence(t.id, { ...monthly15, start: "2026-11-15", until: "2027-09-15" });
+  setTodoFlagged(t.id, true);
+  setTodoStatus(t.id, "done");
+  const next = listTodos({ status: "open" }).find((x) => x.text.includes("4242/26"))!;
+  assert.equal(next.due, "2026-11-15", "the first of the repeats");
+  assert.equal(next.text, "Rate 300 € (Az. DR II 4242/26) überweisen");
+  assert.equal(getTodo(next.id)!.flaggedAt, null, "not important before its time");
+  // And the one after it keeps the same plain words.
+  setTodoStatus(next.id, "done");
+  assert.equal(listTodos({ status: "open" }).find((x) => x.text.includes("4242/26"))!.text, "Rate 300 € (Az. DR II 4242/26) überweisen");
+});

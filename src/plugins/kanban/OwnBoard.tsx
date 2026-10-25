@@ -8,7 +8,8 @@ import { useAction } from "@/components/useAction";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { Overlay } from "@/components/Overlay";
-import { addCardTodoAction, setTodoStatusAction } from "@/plugins/todos/server-actions";
+import { setTodoStatusConfirmed } from "@/components/boards/todo-status";
+import { addCardTodoAction } from "@/plugins/todos/server-actions";
 import { CloseIcon, PencilIcon } from "@/components/icons";
 import {
   addColumnAction,
@@ -76,7 +77,7 @@ function Card({ c, lage, todosOn, parent, kids, onOpen, onDragStart, onDragEnd, 
     void run(() => addCardTodoAction(c.ref, text));
   };
   const tick = (id: number, done: boolean) =>
-    void run(() => setTodoStatusAction(id, done ? "done" : "open"));
+    void run(() => setTodoStatusConfirmed(id, done ? "done" : "open"));
   return (
     // A div that acts as a button: the todos opened in it have checkboxes of their own.
     <div

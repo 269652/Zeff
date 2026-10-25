@@ -3,7 +3,8 @@ import { getDb, schema } from "@/db";
 import { addEvent, deleteEvent, updateEvent, zeffCalendar } from "@/lib/calendar/ir";
 import { addDays, occurrenceDays, parseTodoRecurrence, type TodoRecurrence } from "@/lib/calendar/recurrence";
 import { getPref, setPref } from "@/lib/prefs";
-import { recurrenceFromText } from "./recurrence-text";
+import { recurrenceFromText, repeatText } from "./recurrence-text";
+import { daysUntil, REPEAT_AHEAD_DAYS } from "./due-shared";
 import { dueDay, type TodoOp } from "./shared";
 
 const { todos, calendarEvents } = schema;
@@ -11,8 +12,8 @@ const { todos, calendarEvents } = schema;
 /**
  * Todos that come back (a rate to pay on the 15th of every month). The rule is kept on the todo; Zeff's calendar shows it: the first due
  * day as an appointment of its own when the repeats begin later (pay now, then every 15th — the rule's `start`), and the repeats as a
- * series; when the todo is done the next one is made — the same text and actions, due on the next day the rule names. A todo dropped (not
- * done) is not made again. The appointments belong to the todo (`todo_id`): its context shows them.
+ * series; when the todo is done the next one is made — the same actions, in the words of a repeat (not the first payment's “Erste Rate …
+ * sofort”), not flagged, due on the next day the rule names. A todo dropped (not done) is not made again. The appointments belong to the todo (`todo_id`): its context shows them.
  */
 
 const FAR = "2100-01-01";
@@ -76,7 +77,9 @@ function syncEvents(todoId: number): void {
     return;
   }
   const make = (patch: Parameters<typeof addEvent>[1], had: typeof series) => (had ? updateEvent(had.id, patch) : addEvent(zeffCalendar().id, patch));
-  make({ title: titleOf(t.text, true), start: first, end: addDays(first, 1), allDay: true, recurrence: rule, todoId, showAs: "free" }, series);
+  // (The calendar's series has the rule only — not the words of the repeats.)
+  const { text: _words, ...calendarRule } = rule;
+  make({ title: titleOf(t.text, true), start: first, end: addDays(first, 1), allDay: true, recurrence: calendarRule, todoId, showAs: "free" }, series);
   // The first due day is its own appointment when the repeats begin later.
   if (rule.start && due && due < rule.start) make({ title: titleOf(t.text, false), start: due, end: addDays(due, 1), allDay: true, todoId, showAs: "free" }, single);
   else if (single) deleteEvent(single.id);
@@ -129,13 +132,18 @@ export function spawnNext(todoId: number): number | null {
     .values({
       ...copy,
       status: "open",
+      // A repeat in its own words (“Rate 300 € überweisen”, not the first one's “Erste Rate … sofort”) — the AI's, else by the words'
+      // rules —, and not important before its time.
+      text: rule.text ?? repeatText(t.text),
+      flaggedAt: null,
       due: next,
       doneAt: null,
       note: null,
       runId: null,
       entryId: null,
       workerDone: null,
-      deferredAt: null,
+      // Set aside until a week before it is due: ticked off, the next one doesn't stand there looking like the one just done.
+      deferredAt: daysUntil(next) > REPEAT_AHEAD_DAYS ? now : null,
       actionsReviewedAt: null,
       mergedInto: null,
       mergedAt: null,

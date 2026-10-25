@@ -1,6 +1,6 @@
 "use client";
 
-import { setTodoStatusAction } from "@/plugins/todos/server-actions";
+import { setTodoStatusConfirmed } from "@/components/boards/todo-status";
 import { todoKindLabels, type TodoSource, type TodoView } from "@/lib/boards/shared";
 import { SourceCard } from "./SourceCard";
 import { TodoSources } from "./boards/TodoSources";
@@ -76,7 +76,7 @@ export function TodoDetails({ t: todo, from = [] }: { t: TodoView; from?: TodoSo
           {todo.status !== "dismissed" && (
             <ResolveToggle
               done={todo.status === "done"}
-              onChange={(next) => setTodoStatusAction(todo.id, next ? "done" : "open")}
+              onChange={(next) => setTodoStatusConfirmed(todo.id, next ? "done" : "open")}
               hint={{ done: t("{ref} is done. Click: reopen.", { ref: todo.ref }), open: t("Mark {ref} as done", { ref: todo.ref }) }}
             />
           )}

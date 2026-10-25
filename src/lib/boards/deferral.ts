@@ -1,6 +1,7 @@
 import { entityWhoWhen } from "@/lib/entities-shared";
 import { t } from "@/lib/i18n/server";
 import { todoSources } from "./sources";
+import { daysUntil, repeatNotYet } from "./due-shared";
 import { sourcesOf, type TodoSource, type TodoView } from "./shared";
 
 /** How long a todo you put down stays down, unless something new happens on it. */
@@ -13,7 +14,8 @@ const time = (at: string) => Date.parse(at && !at.includes("T") ? `${at.replace(
 
 /**
  * The todos you put to the bottom: still down — or back up, and why: an agent asks you something,
- * something new in what it came from (a reply, a comment), a note, or it's been down long enough.
+ * something new in what it came from (a reply, a comment), a note, or it's been down long enough. A repeat (the next rate) stays down
+ * until a week before its due day — not after three days — and comes up then saying when it is due.
  */
 export function deferral(list: TodoView[]): Record<number, { deferred: boolean; bubbledUp?: string }> {
   const down = list.filter((x) => x.status === "open" && x.deferredAt);
@@ -34,9 +36,13 @@ export function deferral(list: TodoView[]): Record<number, { deferred: boolean; 
           ? noteBy
             ? t("new note from {who}", { who: noteBy })
             : t("new note")
-          : Date.now() - since > DOWN_DAYS * 864e5
-            ? t("put down {n} days ago", { n: DOWN_DAYS })
-            : undefined;
+          : todo.recurrence && todo.due
+            ? repeatNotYet(todo) === null
+              ? t("due in {n} days", { n: Math.max(0, daysUntil(todo.due.slice(0, 10))) })
+              : undefined
+            : Date.now() - since > DOWN_DAYS * 864e5
+              ? t("put down {n} days ago", { n: DOWN_DAYS })
+              : undefined;
     out[todo.id] = why ? { deferred: false, bubbledUp: why } : { deferred: true };
   }
   return out;

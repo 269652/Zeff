@@ -62,12 +62,25 @@ export async function setTodoTextAction(id: number, text: string): Promise<Actio
   }
 }
 
-export async function setTodoStatusAction(id: number, status: "open" | "done" | "dismissed"): Promise<ActionState> {
+/**
+ * A todo's status, set by you. A repeat (the next rate) ticked off more than a week before its day is not done at once: the answer asks
+ * (`confirm`) — the caller asks you and sends it again with `early` (setTodoStatusConfirmed does both).
+ */
+export async function setTodoStatusAction(id: number, status: "open" | "done" | "dismissed", opts: { early?: boolean } = {}): Promise<ActionState & { confirm?: string }> {
   try {
     if (!Number.isInteger(id) || !["open", "done", "dismissed"].includes(status)) return { ok: false, error: t("Unknown todo.") };
     const { getTodo, setTodoStatus } = await import("@/lib/boards/store");
     const { attributed } = await import("@/lib/boards/activity");
     const before = getTodo(id);
+    if (status === "done" && before?.status === "open" && !opts.early) {
+      const { repeatNotYet } = await import("@/lib/boards/due-shared");
+      const { formatDate } = await import("@/lib/format");
+      const days = repeatNotYet(before);
+      if (days !== null) {
+        const ask = t("{ref} comes back every time — this one is only due on {date} (in {n} days). Mark it done already?", { ref: `T-${id}`, date: formatDate(before.due!.slice(0, 10)), n: days });
+        return { ok: false, error: ask, confirm: ask };
+      }
+    }
     attributed("you", () => setTodoStatus(id, status, status === "open" ? null : undefined));
     // A "done" someone suggested (a worker, an agent, a review), confirmed by you: a verdict for the ledger.
     if (status === "done" && before?.workerDone && before.status === "open") {
@@ -198,6 +211,8 @@ export async function setTodoRecurrenceAction(todoId: number, freq: "daily" | "w
   try {
     const { setRecurrence } = await import("@/lib/boards/recurring");
     setRecurrence(Number(todoId), freq ? { freq, interval: 1 } : null);
+    // The words of its repeats, by the AI — in the background (the next sync does it otherwise).
+    if (freq) void import("@/lib/boards/repeat-text-ai").then((m) => m.writeRepeatTexts([Number(todoId)])).catch(() => undefined);
     (await import("@/lib/events")).emitChange("todos");
     revalidateAll();
     return { ok: true };

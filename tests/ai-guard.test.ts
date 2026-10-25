@@ -46,7 +46,7 @@ test("answerKey tells every part of a call apart", () => {
 });
 
 test("only the explicitly idempotent tasks are cached, never a review", () => {
-  assert.deepEqual([...IDEMPOTENT_TASKS].sort(), ["knowledge-relations", "news-digest", "people-normalize"]);
+  assert.deepEqual([...IDEMPOTENT_TASKS].sort(), ["knowledge-relations", "news-digest", "people-normalize", "repeat-text"]);
   for (const t of ["mail-todos", "note-todos", "doc-todos", "mail-relations", "ticket-lage", "worker", "general"] as const) assert.equal(IDEMPOTENT_TASKS.has(t), false);
 });
 

@@ -3,6 +3,7 @@
 import { actionHref } from "@/plugins/actions/catalog";
 import { useT } from "@/components/I18nProvider";
 import { Fragment, useState, useTransition } from "react";
+import { setTodoStatusConfirmed } from "@/components/boards/todo-status";
 import { deferTodoAction, runTodoOpsAction, setTodoStatusAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
 import {
   opsButton,
@@ -179,8 +180,9 @@ export function TodoItem({
     const before = status;
     setStatus(next);
     start(async () => {
-      const r = await setTodoStatusAction(todo.id, next);
+      const r = await setTodoStatusConfirmed(todo.id, next);
       if (r && !r.ok) {
+        if (r.cancelled) return void setStatus(todo.status);
         setStatus(todo.status);
         toast(r.error ?? t("{ref} couldn't be changed.", { ref: todo.ref }), { tone: "error" });
         return;

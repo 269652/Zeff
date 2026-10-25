@@ -25,8 +25,11 @@ export type Recurrence = {
   count?: number;
 };
 
-/** A todo's rule: a series' rule and — when its first due day is a one-off (pay now, then every 15th) — the day the repeats begin. */
-export type TodoRecurrence = Recurrence & { start?: string };
+/**
+ * A todo's rule: a series' rule and — when its first due day is a one-off (pay now, then every 15th) — the day the repeats begin; and
+ * the words of the repeats (“Rate 300 € überweisen”, where the first one said “Erste Rate … sofort”), written once by the AI.
+ */
+export type TodoRecurrence = Recurrence & { start?: string; text?: string };
 
 /** A todo's rule as stored (JSON) — cleaned; null when it isn't one. */
 export function parseTodoRecurrence(raw: unknown): TodoRecurrence | null {
@@ -41,7 +44,12 @@ export function parseTodoRecurrence(raw: unknown): TodoRecurrence | null {
     }
   }
   const start = (v as { start?: unknown } | null)?.start;
-  return typeof start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(start) ? { ...r, start } : r;
+  const text = (v as { text?: unknown } | null)?.text;
+  return {
+    ...r,
+    ...(typeof start === "string" && /^\d{4}-\d{2}-\d{2}$/.test(start) ? { start } : {}),
+    ...(typeof text === "string" && text.trim() ? { text: text.trim().slice(0, 300) } : {}),
+  };
 }
 
 const SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];

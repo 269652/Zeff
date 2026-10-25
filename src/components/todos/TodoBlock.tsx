@@ -4,7 +4,9 @@ import { useState, useTransition } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
+import { DateField } from "@/components/DateField";
 import type { ExtraTodo } from "@/lib/items/shared";
+import { setTodoStatusConfirmed } from "@/components/boards/todo-status";
 import { addCardTodoAction, setTodoDueAction, setTodoStatusAction, setTodoTextAction } from "@/plugins/todos/server-actions";
 
 /**
@@ -18,10 +20,10 @@ export function TodoBlock({ k, todos, onChanged, compact = false }: { k: string;
   const [editing, setEditing] = useState<number | null>(null);
   const [draft, setDraft] = useState("");
   const size = compact ? "text-xs" : "text-sm";
-  const act = (fn: () => Promise<{ ok?: boolean; error?: string } | null | undefined>) =>
+  const act = (fn: () => Promise<{ ok?: boolean; error?: string; cancelled?: boolean } | null | undefined>) =>
     start(async () => {
       const r = await fn();
-      if (r && r.ok === false) toast(r.error ?? t("Failed."), { tone: "error" });
+      if (r && r.ok === false && !r.cancelled) toast(r.error ?? t("Failed."), { tone: "error" });
       onChanged?.();
     });
   const save = (id: number) => {
@@ -43,7 +45,7 @@ export function TodoBlock({ k, todos, onChanged, compact = false }: { k: string;
     <ul className={`space-y-1 ${size}`} data-todo-block onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       {todos.map((x) => (
         <li key={x.id} className="group/todo flex items-start gap-1.5">
-          <input type="checkbox" className="mt-0.5 size-3.5 shrink-0" checked={x.status === "done"} disabled={pending} onChange={(e) => act(() => setTodoStatusAction(x.id, e.target.checked ? "done" : "open"))} aria-label={x.text} />
+          <input type="checkbox" className="mt-0.5 size-3.5 shrink-0" checked={x.status === "done"} disabled={pending} onChange={(e) => act(() => setTodoStatusConfirmed(x.id, e.target.checked ? "done" : "open"))} aria-label={x.text} />
           {editing === x.id ? (
             <input
               autoFocus
@@ -66,7 +68,7 @@ export function TodoBlock({ k, todos, onChanged, compact = false }: { k: string;
           {/* Its due date: shown when set, else on hover — a date picker. */}
           <label className={`shrink-0 text-[11px] ${x.due ? "text-rose-600 dark:text-rose-400" : "invisible text-zinc-400 group-hover/todo:visible"}`} title={t("Due")}>
             {x.due ? x.due.slice(5).split("-").reverse().join(".") : "📅"}
-            <input type="date" className="sr-only" value={x.due ?? ""} onChange={(e) => act(() => setTodoDueAction(x.id, e.target.value || null))} aria-label={t("Due")} />
+            <DateField className="sr-only" value={x.due} onCommit={(v) => act(() => setTodoDueAction(x.id, v))} aria-label={t("Due")} />
           </label>
           <a href={`/t/${x.id}`} className="invisible shrink-0 text-[11px] text-zinc-400 group-hover/todo:visible hover:text-zinc-700" title={t("Open the todo")}>
             T-{x.id}

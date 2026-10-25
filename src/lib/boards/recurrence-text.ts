@@ -46,3 +46,20 @@ export function recurrenceFromText(text: string, due: string | null): TodoRecurr
   if (until && until > (rule.start ?? due ?? "")) rule.until = until;
   return rule;
 }
+
+/**
+ * The words of the repeats (the next todo of a rate): the first payment's left out — “Erste”, “sofort”, “heute”, the day it is due by
+ * (the todo's due day says when) — and the clause that names the rule (“; danach jeweils …”, “, Folgeraten …”). “Erste Rate 300 €
+ * sofort überweisen; Folgeraten jeweils 300 € am 15.” → “Rate 300 € überweisen”. Words, not the AI; plain words stay as they are.
+ */
+export function repeatText(text: string): string {
+  let s = text.replace(/\s+/g, " ").trim();
+  // The rule's clause: from “; danach …”, “, anschließend …”, “; Folgeraten …”, “und die weiteren …” on.
+  s = s.replace(/\s*[;,]\s*(?:und\s+)?(?:danach|anschließend|ab dann|folgeraten|folgende raten|weitere raten|die weiteren|dann jeweils|jeweils)\b.*$/i, "");
+  // The first payment's words.
+  s = s.replace(/^(?:die\s+)?(?:erste|1\.)\s+/i, "");
+  s = s.replace(/\s+(?:sofort|umgehend|unverzüglich|heute)(?=\s)/gi, "");
+  s = s.replace(/\s+bis (?:zum )?\d{1,2}\.\d{1,2}\.(?:\d{2,4})?(?=\s)/gi, "");
+  s = s.replace(/\s+/g, " ").trim().replace(/[.;,]$/, "");
+  return s ? s[0].toUpperCase() + s.slice(1) : text;
+}
