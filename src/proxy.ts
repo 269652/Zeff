@@ -1,5 +1,5 @@
 import { NextResponse, type NextRequest } from "next/server";
-import { EDGE_HEADER, GATE_COOKIE, gateCheck, gateOn, readGate } from "@/lib/gate";
+import { EDGE_HEADER, GATE_COOKIE, gateCheck, gateOn, readGate, viaTailnet } from "@/lib/gate";
 import { gatePage } from "@/lib/gate-page";
 import { lockPage } from "@/lib/lock/page";
 import { activeAccountNow, COOKIE, lockOpenFor, readConfig, readState, sessionValid } from "@/lib/lock/shared";
@@ -13,11 +13,13 @@ import { activeAccountNow, COOKIE, lockOpenFor, readConfig, readState, sessionVa
  * and a page cannot remove them), so they pass — the lock guards the screen, not the machine. /api/lock is the way in.
  */
 export function proxy(req: NextRequest) {
-  // On a server (ZEFF_GATE=1): what comes from the internet needs the gate's session or a token first (src/lib/gate.ts).
-  if (gateOn()) {
-    const g = gateCheck({ edge: req.headers.has(EDGE_HEADER), path: req.nextUrl.pathname, cookie: req.cookies.get(GATE_COOKIE)?.value, authorization: req.headers.get("authorization") }, readGate(), Date.now());
+  // On a server (ZEFF_GATE=1): what comes from the internet needs the gate's session or a token first (src/lib/gate.ts) — and so
+  // does what comes from your tailnet (the phone, through Tailscale's serve), wherever Zeff runs.
+  const tailnet = viaTailnet(req.headers);
+  if (gateOn() || tailnet) {
+    const g = gateCheck({ edge: tailnet || req.headers.has(EDGE_HEADER), path: req.nextUrl.pathname, cookie: req.cookies.get(GATE_COOKIE)?.value, authorization: req.headers.get("authorization") }, readGate(), Date.now());
     const closed = { "cache-control": "no-store", "x-zeff-locked": "1" };
-    if (g === "deny") return new NextResponse("Zeff is closed: no password is set (scripts/gate.mjs).", { status: 503, headers: closed });
+    if (g === "deny") return new NextResponse("Zeff is closed: no password is set (on this computer: Settings → Mobile access, or scripts/gate.mjs).", { status: 503, headers: closed });
     if (g === "login") {
       const page = req.method === "GET" && (req.headers.get("sec-fetch-dest") ?? "document") === "document";
       if (page) return new NextResponse(gatePage(), { status: 401, headers: { ...closed, "content-type": "text/html; charset=utf-8" } });

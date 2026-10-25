@@ -143,3 +143,19 @@ test("a web server that delegates has nothing of its own to wait for in a deploy
   asWeb(false);
   delete g.__zeffBoardRun;
 });
+
+test("Google Calendar with the days shown: the web server hands it to the host too", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("google-calendar", true);
+  // (Through the API — not signed in, it fails at once; no Chrome is started.)
+  (await import("@/lib/connectors/store")).updateConnector("gcalendar", { driver: "api" });
+  asWeb();
+  try {
+    seen.length = 0;
+    const { syncCalendarsAction } = await import("@/plugins/calendar/server-actions");
+    await syncCalendarsAction({ from: "2024-01-29", to: "2024-03-11" });
+    assert.deepEqual(seen.map((s) => s.op), ["gcal.range"]);
+  } finally {
+    asWeb(false);
+  }
+});

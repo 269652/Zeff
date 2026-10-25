@@ -345,6 +345,8 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
       // Todos that name a repetition (a rate every 15th) get their rule and the series in the calendar.
       const { detectRecurrences } = await import("@/lib/boards/recurring");
       const rec = detectRecurrences();
+      // Their next todos' words (without “Erste Rate … sofort”), by the AI — once per todo.
+      await (await import("@/lib/boards/repeat-text-ai")).writeRepeatTexts().catch(() => undefined);
       const merged = r.merged ? t("{n} duplicates merged", { n: r.merged }) : t("No duplicates.");
       return { ok: true, message: rec.set ? `${merged} ${t("{n} todos repeat — their series are in the calendar.", { n: rec.set })}` : merged };
     },

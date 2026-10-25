@@ -28,6 +28,17 @@ export const GATE_SESSION_MS = 30 * 86_400_000;
 export const EDGE_HEADER = "x-zeff-edge";
 export const gateOn = (): boolean => process.env.ZEFF_GATE === "1";
 
+/**
+ * A request that came through Tailscale's serve — your phone in your tailnet, Zeff on this computer (Settings → Mobile access): serve
+ * adds the user's login (Tailscale-User-Login) and keeps the tailnet's host name (*.ts.net). It needs the gate's session too, the
+ * same as one through a server's edge; this computer's own browser (127.0.0.1) passes as ever.
+ */
+export const viaTailnet = (h: { get(name: string): string | null }): boolean =>
+  !!h.get("tailscale-user-login") || /\.ts\.net(:\d+)?$/i.test(h.get("x-forwarded-host") ?? h.get("host") ?? "");
+
+/** What a phone fetches before it is signed in to put Zeff on its home screen (no data in them). */
+const OPEN_PATHS = new Set(["/manifest.webmanifest", "/icon.svg", "/apple-icon.png", "/android-chrome-192x192.png", "/android-chrome-512x512.png"]);
+
 const dataDir = () => path.dirname(process.env.DATABASE_PATH ?? path.join(/*turbopackIgnore: true*/ process.cwd(), "data", "zeff.db"));
 export const gateFile = () => path.join(dataDir(), "gate.json");
 
@@ -86,6 +97,7 @@ function sessionLive(value: string | undefined, cfg: GateConfig, now: number): b
  */
 export function gateCheck(r: { edge: boolean; path: string; cookie: string | undefined; authorization: string | null }, cfg: GateConfig | null, now: number): "pass" | "login" | "deny" {
   if (!r.edge) return "pass";
+  if (OPEN_PATHS.has(r.path)) return "pass";
   if (!cfg) return "deny";
   if (r.path === "/api/gate") return "pass";
   if (sessionLive(r.cookie, cfg, now)) return "pass";
@@ -95,4 +107,20 @@ export function gateCheck(r: { edge: boolean; path: string; cookie: string | und
     if (cfg.tokens.some((t) => same(t.hash, h))) return "pass";
   }
   return "login";
+}
+
+/** A new password (Settings → Mobile access, or scripts/gate.mjs): a new secret too — every session ends; the tokens stay. */
+export function setGatePassword(pw: string): void {
+  if (pw.length < 12) throw new Error("At least 12 characters.");
+  let had: Partial<GateConfig> = {};
+  try {
+    had = JSON.parse(fs.readFileSync(gateFile(), "utf8")) as Partial<GateConfig>;
+  } catch {
+    // none yet
+  }
+  const cfg: GateConfig = { secret: newGateSecret(), password: hashPassword(pw), tokens: Array.isArray(had.tokens) ? had.tokens : [] };
+  fs.mkdirSync(path.dirname(gateFile()), { recursive: true });
+  fs.writeFileSync(`${gateFile()}.part`, JSON.stringify(cfg, null, 2), { mode: 0o600 });
+  fs.renameSync(`${gateFile()}.part`, gateFile());
+  cached = null;
 }

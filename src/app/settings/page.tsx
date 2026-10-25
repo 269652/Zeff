@@ -88,6 +88,9 @@ export default async function SettingsPage() {
         <Link href="/privacy" className="btn btn-sm w-full text-center">
           {t("What leaves this PC")}
         </Link>
+        <Link href="/settings/mobile" className="btn btn-sm w-full text-center" title={t("Zeff on your phone through Tailscale — the database stays on this computer")}>
+          {t("Mobile access")}
+        </Link>
         {isInstalled("todos") && (
           <Link href="/settings/todos" className="btn btn-sm w-full text-center" title={t("What a todo shows under its text, and which kinds of knowledge count")}>
             {t("Todo settings")}
