@@ -40,6 +40,8 @@ export type CaseSummary = {
   fromClaim?: number;
   at: string;
   sources: number;
+  /** The payments (their ids) this summary counted already — moved its due on, closed it (todo-paid.ts settleCase). */
+  settled?: string[];
 };
 
 export type Case = {

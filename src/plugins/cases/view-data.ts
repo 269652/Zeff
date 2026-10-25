@@ -80,7 +80,7 @@ export function caseAppData(d: CaseBundle, v: { t: T; busy: boolean; locale?: st
     letters: d.counts.doc,
     hasSources: d.sources.length > 0,
     payment: !!d.payment,
-    paid: [...d.paid].reverse().map((p) => ({ date: day(p.date, v.locale), amount: p.amount })),
+    paid: [...d.paid].reverse().map((p) => ({ date: day(p.date, v.locale), amount: p.amount, todo: p.todo })),
     parties: { creditor: party("creditor"), collector: party("collector"), payee: party("payee") },
     bundle: d,
   };
@@ -88,4 +88,4 @@ export function caseAppData(d: CaseBundle, v: { t: T; busy: boolean; locale?: st
 
 /** What a case's page holds as app.* — the AI and the language's help read it. */
 export const CASE_APP_DATA =
-  "app.loading, app.error (while loading), app.label (the case number), app.manual (a debt of your own: no number, never summed up), app.creditor, app.collector, app.person (each null or {name, href}: its page — test with app.creditor.name), app.party (who the summary names, when there is no creditor), app.status (open, closed, ignored), app.canCompile (the LLM plugin there), app.busy (an operation running), app.summed, app.compiling (being summed up now), app.summary, app.total, app.open (after the bank's payments), app.installment (money, may be null), app.next (the next date and what it is, written out; may be empty), app.todos (each: id, ref, href, text, done, due), app.mails, app.letters (how many), app.hasSources, app.payment (an account known), app.paid (the bank's payments, newest first; each: date, amount), app.parties.creditor / .collector / .payee (each null or {name, href, ai: as the AI read it}).";
+  "app.loading, app.error (while loading), app.label (the case number), app.manual (a debt of your own: no number, never summed up), app.creditor, app.collector, app.person (each null or {name, href}: its page — test with app.creditor.name), app.party (who the summary names, when there is no creditor), app.status (open, closed, ignored), app.canCompile (the LLM plugin there), app.busy (an operation running), app.summed, app.compiling (being summed up now), app.summary, app.total, app.open (after the bank's payments), app.installment (money, may be null), app.next (the next date and what it is, written out; may be empty), app.todos (each: id, ref, href, text, done, due), app.mails, app.letters (how many), app.hasSources, app.payment (an account known), app.paid (the payments — the bank's, and payment todos ticked off — newest first; each: date, amount, todo (the todo's ref when one paid it, else null)), app.parties.creditor / .collector / .payee (each null or {name, href, ai: as the AI read it}).";

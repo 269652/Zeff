@@ -16,3 +16,18 @@ export function runTodoDoneHooks(todoId: number): void {
     }
   }
 }
+
+/** Things that follow a done todo opened again (what its being done brought is taken back — todo-settle.ts). */
+const reopenHooks: Hook[] = [];
+
+export const onTodoReopened = (h: Hook): void => void (reopenHooks.includes(h) || reopenHooks.push(h));
+
+export function runTodoReopenedHooks(todoId: number): void {
+  for (const h of reopenHooks) {
+    try {
+      h(todoId);
+    } catch (e) {
+      console.warn("[todo reopened hook]", e instanceof Error ? e.message : e);
+    }
+  }
+}

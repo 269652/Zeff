@@ -29,7 +29,7 @@ const SUMMED = bundle({
   counts: { mail: 2, doc: 1, todo: 2 },
   sources,
   payment: { name: "OGV", iban: "DE02120300000000202051", bic: "BYLADEM1001", purpose: "DR II 1121/26", amount: 100 },
-  paid: [{ date: "2026-09-15", amount: 100 }, { date: "2026-10-15", amount: 100 }],
+  paid: [{ date: "2026-09-15", amount: 100, todo: null }, { date: "2026-10-15", amount: 100, todo: "T-7" }],
   openNow: 700,
 });
 
@@ -76,7 +76,7 @@ test("summed up, with an account: the header, four figures, todos, sources, paym
   // The layout: the main column and the payment beside it.
   const split = find(r.nodes, "split")[0];
   assert.equal(split.a.side, "right");
-  assert.deepEqual(find(r.nodes, "section").map((s) => s.a.title), ["Where it stands", "Todos", "Mails and letters", "Payment", "Paid (bank)", "Parties", "Notes"]);
+  assert.deepEqual(find(r.nodes, "section").map((s) => s.a.title), ["Where it stands", "Todos", "Mails and letters", "Payment", "Paid", "Parties", "Notes"]);
   // Where it stands: the summary and the money.
   assert.match(all, /Ratenzahlung vereinbart/);
   const tiles = find(r.nodes, "tile");
@@ -113,7 +113,7 @@ test("not summed up yet: Sum up, the text that says so, no figures, no todos, no
   assert.match(all, /No todo names this case\./);
   assert.match(all, /No mail or letter found for it yet\./);
   assert.match(all, /No account known for it yet — choose the person it is with\./);
-  assert.equal(find(r.nodes, "section").some((s) => s.a.title === "Paid (bank)"), false);
+  assert.equal(find(r.nodes, "section").some((s) => s.a.title === "Paid"), false);
   assert.deepEqual(find(r.nodes, "part").map((p) => p.a.name), ["case.status", "case.know", "case.timeline", "case.contact", "case.contact", "case.contact", "case.note"]);
   assert.match(text(draw(data(bundle({ compiling: true }))).nodes), /Being summed up from its mails, letters and todos …/);
   assert.match(text(draw(data(bundle({ canCompile: false }))).nodes), /With the LLM plugin the AI sums the case up\./);

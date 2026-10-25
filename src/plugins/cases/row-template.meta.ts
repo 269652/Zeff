@@ -21,7 +21,7 @@ const party = (t: T, role: string, label: string, hint: string) => `    <col gap
     </col>`;
 
 const template = (t: T) => `{{#if app.loading}}
-  <text tone=muted>{{ app.error | default('…') }}</text>
+  {{#if app.error}}<box tone=bad title="${t("Something went wrong")}"><text>{{ app.error }}</text></box>{{#else}}<text tone=muted>…</text>{{/if}}
 {{#else}}
 
 <row gap=2 align=center>
@@ -99,9 +99,9 @@ const template = (t: T) => `{{#if app.loading}}
     </section>
 
     {{#if app.paid}}
-      <section title="${t("Paid (bank)")}">
+      <section title="${t("Paid")}">
         <list source="app.paid" spacing=compact>
-          <row gap=2 align=baseline justify=between><muted>{{ date }}</muted><b>{{ amount | euro }}</b></row>
+          <row gap=2 align=baseline justify=between><muted>{{ date }}{{#if todo}} · ${t("ticked off")} {{ todo }}{{/if}}</muted><b>{{ amount | euro }}</b></row>
         </list>
       </section>
     {{/if}}

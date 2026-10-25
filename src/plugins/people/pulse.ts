@@ -209,9 +209,10 @@ export async function meetingBriefs(now = new Date()): Promise<MeetingBrief[]> {
       if (isInstalled("cases")) {
         const { casesOfPerson } = await import("@/plugins/cases/store");
         const { caseTitle } = await import("@/plugins/cases/shared");
+        const { openOf } = await import("@/plugins/cases/bank");
         cases = casesOfPerson(p.id)
           .filter((c) => c.status === "open" && !c.compiled?.done)
-          .map((c) => ({ label: c.label, title: caseTitle(c), open: c.compiled?.open ?? null, nextDue: c.compiled?.nextDue ?? null }));
+          .map((c) => ({ label: c.label, title: caseTitle(c), open: openOf(c), nextDue: c.compiled?.nextDue ?? null }));
       }
       out.push({
         personId: p.id,

@@ -6,7 +6,7 @@ import { detailsOf } from "@/plugins/people/details";
 import { getPerson } from "@/plugins/people/store";
 import { isInstalled } from "@/plugins/state";
 import { partiesOf } from "./parties";
-import { caseTitle } from "./shared";
+import { caseTitle, type Case } from "./shared";
 import { caseByKey, getCase, listCases } from "./store";
 
 /**
@@ -69,6 +69,9 @@ export function caseStanding(caseId: number): { paidSince: number; open: number 
   return { paidSince, open, last: last ? { date: last.date, amount: last.amount } : null };
 }
 
+/** What is open on a case now — what its letters say, less what was paid since (a booking, a payment todo ticked off). Null: not said. */
+export const openOf = (c: Pick<Case, "id" | "compiled">): number | null => (c.compiled?.open == null ? null : caseStanding(c.id).open);
+
 // ---------------------------------------------------------------------------
 // Matching
 // ---------------------------------------------------------------------------
@@ -113,7 +116,8 @@ export function matchPayments(): { matched: number } {
       caseId = c?.id ?? null;
     }
     // The same payment read twice (a statement and the bank connection): counted once.
-    const twin = caseId && paymentsOf(caseId).some((p) => sameAmount(p.amount, tx.amount) && Math.abs(Date.parse(p.date) - Date.parse(tx.date)) <= 2 * 864e5);
+    // (One ticked off by hand — a todo done, todo-paid.ts — books days later: up to ten days.)
+    const twin = caseId && paymentsOf(caseId).some((p) => sameAmount(p.amount, tx.amount) && Math.abs(Date.parse(p.date) - Date.parse(tx.date)) <= (p.txId.startsWith("todo:") ? 10 : 2) * 864e5);
     if (twin) {
       d.prepare("update bank_transactions set case_id = ?, matched_at = ? where id = ?").run(caseId, new Date().toISOString(), tx.id);
       continue;

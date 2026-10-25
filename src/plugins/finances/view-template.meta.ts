@@ -25,7 +25,7 @@ const template = (t: T) => `<state name="dir" value="owe"/>
 </row>
 
 {{#if app.loading}}
-  <muted>{{ app.error | default('…') }}</muted>
+  {{#if app.error}}<box tone=bad title="${t("Something went wrong")}"><text>{{ app.error }}</text></box>{{#else}}<text tone=muted>…</text>{{/if}}
 {{#else}}
 
 <grid cols=4 min=190>

@@ -35,7 +35,8 @@ export type CaseBundle = {
   /** Being summed up now (the first time it is opened). */
   compiling: boolean;
   /** The payments the bank shows for it, and what is open after those since its summary. */
-  paid: { date: string; amount: number }[];
+  /** The payments: the bank's bookings, and those of payment todos ticked off (`todo`: its ref). */
+  paid: { date: string; amount: number; todo: string | null }[];
   openNow: number | null;
 };
 
@@ -87,7 +88,7 @@ export async function caseBundle(caseId: number): Promise<CaseBundle> {
     canCompile: isInstalled("llm"),
     payment: casePayment(caseId),
     compiling,
-    paid: paymentsOf(caseId).map((p) => ({ date: p.date, amount: p.amount })),
+    paid: paymentsOf(caseId).map((p) => ({ date: p.date, amount: p.amount, todo: p.txId.startsWith("todo:") ? `T-${p.txId.slice(5)}` : null })),
     openNow: caseStanding(caseId).open,
   };
 }

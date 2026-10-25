@@ -131,6 +131,8 @@ export async function compileCases(opts: { ids?: number[]; force?: boolean; limi
     for (const c of due) {
       const answer = await ask(promptFor(c.id), SCHEMA);
       updateCase(c.id, { compiled: checked(answer, c.key, sourcesOf(c.id).length) });
+      // (What was paid since — a todo ticked off today — counted in the new summary too.)
+      (await import("./todo-paid")).settleCase(c.id);
       // Its creditor and who collects it as contacts.
       assignParties(c.id);
       compiled++;

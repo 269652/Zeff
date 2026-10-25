@@ -1,6 +1,7 @@
 import type { WorkspaceSource } from "@/plugins/workspace/source-point";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
+import { openOf } from "./bank";
 import { detectCases } from "./detect";
 import { caseTitle } from "./shared";
 import { listCases, sourcesOf } from "./store";
@@ -37,7 +38,7 @@ export async function caseRecords() {
         { id: F.party, name: "Party", type: "text" as const, value: s?.party ?? "" },
         { id: F.person, name: "Person", type: "text" as const, value: c.personId ? (names.get(c.personId) ?? "") : "" },
         { id: F.total, name: "Total", type: "number" as const, value: s?.total ?? null },
-        { id: F.open, name: "Open", type: "number" as const, value: s?.open ?? null },
+        { id: F.open, name: "Open", type: "number" as const, value: openOf(c) },
         { id: F.installment, name: "Instalment", type: "number" as const, value: s?.installment ?? null },
         { id: F.nextDue, name: "Next due", type: "date" as const, value: s?.nextDue ?? null },
         { id: F.nextWhat, name: "Next", type: "text" as const, value: s?.nextWhat ?? "" },

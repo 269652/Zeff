@@ -5,7 +5,7 @@ import { inDaysText, upcomingTitle } from "./shared";
 import { markReminded, upcomingOpen } from "./store";
 import { openCommitments, reviewClaim } from "./graph";
 
-/** The dates of your people coming up (birthdays, anniversaries) — "done" for this time takes one off. */
+/** The dates of your people coming up (birthdays, anniversaries) — "done" for this time takes one off; who owes whom; the briefs before an appointment; who you are drifting apart from. */
 export const PEOPLE_WIDGETS: WorkspaceWidget[] = [
   {
     id: "people.upcoming",
@@ -129,6 +129,36 @@ export const PEOPLE_WIDGETS: WorkspaceWidget[] = [
         href: personHref(b.personId),
       }));
       return { kind: "list", items, count: briefs.length || undefined, empty: t("No appointments with your people in the next 24 hours.") };
+    },
+  },
+  {
+    id: "people.drifting",
+    get label() {
+      return t("Drifting apart");
+    },
+    icon: "🌊",
+    get description() {
+      return t("The people you are in touch with less than usual: their usual rhythm over the last 12 months, and how long it has been now — twice that and more.");
+    },
+    get settings(): WidgetSetting[] {
+      return [{ key: "limit", label: t("How many"), kind: "number", default: 6, min: 1, max: 20 }];
+    },
+    // Reads a year of messages per person: not every minute.
+    ttl: 900,
+    data: async (config) => {
+      const { personHref } = await import("@/plugins/workspace/people-database");
+      const { driftingPeople } = await import("./pulse-insights");
+      const all = await driftingPeople();
+      const items = all.slice(0, Number(config.limit ?? 6)).map((x) => ({
+        id: String(x.personId),
+        icon: initials(x.name) || "🌊",
+        text: x.name,
+        detail: t("usually every {n} days, now {m} days", { n: Math.round(x.typicalGap * 10) / 10, m: x.daysSince }),
+        meta: new Date(`${x.lastDay}T12:00:00`).toLocaleDateString(),
+        tone: x.drift >= 4 ? ("warn" as const) : undefined,
+        href: personHref(x.personId),
+      }));
+      return { kind: "list", items, count: all.length || undefined, empty: t("Nobody drifting — you are in touch with your people as usual.") };
     },
   },
 ];

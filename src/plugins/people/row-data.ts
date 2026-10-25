@@ -34,6 +34,33 @@ const relLabels = (t: T): Record<string, string> => ({
 const KIND_ORDER = ["role", "owns", "fact", "preference", "commitment"];
 const kindGroups = (t: T): Record<string, string> => ({ role: t("Role"), owns: t("Responsible for"), fact: t("Facts"), preference: t("Preferences"), commitment: t("Commitments") });
 
+/** A time to answer (minutes) in words: "12 min", "3 h", "2 days". */
+const waitText = (min: number, t: T) => (min < 60 ? t("{n} min", { n: Math.max(1, Math.round(min)) }) : min < 48 * 60 ? t("{n} h", { n: Math.round(min / 60) }) : t("{n} days", { n: Math.round(min / 1440) }));
+
+/**
+ * The rhythm with them (app.pulse): how many days in touch and where, the usual gap and how long it has been (a warning when drifting),
+ * who starts, how fast each answers — each line left out (empty) when there's nothing to say.
+ */
+function pulseData(p: PersonBundle["pulse"] | undefined, t: T) {
+  if (!p || !p.contactDays) return { any: false, days: "", channels: "", rhythm: "", drifting: false, drift: "", initiative: "", reply: "" };
+  const channels = Object.entries(p.byChannel)
+    .sort(([, a], [, b]) => (b ?? 0) - (a ?? 0))
+    .map(([c, n]) => `${c === "Mail" ? t("Mail") : c === "Appointment" ? t("Appointments") : c} ${n}`)
+    .join(" · ");
+  const gap = p.typicalGap === null ? null : Math.round(p.typicalGap * 10) / 10;
+  const i = p.initiative;
+  return {
+    any: true,
+    days: t("{n} days in touch in the last 12 months", { n: p.contactDays }),
+    channels,
+    rhythm: gap !== null && p.daysSince !== null ? t("Usually every {n} days — the last contact {m} days ago", { n: gap, m: p.daysSince }) : "",
+    drifting: p.drifting,
+    drift: p.drifting && p.drift !== null ? t("Drifting: {x}× the usual gap", { x: p.drift }) : "",
+    initiative: i.share !== null ? t("You start {pct} of your conversations ({mine} of {all})", { pct: `${Math.round(i.share * 100)}%`, mine: i.mine, all: i.mine + i.theirs }) : "",
+    reply: [p.reply.mine !== null ? t("you answer in {time}", { time: waitText(p.reply.mine, t) }) : "", p.reply.theirs !== null ? t("they answer in {time}", { time: waitText(p.reply.theirs, t) }) : ""].filter(Boolean).join(" · "),
+  };
+}
+
 /** A name as an option of a <select> (its commas and colons would split it). */
 const option = (s: string) => s.replace(/[,:]/g, " ").replace(/\s+/g, " ").trim();
 
@@ -95,6 +122,7 @@ export function personPageData(x: PersonPageInput, v: { t: T; locale?: string })
       historyTip: (x.history ?? []).map((h) => `${h.value} — ${statusLabels[h.status] ?? h.status} ${h.at} (${h.source === "you" ? t("you") : h.source})`).join("\n"),
     })),
     hasDetails: d.details.length > 0,
+    pulse: pulseData(d.pulse, t),
     account,
     canPay: !!account,
 
@@ -156,4 +184,4 @@ export function personPageData(x: PersonPageInput, v: { t: T; locale?: string })
 
 /** What app.* holds — the AI and the language's help read it. */
 export const PERSON_PAGE_APP_DATA =
-  "app.loading, app.ready (the person read), app.error, app.person (the whole bundle), app.id, app.name, app.starred, app.starLabel (★/☆), app.starTip, app.profile (name, aliases, emails, whatsapp, jira — as the inputs show them), app.note, app.details (id, key: iban|bic|bank|revtag|address|phone|hours, label, value, mono, phone, dial (the number to call), map (an address on the map), confirmed, provenance (where it was read · when last confirmed), historyTip (its other values: superseded, disputed — one a line)), app.hasDetails, app.account (their bank account, for the transfer), app.canPay, app.compiled, app.compileLabel, app.summary (connection, keyFacts, funFacts, sources), app.dates (id, label, text, when, confirmed, remindDays, sourceText), app.hasDates, app.known (read from messages: any, nothing, first (the tab to start on), tabs (the <tabs> options with their counts), check (id, kind, text, due, evidence, quote), facts (by kind: kind, title, items (id, text, due, tip, commitment)), done (id, kind, text, due), hasCheck, hasFacts, hasDone), app.links (id, rel, target), app.relations (out (id, rel, toYou, other, evidence), in (id, rel, person, evidence), none), app.others (id, name), app.hasOthers, app.mergeOptions (<select> options), app.wiki (summary, related (name, rels), pages (id, title, space, href), graph, error, merge), app.showWiki, app.wikiLoading, app.wikiError, app.wikiEmpty, app.wikiFull, app.wikiMerge (id, text, label), app.hasWikiMerge, app.wikiPagesTitle, app.contacts (key, folder, who, at, text), app.todos (id, ref, text, due, href), app.hasEvents (the Calendar plugin), app.anyEvents, app.events (upcoming, recent — each: key, color, calendar, when, title, href, location), app.cases (id, label, title, href, done, showOpen, open, nextDue), app.hasCases, app.documents (id, name, href, at, summary), app.hasDocuments, app.pages (id, label, href), app.tickets. State: state.known (check|facts|done: the tab), state.keep (the profile to merge into), state.busy (compile|findDates: running), state.saved (profile|note: “Saved ✓” for a moment).";
+  "app.loading, app.ready (the person read), app.error, app.person (the whole bundle), app.id, app.name, app.starred, app.starLabel (★/☆), app.starTip, app.profile (name, aliases, emails, whatsapp, jira — as the inputs show them), app.note, app.details (id, key: iban|bic|bank|revtag|address|phone|hours, label, value, mono, phone, dial (the number to call), map (an address on the map), confirmed, provenance (where it was read · when last confirmed), historyTip (its other values: superseded, disputed — one a line)), app.hasDetails, app.pulse (the rhythm over the last 12 months: any (days in touch at all), days, channels (per channel), rhythm (the usual gap, the last contact), drifting, drift (how far beyond), initiative (who starts), reply (the median times to answer) — texts, empty when nothing to say), app.account (their bank account, for the transfer), app.canPay, app.compiled, app.compileLabel, app.summary (connection, keyFacts, funFacts, sources), app.dates (id, label, text, when, confirmed, remindDays, sourceText), app.hasDates, app.known (read from messages: any, nothing, first (the tab to start on), tabs (the <tabs> options with their counts), check (id, kind, text, due, evidence, quote), facts (by kind: kind, title, items (id, text, due, tip, commitment)), done (id, kind, text, due), hasCheck, hasFacts, hasDone), app.links (id, rel, target), app.relations (out (id, rel, toYou, other, evidence), in (id, rel, person, evidence), none), app.others (id, name), app.hasOthers, app.mergeOptions (<select> options), app.wiki (summary, related (name, rels), pages (id, title, space, href), graph, error, merge), app.showWiki, app.wikiLoading, app.wikiError, app.wikiEmpty, app.wikiFull, app.wikiMerge (id, text, label), app.hasWikiMerge, app.wikiPagesTitle, app.contacts (key, folder, who, at, text), app.todos (id, ref, text, due, href), app.hasEvents (the Calendar plugin), app.anyEvents, app.events (upcoming, recent — each: key, color, calendar, when, title, href, location), app.cases (id, label, title, href, done, showOpen, open, nextDue), app.hasCases, app.documents (id, name, href, at, summary), app.hasDocuments, app.pages (id, label, href), app.tickets. State: state.known (check|facts|done: the tab), state.keep (the profile to merge into), state.busy (compile|findDates: running), state.saved (profile|note: “Saved ✓” for a moment).";

@@ -26,7 +26,7 @@ const template = (t: T) => `<state name="circle" value="all"/>
 <state name="tab" value="people"/>
 
 {{#if app.loading}}
-  <muted>{{ app.error | default('…') }}</muted>
+  {{#if app.error}}<box tone=bad title="${t("Something went wrong")}"><text>{{ app.error }}</text></box>{{#else}}<text tone=muted>…</text>{{/if}}
 {{#else}}
 
 <row gap=2>

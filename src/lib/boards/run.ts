@@ -196,6 +196,14 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
             console.error("[cases] after the briefing:", errorMessage(e));
           }
         }
+        // A promise of yours to pay, due and with no todo: one (People) — ticked off, it keeps the promise and pays its debt.
+        if ((await import("@/plugins/state")).isInstalled("people")) {
+          try {
+            (await import("@/plugins/people/promise-todos")).promiseTodos();
+          } catch (e) {
+            console.error("[people] promise todos:", errorMessage(e));
+          }
+        }
         throwIfAborted();
         // The duplicates the steps above may have left (and any from before): merged into the oldest, before the actions look at them.
         await syncAndWait("tododupes");

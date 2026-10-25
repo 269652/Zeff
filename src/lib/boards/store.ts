@@ -13,7 +13,7 @@ import { emitChange } from "@/lib/events";
 import type { BoardRun, BoardSettings, Todo } from "@/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { runTodoDoneHooks } from "./done-hooks";
+import { runTodoDoneHooks, runTodoReopenedHooks } from "./done-hooks";
 import { recordFeedback } from "@/lib/learning/ledger";
 import { autoActionsFeedback, workerDoneFeedback } from "@/lib/learning/sources";
 import { resolveRefs, unresolveRefs } from "@/lib/resolved";
@@ -499,6 +499,8 @@ export function setTodoStatus(id: number, status: TodoStatus, note?: string | nu
     // A todo that comes back (a rate on the 15th): the next one is there.
     if (before.recurrence) spawnNext(id);
   }
+  // Done, and opened again: what its being done settled is taken back (a payment it booked …).
+  if (status === "open" && before.status === "done") runTodoReopenedHooks(id);
   // After the status and the follow-ups it brings are written: a page that refreshes on this finds both the closed todo and the next one.
   emitChange("todos");
   return getTodo(id)!;
@@ -1002,7 +1004,10 @@ export function promoteSessionTodo(id: number, text: string): TodoView {
 export function setTodoText(id: number, text: string): TodoView {
   const v = text.trim().slice(0, 500);
   if (!v) throw new ValidationError(t("A todo's text can't be empty."));
-  getDb().update(todos).set({ text: v, updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
+  // (A todo that comes back: the words of its repeats were written from the old text — they go, and are written again.)
+  const rule = parseTodoRecurrence(getDb().select({ r: todos.recurrence }).from(todos).where(eq(todos.id, id)).get()?.r);
+  const { text: _old, ...without } = rule ?? {};
+  getDb().update(todos).set({ text: v, ...(rule?.text ? { recurrence: JSON.stringify(without) } : {}), updatedAt: new Date().toISOString() }).where(eq(todos.id, id)).run();
   emitChange("todos");
   return getTodo(id)!;
 }

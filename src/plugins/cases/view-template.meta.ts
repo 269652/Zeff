@@ -14,7 +14,7 @@ const q = (s: string) => `'${s.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 const template = (t: T) => `<state name="paying" value=""/>
 
 {{#if app.loading}}
-  <text tone=muted>{{ app.error | default('…') }}</text>
+  {{#if app.error}}<box tone=bad title="${t("Something went wrong")}"><text>{{ app.error }}</text></box>{{#else}}<text tone=muted>…</text>{{/if}}
 {{#else}}
 
 <row gap=3 align=start justify=between>

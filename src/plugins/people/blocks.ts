@@ -6,6 +6,7 @@ import { findDates } from "./dates";
 import { buildPeopleIndex, mentionMatcher, splitMentions } from "./mentions";
 import { addDetail, detailsOf, isDetailKey, removeDetail, syncDetails, type PersonDetail } from "./details";
 import { appointmentsOf, type PersonAppointments } from "./appointments";
+import { personPulse, type PulseInsight } from "./pulse-insights";
 import { compilePerson } from "./compile";
 import { dateKindLabels, dateText, daysBetween, inDaysText, isDateKind, isoDay, nextOccurrence, parseDayMonth, type DateKind, type PersonSummary } from "./shared";
 import { addDate, addRelation, contactsOf, datesOf, deleteDate, deletePerson, deleteRelation, getPerson, listPeople, mergePeople, namesThem, relationsOf, updateDate, updatePerson, type Contact, type PersonRelation } from "./store";
@@ -58,6 +59,8 @@ export type PersonBundle = {
   cases: { id: number; label: string; title: string; open: number | null; nextDue: string | null; done: boolean; href: string }[];
   /** Their appointments (attendee, or named in one): the next and the last 30 days — null without the Calendar plugin. */
   events: PersonAppointments | null;
+  /** The rhythm with them over the last 12 months: days in touch per channel, the usual gap and the drift, who starts, how fast each answers (absent: not read). */
+  pulse?: PulseInsight;
 };
 
 /** The documents that are theirs: their address in the text, or their name in the title, summary or text. */
@@ -83,7 +86,7 @@ async function casesOfPerson(personId: number): Promise<PersonBundle["cases"]> {
   const { casesOfPerson: ofPerson } = await import("@/plugins/cases/store");
   const { caseHref } = await import("@/plugins/cases/database");
   const { caseTitle } = await import("@/plugins/cases/shared");
-  return Promise.all(ofPerson(personId).map(async (c) => ({ id: c.id, label: c.label, title: caseTitle(c), open: c.compiled?.open ?? null, nextDue: c.compiled?.nextDue ?? null, done: c.status === "closed" || !!c.compiled?.done, href: await caseHref(c.id) })));
+  return Promise.all(ofPerson(personId).map(async (c) => ({ id: c.id, label: c.label, title: caseTitle(c), open: (await import("@/plugins/cases/bank")).openOf(c), nextDue: c.compiled?.nextDue ?? null, done: c.status === "closed" || !!c.compiled?.done, href: await caseHref(c.id) })));
 }
 
 export async function personBundle(personId: number, today = new Date()): Promise<PersonBundle> {
@@ -137,6 +140,7 @@ export async function personBundle(personId: number, today = new Date()): Promis
     documents: documentsOf(p),
     cases: await casesOfPerson(personId),
     events: await appointmentsOf(personId, today),
+    pulse: await personPulse(p, today),
   };
 }
 

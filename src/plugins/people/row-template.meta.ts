@@ -3,7 +3,7 @@ import type { ViewAppMeta } from "@/plugins/workspace/view-apps";
 import { PERSON_PAGE_APP_DATA } from "./row-data";
 
 /**
- * A person's own page as a template (the Workspace's view templates): who they are, their details, your notes, their dates and what
+ * A person's own page as a template (the Workspace's view templates): who they are, their details, your rhythm with them, your notes, their dates and what
  * to do with the profile on the left; the summary, what was read from messages and the relations on the right; below, over the full
  * width, what the knowledge knows, the latest messages, the todos, the appointments, the cases and letters, the pages and tickets —
  * built of the language's own tags, and parts of the People plugin where it takes more (an input saved on leaving it, the note, the
@@ -69,6 +69,20 @@ const template = (t: T) => `<state name="keep" value=""/>
       {{/if}}
       <part name="person.addDetail"/>
     </box>
+
+    {{#if app.pulse.any}}
+    <box>
+      ${head(t("Rhythm"))}
+      <col gap=0>
+        <text>{{ app.pulse.days }}</text>
+        {{#if app.pulse.channels}}<small><muted>{{ app.pulse.channels }}</muted></small>{{/if}}
+      </col>
+      {{#if app.pulse.rhythm}}<text>{{ app.pulse.rhythm }}</text>{{/if}}
+      {{#if app.pulse.drifting}}<text tone=warn>{{ app.pulse.drift }}</text>{{/if}}
+      {{#if app.pulse.initiative}}<text>{{ app.pulse.initiative }}</text>{{/if}}
+      {{#if app.pulse.reply}}<muted>{{ app.pulse.reply }}</muted>{{/if}}
+    </box>
+    {{/if}}
 
     <box>
       ${head(t("Notes"), saved(t, "note"))}
@@ -305,7 +319,7 @@ const template = (t: T) => `<state name="keep" value=""/>
 </grid>
 
 {{#else}}
-  <text tone=muted>{{ app.error }}</text>
+  {{#if app.error}}<box tone=bad title="${t("Something went wrong")}"><text>{{ app.error }}</text></box>{{/if}}
 {{/if}}{{/if}}`;
 
 export const PERSON_PAGE: ViewAppMeta = {

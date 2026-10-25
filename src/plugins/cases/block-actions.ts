@@ -73,9 +73,10 @@ export async function casesOverviewAction(): Promise<Result<{ overview: CasesOve
     if (isInstalled("people")) for (const p of (await import("@/plugins/people/store")).listPeople()) names.set(p.id, p.name);
     const today = new Date().toISOString().slice(0, 10);
     const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+    const { openOf } = await import("./bank");
     const cases = listCases()
       .filter((c) => c.status === "open" && !c.compiled?.done && !c.compiled?.manual)
-      .map((c) => ({ id: c.id, rowId: rows.get(`case:${c.id}`) ?? null, title: caseTitle(c), label: c.label, person: c.personId ? (names.get(c.personId) ?? "") : "", creditor: parties.partiesOf(c.id).creditor?.name ?? "", collector: parties.partiesOf(c.id).collector?.name ?? "", open: c.compiled?.open ?? null, nextDue: c.compiled?.nextDue ?? null, nextWhat: c.compiled?.nextWhat ?? "", payment: casePayment(c.id), summed: !!c.compiled }))
+      .map((c) => ({ id: c.id, rowId: rows.get(`case:${c.id}`) ?? null, title: caseTitle(c), label: c.label, person: c.personId ? (names.get(c.personId) ?? "") : "", creditor: parties.partiesOf(c.id).creditor?.name ?? "", collector: parties.partiesOf(c.id).collector?.name ?? "", open: openOf(c), nextDue: c.compiled?.nextDue ?? null, nextWhat: c.compiled?.nextWhat ?? "", payment: casePayment(c.id), summed: !!c.compiled }))
       .sort((a, b) => (a.nextDue ?? "9999").localeCompare(b.nextDue ?? "9999"));
     const figures = {
       open: cases.reduce((s, c) => s + (c.open ?? 0), 0),

@@ -25,13 +25,37 @@ export type Recurring = {
   active: boolean;
 };
 
-const RHYTHMS: { rhythm: Rhythm; min: number; max: number; months: number; least: number }[] = [
+type RhythmRule = { rhythm: Rhythm; min: number; max: number; months: number; least: number };
+const RHYTHMS: RhythmRule[] = [
   { rhythm: "monthly", min: 25, max: 36, months: 1, least: 3 },
   { rhythm: "quarterly", min: 80, max: 100, months: 3, least: 2 },
   { rhythm: "yearly", min: 350, max: 380, months: 12, least: 2 },
 ];
 /** How far apart the amounts may be (of their median) — a phone bill moves a little, shopping a lot. */
 const SPREAD = 0.25;
+
+/**
+ * The stricter reading the money insights take (insights.ts): a month ±4 days apart (a weekend moves a debit by a few), a
+ * quarter, a year; three payments at least (a year: two); the amounts within ±10 % of each other — what is surely a contract,
+ * a subscription, a salary, not a habit.
+ */
+export const STRICT: DetectOptions = {
+  rhythms: [
+    { rhythm: "monthly", min: 26, max: 35, months: 1, least: 3 },
+    { rhythm: "quarterly", min: 84, max: 98, months: 3, least: 3 },
+    { rhythm: "yearly", min: 355, max: 375, months: 12, least: 2 },
+  ],
+  spread: 0.2,
+};
+
+export type DetectOptions = {
+  /** What comes in (a salary, a rent you get) instead of what goes out. */
+  incoming?: boolean;
+  /** The rhythms recognized (default: the lenient ones the contracts source takes). */
+  rhythms?: RhythmRule[];
+  /** How far apart the amounts may be, of their median (default 0.25). */
+  spread?: number;
+};
 
 const DAY = 864e5;
 const days = (a: string, b: string) => Math.round((Date.parse(b.slice(0, 10)) - Date.parse(a.slice(0, 10))) / DAY);
@@ -41,7 +65,7 @@ const median = (xs: number[]) => {
 };
 const cents = (v: number) => Math.round(v * 100) / 100;
 /** The same day so many months on (the 31st in a shorter month: its last day). */
-function addMonths(iso: string, n: number): string {
+export function addMonths(iso: string, n: number): string {
   const [y, m, d] = iso.slice(0, 10).split("-").map(Number);
   const last = new Date(Date.UTC(y, m - 1 + n + 1, 0)).getUTCDate();
   return new Date(Date.UTC(y, m - 1 + n, Math.min(d, last))).toISOString().slice(0, 10);
@@ -59,17 +83,20 @@ export function recipientKey(b: Pick<Booking, "text" | "counterparty">): string 
 }
 
 /** The payments that recur, the running ones first (by what they cost a month). `today`: YYYY-MM-DD. */
-export function detectRecurring(bookings: Booking[], today: string): Recurring[] {
-  const groups = new Map<string, Booking[]>();
+export function detectRecurring<B extends Booking>(bookings: B[], today: string, opts: DetectOptions = {}): (Recurring & { bookings: B[] })[] {
+  const rhythms = opts.rhythms ?? RHYTHMS;
+  const spread = opts.spread ?? SPREAD;
+  const sign = opts.incoming ? -1 : 1;
+  const groups = new Map<string, B[]>();
   for (const b of bookings) {
-    if (!(b.amount < 0)) continue;
+    if (!(b.amount * sign < 0)) continue;
     const key = recipientKey(b);
     if (key.length < 2) continue;
     const list = groups.get(key) ?? [];
     list.push(b);
     groups.set(key, list);
   }
-  const out: Recurring[] = [];
+  const out: (Recurring & { bookings: B[] })[] = [];
   for (const [key, all] of groups) {
     const list = [...all].sort((a, b) => a.date.localeCompare(b.date));
     // Two bookings the same day (a split, a refund and again): one payment.
@@ -79,7 +106,7 @@ export function detectRecurring(bookings: Booking[], today: string): Recurring[]
     const recent = pays.slice(-7);
     const gaps = recent.slice(1).map((b, i) => days(recent[i].date, b.date));
     const gap = median(gaps);
-    const r = RHYTHMS.find((x) => gap >= x.min && gap <= x.max);
+    const r = rhythms.find((x) => gap >= x.min && gap <= x.max);
     if (!r) continue;
     // The payments of that rhythm: a run going back from the last one with gaps in its range.
     let start = recent.length - 1;
@@ -90,9 +117,9 @@ export function detectRecurring(bookings: Booking[], today: string): Recurring[]
     }
     const run = recent.slice(start);
     if (run.length < r.least) continue;
-    const amounts = run.slice(-3).map((b) => -b.amount);
+    const amounts = run.slice(-3).map((b) => -b.amount * sign);
     const amount = median(amounts);
-    if (amount <= 0 || (Math.max(...amounts) - Math.min(...amounts)) / amount > SPREAD) continue;
+    if (amount <= 0 || (Math.max(...amounts) - Math.min(...amounts)) / amount > spread) continue;
     const last = run[run.length - 1].date.slice(0, 10);
     const next = addMonths(last, r.months);
     const latest = list[list.length - 1];
@@ -107,6 +134,8 @@ export function detectRecurring(bookings: Booking[], today: string): Recurring[]
       count: run.length,
       // Running while its next payment isn't overdue by more than half a period.
       active: days(next, today) <= gap / 2,
+      // (The run's own bookings — what a matcher reads the texts and references of.)
+      bookings: run,
     });
   }
   return out.sort((a, b) => Number(b.active) - Number(a.active) || b.monthly - a.monthly);

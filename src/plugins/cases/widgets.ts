@@ -2,6 +2,7 @@ import { t } from "@/lib/i18n/server";
 import type { WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
 import { caseHref } from "./database";
 import { caseTitle, type Case } from "./shared";
+import { openOf } from "./bank";
 import { listCases } from "./store";
 
 /**
@@ -34,7 +35,7 @@ export const CASES_WIDGETS: WorkspaceWidget[] = [
     ttl: 60,
     data: () => {
       const all = running();
-      const open = all.reduce((sum, c) => sum + (c.compiled?.open ?? 0), 0);
+      const open = all.reduce((sum, c) => sum + (openOf(c) ?? 0), 0);
       const soon = all.filter((c) => c.compiled?.nextDue && inDays(c.compiled.nextDue) >= 0 && inDays(c.compiled.nextDue) <= 30);
       const dueSoon = soon.reduce((sum, c) => sum + (c.compiled?.installment ?? c.compiled?.open ?? 0), 0);
       const overdue = all.filter((c) => c.compiled?.nextDue && inDays(c.compiled.nextDue) < 0).length;
@@ -105,7 +106,7 @@ export const CASES_WIDGETS: WorkspaceWidget[] = [
           icon: "📁",
           text: caseTitle(c),
           detail: [c.compiled?.party, c.label].filter(Boolean).join(" · "),
-          meta: c.compiled?.open != null ? euro(c.compiled.open) : undefined,
+          meta: openOf(c) != null ? euro(openOf(c)!) : undefined,
           href: await caseHref(c.id),
         })),
       );
