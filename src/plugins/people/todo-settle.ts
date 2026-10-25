@@ -1,4 +1,6 @@
-import { euroAmounts, refDue, refLabeler, todoAmounts, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
+import { euroAmounts, refDue, refLabeler, todoAmount, todoAmounts, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
+import { getSqlite } from "@/db";
+import { allocate, deallocate, onLedgerChange, paidOn, paymentByKey, recordPayment } from "@/lib/money/ledger";
 import { isInstalled } from "@/plugins/state";
 import { detailsOf } from "./details";
 import { onRunUndone } from "@/lib/boards/run-undo";
@@ -43,14 +45,54 @@ todoLinkFinder((e) => {
   return [...fromSources, ...fromPayee].map((c) => `claim:${c.id}`);
 });
 
+// ---------------------------------------------------------------------------
+// A promise to pay, kept by the ledger: done while what is allocated to it is what it promised — computed, never set
+// ---------------------------------------------------------------------------
+
+/** The promises the ledger closed (not you by hand): only these does it open again when their payment goes. */
+function keptTable() {
+  const d = getSqlite();
+  d.exec("create table if not exists people_claims_kept (claim_id integer primary key, at text not null)");
+  return d;
+}
+
+/** A promise brought to the ledger: what it promised paid — done; no longer (its payment released, its todo opened again) — open again, when the ledger had closed it. */
+export function recomputeClaim(claimId: number): void {
+  const c = claimById(claimId);
+  if (!c || c.kind !== "commitment") return;
+  const promised = euroAmounts(c.text)[0];
+  if (promised == null) return;
+  const kept = paidOn(`claim:${claimId}`) >= promised - 0.005;
+  const d = keptTable();
+  const byLedger = !!d.prepare("select 1 from people_claims_kept where claim_id = ?").get(claimId);
+  if (kept && !c.doneAt) {
+    reviewClaim(claimId, "done");
+    d.prepare("insert or replace into people_claims_kept (claim_id, at) values (?, ?)").run(claimId, new Date().toISOString());
+  } else if (!kept && c.doneAt && byLedger) {
+    reviewClaim(claimId, "reopen");
+    d.prepare("delete from people_claims_kept where claim_id = ?").run(claimId);
+  }
+}
+
+onLedgerChange("claim", (ref) => recomputeClaim(Number(ref.slice(6))));
+
 todoSettler(
   "claim",
-  (ref) => {
-    reviewClaim(Number(ref.slice(6)), "done");
+  (ref, e) => {
+    const c = claimById(Number(ref.slice(6)));
+    const amount = c ? promisedAmount(c, todoAmounts(e)) : null;
+    if (!c || amount == null) return false;
+    // The proof's payment (the same one a debt it pays gets — one payment, for what it pays) allocated to the promise: kept.
+    const source = e.key.startsWith("todo:") ? "todo" : e.key.startsWith("tx:") ? "bank" : "hand";
+    const p = recordPayment({ key: e.key, date: e.date, amount: todoAmount(e) ?? amount, label: e.label, source, tx: source === "bank" ? e.key.slice(3) : null });
+    allocate(p.id, ref, amount);
     return true;
   },
-  // The proof taken back: the promise open again.
-  (ref) => reviewClaim(Number(ref.slice(6)), "reopen"),
+  // The proof taken back: its allocation released — the promise as the ledger says without it.
+  (ref, _undo, key) => {
+    const p = paymentByKey(key);
+    if (p) deallocate(p.id, ref);
+  },
 );
 
 // A promise's day (by Friday) is the due day of its todo when nothing else gives one.

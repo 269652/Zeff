@@ -5,6 +5,7 @@ import { isInstalled } from "@/plugins/state";
 import { getDatabase, rawRows } from "@/plugins/workspace/store";
 import type { Row } from "@/plugins/workspace/model";
 import { caseStanding } from "@/plugins/cases/bank";
+import { allocationsOf } from "@/lib/money/ledger";
 import { casePayment, type CasePayment } from "@/plugins/cases/payments";
 import { DEBT } from "./fields";
 import type { Direction } from "./own";
@@ -45,6 +46,12 @@ export type DebtPlan = {
   /** The last payment the bank shows (a case's). */
   last: { date: string; amount: number } | null;
 };
+
+/** A debt of your own's last payment (the ledger). */
+function lastPaid(rowId: number): { date: string; amount: number } | null {
+  const a = allocationsOf(`debt:${rowId}`).at(-1);
+  return a ? { date: a.date, amount: a.amount } : null;
+}
 
 /** The debts database's id — null: not made (yet), or gone. */
 export function debtsDbId(): number | null {
@@ -96,7 +103,8 @@ function planOf(r: Row, today: string): DebtPlan | null {
     plan: schedule({ open, installment, nextDue, day }, today),
     contact: [reach?.name, ...(reach?.emails ?? []), ...details.filter((x) => x.key === "phone" || x.key === "address").map((x) => x.value)].filter(Boolean).join(" · "),
     iban: payment?.iban ?? "",
-    last: caseId ? caseStanding(caseId).last : null,
+    // (A case's: its payments; one of your own: the ledger's last payment allocated to it.)
+    last: caseId ? caseStanding(caseId).last : lastPaid(r.id),
   };
 }
 

@@ -240,6 +240,37 @@ test("a thing's payments shown with it — one released (a wrong match): off the
   assert.deepEqual(settledBy(`debt:${debt}`), [], "the proof no longer settles it");
 });
 
+test("a promise kept is computed from the ledger: its payment allocated to it, it is done; released, open again — one you ticked off yourself stays done", async () => {
+  const ole = await family("Ole Versprecher");
+  const { addClaim, claimsOf, reviewClaim } = await import("@/plugins/people/graph");
+  const source = `mail:wa:O|${Math.random()}`;
+  addClaim({ personId: ole, kind: "commitment", text: "Ich habe Ole zugesagt, ihm 30 € zurückzugeben", sourceRef: source, direction: "mine", confidence: 0.9 });
+  addClaim({ personId: ole, kind: "commitment", text: "Ich habe Ole zugesagt, ihm 15 € für das Kino zu geben", sourceRef: `${source}x`, direction: "mine", confidence: 0.9 });
+  const [kept, mine] = claimsOf(ole).sort((a, b) => a.id - b.id);
+  const { addMailTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const todo = addMailTodo({ ticket: "", text: "Ole 30 € zurückgeben", kind: "other", refs: [source], runId: null });
+  setTodoStatus(todo.id, "done");
+  const doneAt = (id: number) => claimsOf(ole).find((c) => c.id === id)!.doneAt;
+  assert.ok(doneAt(kept.id), "kept by the payment");
+  const { allocationsOf } = await import("@/lib/money/ledger");
+  assert.deepEqual(allocationsOf(`claim:${kept.id}`).map((a) => a.amount), [30], "in the ledger");
+  reviewClaim(mine.id, "done"); // (you, by hand)
+  const { releasePayment } = await import("@/lib/boards/todo-settle");
+  releasePayment(allocationsOf(`claim:${kept.id}`)[0].paymentId, `claim:${kept.id}`);
+  assert.equal(doneAt(kept.id), null, "its payment released: open again");
+  assert.ok(doneAt(mine.id), "the one you ticked off yourself stays done");
+});
+
+test("the debts overview: a debt of your own shows its last payment, from the ledger", async () => {
+  const una = await family("Una Letzte");
+  const { createDebt } = await import("@/plugins/finances/own");
+  const debt = createDebt({ dir: "owe", title: "Una", creditorId: una, amount: 300, due: "2026-11-01", installment: 100 });
+  const { settleByHand } = await import("@/lib/boards/todo-settle");
+  settleByHand(`debt:${debt}`, 100, "von Hand", "2026-10-20");
+  const { debtPlans } = await import("@/plugins/finances/debts");
+  assert.deepEqual(debtPlans(undefined, "owe").debts.find((d) => d.id === debt)!.last, { date: "2026-10-20", amount: 100 });
+});
+
 test("paid by hand, taken back: the debt as it was", async () => {
   const karla = await family("Karla Testfrau");
   const { createDebt } = await import("@/plugins/finances/own");
