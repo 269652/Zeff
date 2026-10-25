@@ -1,5 +1,6 @@
 import { getSqlite } from "@/db";
 import { eventsBetween } from "@/lib/calendar/ir";
+import { isSleepCalendar } from "@/plugins/calendar/sleep-series";
 import { t } from "@/lib/i18n/server";
 import { ME_SENDER } from "@/lib/mail/shared";
 import { isInstalled } from "@/plugins/state";
@@ -29,7 +30,8 @@ function meetingHours(range: SeriesRange): Series[] {
   const first = (db().prepare("select min(start) s from calendar_events where all_day = 0 and cancelled = 0").get() as { s: string | null }).s;
   if (!first) return [];
   const events = eventsBetween(`${range.from}T00:00`, `${addDays(range.to, 1)}T00:00`, { busy: true }).filter(
-    (e) => !e.allDay && !e.cancelled && e.showAs !== "free" && e.response !== "declined",
+    // (A sleep tracker's calendar blocks the night — no meeting.)
+    (e) => !e.allDay && !e.cancelled && e.showAs !== "free" && e.response !== "declined" && !isSleepCalendar(e.calendar.name),
   );
   // Per day: the union of its meetings (two at once count once), cut to the day.
   const byDay = new Map<string, [number, number][]>();

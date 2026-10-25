@@ -20,7 +20,10 @@ const SIGNAL_SOURCES: [string, string[]][] = [
   ["messages:teams:", ["teams"]],
   ["todos:", ["todos"]],
   ["finances:", ["bank"]],
+  // Sleep: a sleep tracker's calendar (the Calendar plugin's series).
+  ["sleep:", ["sleep"]],
   ["activity:", ["whatsapp", "signal", "teams", "time"]],
+  ["people:", ["whatsapp", "signal", "mail", "gmail", "teams", "calendar"]],
 ];
 
 /** A labeller of series ids for one batch (the databases' labels read once). Another plugin's series: open. */

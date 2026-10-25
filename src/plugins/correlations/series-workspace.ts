@@ -2,13 +2,15 @@ import { t } from "@/lib/i18n/server";
 import { dateRange, type Property, type Row } from "@/plugins/workspace/model";
 import { getDatabase, rowsOf } from "@/plugins/workspace/store";
 import { getSqlite } from "@/db";
+import { hoursOfDay } from "@/plugins/workspace/day-log";
 import { filled } from "./days";
 import type { Series, SeriesInfo, SeriesProvider, SeriesRange } from "./series-point";
 
 /**
  * The series of your own Workspace databases — any with a date (a journal, a workout log, a sleep diary): per day its numbers (also a
  * formula's or a rollup's), a select as its option's place (Hard = 1 … Great = 5, the options' order), a tick and each tag of a
- * multi-select as 0/1, and how many entries the day has. A day is the row's date (the first date field); days without an entry have
+ * multi-select as 0/1, a date field with the time beside the row's date as hours of its day (22:45 → 22.75; the day turns at 4:00,
+ * so 0:30 is 24.5 — a medicine taken, going to bed), and how many entries the day has. A day is the row's date (the first date field); days without an entry have
  * no value (not a 0) — except the count, 0 from the first entry on. Databases filled by a source (mails, messages, calendars) are not
  * diaries and are left out, as are todo lists (their date is when a thing is due, not a day lived).
  */
@@ -56,7 +58,7 @@ export function databaseSeries(dbId: number, range: SeriesRange): Series[] {
         const v = row.cells[p.id];
         if (typeof v === "number" && Number.isFinite(v)) push(acc, day, v);
       }
-      if (acc.size || p.type === "number") out.push({ ...base(p.id, p.name), kind: "number", ...(p.format === "hours" ? { unit: "h" } : p.format === "euro" ? { unit: "€" } : {}), values: average(acc) });
+      if (acc.size || p.type === "number") out.push({ ...base(p.id, p.name), kind: "number", ...(p.format === "hours" ? { unit: "h" } : p.format === "euro" ? { unit: "€" } : p.format === "unit" && p.unit ? { unit: p.unit } : {}), values: average(acc) });
     } else if ((p.type === "select" || p.type === "status") && p.options?.length) {
       const place = new Map(p.options.map((o, i) => [o.id, i + 1]));
       const acc: Acc = new Map();
@@ -78,6 +80,13 @@ export function databaseSeries(dbId: number, range: SeriesRange): Series[] {
       const acc: Acc = new Map();
       for (const { row, day } of inRange) push(acc, day, row.cells[p.id] ? 1 : 0);
       out.push({ ...base(p.id, p.name), kind: "binary", values: anyOf(acc) });
+    } else if (p.type === "date" && p.includeTime && p.id !== date.id) {
+      const acc: Acc = new Map();
+      for (const { row, day } of inRange) {
+        const h = hoursOfDay(dateRange(row.cells[p.id])?.start ?? "");
+        if (h !== null) push(acc, day, h);
+      }
+      out.push({ ...base(p.id, p.name), kind: "number", unit: "h", values: average(acc) });
     }
   }
 
@@ -103,6 +112,7 @@ export function databaseCatalog(dbId: number): SeriesInfo[] {
     if ((p.type === "select" || p.type === "status") && p.options?.length) return [{ ...base(p.id, p.name), kind: "ordinal", levels: p.options.map((o) => o.name) }];
     if (p.type === "multi_select") return (p.options ?? []).map((o) => ({ ...base(`${p.id}:${o.id}`, `${p.name}: ${o.name}`), kind: "binary" as const }));
     if (p.type === "checkbox") return [{ ...base(p.id, p.name), kind: "binary" }];
+    if (p.type === "date" && p.includeTime && p.id !== d.schema.properties.find((x) => x.type === "date")?.id) return [{ ...base(p.id, p.name), kind: "number" }];
     return [];
   });
 }

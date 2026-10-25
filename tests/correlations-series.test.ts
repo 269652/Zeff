@@ -135,3 +135,20 @@ test("another plugin adds its own series through the point — gone while it is 
   setInstalled("news", false);
   assert.ok(!(await series.allSeries({ from: "2026-10-01", to: "2026-10-03" })).some((s) => s.id === "news:read"));
 });
+
+test("a time of day: a date field with the time beside the row's date is read as hours of its day — after midnight past 24 (the day turns at 4:00)", async () => {
+  const series = await world();
+  const store = await import("@/plugins/workspace/store");
+  const { newProperty } = await import("@/plugins/workspace/model");
+  const db = store.createPage({ title: "Routine · Verlauf", kind: "database" });
+  const date = newProperty("Datum", "date");
+  const bed = { ...newProperty("Ins Bett · Erledigt um", "date"), includeTime: true };
+  store.updateSchema(db, { ...store.getDatabase(db)!.schema, properties: [date, bed] });
+  store.addRow(db, { title: "a", cells: { [date.id]: "2026-10-01", [bed.id]: "2026-10-01T22:45" } });
+  store.addRow(db, { title: "b", cells: { [date.id]: "2026-10-02", [bed.id]: "2026-10-03T00:30" } });
+  store.addRow(db, { title: "c", cells: { [date.id]: "2026-10-03" } });
+  const s = (await series.allSeries({ from: "2026-10-01", to: "2026-10-05" })).find((x) => x.id === `db:${db}:${bed.id}`)!;
+  assert.equal(s.kind, "number");
+  assert.equal(s.unit, "h");
+  assert.deepEqual([...s.values], [["2026-10-01", 22.75], ["2026-10-02", 24.5]], "no time: no value");
+});

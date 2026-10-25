@@ -40,6 +40,7 @@ export const BOUNDARY_SOURCES: BoundarySource[] = [
   { key: "whatsapp", name: "WhatsApp", default: "personal", plugin: "whatsapp" },
   { key: "signal", name: "Signal", default: "personal", plugin: "signal" },
   { key: "bank", name: "Bank statements", default: "personal", plugin: "finances" },
+  { key: "sleep", name: "Sleep (a sleep tracker's calendar)", default: "personal", plugin: "calendar" },
 ];
 
 const DEFAULTS = new Map(BOUNDARY_SOURCES.map((s) => [s.key, s.default]));
