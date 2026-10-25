@@ -6,7 +6,7 @@ import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { templateParamsAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, withCell, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, withCell, dropBetween, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { useProgressive } from "./progressive";
@@ -37,8 +37,8 @@ const PLAIN_VIEWS = VIEW_TYPES.filter((v) => v !== "app");
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const countRules = (f: View["filter"]): number => f.rules.reduce((n, r) => n + ("rules" in r ? countRules(r) : 1), 0);
-/** The table's first column: a row's checkbox and its menu (w-14). */
-const SELECT_COLUMN = 56;
+/** The table's first column: a row's handle (to drag it), its checkbox and its menu (w-18). */
+const SELECT_COLUMN = 72;
 /** The last column's room for its + (a new property). */
 const ADD_COLUMN = 44;
 
@@ -1243,6 +1243,16 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   const cols = columnOrder(view, schema).filter((id) => id === TITLE || visible.some((p) => p.id === id));
   const byId = new Map(visible.map((p) => [p.id, p]));
   const sort = useSortable((from, to, after) => setView({ ...view, order: moveBefore(columnOrder(view, schema), from, to, after) }), "x", "text/ws-col");
+  // Rows in an order of your own: dragged by their handle — while the view isn't sorted by a field (then the sort decides, as on the board).
+  const byHand = !view.sorts.length && ctx.editable;
+  const rowSort = useSortable(
+    (from, to, after) => {
+      const at = dropBetween(rows.map((r) => r.id), Number(from), Number(to), after);
+      if (at) api.place(Number(from), at.after, at.before);
+    },
+    "y",
+    "text/ws-row",
+  );
   // Hidden rows (shown because the view shows them too): set back.
   const hiddenIds = new Set(schema.hiddenRows ?? []);
   // A formula cell open: its column's formula changed from there; the columns it names coloured meanwhile.
@@ -1366,7 +1376,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   const header = (
     <thead>
       <tr>
-        <th className="w-14">
+        <th className="w-18">
           {sel && rows.length > 0 && (
             <input type="checkbox" className="size-4 accent-indigo-600" checked={rows.every((r) => sel.has(r.id))} ref={(el) => void (el && (el.indeterminate = sel.any && !rows.every((r) => sel.has(r.id))))} onChange={() => sel.all(rows.map((r) => r.id))} aria-label={t("Select all rows")} />
           )}
@@ -1462,9 +1472,14 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
             )}
             {!folded.has(g.key) &&
               g.rows.slice(0, Math.max(0, drawn - starts[groups.indexOf(g)])).map((r) => (
-                <tr key={r.id} className={`group/row ${hiddenIds.has(r.id) ? "ws-row-hidden" : ""}`}>
-                  <td className="w-14 text-center align-middle">
+                <tr key={r.id} className={`group/row ${hiddenIds.has(r.id) ? "ws-row-hidden" : ""} ${byHand ? rowSort.mark(String(r.id)) : ""}`} {...(byHand ? rowSort.target(String(r.id)) : {})}>
+                  <td className="w-18 text-center align-middle">
                     <span className="inline-flex items-center gap-1">
+                      {byHand && (
+                        <span className="cursor-grab px-0.5 text-zinc-400 opacity-0 group-hover/row:opacity-100 active:cursor-grabbing" title={t("Drag to move")} aria-hidden {...rowSort.handle(String(r.id))}>
+                          ⠿
+                        </span>
+                      )}
                       {sel && <input type="checkbox" className={`size-4 accent-indigo-600 ${sel.has(r.id) || sel.any ? "" : "opacity-0 group-hover/row:opacity-100 focus:opacity-100"}`} checked={sel.has(r.id)} onChange={() => undefined} onClick={(e) => sel.toggle(r.id, e.shiftKey, rows.map((x) => x.id))} aria-label={t("Select {name}", { name: r.title || t("Untitled") })} />}
                       <span className="opacity-0 group-hover/row:opacity-100">
                         <RowMenu row={r} api={api} />

@@ -17,6 +17,17 @@ test("a cell's value as the server stores it — typed text becomes a number, wh
   assert.equal(coerceCellValue(note, ""), null);
 });
 
+test("a row dropped in a table: the rows it lands between — dropped on itself, nowhere", async () => {
+  const { dropBetween } = await import("@/plugins/workspace/model");
+  const ids = [1, 2, 3, 4];
+  assert.deepEqual(dropBetween(ids, 4, 2, false), { after: 1, before: 2 }, "above row 2");
+  assert.deepEqual(dropBetween(ids, 1, 3, true), { after: 3, before: 4 }, "below row 3");
+  assert.deepEqual(dropBetween(ids, 2, 4, true), { after: 4, before: null }, "the end");
+  assert.deepEqual(dropBetween(ids, 3, 1, false), { after: null, before: 1 }, "the start");
+  assert.deepEqual(dropBetween(ids, 2, 3, false), null, "where it is already (above the next one)");
+  assert.equal(dropBetween(ids, 2, 2, true), null, "on itself");
+});
+
 test("an edit shown at once: the row gets the value as it will be stored, the other rows stay as they are", () => {
   const rows = [row(1, { dose: 50 }), row(2, { dose: 25 })];
   const next = withCell(rows, [dose, when, note], 1, "dose", "75");

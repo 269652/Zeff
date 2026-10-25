@@ -635,6 +635,21 @@ export function coerceCellValue(p: Property, v: unknown, parseCustom: (typeId: s
   }
 }
 
+/**
+ * A row dropped above (or, `after`, below) another in a list of rows: the rows it lands between (null at either end) — null when it
+ * stays where it is (dropped on itself, or right next to where it was).
+ */
+export function dropBetween(ids: number[], from: number, to: number, after: boolean): { after: number | null; before: number | null } | null {
+  if (from === to) return null;
+  const rest = ids.filter((id) => id !== from);
+  const at = rest.indexOf(to);
+  if (at < 0) return null;
+  const slot = after ? at + 1 : at;
+  const was = ids.indexOf(from);
+  if (was === slot) return null;
+  return { after: slot > 0 ? rest[slot - 1] : null, before: slot < rest.length ? rest[slot] : null };
+}
+
 /** The rows with one cell (or the title) changed — as it will be stored, so a table shows an edit at once and as it comes back. */
 export function withCell(rows: Row[], props: Property[], rowId: number, propId: string, value: unknown): Row[] {
   const p = propId === TITLE ? undefined : propById(props, propId);
