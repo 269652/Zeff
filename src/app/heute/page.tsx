@@ -3,6 +3,7 @@ import { EmptyState } from "@/components/EmptyState";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
 import Link from "next/link";
+import { getPref } from "@/lib/prefs";
 import { connection } from "next/server";
 import { daysUntil, dueText, dueTone } from "@/lib/boards/due-shared";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
@@ -290,6 +291,13 @@ export default async function HeutePage() {
       <div className="page-aside">
         <h1 className="text-lg font-semibold">{t("Today")}</h1>
         <p className="text-sm text-zinc-500">{formatLongDay(today)}</p>
+        {/* Until it was opened once: the first look — what Zeff found in the last 30 days (lib/first-look.ts). */}
+        {!getPref<string | null>("firstLook.seenAt", null) && (
+          <Link href="/first-look" className="block rounded-lg border border-indigo-200 bg-indigo-50 p-3 text-sm hover:bg-indigo-100 dark:border-indigo-900 dark:bg-indigo-950/40 dark:hover:bg-indigo-950">
+            <span className="font-medium">✨ {t("Your first look")}</span>
+            <span className="block text-zinc-600 dark:text-zinc-300">{t("What Zeff found in your last 30 days — forgotten promises, what falls due, unbooked time.")}</span>
+          </Link>
+        )}
         {chips.length > 0 && (
           <ul className="flex flex-wrap gap-1.5">
             {chips.map((c) => (

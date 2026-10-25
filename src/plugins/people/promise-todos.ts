@@ -3,7 +3,7 @@ import { eq } from "drizzle-orm";
 import { addManualTodo, getTodo, setTodoDue } from "@/lib/boards/store";
 import { euroAmounts, linkedRefs } from "@/lib/boards/todo-settle";
 import { isInstalled } from "@/plugins/state";
-import { openCommitments } from "./graph";
+import { openCommitments, type Claim } from "./graph";
 
 /**
  * A promise of yours to pay, due (in three days or past it) and with no todo yet: a todo for it, once — where the promise was made as
@@ -43,15 +43,34 @@ export function promiseTodos(today = new Date().toLocaleDateString("sv-SE")): nu
     if (amount == null) continue;
     if (sqlite.prepare("select 1 from people_promise_todos where claim_id = ?").get(c.id)) continue;
     if (hasTodo(c.id, c.sourceRef)) continue;
-    // In German, like the todos Zeff makes from your mails.
-    const euro = amount.toLocaleString("de-DE", { minimumFractionDigits: amount % 1 ? 2 : 0 });
-    const g = addManualTodo({ ticket: "", text: `${c.personName} ${euro} € zurückzahlen (zugesagt: „${c.text.slice(0, 200)}“)` });
-    if (!g?.id) continue;
-    // (The gate may hand back a todo there already, the same in other words: the promise's source added to its own, its due kept.)
-    if (c.sourceRef) getDb().update(schema.todos).set({ refs: JSON.stringify([...new Set([...(g.outcome ? g.refs : []), c.sourceRef])]), updatedAt: new Date().toISOString() }).where(eq(schema.todos.id, g.id)).run();
-    if (!g.outcome || !g.due) setTodoDue(g.id, c.due);
-    sqlite.prepare("insert or ignore into people_promise_todos (claim_id, todo_id, at) values (?, ?, ?)").run(c.id, g.id, new Date().toISOString());
-    made.push(g.id);
+    const id = todoForPromise(c);
+    if (id) made.push(id);
   }
   return made;
+}
+
+/**
+ * A todo for a promise (of yours, or one made to you — to remind them), once: where it was made as its source, its day as the todo's.
+ * A promise to pay reads as the payment ("Johanna 200 € zurückzahlen"); any other as itself. The todo's id (one there already: that one).
+ */
+export function todoForPromise(c: Pick<Claim, "id" | "text" | "due" | "sourceRef" | "direction"> & { personName: string }): number | null {
+  const sqlite = table();
+  const had = sqlite.prepare("select todo_id from people_promise_todos where claim_id = ?").get(c.id) as { todo_id: number } | undefined;
+  if (had && getTodo(had.todo_id)) return had.todo_id;
+  const amount = euroAmounts(c.text)[0];
+  // In German, like the todos Zeff makes from your mails.
+  const euro = amount != null ? amount.toLocaleString("de-DE", { minimumFractionDigits: amount % 1 ? 2 : 0 }) : "";
+  const text =
+    c.direction === "theirs"
+      ? `${c.personName} erinnern: „${c.text.slice(0, 200)}“`
+      : amount != null && !PLAN.test(c.text)
+        ? `${c.personName} ${euro} € zurückzahlen (zugesagt: „${c.text.slice(0, 200)}“)`
+        : `${c.personName}: ${c.text.slice(0, 240)}`;
+  const g = addManualTodo({ ticket: "", text });
+  if (!g?.id) return null;
+  // (The gate may hand back a todo there already, the same in other words: the promise's source added to its own, its due kept.)
+  if (c.sourceRef) getDb().update(schema.todos).set({ refs: JSON.stringify([...new Set([...(g.outcome ? g.refs : []), c.sourceRef])]), updatedAt: new Date().toISOString() }).where(eq(schema.todos.id, g.id)).run();
+  if (c.due && (!g.outcome || !g.due)) setTodoDue(g.id, c.due);
+  sqlite.prepare("insert or ignore into people_promise_todos (claim_id, todo_id, at) values (?, ?, ?)").run(c.id, g.id, new Date().toISOString());
+  return g.id;
 }

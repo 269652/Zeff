@@ -55,6 +55,12 @@ export default async function PrivacyPage() {
               🔒 {t("Data boundaries")}
             </Link>
           </p>
+          <p>
+            <Link href="/privacy/receipts" className="text-indigo-600 hover:underline dark:text-indigo-400">
+              🧾 {t("What went to the AI")} →
+            </Link>{" "}
+            <span className="text-zinc-500">{t("every text an AI step sent, as it went — the last 30 days")}</span>
+          </p>
         </section>
 
         <section className="card space-y-2 p-4 text-sm">

@@ -17,6 +17,7 @@ import { claudeSessionSettings } from "@/lib/work/store";
 import { runCopilot } from "@/plugins/copilot-cli/cli";
 import { isInstalled, providerAvailable } from "@/plugins/state";
 import { recordUsage } from "@/lib/ai/usage";
+import { countRedactions, recordReceipt } from "@/lib/ai/receipts";
 import { guardPrompt } from "@/lib/boundaries";
 import { getLlmSettings } from "./settings";
 import { IDEMPOTENT_TASKS, LLM_PREAMBLE_MAX, type LlmTaskId } from "./tasks";
@@ -74,10 +75,14 @@ export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { 
   const preamble = llmPreamble();
   // Last: what comes last weighs most — the user's word over the task's own rules.
   // What is marked secret never goes out (lib/boundaries): its lines are left out of the prompt.
-  const full = guardPrompt(preamble ? `${prompt}\n\n---\n\n${preamble}` : prompt);
+  const raw = preamble ? `${prompt}\n\n---\n\n${preamble}` : prompt;
+  const full = guardPrompt(raw);
+  const redacted = countRedactions(raw, full);
   // Only Claude takes a budget.
   if (opts.maxBudgetUsd !== undefined && provider !== "claude") console.warn(`[llm] ${task}: maxBudgetUsd is ignored by ${provider}.`);
-  const attempt = () =>
+  // Each time it goes out (a second try too): a receipt of what went (lib/ai/receipts.ts — Privacy → What went to the AI).
+  const attempt = () => (recordReceipt({ task, provider, model, text: full, redacted }), send());
+  const send = () =>
     provider === "copilot"
       ? runCopilot<T>(full, schema, { model, timeoutMs: opts.timeoutMs })
       : provider === "codex"
