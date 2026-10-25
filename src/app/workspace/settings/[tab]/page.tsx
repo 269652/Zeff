@@ -55,7 +55,8 @@ async function body(tab: Tab) {
   if (tab === "sources") return <SourcesView sources={sourcesOverview()} />;
   if (tab === "outputs") {
     const { listCollections } = await import("@/lib/items");
-    const dbs = listCollections({ plugin: "workspace" }).map((c) => ({ id: Number(c.id.slice("workspace:".length)), name: c.name, briefing: !!c.briefing, source: c.source ?? null, sensitivity: c.sensitivity ?? "open" }));
+    const { hasOwnLabel } = await import("@/plugins/workspace/sensitivity");
+    const dbs = listCollections({ plugin: "workspace" }).map((c) => ({ id: Number(c.id.slice("workspace:".length)), name: c.name, briefing: !!c.briefing, source: c.source ?? null, sensitivity: c.sensitivity ?? "open", own: hasOwnLabel(Number(c.id.slice("workspace:".length))) }));
     return <OutputsView databases={dbs} knowledgeOn={isInstalled("knowledge")} />;
   }
   if (tab === "pipelines") {

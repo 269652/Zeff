@@ -88,3 +88,18 @@ test("the pipeline and schema keep the rules step and the database flags", async
   const s = m.normalizeSchema({ titleName: "N", properties: [], views: [], rules: true, jobs: true });
   assert.deepEqual([s.rules, s.jobs], [true, true]);
 });
+
+test("rules tried: per rule, the records it would hit and what it would do — in order (a dropped record meets no later rule), nothing written", async () => {
+  const { w, rules, jobs, addRule } = await setup();
+  addRule(rules, { title: "Newsletter weg", field: "Absender", op: "enthält", value: "news@", then: "Ausschließen", prio: 1 });
+  addRule(rules, { title: "Danach nie", field: "Absender", op: "enthält", value: "news@", then: "Feld setzen", target: "Art", set: "Newsletter", prio: 2 });
+  addRule(rules, { title: "Schulungen als Auftrag", field: "Betreff", op: "enthält", value: "Pflichtschulung", then: "Auftrag anlegen", target: "Erledige: {{title}}", prio: 3 });
+  const { tryRulesDatabase } = await import("@/plugins/workspace/rules");
+  const tried = await tryRulesDatabase(rules);
+  const by = Object.fromEntries(tried.rules.map((r) => [r.title, r.hits.map((h) => h.title)]));
+  assert.deepEqual(by["Newsletter weg"], ["Newsletter Oktober"]);
+  assert.deepEqual(by["Danach nie"], [], "dropped before: no later rule meets it");
+  assert.deepEqual(by["Schulungen als Auftrag"], ["Pflichtschulung Datenschutz"]);
+  assert.ok(tried.records >= 3, "the records the pipelines read");
+  assert.equal(w.rawRows(jobs).length, 0, "no job made");
+});

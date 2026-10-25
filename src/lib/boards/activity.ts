@@ -91,7 +91,7 @@ export function todoActivity(opts: { days?: number; limit?: number } = {}): Todo
     if (l) {
       const started = lage.get(Number(l[1]));
       const when = started ? new Date(`${started.replace(" ", "T")}${started.includes("T") ? "" : "Z"}`).toLocaleString(currentLocale(), { weekday: "short", hour: "2-digit", minute: "2-digit" }) : "";
-      return { label: when ? t("Briefing ({when})", { when }) : t("Briefing"), href: "/todos", title: t("Briefing run #{n}", { n: l[1] }) };
+      return { label: when ? t("Briefing ({when})", { when }) : t("Briefing"), href: "/todos", title: t("Briefing run #{n}", { n: l[1] }), run: Number(l[1]) };
     }
     return { label: actor };
   };

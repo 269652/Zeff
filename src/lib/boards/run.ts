@@ -204,6 +204,13 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
             console.error("[people] promise todos:", errorMessage(e));
           }
         }
+        // One due date: the open todos linked since (a case number found, a promise matched) take theirs from what they hang on.
+        try {
+          const { listTodos } = await import("./store");
+          (await import("./todo-settle")).syncDues(listTodos({ status: "open" }));
+        } catch (e) {
+          console.error("[todos] due dates:", errorMessage(e));
+        }
         throwIfAborted();
         // The duplicates the steps above may have left (and any from before): merged into the oldest, before the actions look at them.
         await syncAndWait("tododupes");

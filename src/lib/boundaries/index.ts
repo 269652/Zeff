@@ -131,7 +131,8 @@ export function guardPrompt(text: string): string {
 // The matrix: what flows where today (Settings → Data boundaries)
 // ---------------------------------------------------------------------------
 
-export type BoundaryRow = { kind: "source" | "database"; key: string; name: string; label: Label; own: boolean; flows: Record<Exit, Flow>; href?: string };
+/** `from`: where a database's rows come from (its source, its pipeline's sources: mail, WhatsApp, Jira …) — empty: written by hand. */
+export type BoundaryRow = { kind: "source" | "database"; key: string; name: string; label: Label; own: boolean; flows: Record<Exit, Flow>; href?: string; from?: string[] };
 
 /**
  * Every source of an installed plugin (those without a plugin always) and every Workspace database, with its label (yours
@@ -149,10 +150,13 @@ export async function boundaryMatrix(): Promise<BoundaryRow[]> {
   const { getPref: pref } = await import("@/lib/prefs");
   const switches = pref<{ briefing?: number[] }>("workspace.collections", {});
   const { hasOwnLabel } = await import("@/plugins/workspace/sensitivity");
+  const { getDatabase } = await import("@/plugins/workspace/store");
   const dbs: BoundaryRow[] = listCollections({ plugin: "workspace" }).map((c) => {
     const id = Number(c.id.slice("workspace:".length));
     const label = c.sensitivity ?? "open";
-    return { kind: "database", key: String(id), name: c.name, label, own: hasOwnLabel(id), flows: flowsOf(label, { briefing: (switches.briefing ?? []).includes(id) }), href: c.href };
+    const steps = getDatabase(id)?.schema.pipeline?.steps ?? [];
+    const from = [...new Set([...(c.source ? [c.source] : []), ...steps.filter((s) => s.kind === "source" && s.from).map((s) => String(s.from))])];
+    return { kind: "database", key: String(id), name: c.name, label, own: hasOwnLabel(id), flows: flowsOf(label, { briefing: (switches.briefing ?? []).includes(id) }), href: c.href, from };
   });
   return [...sources, ...dbs];
 }

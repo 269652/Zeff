@@ -199,6 +199,8 @@ export async function setTodoDueAction(todoId: number, due: string | null): Prom
   try {
     const { setTodoDue } = await import("@/lib/boards/store");
     setTodoDue(Number(todoId), due ? String(due) : null);
+    // Set by you: the things that take their date from it follow (a debt of your own — todo-settle.ts).
+    (await import("@/lib/boards/todo-settle")).pushTodoDue(Number(todoId));
     revalidateAll();
     return { ok: true };
   } catch (err) {
@@ -634,4 +636,15 @@ export async function saveTodoDisplayFormAction(fd: FormData): Promise<void> {
     setPickPrompt(fd.get("resetRepoPrompt") || text === DEFAULT_PICK_PROMPT ? "" : text);
   }
   revalidateAll();
+}
+
+/** A Lage run taken back: its todos you haven't touched dismissed (lib/boards/run-undo.ts). */
+export async function undoLageRunAction(runId: number): Promise<{ ok: true; dismissed: number; kept: number } | { ok: false; error: string }> {
+  try {
+    const r = (await import("@/lib/boards/run-undo")).undoLageRun(Number(runId));
+    revalidateAll();
+    return { ok: true, ...r };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
 }

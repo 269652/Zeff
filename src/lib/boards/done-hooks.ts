@@ -31,3 +31,18 @@ export function runTodoReopenedHooks(todoId: number): void {
     }
   }
 }
+
+/** Things that follow a todo just made (its due from what it hangs on — todo-settle.ts). */
+const createdHooks: Hook[] = [];
+
+export const onTodoCreated = (h: Hook): void => void (createdHooks.includes(h) || createdHooks.push(h));
+
+export function runTodoCreatedHooks(todoId: number): void {
+  for (const h of createdHooks) {
+    try {
+      h(todoId);
+    } catch (e) {
+      console.warn("[todo created hook]", e instanceof Error ? e.message : e);
+    }
+  }
+}

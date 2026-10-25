@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
 import { boundaryMatrix, EXITS, type Exit, type Flow } from "@/lib/boundaries";
 import { isInstalled } from "@/plugins/state";
+import { BriefingToggle } from "./BriefingToggle";
 import { LabelPicker } from "./LabelPicker";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -20,10 +21,10 @@ export default async function BoundariesPage() {
   const rows = await boundaryMatrix();
   const agents = isInstalled("workspace") ? (await import("@/plugins/workspace/routines")).listRoutines().filter((r) => r.kind === "agent") : [];
   const allowed = agents.filter((r) => r.permissions.personal === true).length;
-  const exitName: Record<Exit, string> = { knowledge: t("Knowledge"), briefing: t("Briefing"), agents: t("Agents & workers"), ai: t("External AI"), web: t("Web") };
+  const exitName: Record<Exit, string> = { knowledge: t("Knowledge"), briefing: t("Lage → briefing & todos"), agents: t("Agents & workers"), ai: t("External AI"), web: t("Web") };
   const exitText: Record<Exit, string> = {
     knowledge: t("Offered to your knowledge server, which reads what you pick there (Plugins → Zeff → Choose what to read). Secret is never offered — picked or not."),
-    briefing: t("The Lage reads the work sources and the databases switched into it (Workspace → Outputs); the AI writes it. Secret databases are left out."),
+    briefing: t("The Lage reads the work sources and the databases switched into it (click the cell, or Workspace → Outputs); the AI writes the briefing and the todos from it. Secret databases are left out."),
     agents: t("Workspace agents, routines and Code workers reading over Zeff's MCP. Personal data only for agents allowed “May read personal data” (and your own sessions); secret for nobody."),
     ai: t("Every AI step's prompt goes to the AI you chose (Claude, Copilot, Codex — their servers). Lines of secret sources and databases are left out of it."),
     web: t("What agents put into a web search comes from what they read: personal data only through agents allowed it, secret never."),
@@ -43,6 +44,7 @@ export default async function BoundariesPage() {
           <thead>
             <tr className="border-b border-zinc-100 text-left text-xs text-zinc-500 uppercase dark:border-zinc-800">
               <th className="px-3 py-2 font-semibold">{title}</th>
+              {kind === "database" && <th className="px-3 py-2 font-semibold">{t("From")}</th>}
               <th className="px-3 py-2 font-semibold">{t("Label")}</th>
               {EXITS.map((e) => (
                 <th key={e} className="px-2 py-2 text-center font-semibold" title={exitText[e]}>
@@ -64,11 +66,19 @@ export default async function BoundariesPage() {
                     t(r.name)
                   )}
                 </td>
+                {kind === "database" && <td className="px-3 py-1.5 text-xs text-zinc-500">{r.from?.length ? r.from.join(", ") : t("by hand")}</td>}
                 <td className="px-3 py-1.5">
                   <LabelPicker kind={r.kind} rowKey={r.key} label={r.label} own={r.own} name={r.kind === "source" ? t(r.name) : r.name} />
                 </td>
                 {EXITS.map((e) => {
                   const c = cell[r.flows[e]];
+                  // A database's way into the Lage: switched here (a secret one stays out).
+                  if (kind === "database" && e === "briefing" && r.flows[e] !== "no")
+                    return (
+                      <td key={e} className="px-2 py-1.5 text-center whitespace-nowrap">
+                        <BriefingToggle dbId={Number(r.key)} on={r.flows[e] === "yes"} sign={c.sign} text={c.text} cls={c.cls} />
+                      </td>
+                    );
                   return (
                     <td key={e} className={`px-2 py-1.5 text-center whitespace-nowrap ${c.cls}`} title={`${exitName[e]}: ${c.text}`}>
                       <span aria-hidden>{c.sign}</span> <span className="text-xs">{c.text}</span>
@@ -88,7 +98,7 @@ export default async function BoundariesPage() {
         <Link href="/privacy" className="text-sm text-zinc-500 hover:underline">
           ← {t("What leaves this PC")}
         </Link>
-        <h1 className="text-lg font-semibold">{t("Data boundaries")}</h1>
+        <h1 className="text-lg font-semibold">{t("Data flows")}</h1>
         <p className="text-sm text-zinc-500">{t("What may flow where. Every source and every database has a label: open (work data — anything may read it), personal (private life — agents only with permission) or secret (it never leaves its place).")}</p>
         <p className="text-sm text-zinc-500">{t("Defaults: work sources open; WhatsApp, Signal, the bank and journal-, health- or money-like databases personal; nothing secret until you say so.")}</p>
         {isInstalled("workspace") && <p className="text-sm text-zinc-500">{t("{n} of {m} agents may read personal data.", { n: allowed, m: agents.length })}</p>}

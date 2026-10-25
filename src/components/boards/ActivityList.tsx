@@ -5,6 +5,9 @@ import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { todoEventLabels, type TodoEventView } from "@/lib/boards/activity-shared";
 import { todoRef } from "@/lib/boards/shared";
+import { useRouter } from "next/navigation";
+import { toast } from "@/components/Toaster";
+import { undoLageRunAction } from "@/plugins/todos/server-actions";
 import { markActivitySeen, readActivitySeen } from "./ActivitySeen";
 import { TodoRefs } from "./TodoRefs";
 import { formatLongDay, formatTime } from "@/lib/format";
@@ -121,6 +124,8 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
                           ),
                       })}
                       {e.event !== "created" && e.openNow && e.event !== "reopened" && e.event !== "merged" && <> · {t("reopened")}</>}
+                      {/* A todo a Lage run made: that run taken back — its todos you haven't touched (run-undo.ts). */}
+                      {e.event === "created" && e.by.run && <UndoRun run={e.by.run} />}
                     </div>
                     {e.note && <div className="mt-0.5 text-xs whitespace-pre-line text-zinc-500 dark:text-zinc-400"><TodoRefs text={e.event === "created" ? t("Source: {note}", { note: e.note }) : e.event === "merged" ? t("Merged duplicate, from: {note}", { note: e.note }) : e.note} /></div>}
                   </div>
@@ -131,5 +136,30 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
         </section>
       ))}
     </div>
+  );
+}
+
+/** "Take back this run": the Lage run's todos you haven't touched dismissed (asked first). */
+function UndoRun({ run }: { run: number }) {
+  const t = useT();
+  const router = useRouter();
+  return (
+    <>
+      {" · "}
+      <button
+        type="button"
+        className="text-zinc-500 hover:text-red-600 hover:underline dark:text-zinc-400"
+        title={t("Dismiss the todos this run made that you haven't touched — those you worked on stay")}
+        onClick={async () => {
+          if (!window.confirm(t("Take back run #{run}? Its todos you haven't touched are dismissed.", { run }))) return;
+          const r = await undoLageRunAction(run);
+          if (!r.ok) return void toast(r.error, { tone: "error" });
+          toast(t("{n} todos of the run dismissed, {kept} kept (you worked on them).", { n: r.dismissed, kept: r.kept }), { tone: "ok" });
+          router.refresh();
+        }}
+      >
+        {t("take back the run")}
+      </button>
+    </>
   );
 }

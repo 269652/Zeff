@@ -5,6 +5,7 @@ import { addDays, occurrenceDays, parseTodoRecurrence, type TodoRecurrence } fro
 import { getPref, setPref } from "@/lib/prefs";
 import { recurrenceFromText, repeatText } from "./recurrence-text";
 import { daysUntil, REPEAT_AHEAD_DAYS } from "./due-shared";
+import { runTodoCreatedHooks } from "./done-hooks";
 import { dueDay, type TodoOp } from "./shared";
 
 const { todos, calendarEvents } = schema;
@@ -155,6 +156,7 @@ export function spawnNext(todoId: number): number | null {
     })
     .returning()
     .get();
+  runTodoCreatedHooks(made.id); // (what hangs on it follows — its due from its case, its debt: todo-settle.ts)
   // The series goes on with the new one.
   const had = seriesOf(todoId);
   if (had) {

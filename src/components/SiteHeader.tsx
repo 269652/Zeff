@@ -34,6 +34,7 @@ const menuEntries = (t: T) => [
   { href: "/mcp", label: "MCP", hint: t("Connect an agent") },
   { href: "/preferences", label: t("Settings"), hint: t("AI provider") },
   { href: "/settings/all", label: t("All settings"), hint: t("Every settings area in one place") },
+  { href: "/privacy/boundaries", label: t("Data flows"), hint: t("Where each source and database flows — personal, secret, into the Lage") },
   { href: "/settings/mail", label: t("Mail settings"), hint: t("Folders, attachments → Documents") },
   { href: "/settings/prompts", label: t("Prompts"), hint: t("What the AI reads at each step") },
   { href: "/settings/ai-quality", label: t("AI quality"), hint: t("Which AI step is useful") },

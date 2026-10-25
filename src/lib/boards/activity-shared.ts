@@ -13,7 +13,8 @@ export type TodoEventView = {
   /** Why (a closing note), or where a new one (or a merged duplicate) came from. */
   note: string | null;
   /** Who did it, in words, and where to look. */
-  by: { label: string; href?: string; title?: string };
+  /** `run`: a Lage run's id when it was one (its untouched todos can be taken back — run-undo.ts). */
+  by: { label: string; href?: string; title?: string; run?: number };
   /** Who did it was you (a click): not news. */
   mine: boolean;
   /** Is the todo open now. */

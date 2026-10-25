@@ -1,6 +1,6 @@
-import { todoAmounts, todoLinkFinder, todoSettler } from "@/lib/boards/todo-settle";
+import { refDue, refLabeler, refPayable, rowRefs, settledBy, todoAmount, todoAmounts, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
 import { claimsOf } from "@/plugins/people/graph";
-import { promisedAmount } from "@/plugins/people/todo-settle";
+import { peoplePaid, promisedAmount } from "@/plugins/people/todo-settle";
 import { isInstalled } from "@/plugins/state";
 import { getPage, rawRows, setCell } from "@/plugins/workspace/store";
 import { viaSource } from "@/plugins/workspace/events";
@@ -9,20 +9,72 @@ import { DEBT } from "./fields";
 import { setDebtMoney } from "./own";
 
 /**
- * What hangs on a todo, for the Finances plugin (lib/boards/todo-settle.ts): the debts of what was found before — the one written down
- * from a promise (its claim), a case's row. The todo done: a debt of your own is down by what it paid (an instalment's due a month on,
- * paid off: nothing due); a case's row follows its case (settled before it). Server only.
+ * What hangs on a proof, for the Finances plugin (lib/boards/todo-settle.ts): the debts of what was found before — the one written down
+ * from a promise (its claim), a case's row; and, for a booking no todo took (the fallback), a debt of your own to whoever it paid, of
+ * its instalment or of what is open — unless a todo or "paid" by hand settled it with that amount in the ten days before (the same
+ * payment, already counted). Settled: a debt of your own is down by what it paid (an instalment's due a month on, paid off: nothing
+ * due); a case's row follows its case (settled before it). Server only.
  */
 
-todoLinkFinder((_todo, found) => {
+const DAYS_SAME = 10;
+const near = (a: number, b: number) => Math.abs(a - b) < 0.005;
+
+/** A booking's own debt rows: to whoever it paid, of its instalment or what is open — not counted already by another proof. */
+function debtsPaid(e: Evidence, db: number): number[] {
+  const amount = todoAmount(e);
+  if (amount == null) return [];
+  const people = new Set(peoplePaid(e));
+  if (!people.size) return [];
+  const since = new Date(new Date(`${e.date}T12:00:00`).getTime() - DAYS_SAME * 864e5).toISOString();
+  return rawRows(db)
+    .filter((r) => !getPage(r.id)?.archivedAt && !r.cells.srcref)
+    .filter((r) => (Array.isArray(r.cells[DEBT.creditor]) ? (r.cells[DEBT.creditor] as unknown[]) : []).some((c) => people.has(Number(c))))
+    .filter((r) => [Number(r.cells[DEBT.rate]), Number(r.cells[DEBT.open])].some((v) => Number.isFinite(v) && near(v, amount)))
+    .filter((r) => !settledBy(`debt:${r.id}`).some((s) => s.subject !== e.key && s.at >= since))
+    .map((r) => r.id);
+}
+
+todoLinkFinder((e, found) => {
   const db = isInstalled("finances") ? debtsDbId() : null;
   if (!db) return [];
   const claims = new Set(found.filter((r) => r.startsWith("claim:")).map((r) => Number(r.slice(6))));
   const cases = new Set(found.filter((r) => r.startsWith("case:")));
-  if (!claims.size && !cases.size) return [];
-  return rawRows(db)
-    .filter((r) => !getPage(r.id)?.archivedAt && (claims.has(Number(r.cells[DEBT.claim])) || cases.has(String(r.cells.srcref ?? ""))))
-    .map((r) => `debt:${r.id}`);
+  const linked = claims.size || cases.size ? rawRows(db).filter((r) => !getPage(r.id)?.archivedAt && (claims.has(Number(r.cells[DEBT.claim])) || cases.has(String(r.cells.srcref ?? "")))).map((r) => r.id) : [];
+  const booked = e.key.startsWith("tx:") && !linked.length ? debtsPaid(e, db) : [];
+  return [...linked, ...booked].map((id) => `debt:${id}`);
+});
+
+// A row of the debts database stands for its debt (and a case's row for its case too); "paid" by hand pays its instalment, else what is open.
+rowRefs((rowId) => {
+  const row = getPage(rowId);
+  if (!row || row.dbId !== debtsDbId()) return [];
+  const src = String(row.props.srcref ?? "");
+  return [`debt:${rowId}`, ...(src.startsWith("case:") ? [src] : [])];
+});
+refPayable("debt", (ref) => {
+  const row = getPage(Number(ref.slice(5)));
+  if (!row || row.props.srcref) return null; // (a case's row: paid on its case)
+  const rate = Number(row.props[DEBT.rate]);
+  const open = Number(row.props[DEBT.open]);
+  return Number.isFinite(rate) && rate > 0 ? Math.min(rate, Number.isFinite(open) && open > 0 ? open : rate) : Number.isFinite(open) && open > 0 ? open : null;
+});
+
+// A debt of your own: its next due is the todo's — and the todo's, set by you, is the debt's (a case's row follows its case).
+refDue("debt", {
+  dueOf: (ref) => {
+    const row = getPage(Number(ref.slice(5)));
+    if (!row || row.props.srcref) return null;
+    return typeof row.props[DEBT.due] === "string" ? String(row.props[DEBT.due]) : null;
+  },
+  setDue: (ref, day) => {
+    const row = getPage(Number(ref.slice(5)));
+    if (row && !row.props.srcref && row.dbId === debtsDbId()) setDebtMoney(row.id, { due: day });
+  },
+});
+
+refLabeler("debt", (ref) => {
+  const row = getPage(Number(ref.slice(5)));
+  return row ? { title: row.title, href: `/workspace/${row.id}` } : null;
 });
 
 const plusMonth = (iso: string, day: number | null): string => {

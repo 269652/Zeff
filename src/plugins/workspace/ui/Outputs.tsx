@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
+import { LabelPicker } from "@/app/privacy/boundaries/LabelPicker";
 import { setCollectionAction } from "../actions";
 
 /**
@@ -12,7 +13,7 @@ import { setCollectionAction } from "../actions";
  * briefing"); into the knowledge — picked on the knowledge server now (Plugins → Zeff → what to read), from every source
  * and database Zeff has.
  */
-export function OutputsView({ databases, knowledgeOn }: { databases: { id: number; name: string; briefing: boolean; source: string | null; sensitivity?: "open" | "personal" | "secret" }[]; knowledgeOn: boolean }) {
+export function OutputsView({ databases, knowledgeOn }: { databases: { id: number; name: string; briefing: boolean; source: string | null; sensitivity?: "open" | "personal" | "secret"; own?: boolean }[]; knowledgeOn: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -26,7 +27,13 @@ export function OutputsView({ databases, knowledgeOn }: { databases: { id: numbe
     <div className="space-y-6">
       <section className="space-y-2">
         <h2 className="font-medium">{t("Into the Ticket-Lage")}</h2>
-        <p className="text-sm text-zinc-500">{t("The databases whose rows the Ticket-Lage reads as context (notes, boards).")}</p>
+        <p className="text-sm text-zinc-500">{t("The databases whose rows the Ticket-Lage reads as context (notes, boards) — its AI writes the briefing and the todos from them.")}</p>
+        <p className="text-sm text-zinc-500">
+          {t("Each database's sensitivity is switched in its line; where everything flows:")}{" "}
+          <Link href="/privacy/boundaries" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            {t("Data flows")} →
+          </Link>
+        </p>
         <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
           {databases.map((d) => (
             <li key={d.id} id={`db-${d.id}`} className="flex items-center gap-3 px-3 py-2 text-sm">
@@ -36,11 +43,8 @@ export function OutputsView({ databases, knowledgeOn }: { databases: { id: numbe
                 {d.name}
               </Link>
               {d.source && <span className="text-xs text-zinc-400">{d.source}</span>}
-              {d.sensitivity && d.sensitivity !== "open" && (
-                <Link href="/privacy/boundaries" className="text-xs text-zinc-500 hover:underline" title={t("Data boundaries")}>
-                  🔒 {d.sensitivity === "secret" ? t("Secret") : t("Personal")}
-                </Link>
-              )}
+              {/* Its sensitivity, switched here (open, personal, secret — or its default). */}
+              <LabelPicker kind="database" rowKey={String(d.id)} label={d.sensitivity ?? "open"} own={!!d.own} name={d.name} />
             </li>
           ))}
         </ul>

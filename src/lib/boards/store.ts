@@ -13,7 +13,7 @@ import { emitChange } from "@/lib/events";
 import type { BoardRun, BoardSettings, Todo } from "@/db/schema";
 import { NotFoundError, ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { runTodoDoneHooks, runTodoReopenedHooks } from "./done-hooks";
+import { runTodoCreatedHooks, runTodoDoneHooks, runTodoReopenedHooks } from "./done-hooks";
 import { recordFeedback } from "@/lib/learning/ledger";
 import { autoActionsFeedback, workerDoneFeedback } from "@/lib/learning/sources";
 import { resolveRefs, unresolveRefs } from "@/lib/resolved";
@@ -770,6 +770,7 @@ export function addFollowUp(v: {
     })
     .returning()
     .get();
+  runTodoCreatedHooks(row.id); // (what hangs on it follows — its due from its case, its debt: todo-settle.ts)
   emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
@@ -800,6 +801,7 @@ export function addMailTodo(v: { ticket: string; text: string; kind: string; own
     })
     .returning()
     .get();
+  runTodoCreatedHooks(row.id); // (what hangs on it follows — its due from its case, its debt: todo-settle.ts)
   emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
@@ -827,6 +829,7 @@ export function addDocTodo(v: { ticket: string; text: string; kind: string; owne
     })
     .returning()
     .get();
+  runTodoCreatedHooks(row.id); // (what hangs on it follows — its due from its case, its debt: todo-settle.ts)
   emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
@@ -852,6 +855,7 @@ export function addNoteTodo(v: { ticket: string; text: string; kind: string; own
     })
     .returning()
     .get();
+  runTodoCreatedHooks(row.id); // (what hangs on it follows — its due from its case, its debt: todo-settle.ts)
   emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
@@ -870,6 +874,7 @@ export function addCalendarTodo(v: { text: string; due: string; ref: string; sou
     .values({ ticket: "", text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: v.source.slice(0, 200), refs: JSON.stringify([v.ref]), runId: null, due: dueDay(v.due), createdAt: now, updatedAt: now })
     .returning()
     .get();
+  runTodoCreatedHooks(row.id); // (what hangs on it follows — its due from its case, its debt: todo-settle.ts)
   emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
@@ -889,6 +894,7 @@ export function addManualTodo(v: { ticket: string; text: string }): Gated {
     .values({ ticket: v.ticket.trim().toUpperCase(), text: v.text.trim().slice(0, 500), kind: "other", owner: "me", status: "open", source: "From you", refs: "[]", runId: null, createdAt: now, updatedAt: now })
     .returning()
     .get();
+  runTodoCreatedHooks(row.id); // (what hangs on it follows — its due from its case, its debt: todo-settle.ts)
   emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }
@@ -930,6 +936,7 @@ export function addAgentTodo(v: { ticket: string; text: string; owner?: "me" | "
     .values({ ticket: v.ticket.trim().toUpperCase(), text: v.text.trim().slice(0, 500), kind: "other", owner: v.owner ?? "me", status: "open", source: AGENT_SOURCE, refs: "[]", runId: null, createdAt: now, updatedAt: now })
     .returning()
     .get();
+  runTodoCreatedHooks(row.id); // (what hangs on it follows — its due from its case, its debt: todo-settle.ts)
   emitChange("todos");
   return toTodo(row);
 }
@@ -956,6 +963,7 @@ export function deliveryTodo(v: { ticket: string; text: string; runId: number | 
     .values({ ticket, text: v.text.trim().slice(0, 500), kind: "merge", owner: "me", status: "open", source: v.runId ? `Follow-up from W-${v.runId}` : "Delivery", refs: "[]", ops: JSON.stringify(cleanOps(v.ops, ticket)), runId: v.runId, createdAt: now, updatedAt: now })
     .returning()
     .get();
+  runTodoCreatedHooks(row.id); // (what hangs on it follows — its due from its case, its debt: todo-settle.ts)
   emitChange("todos");
   return { todo: toTodo(row), created: true };
 }
@@ -981,6 +989,7 @@ export function addSessionTodo(v: { ticket: string; text: string }): Gated {
     .values({ ticket: v.ticket.trim().toUpperCase(), text, kind: "other", owner: "me", status: "open", source: "Work-Session", byWorker: true, ops: JSON.stringify([{ type: "todo-promote", text }]), refs: "[]", runId: null, createdAt: now, updatedAt: now })
     .returning()
     .get();
+  runTodoCreatedHooks(row.id); // (what hangs on it follows — its due from its case, its debt: todo-settle.ts)
   emitChange("todos"); // (after it is written: a page that refreshes on it must find it)
   return toTodo(row);
 }

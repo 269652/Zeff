@@ -206,7 +206,8 @@ function build(label, app, { typecheck = true } = {}) {
 
 // 6. The processes (Windows): the launcher, the servers.
 function processes() {
-  const out = execFileSync("powershell", ["-NoProfile", "-Command", "Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('node.exe','Zeff.exe') } | Select-Object ProcessId,Name,CommandLine | ConvertTo-Json -Compress"], { encoding: "utf8" });
+  // (UTF-8 out: a command line with an "ß" in it — a CLI's prompt — read in the console's code page broke the JSON.)
+  const out = execFileSync("powershell", ["-NoProfile", "-Command", "[Console]::OutputEncoding = [Text.Encoding]::UTF8; Get-CimInstance Win32_Process | Where-Object { $_.Name -in @('node.exe','Zeff.exe') } | Select-Object ProcessId,Name,CommandLine | ConvertTo-Json -Compress"], { encoding: "utf8" });
   const list = JSON.parse(out || "[]");
   return (Array.isArray(list) ? list : [list]).filter(Boolean);
 }
@@ -222,7 +223,7 @@ function launcherKnowsSync() {
   try {
     const out = execFileSync(
       "powershell",
-      ["-NoProfile", "-Command", "Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'Zeff.exe' } | ForEach-Object { [pscustomobject]@{ exe = $_.ExecutablePath; cmd = $_.CommandLine; start = $_.CreationDate.ToUniversalTime().ToString('o') } } | ConvertTo-Json -Compress"],
+      ["-NoProfile", "-Command", "[Console]::OutputEncoding = [Text.Encoding]::UTF8; Get-CimInstance Win32_Process | Where-Object { $_.Name -eq 'Zeff.exe' } | ForEach-Object { [pscustomobject]@{ exe = $_.ExecutablePath; cmd = $_.CommandLine; start = $_.CreationDate.ToUniversalTime().ToString('o') } } | ConvertTo-Json -Compress"],
       { encoding: "utf8" },
     );
     const list = JSON.parse(out || "[]");

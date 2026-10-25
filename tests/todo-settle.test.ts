@@ -103,6 +103,105 @@ test("a todo opened again takes back what it settled: the promises open, the deb
   assert.equal(getPage(debt)!.props[DEBT.open] ?? 0, 0, "done again: settled again");
 });
 
+async function family(name: string) {
+  const { setInstalled } = await import("@/plugins/state");
+  for (const p of ["people", "todos", "cases", "finances", "workspace"]) setInstalled(p, true);
+  const { createPerson } = await import("@/plugins/people/store");
+  const person = createPerson({ name });
+  const { ensureDebtsDatabase } = await import("@/plugins/finances/database");
+  await ensureDebtsDatabase();
+  for (const m of ["@/plugins/cases/server", "@/plugins/people/server", "@/plugins/finances/server"]) await import(m);
+  return person;
+}
+
+test("a transfer on the statement with no todo for it (the fallback): the promise to whoever it paid kept, the debt from it down — once", async () => {
+  const mum = await family("Johanna Testerin");
+  const { addClaim, claimsOf } = await import("@/plugins/people/graph");
+  addClaim({ personId: mum, kind: "commitment", text: "Ich habe Johanna zugesagt, ihr die 200€ zurückzuüberweisen.", sourceRef: `mail:wa:J|${Math.random()}`, direction: "mine", due: "2026-10-23", confidence: 0.9 });
+  const claim = claimsOf(mum)[0];
+  const { createDebt } = await import("@/plugins/finances/own");
+  const debt = createDebt({ dir: "owe", title: "Mama", creditorId: mum, amount: 30000, due: "2031-03-01", installment: 400, fromClaim: claim.id });
+  const { addBookings, matchPayments } = await import("@/plugins/cases/bank");
+  addBookings([{ date: "2026-10-24", amount: -200, currency: "EUR", text: "Rückzahlung", counterparty: "Johanna Testerin", iban: "", reference: "Rückzahlung" }], "Giro");
+  matchPayments();
+  assert.ok(claimsOf(mum).find((c) => c.id === claim.id)!.doneAt, "the promise kept by the booking");
+  const { getPage } = await import("@/plugins/workspace/store");
+  const { DEBT } = await import("@/plugins/finances/fields");
+  assert.equal(getPage(debt)!.props[DEBT.open], 29800);
+  const { settledBy } = await import("@/lib/boards/todo-settle");
+  assert.match(settledBy(`debt:${debt}`)[0].subject, /^tx:/, "settled by the booking");
+  matchPayments();
+  assert.equal(getPage(debt)!.props[DEBT.open], 29800, "read again: once");
+});
+
+test("a booking of a debt's instalment to its creditor (no promise, no todo): the debt down — not when a todo paid it in the days before", async () => {
+  const elmar = await family("Elmar Testmann");
+  const { createDebt } = await import("@/plugins/finances/own");
+  const debt = createDebt({ dir: "owe", title: "Elmar", creditorId: elmar, amount: 1400, due: "2026-11-01", installment: 250 });
+  const { addBookings, matchPayments } = await import("@/plugins/cases/bank");
+  const { getPage } = await import("@/plugins/workspace/store");
+  const { DEBT } = await import("@/plugins/finances/fields");
+  addBookings([{ date: "2026-10-25", amount: -250, currency: "EUR", text: "Rate", counterparty: "Elmar Testmann", iban: "", reference: "Rate Oktober" }], "Giro");
+  matchPayments();
+  assert.equal(getPage(debt)!.props[DEBT.open], 1150);
+  // Paid by hand, then the bank shows it two days later: the same payment.
+  const { settleByHand } = await import("@/lib/boards/todo-settle");
+  settleByHand(`debt:${debt}`, 250, "von Hand", "2026-11-01");
+  assert.equal(getPage(debt)!.props[DEBT.open], 900);
+  addBookings([{ date: "2026-11-03", amount: -250, currency: "EUR", text: "Rate", counterparty: "Elmar Testmann", iban: "", reference: "Rate November" }], "Giro");
+  matchPayments();
+  assert.equal(getPage(debt)!.props[DEBT.open], 900, "counted once");
+});
+
+test("what hangs together with a debt's row: the debt, what settled it — and what 'paid' pays by default; a todo's: what it settled", async () => {
+  const { debt, todo } = await world();
+  const { linksOf, refsOfRow } = await import("@/lib/boards/todo-settle");
+  const { listTodos, setTodoStatus } = await import("@/lib/boards/store");
+  assert.deepEqual(refsOfRow(debt), [`debt:${debt}`]);
+  const before = linksOf({ refs: refsOfRow(debt) }, { openTodos: listTodos({ status: "open" }) });
+  assert.equal(before.things[0].pay, 60, "no instalment: what is open");
+  assert.ok(before.todos.some((x) => x.id === todo.id), "the open todo that would settle it");
+  setTodoStatus(todo.id, "done");
+  const after = linksOf({ refs: refsOfRow(debt) });
+  assert.deepEqual(after.things[0].settledBy.map((s) => s.label), [`T-${todo.id}`]);
+  assert.ok(linksOf({ todoId: todo.id }).things.some((x) => x.ref === `debt:${debt}`), "the todo's page: the debt it settled");
+});
+
+test("one due date: a todo hanging on a debt of yours takes its date — new ones too; changed on the todo, the debt follows", async () => {
+  const elmar = await family("Elmar Fälligmann");
+  const { createDebt } = await import("@/plugins/finances/own");
+  const { addClaim, claimsOf } = await import("@/plugins/people/graph");
+  const source = `mail:wa:E|${Math.random()}`;
+  addClaim({ personId: elmar, kind: "commitment", text: "Ich habe Elmar zugesagt, ihm 250 € zu überweisen", sourceRef: source, direction: "mine", confidence: 0.9 });
+  const claim = claimsOf(elmar)[0];
+  const debt = createDebt({ dir: "owe", title: "Elmar", creditorId: elmar, amount: 1400, due: "2026-11-01", installment: 250, fromClaim: claim.id });
+  const { addMailTodo, getTodo, setTodoDue } = await import("@/lib/boards/store");
+  // A new todo from the message the promise was made in (the Mail-Durchsicht's): due when the debt's instalment is, at once.
+  const todo = addMailTodo({ ticket: "", text: "Elmar 250 € überweisen", kind: "other", refs: [source], runId: null });
+  await new Promise((r) => setTimeout(r, 50));
+  assert.equal(getTodo(todo.id)!.due, "2026-11-01", "its due from the debt");
+  // Moved on the todo by you: the debt's next due too.
+  setTodoDue(todo.id, "2026-11-05");
+  const { pushTodoDue } = await import("@/lib/boards/todo-settle");
+  pushTodoDue(todo.id);
+  const { getPage } = await import("@/plugins/workspace/store");
+  const { DEBT } = await import("@/plugins/finances/fields");
+  assert.equal(getPage(debt)!.props[DEBT.due], "2026-11-05");
+});
+
+test("paid by hand, taken back: the debt as it was", async () => {
+  const karla = await family("Karla Testfrau");
+  const { createDebt } = await import("@/plugins/finances/own");
+  const debt = createDebt({ dir: "owe", title: "Karla", creditorId: karla, amount: 50, due: "2027-01-01", installment: null });
+  const { settleByHand, unsettle } = await import("@/lib/boards/todo-settle");
+  const { getPage } = await import("@/plugins/workspace/store");
+  const { DEBT } = await import("@/plugins/finances/fields");
+  const { key } = settleByHand(`debt:${debt}`, 50, "von Hand");
+  assert.equal(getPage(debt)!.props[DEBT.open] ?? 0, 0, "paid off");
+  unsettle(key);
+  assert.equal(getPage(debt)!.props[DEBT.open], 50, "taken back");
+});
+
 test("the debts overview shows it: what is open after the todo", async () => {
   const { debt, todo } = await world();
   (await import("@/lib/boards/store")).setTodoStatus(todo.id, "done");

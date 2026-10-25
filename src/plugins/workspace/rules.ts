@@ -156,3 +156,42 @@ export function rulesDatabases(): number[] {
   const rows = getSqlite().prepare("select id from ws_pages where kind = 'database' and archived_at is null").all() as { id: number }[];
   return rows.filter((r) => getDatabase(r.id)?.schema.rules).map((r) => r.id);
 }
+
+export type RuleTry = { id: number; title: string; then: RuleAction; hits: { ref: string; title: string }[] };
+
+/**
+ * The rules tried on records, nothing written: per rule (in order) the records it would hit — a record a rule drops meets no later
+ * rule, a field a rule sets is there for the ones after it, as the rules step does it. A job is not made, a field not stored.
+ */
+export function tryRules(records: SourceRecord[], rulesDb: number): RuleTry[] {
+  const rules = loadRules(rulesDb).filter((r) => r.then !== "hint");
+  const out: RuleTry[] = rules.map((r) => ({ id: r.id, title: r.title, then: r.then, hits: [] }));
+  for (const rec of records) {
+    let cur = rec;
+    for (const [i, rule] of rules.entries()) {
+      if (!matches(cur, rule)) continue;
+      out[i].hits.push({ ref: cur.ref, title: cur.title });
+      if (rule.then === "exclude") break;
+      if (rule.then === "set" && rule.target) cur = { ...cur, fields: { ...cur.fields, [rule.target]: rule.set } };
+    }
+  }
+  return out;
+}
+
+/** A rules database tried: on what the pipelines that apply it read up to their rules step (pipeline.ts previewRecords) — together. */
+export async function tryRulesDatabase(rulesDb: number): Promise<{ rules: RuleTry[]; records: number; databases: { id: number; title: string }[] }> {
+  const { previewRecords } = await import("./pipeline");
+  const { tree } = await import("./store");
+  const users = tree()
+    .filter((x) => x.kind === "database")
+    .map((x) => getDatabase(x.id))
+    .filter((d): d is NonNullable<typeof d> => !!d && (d.schema.pipeline?.steps ?? []).some((s) => s.kind === "rules" && s.dbId === rulesDb));
+  const records: SourceRecord[] = [];
+  const seen = new Set<string>();
+  for (const d of users) {
+    const steps = d.schema.pipeline!.steps;
+    const step = steps.find((s) => s.kind === "rules" && s.dbId === rulesDb)!;
+    for (const r of await previewRecords(d.page.id, steps, step.id)) if (!seen.has(r.ref)) (seen.add(r.ref), records.push(r));
+  }
+  return { rules: tryRules(records, rulesDb), records: records.length, databases: users.map((d) => ({ id: d.page.id, title: d.page.title })) };
+}

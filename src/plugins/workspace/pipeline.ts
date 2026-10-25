@@ -443,6 +443,23 @@ export async function previewJoin(dbId: number, steps: PipelineStep[], stepId: s
   return records.map((r) => ({ title: r.title, matched: matched.has(r.ref) }));
 }
 
+/** The records a step would get now: read and passed through the steps before it — nothing is written (a rules step tried). */
+export async function previewRecords(dbId: number, steps: PipelineStep[], stepId: string): Promise<SourceRecord[]> {
+  const step = steps.find((s) => s.id === stepId);
+  if (!step) throw new Error("No such step.");
+  let records: SourceRecord[] = [];
+  for (const s of steps.slice(0, steps.indexOf(step))) {
+    if (s.kind === "source") {
+      const seen = new Set(records.map((r) => r.ref));
+      records = [...records, ...(await read(s, dbId)).filter((r) => !seen.has(r.ref))];
+    } else if (s.kind === "filter") records = filtered(records, s);
+    else if (s.kind === "set") records = applySet(records, s);
+    else if (s.kind === "join") records = applyJoin(records, s).records;
+  }
+  if (new Set(records.map((r) => r.dataType).filter(Boolean)).size > 1) records = records.map(unifyComm);
+  return records;
+}
+
 /** What a set step would change now: the records it matches, with the steps before it applied — nothing is written. */
 export async function previewSet(dbId: number, steps: PipelineStep[], stepId: string): Promise<{ title: string }[]> {
   const step = steps.find((s) => s.id === stepId && s.kind === "set");

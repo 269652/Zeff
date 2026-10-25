@@ -38,6 +38,7 @@ import { RunningSpinner } from "../RunningSpinner";
 import { TodoPlan } from "./TodoPlan";
 import { TodoRefs } from "./TodoRefs";
 import { PersonText } from "@/plugins/people/PersonMention";
+import { LinkedPanel } from "@/plugins/workspace/ui/linked-panel";
 import { LastError } from "./LastError";
 import { TodoQuickButtons, TodoQuickPanel, type QuickPanel } from "./TodoQuick";
 import { useTodoNew } from "./todo-seen";
@@ -443,6 +444,12 @@ export function TodoItem({
         {showContext && areaOn(off, "context") && context.items.length > 0 && (
           <span className="mt-1.5 block">
             <ContextList items={context.items} todoId={todo.id} />
+          </span>
+        )}
+        {/* What it settles (a case's instalment, a promise, a debt) and what settled it — with the context (todo-settle.ts). */}
+        {showContext && (
+          <span className="mt-1.5 block">
+            <LinkedPanel target={{ todoId: todo.id }} />
           </span>
         )}
         {todo.ops.length > 0 && !closed && (proposedAll ? proposed && showActions : foldable ? showActions : true) && (

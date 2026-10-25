@@ -13,6 +13,7 @@ import { archivePageAction, closeRowAction, reopenRowAction, restorePageAction, 
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
 import { DayEntry } from "./day-entry";
+import { LinkedPanel } from "./linked-panel";
 import { seedPerson } from "@/plugins/people/ui/PersonView";
 import type { PersonBundle } from "@/plugins/people/blocks";
 import { Editor, type SaveState } from "./Editor";
@@ -504,6 +505,8 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
         {/* A row with a custom view (a person) shows its fields in that view. */}
         {/* A day's entry of a daily list's log: a table like the list, its fields folded away under it. */}
         {row && !row.initial.extras?.rowView && <DayEntry rowId={page.id} fields={<RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />} />}
+        {/* What the row stands for (its debt, its case): what settled it, the todos that would — and "Mark as paid" (todo-settle.ts). */}
+        {row && <LinkedPanel target={{ rowId: page.id }} />}
 
         <SystemPageBar pageId={page.id} />
         {page.kind === "database" ? (

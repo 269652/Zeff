@@ -2,6 +2,8 @@ import { createHash } from "node:crypto";
 import { getSqlite } from "@/db";
 import { caseRefs } from "@/lib/boards/similar";
 import { addManualTodo, addTodoUserNote, listTodos, setTodoDue, setTodoOps, setTodoStatus } from "@/lib/boards/store";
+import { settleEvidence } from "@/lib/boards/todo-settle";
+import { t } from "@/lib/i18n/server";
 import { detailsOf } from "@/plugins/people/details";
 import { getPerson } from "@/plugins/people/store";
 import { isInstalled } from "@/plugins/state";
@@ -94,7 +96,7 @@ const deDay = (day: string) => day.split("-").reverse().join(".");
  */
 export function matchPayments(): { matched: number } {
   const d = db();
-  const open = (d.prepare("select * from bank_transactions where amount < 0 and case_id is null and todo_id is null order by date").all() as TRow[]).map(toTx);
+  const open = (d.prepare("select * from bank_transactions where amount < 0 and case_id is null and todo_id is null and matched_at is null order by date").all() as TRow[]).map(toTx);
   if (!open.length) return { matched: 0 };
   const todos = isInstalled("todos") ? listTodosWithTransfer() : [];
   const cases = listCases().filter((c) => c.status === "open");
@@ -122,7 +124,18 @@ export function matchPayments(): { matched: number } {
       d.prepare("update bank_transactions set case_id = ?, matched_at = ? where id = ?").run(caseId, new Date().toISOString(), tx.id);
       continue;
     }
-    if (!todo && !caseId) continue;
+    if (!todo && !caseId) {
+      // No todo and no case took it (a transfer you made without a todo): what it pays anyway — a promise to whoever it paid, a debt
+      // of yours to them (lib/boards/todo-settle.ts). Kept as matched when it settled something; the last 60 days only.
+      if (tx.date >= new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10)) {
+        const settled = settleEvidence({ key: `tx:${tx.id}`, label: `${t("Booking")} ${deDay(tx.date)}`, text: `${tx.text} ${tx.reference}`.trim(), refs: [], ops: [], todoId: null, amount: Math.abs(tx.amount), payee: { name: tx.counterparty, iban: tx.iban }, date: tx.date });
+        if (settled.length) {
+          d.prepare("update bank_transactions set matched_at = ? where id = ?").run(new Date().toISOString(), tx.id);
+          matched++;
+        }
+      }
+      continue;
+    }
     d.prepare("update bank_transactions set case_id = ?, todo_id = ?, matched_at = ? where id = ?").run(caseId, todo?.id ?? null, new Date().toISOString(), tx.id);
     if (caseId) d.prepare("insert or ignore into case_payments (case_id, tx_id, amount, date) values (?, ?, ?, ?)").run(caseId, tx.id, Math.abs(tx.amount), tx.date);
     if (todo) {

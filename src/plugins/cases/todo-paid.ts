@@ -1,9 +1,10 @@
 import { getTodo } from "@/lib/boards/store";
 import type { TodoView } from "@/lib/boards/shared";
-import { todoAmount, todoLinkFinder, todoSettler } from "@/lib/boards/todo-settle";
+import { evidenceOfTodo, refDue, refLabeler, refPayable, rowRefs, todoAmount, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
 import { getSqlite } from "@/db";
 import { isInstalled } from "@/plugins/state";
-import { caseStanding, paymentsOf } from "./bank";
+import { caseStanding, openOf, paymentsOf } from "./bank";
+import { getPage } from "@/plugins/workspace/store";
 import { casesOfRef, getCase, updateCase } from "./store";
 
 /**
@@ -50,32 +51,31 @@ export function payFromTodo(todoId: number, today = new Date().toLocaleDateStrin
   const todo = getTodo(todoId);
   if (!todo) return 0;
   let n = 0;
-  for (const caseId of casesPaidBy(todo)) if (payCase(caseId, todo, today)) n++;
+  const e = { ...evidenceOfTodo(todo), date: today };
+  for (const caseId of casesPaidBy(todo)) if (payCase(caseId, e)) n++;
   return n;
 }
 
-/** One case paid by a todo: its amount booked, the case brought up to it. Whether there was an amount to book. */
-function payCase(caseId: number, todo: TodoView, today: string): boolean {
+/**
+ * One case paid by a proof (a payment todo ticked off, "paid" by hand): its amount booked as a payment of its own (its key the
+ * payment's id), the case brought up to it — and how the case's summary was before (null: no amount to book).
+ */
+function payCase(caseId: number, e: Evidence, amount = todoAmount(e)): { compiled: unknown } | null {
   const s = getCase(caseId)?.compiled;
-  return payCaseUndoable(caseId, todo, today, s) !== null;
-}
-
-/** The same — and how the case's summary was before (null: nothing booked). */
-function payCaseUndoable(caseId: number, todo: TodoView, today: string, s = getCase(caseId)?.compiled): { compiled: unknown } | null {
   const before = s ? JSON.parse(JSON.stringify(s)) : null;
-  const amount = todoAmount(todo) ?? s?.installment ?? s?.open ?? null;
-  if (amount == null) return null;
+  const paid = amount ?? s?.installment ?? s?.open ?? null;
+  if (paid == null) return null;
   paymentsOf(caseId); // (the payments' table there)
-  getSqlite().prepare("insert or ignore into case_payments (case_id, tx_id, amount, date) values (?, ?, ?, ?)").run(caseId, `todo:${todo.id}`, amount, today);
+  getSqlite().prepare("insert or ignore into case_payments (case_id, tx_id, amount, date) values (?, ?, ?, ?)").run(caseId, e.key, paid, e.date);
   settleCase(caseId);
   return { compiled: before };
 }
 
-/** A payment todo opened again: its payment off the case, the summary as it was before — unless it was summed up anew since. */
-function unpayCase(caseId: number, undo: { compiled?: unknown } | null, todoId: number): void {
-  getSqlite().prepare("delete from case_payments where case_id = ? and tx_id = ?").run(caseId, `todo:${todoId}`);
+/** A payment taken back (its todo opened again): off the case, the summary as it was before — unless it was summed up anew since. */
+function unpayCase(caseId: number, undo: { compiled?: unknown } | null, key: string): void {
+  getSqlite().prepare("delete from case_payments where case_id = ? and tx_id = ?").run(caseId, key);
   const now = getCase(caseId)?.compiled;
-  if (undo?.compiled && now?.settled?.includes(`todo:${todoId}`)) updateCase(caseId, { compiled: undo.compiled as NonNullable<typeof now> });
+  if (undo?.compiled && now?.settled?.includes(key)) updateCase(caseId, { compiled: undo.compiled as NonNullable<typeof now> });
 }
 
 /**
@@ -106,13 +106,40 @@ export function settleCase(caseId: number): void {
   updateCase(caseId, { compiled: { ...next, settled: [...counted] } });
 }
 
-// What hangs on a todo (lib/boards/todo-settle.ts): the cases it pays — settled by booking the payment.
-todoLinkFinder((todo) => casesPaidBy(todo).map((id) => `case:${id}`));
+// What hangs on a proof (lib/boards/todo-settle.ts): the cases a payment todo pays — settled by booking the payment. (A booking on the
+// statement is the cases' own: bank.ts matches it; "paid" by hand names its case.)
+todoLinkFinder((e) => {
+  const todo = e.todoId ? getTodo(e.todoId) : undefined;
+  return todo ? casesPaidBy(todo).map((id) => `case:${id}`) : [];
+});
 todoSettler(
   "case",
-  (ref, todo) => {
-    const r = payCaseUndoable(Number(ref.slice(5)), todo, new Date().toLocaleDateString("sv-SE"));
+  (ref, e, amount) => {
+    const r = payCase(Number(ref.slice(5)), e, amount);
     return r ? { undo: r } : false;
   },
-  (ref, undo, todoId) => unpayCase(Number(ref.slice(5)), undo as { compiled?: unknown } | null, todoId),
+  (ref, undo, key) => unpayCase(Number(ref.slice(5)), undo as { compiled?: unknown } | null, key),
 );
+// A case's row in the Workspace (the cases database) stands for its case; "paid" by hand pays its instalment, else what is open.
+rowRefs((rowId) => {
+  const src = String(getPage(rowId)?.props.srcref ?? "");
+  return src.startsWith("case:") ? [src] : [];
+});
+refPayable("case", (ref) => {
+  const c = getCase(Number(ref.slice(5)));
+  if (!c || c.status !== "open") return null;
+  return c.compiled?.installment ?? openOf(c);
+});
+
+// A running case's next instalment is the due day of the todos that hang on it.
+refDue("case", {
+  dueOf: (ref) => {
+    const c = getCase(Number(ref.slice(5)));
+    return c && c.status === "open" && !c.compiled?.done ? (c.compiled?.nextDue ?? null) : null;
+  },
+});
+
+refLabeler("case", (ref) => {
+  const c = getCase(Number(ref.slice(5)));
+  return c ? { title: `${c.compiled?.title || c.label} (${c.label})`, href: null } : null;
+});

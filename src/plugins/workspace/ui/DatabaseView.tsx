@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { templateParamsAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { templateParamsAction, tryRulesAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, withCell, dropBetween, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -678,6 +678,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           </button>
         )}
         {!narrow && propsDropdown}
+        {/* A rules database: its rules tried on what the pipelines read — per rule, what it would hit; nothing written (rules.ts). */}
+        {data.schema.rules && <TryRules dbId={dbId} />}
         {/* A list ticked through every day (day-log.ts): the day closed by hand — the day the ticks were made on (the turn at 4:00 missed: the day before). */}
         {isDayList(data.schema) && (
           <button
@@ -2261,5 +2263,56 @@ function AgentsModal({ schema, dbId, onSaved, onClose }: { schema: DbSchema; dbI
         </div>
       </div>
     </Modal>
+  );
+}
+
+/** "Try the rules": per rule, the records it would hit now (in order — a dropped record meets no later rule) — nothing written. */
+function TryRules({ dbId }: { dbId: number }) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const [got, setGot] = useState<{ rules: { id: number; title: string; then: string; hits: { ref: string; title: string }[] }[]; records: number; databases: { id: number; title: string }[] } | null>(null);
+  const THEN: Record<string, string> = { exclude: t("would drop"), set: t("would set a field on"), job: t("would make a job for") };
+  return (
+    <>
+      <button
+        type="button"
+        className="btn btn-sm shrink-0"
+        disabled={busy}
+        title={t("Try the rules on what the pipelines read now — nothing is changed, no job made")}
+        onClick={async () => {
+          setBusy(true);
+          const r = await tryRulesAction(dbId);
+          setBusy(false);
+          if (!r.ok) return void toast(r.error, { tone: "error" });
+          setGot(r);
+        }}
+      >
+        {busy ? "…" : `🧪 ${t("Try it")}`}
+      </button>
+      {got && (
+        <Modal title={t("The rules tried — nothing was changed")} onClose={() => setGot(null)}>
+          <p className="mb-2 text-sm text-zinc-500">{got.databases.length ? t("{n} records of {dbs}", { n: got.records, dbs: got.databases.map((d) => d.title).join(", ") }) : t("No pipeline applies these rules yet (a rules step in a database's pipeline).")}</p>
+          <ul className="space-y-2 text-sm">
+            {got.rules.map((r) => (
+              <li key={r.id}>
+                <div className="font-medium">
+                  {r.title} <span className="font-normal text-zinc-500">· {THEN[r.then] ?? r.then} {t("{n} records", { n: r.hits.length })}</span>
+                </div>
+                {r.hits.length > 0 && (
+                  <ul className="pl-3 text-xs text-zinc-500">
+                    {r.hits.slice(0, 8).map((h) => (
+                      <li key={h.ref} className="truncate">
+                        {h.title}
+                      </li>
+                    ))}
+                    {r.hits.length > 8 && <li>… +{r.hits.length - 8}</li>}
+                  </ul>
+                )}
+              </li>
+            ))}
+          </ul>
+        </Modal>
+      )}
+    </>
   );
 }
