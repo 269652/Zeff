@@ -3,6 +3,7 @@ import { accountById, addAccount, currentAccountId, removeAccount, setActiveAcco
 import { writeKnowledgeInstances } from "@/plugins/knowledge/instances";
 import { t } from "@/lib/i18n/server";
 import { emitChange } from "./events";
+import { noteSyncingSince } from "./sync/source-health";
 import { runsByStatus } from "./work/store";
 
 /**
@@ -41,9 +42,13 @@ export function switchAccount(id: string): Account {
   const busy = accountBusy();
   if (busy) throw new Error(t("Running now: {busy} — switch once it's done.", { busy }));
   setActiveAccount(id);
+  // It syncs from now on: before that, no run of its was missed. Noted at once — the scheduler notes it only on its
+  // next tick, and a page asking for the sources' health in between found every step overdue ("not running", each told).
+  withAccount(id, () => noteSyncingSince());
   writeKnowledgeInstances(); // https://knowledge.zeff follows the account you're in
-  // What's kept in memory belongs to the account before.
+  // What's kept in memory belongs to the account before (and the sources' health judged before the switch).
   (globalThis as { __zeffAttention?: Map<string, unknown> }).__zeffAttention?.clear();
+  (globalThis as { __zeffSourceHealth?: Map<string, unknown> }).__zeffSourceHealth?.delete(id);
   emitChange("attention");
   return a;
 }

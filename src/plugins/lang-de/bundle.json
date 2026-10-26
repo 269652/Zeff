@@ -7499,5 +7499,10 @@
   "This promise is gone.": "Diese Zusage gibt es nicht mehr.",
   "No todo made.": "Kein Todo angelegt.",
   "This case is gone.": "Diesen Vorgang gibt es nicht mehr.",
-  "Next step": "Nächster Schritt"
+  "Next step": "Nächster Schritt",
+  "Appointments to todos": "Termine zu Todos",
+  "Decides which of today's and tomorrow's appointments give you something to do — only those become todos (a blocker like “Pause” doesn't).": "Entscheidet, welche Termine von heute und morgen dir etwas zu tun geben — nur die werden Todos (ein Blocker wie „Pause“ nicht).",
+  "Which of today's and tomorrow's appointments give you something to do (a blocker like “Pause” doesn't)": "Welche Termine von heute und morgen dir etwas zu tun geben (ein Blocker wie „Pause“ nicht)",
+  "From an appointment — no ticket": "Aus einem Termin — kein Ticket",
+  "from Calendar": "aus dem Kalender"
 }

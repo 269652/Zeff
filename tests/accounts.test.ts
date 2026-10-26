@@ -37,3 +37,26 @@ test("an account made from another: settings over, Chrome shared, setup to come"
   const own = (await createAccount({ name: "Arbeit eigen", color: "rose", copyFrom: DEFAULT_ACCOUNT })).account;
   assert.notEqual(accountChrome(own.id).port, accountChrome(DEFAULT_ACCOUNT).port);
 });
+
+/**
+ * Into another account: it syncs from the switch on — no run of its was missed before it (each step "not running"
+ * was told at once, before the scheduler's next tick noted the switch).
+ */
+test("switching accounts: its sync runs count from the switch, nothing is overdue", async () => {
+  const { setAccountsInstalled, addAccount, withAccount, activeAccountId, setActiveAccount } = await import("@/db/accounts");
+  const { switchAccount } = await import("@/lib/accounts");
+  const { getPref, setPref } = await import("@/lib/prefs");
+  setAccountsInstalled(true);
+  const before = activeAccountId();
+  const other = addAccount("Privat", "amber");
+  withAccount(other.id, () => setPref("sync-active-since", Date.parse("2026-10-01T08:00:00Z"))); // when it was last the one you were in
+
+  const at = Date.now();
+  switchAccount(other.id);
+  try {
+    assert.equal(activeAccountId(), other.id);
+    assert.ok(withAccount(other.id, () => getPref<number>("sync-active-since", 0)) >= at);
+  } finally {
+    setActiveAccount(before);
+  }
+});

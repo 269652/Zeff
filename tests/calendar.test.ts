@@ -96,8 +96,8 @@ test("calendar todos: today's and tomorrow's appointments, once", async () => {
   ir.replaceEvents(g.id, [{ key: "x", title: "Tatort", start: "2026-11-02T20:00", end: "2026-11-02T22:00" }]);
 
   const now = new Date("2026-11-02T08:00:00");
-  assert.equal(calendarTodos(now), 2);
-  assert.equal(calendarTodos(now), 0);
+  assert.equal(await calendarTodos(now), 2);
+  assert.equal(await calendarTodos(now), 0);
   assert.equal(getTodo(asked.id)?.due, "2026-11-02");
   const made = listTodos({ status: "open" }).filter((t) => t.source?.startsWith("Kalender"));
   assert.deepEqual(made.map((t) => [t.text, t.due]).sort(), [
