@@ -173,7 +173,25 @@ async function teamsPage(browser, { openIfMissing = false } = {}) {
     await sleep(1500);
   }
   if (isLoginUrl(page.url())) throw new Error("Teams shows its sign-in page — sign in in the automation Chrome, then sync again.");
+  // Teams' "Hoppla, die App konnte nicht geladen werden" (Oops): the app isn't running — what it stored stays readable but
+  // gets nothing new (a sync said "0 new" while your replies were missing). Reloaded, what its "Retry" does; still there: said so.
+  if (await loadFailed(page)) {
+    debug("Teams couldn't load (Oops page) — reloading");
+    await page.reload({ waitUntil: "domcontentloaded", timeout: 60000 }).catch(() => {});
+    for (let i = 0; i < 60 && (await loadFailed(page)); i++) await sleep(1000);
+    if (await loadFailed(page)) throw new Error("Teams couldn't load in the automation Chrome (its “Oops” page, even after a reload) — open it there, press “Retry” or “Clear cache and retry”, then sync again.");
+    await sleep(5000); // its messages arrive after the app is up
+  }
   return page;
+}
+
+/** Teams shows its "Oops, the app couldn't be loaded" page instead of the app. */
+async function loadFailed(page) {
+  const title = await page.title().catch(() => "");
+  if (/^(Hoppla|Oops)\b/i.test(title)) return true;
+  return page
+    .evaluate(() => /konnte nicht geladen werden|couldn['’]t load|could not be loaded/i.test((document.body?.innerText || "").slice(0, 400)))
+    .catch(() => false);
 }
 
 /** Attach to the automation Chrome — started when it isn't running only when `launch` (a sync by hand). */

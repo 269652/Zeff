@@ -50,3 +50,13 @@ test("a tab that stays hung is closed and opened anew at its address — a non-w
   assert.deepEqual(opened, ["https://ac.punch24.example/punch/index.jsp"]);
   assert.deepEqual(left.map((t: Tab) => t.id), ["stubborn"]);
 });
+
+test("only a tab hung on its own is replaced — most of them silent is a busy Chrome, left alone", async () => {
+  const { replaceable } = await import("../scripts/chrome-cdp.mjs");
+  assert.equal(replaceable(1, 10), true);
+  assert.equal(replaceable(2, 10), true);
+  assert.equal(replaceable(3, 10), false, "three at once: the browser, not the tabs");
+  assert.equal(replaceable(8, 10), false, "nearly all of them");
+  assert.equal(replaceable(1, 2), false, "half of them");
+  assert.equal(replaceable(0, 10), false);
+});

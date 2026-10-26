@@ -116,6 +116,9 @@ export async function wakeTabs(cdp, tabs, { ping = pingTab, activate = (t) => fe
   return still;
 }
 
+/** Whether hung tabs are replaced: one or two, fewer than half of all (most of them silent: a busy Chrome, not hung tabs). */
+export const replaceable = (hung, all) => hung > 0 && hung <= 2 && hung * 2 < all;
+
 /**
  * Tabs that stay hung (after being woken): closed — Chrome's browser process does it, the tab's own frozen page
  * can't stop it — and each web page opened anew at its address, so the app is there again for the drivers (a
@@ -246,8 +249,10 @@ export async function connectToChrome(cdp, { timeout = 20000, launchUrls = [] } 
   // Chrome freezes tabs that stay in the background for a while (Memory Saver): they answer again once
   // they're brought to the front — so wake them before giving up. (A really hung tab stays stuck.)
   const hung = await wakeTabs(cdp, slow.filter((_, i) => !again[i]));
-  // Still hung: closed and opened anew (what was done by hand) — only one that won't close is left out below.
-  const stuck = hung.length ? await replaceTabs(cdp, hung) : [];
+  // Still hung: closed and opened anew (what was done by hand) — only one that won't close is left out below. Only a tab
+  // hung on its own, though: most of them silent is a busy Chrome, not hung tabs — all of them reopened at once, Teams
+  // didn't load again ("Hoppla"); those are left out as before.
+  const stuck = replaceable(hung.length, tabs.length) ? await replaceTabs(cdp, hung) : hung;
   if (hung.length > stuck.length) {
     const names = hung.filter((t) => !stuck.includes(t)).map((t) => `“${t.title || t.url}”`).join(", ");
     process.stderr.write(`[chrome-cdp] closed (a web page opened anew) ${hung.length - stuck.length === 1 ? "a tab that wasn't" : "tabs that weren't"} responding: ${names}\n`);
