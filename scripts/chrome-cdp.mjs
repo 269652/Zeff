@@ -5,10 +5,10 @@
  * connectOverCDP attaches to EVERY open tab and waits for each, so a single tab that doesn't
  * answer — a frozen/hung tab or one stuck on a dialog (seen with an idle "New Tab" page) — makes
  * the whole attach time out with an opaque error. So first ping each tab over its own CDP socket;
- * the ones that stay silent (after being woken) are LEFT OUT of the attach — a local filter between
- * Playwright and Chrome (cdp-filter.mjs) hides them, so one stuck tab no longer stops every driver.
- * The driver doesn't see them (a page it needs is opened anew); nothing is closed or changed in
- * them. Without that filter (another Playwright) it fails fast, naming the tab, as it did before.
+ * the ones that stay silent (after being woken) are closed and opened anew at their address
+ * (replaceTabs), so one stuck tab no longer stops every driver. One that won't even close is LEFT OUT
+ * of the attach — a local filter between Playwright and Chrome (cdp-filter.mjs) hides it; without
+ * that filter (another Playwright) it fails fast, naming the tab, as it did before.
  * When Chrome isn't running at all, start it (with the page the tool needs) instead.
  */
 import { spawn } from "node:child_process";
@@ -116,6 +116,46 @@ export async function wakeTabs(cdp, tabs, { ping = pingTab, activate = (t) => fe
   return still;
 }
 
+/**
+ * Tabs that stay hung (after being woken): closed — Chrome's browser process does it, the tab's own frozen page
+ * can't stop it — and each web page opened anew at its address, so the app is there again for the drivers (a
+ * frozen Punch tab held up every sync of this Chrome; hidden instead, a driver opened a second one, a GitLab tab
+ * each turn). Pages that aren't web pages (a new tab, chrome://) aren't reopened. The ones it couldn't close.
+ * `close`/`open` are there for the tests.
+ */
+export async function replaceTabs(
+  cdp,
+  tabs,
+  {
+    // Closed only once it's gone from the list: a hung renderer can keep it "closing" for a while — and attached to then, it
+    // holds the attach up as before (left out then, below).
+    close = async (t) => {
+      const base = cdp.replace(/\/+$/, "");
+      if (!(await fetch(`${base}/json/close/${t.id}`, { signal: AbortSignal.timeout(5000) })).ok) return false;
+      for (let i = 0; i < 20; i++) {
+        if (!(await listTargets(base)).some((x) => x.id === t.id)) return true;
+        await sleep(500);
+      }
+      return false;
+    },
+    // (Chrome takes a new tab only by PUT since 111.)
+    open = (url) => fetch(`${cdp.replace(/\/+$/, "")}/json/new?${encodeURI(url)}`, { method: "PUT", signal: AbortSignal.timeout(5000) }),
+  } = {},
+) {
+  const left = [];
+  for (const t of tabs) {
+    const closed = await Promise.resolve()
+      .then(() => close(t))
+      .catch(() => false);
+    if (!closed) {
+      left.push(t);
+      continue;
+    }
+    if (/^https?:\/\//.test(t.url ?? "")) await Promise.resolve().then(() => open(t.url)).catch(() => {});
+  }
+  return left;
+}
+
 /** The filter that leaves the hung tabs out of the attach (null: there is none here — the caller fails as before). */
 async function hungTabsFiltered(cdp, stuck) {
   try {
@@ -205,7 +245,14 @@ export async function connectToChrome(cdp, { timeout = 20000, launchUrls = [] } 
   const again = slow.length ? (await sleep(1500), await Promise.all(slow.map((t) => pingTab(t.webSocketDebuggerUrl, 8000)))) : [];
   // Chrome freezes tabs that stay in the background for a while (Memory Saver): they answer again once
   // they're brought to the front — so wake them before giving up. (A really hung tab stays stuck.)
-  const stuck = await wakeTabs(cdp, slow.filter((_, i) => !again[i]));
+  const hung = await wakeTabs(cdp, slow.filter((_, i) => !again[i]));
+  // Still hung: closed and opened anew (what was done by hand) — only one that won't close is left out below.
+  const stuck = hung.length ? await replaceTabs(cdp, hung) : [];
+  if (hung.length > stuck.length) {
+    const names = hung.filter((t) => !stuck.includes(t)).map((t) => `“${t.title || t.url}”`).join(", ");
+    process.stderr.write(`[chrome-cdp] closed (a web page opened anew) ${hung.length - stuck.length === 1 ? "a tab that wasn't" : "tabs that weren't"} responding: ${names}\n`);
+    await sleep(1500); // the new ones under way before the attach
+  }
   if (stuck.length) {
     const names = stuck.map((t) => `“${t.title || t.url}” (${t.url.slice(0, 60)})`).join(", ");
     // The rest is attached without them — through the filter that leaves them out.

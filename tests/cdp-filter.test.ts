@@ -52,7 +52,7 @@ const freePort = () =>
     });
   });
 
-test("connectToChrome attaches to a Chrome with a hung tab — leaving that tab out — instead of failing", { timeout: 120000 }, async (t) => {
+test("connectToChrome attaches to a Chrome with a hung tab — closing that tab (not a web page: not reopened) — instead of failing", { timeout: 120000 }, async (t) => {
   const { findBrowser } = await import("../scripts/browser-find.mjs");
   const browser = findBrowser();
   if (!browser) return t.skip("no Chrome/Edge here");
@@ -73,9 +73,10 @@ test("connectToChrome attaches to a Chrome with a hung tab — leaving that tab 
     try {
       const titles = await Promise.all(pw.contexts()[0].pages().map((p: any) => p.title().catch(() => "?")));
       assert.ok(titles.includes("good"), `the good tab is there (${titles.join(", ")})`);
-      assert.ok(!titles.includes("hung"), "the hung tab is left out");
-      assert.equal((pw as any).hungTabs.length, 1);
-      assert.equal((pw as any).hungTabs[0].title, "hung");
+      assert.ok(!titles.includes("hung"), "the hung tab is gone");
+      assert.equal((pw as any).hungTabs, undefined, "closed, not hidden");
+      const left = (await (await fetch(`${cdp}/json/list`)).json()) as { type: string; title: string }[];
+      assert.ok(!left.some((x) => x.type === "page" && x.title === "hung"), "closed in Chrome itself");
     } finally {
       await pw.close();
     }
