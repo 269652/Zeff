@@ -1242,7 +1242,8 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   const starts = open.map((_, i) => open.slice(0, i).reduce((a, b) => a + b, 0));
   const { limit: drawn, more: undrawn, marker: drawMore } = useProgressive(open.reduce((a, b) => a + b, 0));
   // The columns in the view's order - the title is one of them and may sit anywhere (drag a header to move it).
-  const cols = columnOrder(view, schema).filter((id) => id === TITLE || visible.some((p) => p.id === id));
+  // (Grouped by a field: not its column too — the groups' headings say it.)
+  const cols = columnOrder(view, schema).filter((id) => id === TITLE || (id !== view.groupBy && visible.some((p) => p.id === id)));
   const byId = new Map(visible.map((p) => [p.id, p]));
   const sort = useSortable((from, to, after) => setView({ ...view, order: moveBefore(columnOrder(view, schema), from, to, after) }), "x", "text/ws-col");
   // Rows in an order of your own: dragged by their handle — while the view isn't sorted by a field (then the sort decides, as on the board).
@@ -1378,9 +1379,11 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   const header = (
     <thead>
       <tr>
-        <th className="w-18">
+        <th className="ws-select w-18">
           {sel && rows.length > 0 && (
-            <input type="checkbox" className="size-4 accent-indigo-600" checked={rows.every((r) => sel.has(r.id))} ref={(el) => void (el && (el.indeterminate = sel.any && !rows.every((r) => sel.has(r.id))))} onChange={() => sel.all(rows.map((r) => r.id))} aria-label={t("Select all rows")} />
+            <span className="flex items-center justify-center">
+              <input type="checkbox" className="size-4 accent-indigo-600" checked={rows.every((r) => sel.has(r.id))} ref={(el) => void (el && (el.indeterminate = sel.any && !rows.every((r) => sel.has(r.id))))} onChange={() => sel.all(rows.map((r) => r.id))} aria-label={t("Select all rows")} />
+            </span>
           )}
         </th>
         {cols.map((id) => {
@@ -1463,10 +1466,10 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
           <tbody key={g.key || "all"}>
             {view.groupBy && (
               <tr>
-                <td colSpan={visible.length + 3} className="bg-zinc-50 px-2 py-1 dark:bg-zinc-900/50">
+                <td colSpan={visible.length + 3} className="ws-group-row bg-zinc-50 dark:bg-zinc-900/50">
                   <button type="button" className="inline-flex items-center gap-2 align-middle text-sm" onClick={() => setFolded((f) => (f.has(g.key) ? new Set([...f].filter((x) => x !== g.key)) : new Set([...f, g.key])))} aria-expanded={!folded.has(g.key)}>
                     <span>{folded.has(g.key) ? "▸" : "▾"}</span>
-                    {g.color ? <span className="ws-tag" data-color={g.color}>{g.label}</span> : <span className="font-medium">{g.label || t("No value")}</span>}
+                    {g.color ? <span className="ws-tag" data-color={g.color}>{g.label}</span> : <span className="font-medium">{g.key ? g.label : t("No value")}</span>}
                     <span className="text-zinc-400">{g.rows.length}</span>
                   </button>
                   {/* A row in this group: its field set to the group's value (the blue "New" above adds one without). */}
@@ -1474,8 +1477,8 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                     <button
                       type="button"
                       className="ml-2 inline-grid size-5 place-items-center rounded align-middle text-sm leading-none text-zinc-400 hover:bg-indigo-50 hover:text-indigo-700 focus-visible:bg-indigo-50 focus-visible:text-indigo-700 dark:hover:bg-indigo-950/60 dark:hover:text-indigo-300"
-                      title={t("New row in “{group}”", { group: g.label || t("No value") })}
-                      aria-label={t("New row in “{group}”", { group: g.label || t("No value") })}
+                      title={t("New row in “{group}”", { group: g.key ? g.label : t("No value") })}
+                      aria-label={t("New row in “{group}”", { group: g.key ? g.label : t("No value") })}
                       onClick={() => {
                         const gp = schema.properties.find((p) => p.id === view.groupBy);
                         void api.addRow(gp && g.key ? { [gp.id]: gp.type === "multi_select" || gp.type === "person" || gp.type === "relation" ? [gp.type === "multi_select" ? g.key : Number(g.key)] : gp.type === "checkbox" ? g.key === "true" : g.key } : {});
@@ -1490,10 +1493,9 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
             {!folded.has(g.key) &&
               g.rows.slice(0, Math.max(0, drawn - starts[groups.indexOf(g)])).map((r) => (
                 <tr key={r.id} className={`group/row ${hiddenIds.has(r.id) ? "ws-row-hidden" : ""} ${byHand ? rowSort.mark(String(r.id)) : ""}`} {...(byHand ? rowSort.target(String(r.id)) : {})}>
-                  <td className="w-18 text-center align-middle">
-                    {/* As high as a cell's first line (.ws-cell: 2rem) and centred in it — the table's cells are aligned to the top
-                        (.ws-table td outranks align-middle), so a taller row keeps it beside its first line. */}
-                    <span className="flex min-h-8 items-center justify-center gap-1">
+                  <td className="ws-select w-18">
+                    {/* Centred in the row (.ws-select: the table's other cells are aligned to the top, a tag makes a row taller). */}
+                    <span className="flex items-center justify-center gap-1">
                       {byHand && (
                         <span className="cursor-grab px-0.5 text-zinc-400 opacity-0 group-hover/row:opacity-100 active:cursor-grabbing" title={t("Drag to move")} aria-hidden {...rowSort.handle(String(r.id))}>
                           ⠿
@@ -1726,7 +1728,7 @@ function ColumnHead({ g, gp, view, rows, api, locked }: { g: Group; gp: Property
   const wip = shown ? view.wip?.[shown.id] : undefined;
   const over = wip !== undefined && g.rows.length > wip;
   const done = shown?.group === "done";
-  const label = g.label || t("No value");
+  const label = g.key ? g.label : t("No value");
   const change = (fn: (s: DbSchema) => DbSchema) => {
     try {
       api.changeSchema(fn);
@@ -1952,7 +1954,7 @@ function ListView({ view, rows, visible, schema, ctx, api, labels, openRow }: Vi
     <div className="space-y-3">
       {groups.map((g) => (
         <div key={g.key || "all"}>
-          {view.groupBy && <div className="mb-1 flex items-center gap-2 text-sm">{g.color ? <span className="ws-tag" data-color={g.color}>{g.label}</span> : <span className="font-medium text-zinc-500">{g.label || t("No value")}</span>}<span className="text-zinc-400">{g.rows.length}</span></div>}
+          {view.groupBy && <div className="mb-1 flex items-center gap-2 text-sm">{g.color ? <span className="ws-tag" data-color={g.color}>{g.label}</span> : <span className="font-medium text-zinc-500">{g.key ? g.label : t("No value")}</span>}<span className="text-zinc-400">{g.rows.length}</span></div>}
           <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
             {g.rows.map((r) => (
               <li key={r.id} className="group/row flex flex-wrap items-center gap-2 px-2 py-1.5 text-sm">

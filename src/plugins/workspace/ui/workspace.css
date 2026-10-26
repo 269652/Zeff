@@ -1214,6 +1214,19 @@
     border-top-color: var(--color-zinc-800, #27272a);
   }
 }
+/* The row's checkbox (and handle, menu): centred in the row, header too — the other cells are aligned to the top. */
+.ws-table th.ws-select,
+.ws-table td.ws-select {
+  vertical-align: middle;
+  text-align: center;
+}
+/* A group's heading row in a grouped table: room around it, and a gap above each group but the first. */
+.ws-table td.ws-group-row {
+  padding: 0.5rem 0.75rem;
+}
+.ws-table tbody + tbody td.ws-group-row {
+  border-top: 0.75rem solid var(--background);
+}
 /* The + column (a new property): narrow, set back as a shadow column. */
 .ws-table .ws-add-col {
   background: rgb(244 244 245 / 0.6);
