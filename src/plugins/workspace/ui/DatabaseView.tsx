@@ -1476,7 +1476,9 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
               g.rows.slice(0, Math.max(0, drawn - starts[groups.indexOf(g)])).map((r) => (
                 <tr key={r.id} className={`group/row ${hiddenIds.has(r.id) ? "ws-row-hidden" : ""} ${byHand ? rowSort.mark(String(r.id)) : ""}`} {...(byHand ? rowSort.target(String(r.id)) : {})}>
                   <td className="w-18 text-center align-middle">
-                    <span className="inline-flex items-center gap-1">
+                    {/* As high as a cell's first line (.ws-cell: 2rem) and centred in it — the table's cells are aligned to the top
+                        (.ws-table td outranks align-middle), so a taller row keeps it beside its first line. */}
+                    <span className="flex min-h-8 items-center justify-center gap-1">
                       {byHand && (
                         <span className="cursor-grab px-0.5 text-zinc-400 opacity-0 group-hover/row:opacity-100 active:cursor-grabbing" title={t("Drag to move")} aria-hidden {...rowSort.handle(String(r.id))}>
                           ⠿
