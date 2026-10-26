@@ -209,7 +209,9 @@ export function TodoItem({
   const proposed = proposedAll && areaOn(off, "actions");
   // Several actions (a delivery's commit, push, MR, merge): all of them — each with its note and button, and the alternatives — fold behind the same toggle.
   // A transfer is a big card (its fields and GiroCode): folded too, even alone.
-  const foldable = (todo.ops.length > 1 || todo.ops.some((o) => o.type === "bank-transfer" || o.type === "revolut-pay")) && !closed && !proposedAll;
+  // (An alternative counts: a push with "Merge into main" beside it is two cards — it folded only from two actions.)
+  const actionCards = todo.ops.length + (todo.alternatives?.length ?? 0);
+  const foldable = (actionCards > 1 || todo.ops.some((o) => o.type === "bank-transfer" || o.type === "revolut-pay")) && !closed && !proposedAll;
   const cameFrom = sourcesOf(todo.refs, sources);
   // Where a todo without a ticket came from: WhatsApp (Signal) when its messages are all that app's chats.
   const msgs = cameFrom.filter((s) => s.source === "mail");
@@ -415,7 +417,7 @@ export function TodoItem({
                 );
               })()}
             {foldable && (
-              <AreaToggle open={showActions} onToggle={() => setShowActions(!showActions)} label={t("Actions ({n})", { n: todo.ops.length })} tone="indigo">
+              <AreaToggle open={showActions} onToggle={() => setShowActions(!showActions)} label={t("Actions ({n})", { n: actionCards })} tone="indigo">
                 <span aria-hidden>⚡</span>
               </AreaToggle>
             )}
