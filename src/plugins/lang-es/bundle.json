@@ -7504,5 +7504,7 @@
   "Decides which of today's and tomorrow's appointments give you something to do — only those become todos (a blocker like “Pause” doesn't).": "Decide qué citas de hoy y mañana te dan algo que hacer — solo esas se convierten en tareas (un bloqueo como «Pausa» no).",
   "Which of today's and tomorrow's appointments give you something to do (a blocker like “Pause” doesn't)": "Qué citas de hoy y mañana te dan algo que hacer (un bloqueo como «Pausa» no)",
   "From an appointment — no ticket": "De una cita — sin ticket",
-  "from Calendar": "del calendario"
+  "from Calendar": "del calendario",
+  "Punch app address": "Dirección de la app de Punch",
+  "Where Zeff books your times and reads your days — preset; change it only when Punch moves": "Donde Zeff registra tus horas y lee tus días — predefinida; cámbiala solo si Punch se muda"
 }

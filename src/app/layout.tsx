@@ -20,7 +20,11 @@ import { currentAccount, listAccounts } from "@/db/accounts";
 const settingsGroup = (): MenuGroup => {
   const on = installedPlugins();
   const nav = new Map(PLUGINS.flatMap((p) => (p.nav ?? []).map((n) => [n.href, n] as const)));
-  const items: MenuLink[] = [{ href: "/preferences", label: t("General"), hint: t("AI provider, language, backups") }];
+  // (Its overview first: every settings area on one page — "All settings" was an entry of its own beside this group.)
+  const items: MenuLink[] = [
+    { href: "/settings/all", label: t("Overview"), hint: t("Every settings area in one place") },
+    { href: "/preferences", label: t("General"), hint: t("AI provider, language, backups") },
+  ];
   if (on.has("todos")) items.push({ href: "/settings/todos", label: t("Todos"), hint: t("What a todo shows, and which kinds of knowledge count") });
   for (const p of PLUGINS) {
     if (!on.has(p.id) || p.category === "language" || !p.settings) continue;

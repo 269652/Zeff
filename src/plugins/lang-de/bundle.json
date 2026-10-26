@@ -7504,5 +7504,7 @@
   "Decides which of today's and tomorrow's appointments give you something to do — only those become todos (a blocker like “Pause” doesn't).": "Entscheidet, welche Termine von heute und morgen dir etwas zu tun geben — nur die werden Todos (ein Blocker wie „Pause“ nicht).",
   "Which of today's and tomorrow's appointments give you something to do (a blocker like “Pause” doesn't)": "Welche Termine von heute und morgen dir etwas zu tun geben (ein Blocker wie „Pause“ nicht)",
   "From an appointment — no ticket": "Aus einem Termin — kein Ticket",
-  "from Calendar": "aus dem Kalender"
+  "from Calendar": "aus dem Kalender",
+  "Punch app address": "Adresse der Punch-App",
+  "Where Zeff books your times and reads your days — preset; change it only when Punch moves": "Wo Zeff deine Zeiten bucht und deine Tage liest — voreingestellt; nur ändern, wenn Punch umzieht"
 }

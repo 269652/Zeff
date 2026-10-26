@@ -33,7 +33,6 @@ const menuEntries = (t: T) => [
   { href: "/context", label: t("Context"), hint: t("Colleagues' messages & links") },
   { href: "/mcp", label: "MCP", hint: t("Connect an agent") },
   { href: "/preferences", label: t("Settings"), hint: t("AI provider") },
-  { href: "/settings/all", label: t("All settings"), hint: t("Every settings area in one place") },
   { href: "/first-look", label: t("Your first look"), hint: t("What Zeff found in your last 30 days") },
   { href: "/privacy/boundaries", label: t("Data flows"), hint: t("Where each source and database flows — personal, secret, into the Lage") },
   { href: "/settings/mail", label: t("Mail settings"), hint: t("Folders, attachments → Documents") },
