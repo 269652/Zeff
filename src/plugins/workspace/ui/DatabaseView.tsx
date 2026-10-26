@@ -776,6 +776,11 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
               <MenuItem checked={!!view.showHidden} onClick={() => (close(), setView({ ...view, showHidden: !view.showHidden }))}>
                 👁 {hiddenCount ? t("Show hidden rows ({n})", { n: hiddenCount }) : t("Show hidden rows")}
               </MenuItem>
+              {view.groupBy && (view.type === "table" || view.type === "list") && (
+                <MenuItem checked={!!view.hideEmpty} onClick={() => (close(), setView({ ...view, hideEmpty: !view.hideEmpty }))}>
+                  ▭ {t("Hide empty groups")}
+                </MenuItem>
+              )}
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem onClick={() => (close(), setFormOpen(true))}>📝 {t("Form …")}</MenuItem>
               <MenuItem onClick={() => (close(), setRepeatOpen(true))}>🔁 {t("Repeating rows …")}</MenuItem>
@@ -1234,7 +1239,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
     ro.observe(table);
     return () => ro.disconnect();
   });
-  const groups = view.groupBy ? groupRows(rows, view.groupBy, schema.properties, labels) : [{ key: "", label: "", color: undefined as string | undefined, rows }];
+  const groups = view.groupBy ? groupRows(rows, view.groupBy, schema.properties, labels).filter((g) => !view.hideEmpty || g.rows.length) : [{ key: "", label: "", color: undefined as string | undefined, rows }];
   const [folded, setFolded] = useState<Set<string>>(new Set());
   // Drawn in steps (a table of 1,200 rows): the first rows at once, more as you scroll — each group starts where the ones before it
   // ended; the sums, counts and "select all" go by every row.
@@ -1949,7 +1954,7 @@ function NewCard({ cells, add }: { cells: Record<string, unknown>; add: (cells: 
 
 function ListView({ view, rows, visible, schema, ctx, api, labels, openRow }: ViewProps) {
   const t = useT();
-  const groups = view.groupBy ? groupRows(rows, view.groupBy, schema.properties, labels) : [{ key: "", label: "", color: undefined as string | undefined, rows }];
+  const groups = view.groupBy ? groupRows(rows, view.groupBy, schema.properties, labels).filter((g) => !view.hideEmpty || g.rows.length) : [{ key: "", label: "", color: undefined as string | undefined, rows }];
   return (
     <div className="space-y-3">
       {groups.map((g) => (

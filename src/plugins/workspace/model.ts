@@ -135,6 +135,8 @@ export type View = {
   calcs?: Record<string, CalcFn>;
   /** The database's hidden rows shown too (set back) — a switch in the view's menu. */
   showHidden?: boolean;
+  /** Grouped by a field (table, list): the groups without rows left out — a switch in the view's menu. */
+  hideEmpty?: boolean;
   /** An app's view (or a "template" view of any table): its own template (view-template.ts) — none: the app's default. */
   template?: string;
 };
