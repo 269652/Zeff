@@ -1464,11 +1464,26 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
             {view.groupBy && (
               <tr>
                 <td colSpan={visible.length + 3} className="bg-zinc-50 px-2 py-1 dark:bg-zinc-900/50">
-                  <button type="button" className="flex items-center gap-2 text-sm" onClick={() => setFolded((f) => (f.has(g.key) ? new Set([...f].filter((x) => x !== g.key)) : new Set([...f, g.key])))} aria-expanded={!folded.has(g.key)}>
+                  <button type="button" className="inline-flex items-center gap-2 align-middle text-sm" onClick={() => setFolded((f) => (f.has(g.key) ? new Set([...f].filter((x) => x !== g.key)) : new Set([...f, g.key])))} aria-expanded={!folded.has(g.key)}>
                     <span>{folded.has(g.key) ? "▸" : "▾"}</span>
                     {g.color ? <span className="ws-tag" data-color={g.color}>{g.label}</span> : <span className="font-medium">{g.label || t("No value")}</span>}
                     <span className="text-zinc-400">{g.rows.length}</span>
                   </button>
+                  {/* A row in this group: its field set to the group's value (the blue "New" above adds one without). */}
+                  {!ctx.data.noNewRows && (
+                    <button
+                      type="button"
+                      className="ml-2 inline-grid size-5 place-items-center rounded align-middle text-sm leading-none text-zinc-400 hover:bg-indigo-50 hover:text-indigo-700 focus-visible:bg-indigo-50 focus-visible:text-indigo-700 dark:hover:bg-indigo-950/60 dark:hover:text-indigo-300"
+                      title={t("New row in “{group}”", { group: g.label || t("No value") })}
+                      aria-label={t("New row in “{group}”", { group: g.label || t("No value") })}
+                      onClick={() => {
+                        const gp = schema.properties.find((p) => p.id === view.groupBy);
+                        void api.addRow(gp && g.key ? { [gp.id]: gp.type === "multi_select" || gp.type === "person" || gp.type === "relation" ? [gp.type === "multi_select" ? g.key : Number(g.key)] : gp.type === "checkbox" ? g.key === "true" : g.key } : {});
+                      }}
+                    >
+                      +
+                    </button>
+                  )}
                 </td>
               </tr>
             )}
