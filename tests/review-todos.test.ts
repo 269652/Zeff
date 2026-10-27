@@ -27,7 +27,9 @@ async function seed() {
   const mine = todo("Ops von dir");
   store.setTodoOps(mine.id, [{ type: "jira-comment", ticket: "PROJ-7", body: "selbst geschrieben" }]);
   todo("Einfach offen");
-  return { suggested: suggested.id, reported: reported.id, asking: asking.id, proposed: proposed.id, mine: mine.id };
+  // Prepared by Zeff (the step after a delivery): one click from the queue.
+  const prepared = store.addFollowUp({ ticket: "PROJ-7", text: "Tell Rico it's delivered", kind: "reply", parentId: null, workRunId: null, source: "Delivered: T-1 → Rico", ops: [{ type: "teams-message", to: "Rico", body: "Ist bereit zum Review" }] });
+  return { suggested: suggested.id, reported: reported.id, asking: asking.id, proposed: proposed.id, mine: mine.id, prepared: prepared.id };
 }
 
 test("Todos' queue: todos a worker or the AI says are done, and actions the AI proposed — not one waiting for an answer, not your own actions", async () => {
@@ -36,7 +38,7 @@ test("Todos' queue: todos a worker or the AI says are done, and actions the AI p
   const items = (await reviewItems()).items.filter((i) => i.plugin === "todos");
   assert.deepEqual(
     items.map((i) => i.key),
-    [`todo-done:${ids.suggested}`, `todo-done:${ids.reported}`, `todo-actions:${ids.proposed}`],
+    [`todo-done:${ids.suggested}`, `todo-done:${ids.reported}`, `todo-actions:${ids.proposed}`, `todo-prepared:${ids.prepared}`],
   );
   const [suggested, reported, proposed] = items;
   assert.match(suggested.title, /Footer-Links prüfen/);

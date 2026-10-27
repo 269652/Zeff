@@ -10,6 +10,9 @@ import type { ReviewSource } from "@/lib/review/point";
  * feedback ledger proposes from repetition (the same kind from the same sender, dropped again and again) — yours to confirm.
  */
 
+/** The todos whose actions Zeff prepared itself (store.ts addFollowUp's sources, requester.ts). */
+const PREPARED = /^(Delivered:|Next step after|Follow-up from|Planned after)/;
+
 const title = (todo: TodoView) => (todo.ticket ? `${todo.ticket} · ${todo.text}` : todo.text);
 const href = (todo: TodoView) => `/t/${todo.id}`;
 
@@ -65,6 +68,33 @@ export const TODOS_REVIEW: ReviewSource[] = [
     act: async (id, action) => {
       if (action === "yes") return done((await import("./server-actions")).runTodoOpsAction(Number(id)));
       if (action === "no") return dropProposedOps(Number(id));
+      unknown(action);
+    },
+  },
+  {
+    // Prepared, not proposed: the next step Zeff worked out itself — a branch's push and merge request, a reply to the one who
+    // asked with the link (lib/boards/requester.ts) — one click each, from here (and from the phone: its home-screen shortcut).
+    id: "todo-prepared",
+    get label() {
+      return t("Prepared — one click");
+    },
+    list: async () => {
+      const { actionHref } = await import("@/plugins/actions/catalog");
+      return listTodos({ status: "open" })
+        // Zeff's own preparation only (the step after a delivery, a worker's follow-up, a planned step, the asker told) — actions you
+        // wrote on a todo yourself are yours to run where you wrote them.
+        .filter((x) => x.ops.length && PREPARED.test(x.source ?? "") && !x.autoOpsWhy && !x.needsInput && !x.workerDone && x.owner === "me" && !x.blockedBy && x.ops.every((o) => !actionHref(o)))
+        .map((x) => ({
+          id: String(x.id),
+          title: title(x),
+          detail: [x.ops.map((o) => opTitle(o, t)).join(" · "), x.draft ? `“${x.draft.slice(0, 160)}”` : ""].filter(Boolean).join(" — "),
+          href: href(x),
+          // Not primary: "y" would run them — that takes a click on the button itself.
+          actions: [{ id: "yes", label: opsButton(x.ops, t) }],
+        }));
+    },
+    act: async (id, action) => {
+      if (action === "yes") return done((await import("./server-actions")).runTodoOpsAction(Number(id)));
       unknown(action);
     },
   },

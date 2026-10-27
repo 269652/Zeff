@@ -14,6 +14,11 @@ export default function manifest(): MetadataRoute.Manifest {
     display: "standalone",
     background_color: "#ffffff",
     theme_color: "#4f46e5",
+    // Long-press on the icon: straight to what waits for your yes (the review queue) and to the todos.
+    shortcuts: [
+      { name: "Review", short_name: "Review", url: "/review" },
+      { name: "Todos", short_name: "Todos", url: "/todos" },
+    ],
     icons: [
       { src: "/icon.svg", sizes: "any", type: "image/svg+xml", purpose: "any" },
       { src: "/android-chrome-192x192.png", sizes: "192x192", type: "image/png" },
