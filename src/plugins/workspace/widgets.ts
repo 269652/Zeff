@@ -1,6 +1,7 @@
 import "@/plugins/contributions";
 import { errorMessage } from "@/lib/errors";
 import { workspaceWidgets, type WidgetConfig, type WidgetData, type WidgetSetting, type WorkspaceWidget } from "./widget-point";
+import { currentAccountId } from "@/db/accounts";
 
 /** The widgets of the installed plugins, and their data: settings held to their definition, the data kept a moment, a failing widget an error line. */
 
@@ -38,7 +39,8 @@ const cache = new Map<string, { at: number; data: WidgetData }>();
 export async function widgetData(id: string, rawConfig: Record<string, unknown>): Promise<WidgetData> {
   const w = find(id);
   const config = checkedConfig(w, rawConfig);
-  const key = `${id}:${JSON.stringify(config)}`;
+  // Per account (two served side by side): one's widget data is never the other's.
+  const key = `${currentAccountId()}:${id}:${JSON.stringify(config)}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < (w.ttl ?? 30) * 1000) return hit.data;
   let data: WidgetData;
@@ -57,6 +59,6 @@ export async function widgetAct(id: string, action: string, payload: Record<stri
   if (!w.act) throw new Error(`The widget “${w.label}” has no actions.`);
   const config = checkedConfig(w, rawConfig);
   const answer = await w.act(action, payload, config);
-  for (const k of [...cache.keys()]) if (k.startsWith(`${id}:`)) cache.delete(k);
+  for (const k of [...cache.keys()]) if (k.startsWith(`${currentAccountId()}:${id}:`)) cache.delete(k);
   return answer ?? (await widgetData(id, config));
 }

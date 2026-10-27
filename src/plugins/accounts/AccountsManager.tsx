@@ -7,9 +7,9 @@ import { createAccountAction, deleteAccountAction, switchAccountAction, updateAc
 import { startSetupAction } from "@/app/actions";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { ACCOUNT_DOT, dotOf } from "./AccountSwitcher";
+import { ACCOUNT_DOT, accountUrl, dotOf } from "./AccountSwitcher";
 
-type Row = { id: string; name: string; color: string; createdAt: string; dir: string; current: boolean };
+type Row = { id: string; name: string; color: string; host: string; createdAt: string; dir: string; current: boolean };
 
 const COLORS = Object.keys(ACCOUNT_DOT);
 
@@ -39,7 +39,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
   const router = useRouter();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ name: "", color: "indigo" });
+  const [draft, setDraft] = useState({ name: "", color: "indigo", host: "" });
   const [fresh, setFresh] = useState({ name: "", color: "emerald", copyFrom: "", shareChrome: true });
   // The account just made: its setup assistant one click away.
   const [made, setMade] = useState<{ id: string; name: string } | null>(null);
@@ -71,6 +71,10 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                 }}
               >
                 <input className="input w-full" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} aria-label={t("Name")} autoFocus />
+                <label className="block text-xs text-zinc-500">
+                  {t("Its own address (host name) — accounts with one run side by side, each in its own tab: e.g. privat.localhost, business.localhost. Empty: the address of whichever account is active.")}
+                  <input className="input mt-1 w-full font-mono text-sm" value={draft.host} onChange={(e) => setDraft({ ...draft, host: e.target.value })} placeholder="privat.localhost" aria-label={t("Address (host name)")} />
+                </label>
                 <div className="flex items-center justify-between gap-2">
                   <ColorPicker value={draft.color} onChange={(color) => setDraft({ ...draft, color })} disabled={pending} />
                   <span className="flex gap-2">
@@ -91,6 +95,11 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                     <span className="truncate">{a.name}</span>
                     {a.current && <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{t("active")}</span>}
                   </h2>
+                  {a.host && (
+                    <button type="button" onClick={() => window.location.assign(accountUrl(a.host, "/"))} className="font-mono text-xs text-indigo-600 hover:underline dark:text-indigo-400" title={t("Opens this account at its own address")}>
+                      {a.host}
+                    </button>
+                  )}
                   <span className="flex shrink-0 gap-2">
                     {!a.current && (
                       <button
@@ -99,10 +108,13 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                         disabled={pending || !!busy}
                         title={busy ? t("{what} is running right now", { what: busy }) : t("Switch to “{name}”", { name: a.name })}
                         onClick={() =>
-                          start(async () => {
-                            const r = await switchAccountAction(a.id);
-                            if (done(r)) router.push(r.href ?? "/");
-                          })
+                          // At its own address: opened there (side by side with this one), not switched to.
+                          a.host
+                            ? window.location.assign(accountUrl(a.host, "/"))
+                            : start(async () => {
+                                const r = await switchAccountAction(a.id);
+                                if (done(r)) router.push(r.href ?? "/");
+                              })
                         }
                       >
                         {t("Switch")}
@@ -113,7 +125,7 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                       className="btn btn-sm"
                       disabled={pending}
                       onClick={() => {
-                        setDraft({ name: a.name, color: a.color });
+                        setDraft({ name: a.name, color: a.color, host: a.host });
                         setEditing(a.id);
                       }}
                     >

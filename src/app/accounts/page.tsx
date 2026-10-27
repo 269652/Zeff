@@ -20,7 +20,7 @@ export default async function AccountsPage() {
   await connection();
   if (!isInstalled("accounts")) return <PluginNotInstalled id="accounts" />;
   const current = currentAccountId();
-  const accounts = listAccounts().map((a) => ({ ...a, dir: accountDir(a.id), current: a.id === current }));
+  const accounts = listAccounts().map((a) => ({ ...a, host: a.host ?? "", dir: accountDir(a.id), current: a.id === current }));
   return (
     <div className="page">
       <div className="page-aside">

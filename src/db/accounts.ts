@@ -4,13 +4,17 @@ import { AsyncLocalStorage } from "node:async_hooks";
 import { t } from "@/lib/i18n/server";
 import { zeffUserDir } from "../../scripts/browser-find.mjs";
 import { cdpEndpoint } from "../../scripts/cdp-endpoint.mjs";
+import * as workUnit from "next/dist/server/app-render/work-unit-async-storage.external";
+import { ACCOUNT_HEADER } from "@/lib/lock/shared";
 
 /**
  * Accounts (the Accounts plugin): Zeff more than once — business and private, say. Each account is
  * a database of its own (its data, its settings, its installed plugins) in a folder of its own; the
  * first one is the database Zeff always had (data/zeff.db), the others live in data/accounts/<id>/.
- * Which one you're in is kept here (data/accounts.json) — one for the whole server; work done for
- * one account in the background (a backup, copying settings) runs inside `withAccount`.
+ * Which one you're in is kept here (data/accounts.json): the active one, for whatever names no account — and each
+ * account may have a host of its own ("privat.localhost"), so two or more run side by side in the browser: a request to
+ * that host is that account's (the proxy says so, src/proxy.ts). Work done for one account in the background (a backup,
+ * copying settings) runs inside `withAccount`.
  */
 
 export type Account = {
@@ -24,6 +28,8 @@ export type Account = {
   knowledgePort?: number;
   /** Another account whose automation Chrome (and so its sign-ins) it uses instead of its own — a copy of that account. */
   chromeFrom?: string;
+  /** The host name it is served under ("privat.localhost", "business.localhost", "localhost") — any number of accounts side by side. */
+  host?: string;
 };
 
 /** The first account's automation Chrome (as it always was); the others' from 9231 up. */
@@ -118,8 +124,26 @@ export const activeAccountId = () => {
   return r.installed ? r.active : DEFAULT_ACCOUNT;
 };
 
-/** The account this code runs for: the one `withAccount` set, else the active one. */
-export const currentAccountId = () => scope.getStore() ?? activeAccountId();
+/**
+ * The account of the request this code runs in: the host it came to names it (the proxy's header) — read synchronously from
+ * Next's request store (every database read in a page, a Server Action, a route handler goes through currentAccountId).
+ * Null: not in a request, or a host no account has.
+ */
+function requestAccount(): string | null {
+  try {
+    const storage = (workUnit as { workUnitAsyncStorage?: { getStore(): unknown } }).workUnitAsyncStorage ?? (workUnit as { default?: { workUnitAsyncStorage?: { getStore(): unknown } } }).default?.workUnitAsyncStorage;
+    const store = storage?.getStore() as { type?: string; headers?: { get(name: string): string | null } } | undefined;
+    if (store?.type !== "request") return null;
+    const id = store.headers?.get(ACCOUNT_HEADER);
+    const r = read();
+    return id && r.installed && r.accounts.some((a) => a.id === id) ? id : null;
+  } catch {
+    return null; // outside Next (a script, a test)
+  }
+}
+
+/** The account this code runs for: the one `withAccount` set, else the request's (its host), else the active one. */
+export const currentAccountId = () => scope.getStore() ?? requestAccount() ?? activeAccountId();
 export const currentAccount = (): Account => accountById(currentAccountId()) ?? first();
 
 /** Run something for one account — its database, its folder — whichever is active meanwhile. */
@@ -173,14 +197,25 @@ export function addAccount(name: string, color: string, chromeFrom?: string): Ac
   return a;
 }
 
-export function updateAccount(id: string, patch: { name?: string; color?: string }): Account {
+/** A host name as an account's address: letters, digits, dots and dashes ("privat.localhost"); empty: none. */
+export function normalizeHost(v: string | null | undefined): string | undefined {
+  const h = String(v ?? "").trim().toLowerCase().replace(/^https?:\/\//, "").replace(/[/:].*$/, "");
+  if (!h) return undefined;
+  if (!/^[a-z0-9]([a-z0-9-]*[a-z0-9])?(\.[a-z0-9]([a-z0-9-]*[a-z0-9])?)*$/.test(h)) throw new Error(t("“{host}” isn't a host name — letters, digits, dots and dashes, e.g. privat.localhost.", { host: String(v) }));
+  return h;
+}
+
+export function updateAccount(id: string, patch: { name?: string; color?: string; host?: string | null }): Account {
   const r = read();
   const a = r.accounts.find((x) => x.id === id);
   if (!a) throw new Error(t("Unknown account."));
   const name = patch.name?.trim().slice(0, 60);
   if (patch.name !== undefined && !name) throw new Error(t("A name, please."));
   if (name && r.accounts.some((x) => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) throw new Error(t("“{name}” already exists.", { name }));
-  const next: Account = { ...a, ...(name ? { name } : {}), ...(patch.color && (ACCOUNT_COLORS as readonly string[]).includes(patch.color) ? { color: patch.color } : {}) };
+  const host = patch.host === undefined ? a.host : normalizeHost(patch.host);
+  if (host && r.accounts.some((x) => x.id !== id && x.host === host)) throw new Error(t("“{host}” is the address of another account already.", { host }));
+  const next: Account = { ...a, ...(name ? { name } : {}), ...(patch.color && (ACCOUNT_COLORS as readonly string[]).includes(patch.color) ? { color: patch.color } : {}), host };
+  if (!host) delete next.host;
   write({ ...r, accounts: r.accounts.map((x) => (x.id === id ? next : x)) });
   return next;
 }

@@ -59,6 +59,32 @@ export function activeAccountNow(): string {
   return r?.installed && typeof r.active === "string" ? r.active : "default";
 }
 
+/** The request header the proxy sets to the account the request's host names (src/db/accounts.ts reads it per request). */
+export const ACCOUNT_HEADER = "x-zeff-account";
+
+/** The host names a request may arrive under ("privat.localhost:9333" → "privat.localhost"), lower case. */
+export const hostnameOf = (host: string | null | undefined): string => String(host ?? "").trim().toLowerCase().replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
+
+let hostsCache: { at: number; hosts: Map<string, string> } | null = null;
+/**
+ * The account a request's host names: the account whose `host` (data/accounts.json, Settings → Accounts) is that host name
+ * — "privat.localhost" for one, "localhost" for another, a third on "business.localhost" — so two (or more) run side by side
+ * in the browser, each at its address. Null: no account has it (the active one serves it, as before). Read often: a short cache.
+ */
+export function accountForHost(host: string | null | undefined): string | null {
+  const name = hostnameOf(host);
+  if (!name) return null;
+  const now = Date.now();
+  if (!hostsCache || now - hostsCache.at > 1000) {
+    const r = readJson<{ installed?: boolean; accounts?: { id?: unknown; host?: unknown }[] }>(path.join(dataDir(), "accounts.json"));
+    const hosts = new Map<string, string>();
+    if (r?.installed)
+      for (const a of r.accounts ?? []) if (typeof a.id === "string" && typeof a.host === "string" && a.host.trim()) hosts.set(hostnameOf(a.host), a.id);
+    hostsCache = { at: now, hosts };
+  }
+  return hostsCache.hosts.get(name) ?? null;
+}
+
 /** Read often (every request): a short cache. */
 let cached: { at: number; cfg: LockConfig | null } | null = null;
 export function readConfig(): LockConfig | null {

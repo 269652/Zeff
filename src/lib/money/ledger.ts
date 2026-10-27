@@ -1,4 +1,5 @@
 import { getSqlite } from "@/db";
+import { currentAccountId } from "@/db/accounts";
 
 /**
  * The ledger: every payment once — a booking on the statement, a payment todo ticked off, "paid" said by hand — and what it is
@@ -15,17 +16,18 @@ export type Allocation = Payment & { paymentId: number; ref: string; amount: num
 /** The days a booking may come after a payment ticked off or said by hand and still be it (a transfer takes days to book). */
 export const TWIN_DAYS = 10;
 
-let ready = false;
+/** Done for these accounts' databases (each its own — two accounts run side by side). */
+const ready = new Set<string>();
 function db() {
   const d = getSqlite();
-  if (ready) return d;
+  if (ready.has(currentAccountId())) return d;
   d.exec(`
     create table if not exists ledger_payments (id integer primary key autoincrement, key text not null unique, date text not null, amount real not null, label text not null default '', source text not null, tx text, created_at text not null);
     create table if not exists ledger_allocations (id integer primary key autoincrement, payment_id integer not null references ledger_payments(id) on delete cascade, ref text not null, amount real not null, created_at text not null, unique (payment_id, ref));
     create index if not exists ledger_allocations_ref on ledger_allocations (ref);
     create index if not exists ledger_payments_tx on ledger_payments (tx);
   `);
-  ready = true;
+  ready.add(currentAccountId());
   return d;
 }
 

@@ -7522,5 +7522,10 @@
   "Zeff hasn't answered for 30 seconds — it may still save it. Look at the list in a moment before you add it again.": "Zeff no ha respondido en 30 segundos; puede que aún lo guarde. Mira la lista en un momento antes de añadirlo de nuevo.",
   "Zeff couldn't be reached: {error}": "No se pudo contactar con Zeff: {error}",
   "Correct a time record (TT-<id>: minutes or hours, note) — while it isn't booked or suggested.": "Corrige un registro de tiempo (TT-<id>: minutos u horas, nota), mientras no esté registrado ni sugerido.",
-  "Delete a time record that shouldn't be there (TT-<id>) — while it isn't booked or suggested.": "Borra un registro de tiempo que no debería estar (TT-<id>), mientras no esté registrado ni sugerido."
+  "Delete a time record that shouldn't be there (TT-<id>) — while it isn't booked or suggested.": "Borra un registro de tiempo que no debería estar (TT-<id>), mientras no esté registrado ni sugerido.",
+  "Its own address (host name) — accounts with one run side by side, each in its own tab: e.g. privat.localhost, business.localhost. Empty: the address of whichever account is active.": "Su propia dirección (nombre de host): las cuentas con una funcionan en paralelo, cada una en su pestaña: p. ej. privat.localhost, business.localhost. Vacío: la dirección de la cuenta activa.",
+  "Address (host name)": "Dirección (nombre de host)",
+  "Opens this account at its own address": "Abre esta cuenta en su propia dirección",
+  "“{host}” isn't a host name — letters, digits, dots and dashes, e.g. privat.localhost.": "«{host}» no es un nombre de host: letras, dígitos, puntos y guiones, p. ej. privat.localhost.",
+  "“{host}” is the address of another account already.": "«{host}» ya es la dirección de otra cuenta."
 }

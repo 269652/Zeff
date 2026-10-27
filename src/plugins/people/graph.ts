@@ -11,6 +11,7 @@ import { claimFeedback, linkFeedback, loopFeedback } from "@/lib/learning/source
 import { emitChange } from "@/lib/events";
 import { claimReviewed, flushSoon } from "./knowledge-sync";
 import { getPerson, listPeople, namesOf } from "./store";
+import { currentAccountId } from "@/db/accounts";
 
 export const CLAIM_KINDS = ["fact", "role", "owns", "preference", "commitment"] as const;
 export type ClaimKind = (typeof CLAIM_KINDS)[number];
@@ -72,7 +73,8 @@ export type Link = {
   seenAt: string;
 };
 
-let withRun = false;
+/** Done for these accounts' databases (each its own — two accounts run side by side). */
+const withRun = new Set<string>();
 
 /** The Lage run going on now (a claim read during it is its — run-undo.ts takes it back with it); null: none. */
 function runNow(): number | null {
@@ -93,9 +95,9 @@ function db() {
     create index if not exists people_links_target on people_links (target_type, target_ref);
   `);
   // (The run a claim was read in came later: added to a table from before.)
-  if (!withRun) {
+  if (!withRun.has(currentAccountId())) {
     if (!(d.prepare("pragma table_info(people_claims)").all() as { name: string }[]).some((c) => c.name === "run_id")) d.exec("alter table people_claims add column run_id integer");
-    withRun = true;
+    withRun.add(currentAccountId());
   }
   return d;
 }

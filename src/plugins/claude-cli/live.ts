@@ -1,4 +1,5 @@
 import { workerMcpServers } from "@/lib/work/mcp";
+import { RunMap } from "@/lib/work/run-map";
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import fs from "node:fs";
@@ -113,8 +114,10 @@ type Live = {
   caughtUp: boolean;
 };
 
-const state = globalThis as { __zeffClaudeLive?: Map<number, Live>; __zeffClaudeTick?: ReturnType<typeof setInterval> };
-export const claudeLives = (state.__zeffClaudeLive ??= new Map<number, Live>());
+// Per account (a run's id is its account's): two accounts served side by side never see or steer each other's session. The
+// sessions of an earlier map (by id only) are taken over.
+const state = globalThis as { __zeffClaudeLive?: Map<number, Live>; __zeffClaudeLiveRuns?: RunMap<Live>; __zeffClaudeTick?: ReturnType<typeof setInterval> };
+export const claudeLives = (state.__zeffClaudeLiveRuns ??= new RunMap<Live>(currentAccountId, state.__zeffClaudeLive));
 
 const now = () => new Date().toISOString();
 const sessionsDir = () => path.join(workDir(), "sessions");
@@ -490,7 +493,7 @@ async function end(l: Live, gone = false) {
 function drop(l: Live) {
   l.closed = true;
   l.sock?.destroy();
-  claudeLives.delete(l.runId);
+  claudeLives.delete(l.runId, l.account);
   fs.rmSync(/*turbopackIgnore: true*/ l.files.host, { force: true });
   changed(true);
 }
@@ -954,7 +957,7 @@ export function killClaude(runId: number) {
     }
   }
   if (l) l.closed = true;
-  claudeLives.delete(runId);
+  claudeLives.delete(runId, l?.account);
   changed(true);
 }
 

@@ -1,5 +1,6 @@
 import { getSqlite } from "@/db";
 import { REDACTED } from "@/lib/boundaries/shared";
+import { currentAccountId } from "@/db/accounts";
 
 /**
  * What left this PC, provably: every text an AI step sent (plugins/llm/run.ts) — which step, to which AI and model, how much, how
@@ -12,15 +13,16 @@ const MAX_TEXT = 60_000;
 
 export type Receipt = { id: number; at: string; task: string; provider: string; model: string | null; chars: number; redacted: number };
 
-let ready = false;
+/** Done for these accounts' databases (each its own — two accounts run side by side). */
+const ready = new Set<string>();
 function db() {
   const d = getSqlite();
-  if (ready) return d;
+  if (ready.has(currentAccountId())) return d;
   d.exec(`
     create table if not exists ai_receipts (id integer primary key autoincrement, at text not null, task text not null, provider text not null, model text, chars integer not null, redacted integer not null default 0, text text not null);
     create index if not exists ai_receipts_at on ai_receipts (at);
   `);
-  ready = true;
+  ready.add(currentAccountId());
   return d;
 }
 

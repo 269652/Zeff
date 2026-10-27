@@ -7,7 +7,13 @@ import { switchAccountAction } from "@/plugins/accounts/server-actions";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 
-export type AccountChip = { id: string; name: string; color: string };
+export type AccountChip = { id: string; name: string; color: string; /** Its own address (Settings → Accounts): switching opens it there — the other tab keeps the one before. */ host?: string };
+
+/** The same page at an account's own address (its host, this port and scheme). */
+export const accountUrl = (host: string, path?: string) => {
+  const here = window.location;
+  return `${here.protocol}//${host}${here.port ? `:${here.port}` : ""}${path ?? `${here.pathname}${here.search}`}`;
+};
 
 /** An account's color, as a dot (static class names, for Tailwind). */
 export const ACCOUNT_DOT: Record<string, string> = {
@@ -42,7 +48,14 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
     };
   }, [open]);
 
-  const go = (id: string) =>
+  const go = (id: string) => {
+    // An account at its own address: the same page there (both run side by side — this one stays as it is).
+    const target = list.find((a) => a.id === id);
+    if (target?.host) {
+      setOpen(false);
+      window.location.assign(accountUrl(target.host));
+      return;
+    }
     start(async () => {
       const r = await switchAccountAction(id);
       if (!r.ok) {
@@ -54,6 +67,7 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
       router.push(r.href ?? "/");
       router.refresh();
     });
+  };
 
   return (
     <div ref={box} className="relative">

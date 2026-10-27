@@ -1,6 +1,7 @@
 import { getPref, setPref } from "@/lib/prefs";
 import { listRepos, repoForTicket, type RepoView } from "@/lib/repos";
 import type { RepoSummary } from "./shared";
+import { currentAccountId } from "@/db/accounts";
 
 const KEY = "knowledge.repoSystems";
 const PROMPT_KEY = "knowledge.repoPickPrompt";
@@ -36,9 +37,12 @@ export const basisOf = (r: RepoView, others: RepoView[] = []): string =>
 
 // toTodo runs for every todo: the repos (a folder check each) and the stored summaries are read once per few seconds.
 // (The repo of each ticket is looked up once per snapshot too: it is a scan of the GitLab items.)
-let cache: { at: number; repos: RepoView[]; systems: Record<string, RepoSystems>; byTicket: Map<string, RepoSummary | null> } | null = null;
+// Per account (the repos and summaries are its database's): two accounts served side by side each their own snapshot.
+const caches = new Map<string, { at: number; repos: RepoView[]; systems: Record<string, RepoSystems>; byTicket: Map<string, RepoSummary | null> }>();
 const snapshot = () => {
-  if (!cache || Date.now() - cache.at > 5000) cache = { at: Date.now(), repos: listRepos(), systems: all(), byTicket: new Map() };
+  const account = currentAccountId();
+  let cache = caches.get(account);
+  if (!cache || Date.now() - cache.at > 5000) caches.set(account, (cache = { at: Date.now(), repos: listRepos(), systems: all(), byTicket: new Map() }));
   return cache;
 };
 

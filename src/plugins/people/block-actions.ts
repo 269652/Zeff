@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { personBundle, personOfRow, personOp, type PersonBundle, type PersonOperation } from "./blocks";
 import { getPerson, rememberEntity } from "./store";
+import { currentAccountId } from "@/db/accounts";
 
 /** What the blocks of a person's page call: the bundle of what is known, an operation, what the knowledge knows. None throws at the page. */
 
@@ -56,19 +57,21 @@ export type KnowledgeOfPerson = {
   merge?: { id: number; names: string[] } | null;
 };
 
-const wikiCache = new Map<number, { at: number; wiki: KnowledgeOfPerson | null }>();
+// Per account (a person's id is its account's database's): one account's knowledge of person 12 is never the other's.
+const wikiCache = new Map<string, { at: number; wiki: KnowledgeOfPerson | null }>();
+const wikiKey = (id: number) => `${currentAccountId()}:${id}`;
 
 /** What the knowledge (the knowledge server) knows of them: by the entity kept with the profile, else by name or alias — kept five minutes, and not waited for longer than a few seconds. */
 export async function personWikiAction(rowId: number): Promise<Result<{ wiki: KnowledgeOfPerson | null }>> {
   return run(async () => {
     const id = personId(rowId);
-    const hit = wikiCache.get(id);
+    const hit = wikiCache.get(wikiKey(id));
     if (hit && Date.now() - hit.at < 5 * 60000) return { wiki: hit.wiki };
     const wiki = await Promise.race([
       personWiki(id),
       new Promise<KnowledgeOfPerson>((resolve) => setTimeout(() => resolve({ summary: "", related: [], pages: [], graph: null, error: t("The knowledge server did not answer in time.") }), 4000)),
     ]);
-    if (!wiki?.error) wikiCache.set(id, { at: Date.now(), wiki });
+    if (!wiki?.error) wikiCache.set(wikiKey(id), { at: Date.now(), wiki });
     return { wiki };
   });
 }
@@ -128,7 +131,7 @@ export async function personKnowledgeMergeAction(rowId: number, mergeId: number,
     const id = personId(rowId);
     const { acceptKnowledgeMerge, knowledgeMergeOf, rejectKnowledgeMerge } = await import("./knowledge-sync");
     if (knowledgeMergeOf(id)?.id !== Number(mergeId)) throw new Error(t("This proposal is no longer open."));
-    wikiCache.delete(id);
+    wikiCache.delete(wikiKey(id));
     if (op === "dismiss") {
       rejectKnowledgeMerge(Number(mergeId));
       return {};

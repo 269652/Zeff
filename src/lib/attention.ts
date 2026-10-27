@@ -4,6 +4,7 @@ import path from "node:path";
 import { emitChange } from "@/lib/events";
 import { integrationServer } from "@/lib/integrations/server";
 import { t } from "@/lib/i18n/server";
+import { currentAccountId } from "@/db/accounts";
 
 /** The systems Zeff reaches through the automation Chrome (or a login), each with where you sign in. */
 export type CoreServiceId = "teams" | "outlook" | "gmail" | "whatsapp" | "signal" | "keep" | "gcalendar" | "gitlab" | "jira";
@@ -83,8 +84,15 @@ export type Attention = {
   step?: string;
 };
 
-const state = globalThis as { __zeffAttention?: Map<string, Attention> };
-const store = (state.__zeffAttention ??= new Map());
+// Per account: a sign-in one account's sync needs is that account's banner — not the other's (served side by side, by host).
+const state = globalThis as { __zeffAttentionByAccount?: Map<string, Map<string, Attention>> };
+const stores = (state.__zeffAttentionByAccount ??= new Map());
+const store = (): Map<string, Attention> => {
+  const account = currentAccountId();
+  let m = stores.get(account);
+  if (!m) stores.set(account, (m = new Map()));
+  return m;
+};
 
 /** A sync's error that means: sign in (to that service) first. */
 export const needsSignIn = (message: string) => /sign(ed)?[- ]?in|anmeld|not signed|unauthori[sz]ed|\b401\b|session expired|login/i.test(message);
@@ -92,8 +100,8 @@ export const needsSignIn = (message: string) => /sign(ed)?[- ]?in|anmeld|not sig
 /** A service wants you to sign in — shown (and pinged) till it's fine again. */
 export function raiseLogin(service: ServiceId, detail: string): void {
   const key = `login:${service}`;
-  if (store.has(key)) return;
-  store.set(key, {
+  if (store().has(key)) return;
+  store().set(key, {
     key,
     kind: "login",
     service,
@@ -106,7 +114,7 @@ export function raiseLogin(service: ServiceId, detail: string): void {
 
 /** A service works again (or you put it off): its request goes. */
 export function clearAttention(key: string): void {
-  if (store.delete(key)) emitChange("attention");
+  if (store().delete(key)) emitChange("attention");
 }
 
 /** What needs you now: sign-ins, and the questions agents wait on (todos with ❗). */
@@ -157,7 +165,7 @@ export async function listAttention(): Promise<Attention[]> {
   const { sourceIncidents } = await import("@/lib/sync/source-health");
   const { healthLabel } = await import("@/lib/sync/source-health-shared");
   // (A failing one that asks for a sign-in is told by its sign-in request already.)
-  const sources = sourceIncidents().filter((i) => !(i.state === "failing" && store.has(`login:${i.key}`))).map((i): Attention => ({
+  const sources = sourceIncidents().filter((i) => !(i.state === "failing" && store().has(`login:${i.key}`))).map((i): Attention => ({
     key: i.id,
     kind: "source",
     step: i.key,
@@ -168,5 +176,5 @@ export async function listAttention(): Promise<Attention[]> {
   }));
   // Sign-ins only for what's installed (an uninstalled plugin's request is moot).
   const { serviceAvailable } = await import("@/plugins/state");
-  return [...[...store.values()].filter((a) => !a.service || serviceAvailable(a.service)), ...questions, ...live, ...claude, ...sources];
+  return [...[...store().values()].filter((a) => !a.service || serviceAvailable(a.service)), ...questions, ...live, ...claude, ...sources];
 }

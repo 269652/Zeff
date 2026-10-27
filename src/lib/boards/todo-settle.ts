@@ -4,6 +4,7 @@ import { allocationsOf, deallocate } from "@/lib/money/ledger";
 import { onTodoCreated, onTodoDone, onTodoReopened } from "./done-hooks";
 import type { TodoView } from "./shared";
 import { getTodo } from "./store";
+import { currentAccountId } from "@/db/accounts";
 
 /**
  * What hangs on a todo — and on anything else that proves a thing done: the things it settles — a case's instalment, a promise you
@@ -91,11 +92,12 @@ export function linkedRefs(x: TodoView | Evidence): string[] {
   return found;
 }
 
-let ready = false;
+/** Done for these accounts' databases (each its own — two accounts run side by side). */
+const ready = new Set<string>();
 
 function table() {
   const sqlite = getSqlite();
-  if (ready) return sqlite;
+  if (ready.has(currentAccountId())) return sqlite;
   sqlite.exec("create table if not exists settled (subject text not null, ref text not null, at text not null, undo text, label text not null default '', primary key (subject, ref))");
   // (What todos settled before proofs of any kind: kept, as "todo:<id>".)
   if (sqlite.prepare("select 1 from sqlite_master where type = 'table' and name = 'todo_settled'").get()) {
@@ -103,7 +105,7 @@ function table() {
     sqlite.exec(`insert or ignore into settled (subject, ref, at, undo, label) select 'todo:' || todo_id, ref, at, ${cols.includes("undo") ? "undo" : "null"}, 'T-' || todo_id from todo_settled`);
     sqlite.exec("drop table todo_settled");
   }
-  ready = true;
+  ready.add(currentAccountId());
   return sqlite;
 }
 

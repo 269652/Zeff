@@ -47,7 +47,6 @@ export function switchAccount(id: string): Account {
   withAccount(id, () => noteSyncingSince());
   writeKnowledgeInstances(); // https://knowledge.zeff follows the account you're in
   // What's kept in memory belongs to the account before (and the sources' health judged before the switch).
-  (globalThis as { __zeffAttention?: Map<string, unknown> }).__zeffAttention?.clear();
   (globalThis as { __zeffSourceHealth?: Map<string, unknown> }).__zeffSourceHealth?.delete(id);
   emitChange("attention");
   return a;

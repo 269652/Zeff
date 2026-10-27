@@ -3,6 +3,7 @@ import { getPref, setPref } from "@/lib/prefs";
 import { DEFAULT_PREFS, diversify, normalizeUrl, scoreItem, snippetOf, titleKey, tokens, type NewsItem, type NewsPrefs, type NewsSource, type NewsState, type ScoreContext } from "./shared";
 import type { FeedItem } from "./feed";
 import { aliasesOf } from "./gazetteer";
+import { currentAccountId } from "@/db/accounts";
 
 /**
  * News: the sources, the items fetched from them, what you made of them (read, saved, hidden, liked,
@@ -29,13 +30,14 @@ function db() {
   const scols = (d.prepare("pragma table_info(news_sources)").all() as { name: string }[]).map((c) => c.name);
   for (const [name, def] of [["category", "text not null default ''"], ["lang", "text not null default ''"], ["etag", "text"], ["modified", "text"], ["fails", "integer not null default 0"]] as const) if (!scols.includes(name)) d.exec(`alter table news_sources add column ${name} ${def}`);
   // Stub summaries (Hacker News's "Article URL: … Points: 8") kept before they were dropped: emptied, so the page's own text is used.
-  if (!cleaned) {
+  if (!cleaned.has(currentAccountId())) {
     d.exec("update news_items set summary = '' where summary like 'Article URL:%' or summary like 'Comments URL:%'");
-    cleaned = true;
+    cleaned.add(currentAccountId());
   }
   return d;
 }
-let cleaned = false;
+/** Done for these accounts' databases (each its own — two accounts run side by side). */
+const cleaned = new Set<string>();
 
 const now = () => new Date().toISOString();
 

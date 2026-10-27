@@ -2,6 +2,7 @@ import { getPref, setPref } from "@/lib/prefs";
 import { resolveWeek } from "@/lib/week";
 import { TOUCH_ACTIONS, type TouchAction } from "./actions";
 import { b64u, newChallenge, verifyAssertion, verifyRegistration, type RegistrationInput, type AssertionInput, type StoredCredential } from "./webauthn";
+import { currentAccountId } from "@/db/accounts";
 
 /**
  * Touch to approve: an action that reaches outside Zeff (the export into Chrono and Punch) can be made to wait for a touch
@@ -53,7 +54,8 @@ function normalizeScope(action: TouchAction, raw: string): string {
   return `${system}|${w.startIso}`;
 }
 
-const key = (action: TouchAction, scope: string) => `${action}\n${scope}`;
+// Per account: an approval given in one account (a touch of the key) is never used up by the same action in another.
+const key = (action: TouchAction, scope: string) => `${currentAccountId()}\n${action}\n${scope}`;
 
 /** Take the approval for this action and scope (one use), or throw. A no-op while the action isn't guarded. `scope` as the actor knows it ("chrono|2026-10-12"). */
 export function requireTouch(action: TouchAction, scope: string, what = "this action"): void {

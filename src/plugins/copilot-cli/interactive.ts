@@ -5,6 +5,7 @@ import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
 import { lives, type Live } from "./live-state";
 import { errPath, logPath } from "@/lib/work/log";
+import { currentAccountId } from "@/db/accounts";
 
 /**
  * Interactive workers: Copilot as an Agent Client Protocol server (`copilot --acp`), driven by
@@ -146,7 +147,7 @@ async function end(live: Live) {
 }
 
 function close(live: Live) {
-  lives.delete(live.runId);
+  lives.delete(live.runId, live.account);
   if (!live.child.killed) live.child.kill();
   emitChange("work");
   emitChange("attention");
@@ -158,6 +159,7 @@ export async function startInteractive(v: { runId: number; command: string; args
   const child = spawn(/*turbopackIgnore: true*/ v.command, [...v.args, "--acp"], { cwd: v.cwd, env: v.env, stdio: ["pipe", "pipe", "pipe"], windowsHide: true });
   const live: Live = {
     runId: v.runId,
+    account: currentAccountId(),
     child,
     sessionId: "",
     nextId: 0,

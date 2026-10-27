@@ -3,6 +3,7 @@ import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
 import { labelResolver, secretRowTexts } from "@/plugins/workspace/sensitivity";
 import { allows, BOUNDARY_SOURCES, defaultSourceLabel, flowsOf, docSourceKey, isLabel, redact, refSourceKey, secretIndex, SPACE_SOURCES, type Clearance, type Exit, type Flow, type Label, type SecretIndex } from "./shared";
+import { currentAccountId } from "@/db/accounts";
 
 /**
  * The data boundaries at work (server only): the sources' labels as you set them, the clearance of whoever reads right
@@ -104,7 +105,8 @@ const TTL_MS = 30000;
 function secretTexts(): SecretIndex {
   const secretSources = Object.entries(own()).flatMap(([k, l]) => (l === "secret" ? [k] : []));
   const rows = secretRowTexts();
-  const key = JSON.stringify([secretSources, rows.length, rows[0] ?? ""]);
+  // Per account (its secrets are its database's): never redacted with the other account's.
+  const key = JSON.stringify([currentAccountId(), secretSources, rows.length, rows[0] ?? ""]);
   const hit = cache.__zeffSecretIndex;
   if (hit && hit.key === key && Date.now() - hit.at < TTL_MS) return hit.idx;
   const texts = [...rows];

@@ -6,6 +6,7 @@ import { listAttention } from "@/lib/attention";
 import { activityNewsIds } from "@/lib/boards/activity";
 import { getWorkSettings } from "@/lib/work/store";
 import type { Metadata } from "next";
+import { connection } from "next/server";
 import localFont from "next/font/local";
 import { SiteHeader, type MenuGroup, type MenuLink } from "@/components/SiteHeader";
 import { PLUGINS } from "@/plugins/catalog";
@@ -68,7 +69,7 @@ const setupPages = () => ["/setup", "/logins", "/sync-settings", "/plugins", "/a
 /** The account you're in and the others — only with the Accounts plugin. */
 const headerAccount = () => {
   if (!installedPlugins().has("accounts")) return undefined;
-  const chip = (a: { id: string; name: string; color: string }) => ({ id: a.id, name: a.name, color: a.color });
+  const chip = (a: { id: string; name: string; color: string; host?: string }) => ({ id: a.id, name: a.name, color: a.color, ...(a.host ? { host: a.host } : {}) });
   return { current: chip(currentAccount()), list: listAccounts().map(chip) };
 };
 import { Toaster } from "@/components/Toaster";
@@ -97,6 +98,9 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
+  // Every page is the account of its host (src/db/accounts.ts, the proxy's header): rendered per request, never prerendered
+  // or kept for one account and served to the other.
+  await connection();
   // Not set up yet (a new Zeff, a new account): a bare header, and the way into the setup assistant.
   const setupPending = !getAppSettings().setupDoneAt;
   // The account's language (Settings): the page's, and the browser's for its own components.

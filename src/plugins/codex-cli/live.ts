@@ -1,4 +1,5 @@
 import { spawn } from "node:child_process";
+import { RunMap } from "@/lib/work/run-map";
 import crypto from "node:crypto";
 import fs from "node:fs";
 import type net from "node:net";
@@ -108,8 +109,9 @@ type Live = {
   caughtUp: boolean;
 };
 
-const state = globalThis as { __zeffCodexLive?: Map<number, Live>; __zeffCodexTick?: ReturnType<typeof setInterval> };
-export const codexLives = (state.__zeffCodexLive ??= new Map<number, Live>());
+// Per account (a run's id is its account's): two accounts served side by side never see or steer each other's session.
+const state = globalThis as { __zeffCodexLive?: Map<number, Live>; __zeffCodexLiveRuns?: RunMap<Live>; __zeffCodexTick?: ReturnType<typeof setInterval> };
+export const codexLives = (state.__zeffCodexLiveRuns ??= new RunMap<Live>(currentAccountId, state.__zeffCodexLive));
 
 const now = () => new Date().toISOString();
 const sessionsDir = () => path.join(workDir(), "sessions");
@@ -518,7 +520,7 @@ async function end(l: Live, gone = false) {
 function drop(l: Live) {
   l.closed = true;
   l.sock?.destroy();
-  codexLives.delete(l.runId);
+  codexLives.delete(l.runId, l.account);
   fs.rmSync(/*turbopackIgnore: true*/ l.files.host, { force: true });
   // The pictures you sent it.
   try {
@@ -989,7 +991,7 @@ export function killCodex(runId: number) {
     }
   }
   if (l) l.closed = true;
-  codexLives.delete(runId);
+  codexLives.delete(runId, l?.account);
   changed(true);
 }
 

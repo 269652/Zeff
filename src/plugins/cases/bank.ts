@@ -11,6 +11,7 @@ import { isInstalled } from "@/plugins/state";
 import { partiesOf } from "./parties";
 import { caseTitle, type Case } from "./shared";
 import { caseByKey, getCase, listCases } from "./store";
+import { currentAccountId } from "@/db/accounts";
 
 /**
  * The bank (the Cases plugin): your account's bookings — read from a statement (the Revolut plugin) or fetched from a
@@ -58,11 +59,12 @@ export function addBookings(bookings: Booking[], account: string): { added: numb
 
 export const listTransactions = (limit = 500): Transaction[] => (db().prepare("select * from bank_transactions order by date desc, id limit ?").all(limit) as TRow[]).map(toTx);
 
-let migrated = false;
+/** Done for these accounts' databases (each its own — two accounts run side by side). */
+const migrated = new Set<string>();
 /** The payments the cases kept before the ledger (case_payments): moved into it once — a booking's, a todo's ("todo:<id>"), by hand. */
 function migrateCasePayments(): void {
-  if (migrated) return;
-  migrated = true;
+  if (migrated.has(currentAccountId())) return;
+  migrated.add(currentAccountId());
   const rows = db().prepare("select case_id caseId, tx_id txId, amount, date from case_payments").all() as { caseId: number; txId: string; amount: number; date: string }[];
   for (const r of rows) {
     const todo = r.txId.startsWith("todo:");

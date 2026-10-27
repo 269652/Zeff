@@ -2,6 +2,7 @@ import { getSqlite } from "@/db";
 import { inAgentScope } from "./agent-scope";
 import { causeNow } from "@/lib/cause";
 import { isQuiet } from "./events";
+import { currentAccountId } from "@/db/accounts";
 
 /**
  * What happened to a page or a row, one line each: a field changed (from → to), the title, the text edited, put in the trash and
@@ -14,7 +15,8 @@ export type Actor = "you" | "ai" | "source";
 export type ActivityLine = { id: number; at: string; actor: Actor; field: string; from: string; to: string; cause: string | null };
 
 const KEEP = 300;
-let hasCause = false;
+/** Done for these accounts' databases (each its own — two accounts run side by side). */
+const hasCause = new Set<string>();
 const SAME_TEXT_MS = 10 * 60000;
 
 function table() {
@@ -22,9 +24,9 @@ function table() {
   sqlite.exec("create table if not exists ws_activity (id integer primary key autoincrement, page_id integer not null, at text not null, actor text not null, field text not null, old text not null default '', new text not null default '')");
   sqlite.exec("create index if not exists ws_activity_page on ws_activity (page_id, id)");
   // (The cause came later: added to a table from before.)
-  if (!hasCause) {
+  if (!hasCause.has(currentAccountId())) {
     if (!(sqlite.prepare("pragma table_info(ws_activity)").all() as { name: string }[]).some((c) => c.name === "cause")) sqlite.exec("alter table ws_activity add column cause text");
-    hasCause = true;
+    hasCause.add(currentAccountId());
   }
   return sqlite;
 }
