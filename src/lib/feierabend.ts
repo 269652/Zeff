@@ -1,5 +1,5 @@
 import { workStart } from "@/lib/work/start";
-import { and, desc, eq, gte, isNull, like } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, like, lt } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { isInstalled } from "@/plugins/state";
 import { t } from "@/lib/i18n/server";
@@ -33,16 +33,18 @@ export type DayProposal = { date: string; target: number; booked: number; group:
 const quarter = (h: number) => Math.max(0.25, Math.round(h * 4) / 4);
 
 /**
- * The day drafted for booking: today's finished meetings not booked yet (with their job by your
- * meeting rules), the agents' open suggestions for today, and the tickets you worked on today
- * (todos done, worker runs) that have no booking yet — a worker's time and line as a start.
+ * The day drafted for booking: the day's finished meetings not booked yet (with their job by your
+ * meeting rules), the agents' open suggestions for it, and the tickets you worked on that day
+ * (todos done, worker runs, your commits) that have no booking yet — a worker's time and line as a start,
+ * else an estimate from your commits' span (said so). `now`: the day (an earlier day: its end, so all its meetings are over).
  */
 export async function proposeDay(now = new Date()): Promise<DayProposal> {
-  const { isoDate, currentWeek } = await import("@/lib/week");
+  const { isoDate, weekFromDate } = await import("@/lib/week");
   const { listEntries, listBookedOnDates, getJobNumberForTicket } = await import("@/lib/entries");
   const { getDayTargets } = await import("@/lib/schedule");
   const { listJobs } = await import("@/lib/jobs");
   const date = isoDate(now);
+  const target = getDayTargets([new Date(`${date}T12:00:00`)])[0]?.target ?? 0;
   const entries = listEntries({ from: date, to: date });
   const bookedTickets = new Set(entries.map((e) => (e.ticket ?? "").toUpperCase()).filter(Boolean));
   const jobs = listJobs().map((j) => ({ number: j.number, name: j.name }));
@@ -55,7 +57,7 @@ export async function proposeDay(now = new Date()): Promise<DayProposal> {
     const { groupForMeeting } = await import("@/lib/calendar/meetings");
     const settings = getReportSettings();
     const other = getMeetingDefaultJob(settings);
-    const week = currentWeek();
+    const week = weekFromDate(now);
     const day = getCalendarWeek(week, {
       now,
       booked: listBookedOnDates(week.days.map(isoDate)),
@@ -85,10 +87,11 @@ export async function proposeDay(now = new Date()): Promise<DayProposal> {
     const runs = db
       .select({ ticket: schema.workRuns.ticket, durationMs: schema.workRuns.durationMs, entryLine: schema.workRuns.entryLine, summary: schema.workRuns.summary, startedAt: schema.workRuns.startedAt })
       .from(schema.workRuns)
-      .where(and(gte(schema.workRuns.startedAt, `${date}T00:00`), isNull(schema.workRuns.entryId)))
+      // That day's runs only (an earlier day's proposal: not the ones since).
+      .where(and(gte(schema.workRuns.startedAt, `${date}T00:00`), lt(schema.workRuns.startedAt, `${nextDay(date)}T00:00`), isNull(schema.workRuns.entryId)))
       .all();
-    const byTicket = new Map<string, { texts: string[]; ms: number; lines: string[]; start: string | null; todoIds: number[] }>();
-    const add = (t: string) => byTicket.get(t) ?? byTicket.set(t, { texts: [], ms: 0, lines: [], start: null, todoIds: [] }).get(t)!;
+    const byTicket = new Map<string, { texts: string[]; ms: number; lines: string[]; start: string | null; todoIds: number[]; commits: string[] }>();
+    const add = (t: string) => byTicket.get(t) ?? byTicket.set(t, { texts: [], ms: 0, lines: [], start: null, todoIds: [], commits: [] }).get(t)!;
     for (const d of done)
       if (d.ticket) {
         const g = add(d.ticket.toUpperCase());
@@ -104,11 +107,30 @@ export async function proposeDay(now = new Date()): Promise<DayProposal> {
         if (hhmm && (!g.start || hhmm < g.start)) g.start = hhmm;
         if (r.entryLine) g.lines.push(r.entryLine);
       }
+    // Your commits that day, per ticket (its key in the message or the branch): when you worked on it.
+    for (const c of await commitsOn(date)) {
+      const g = add(c.ticket);
+      g.commits.push(c.at);
+      if (!g.lines.length && !g.texts.length && c.subject) g.texts.push(c.subject);
+    }
     for (const [ticket, g] of byTicket) {
       if (bookedTickets.has(ticket) || suggested.has(ticket)) continue;
-      const hours = g.ms ? quarter(g.ms / 3600000) : null;
+      // No worker's time: your commits' span (first to last, and half an hour before the first) — an estimate, said so.
+      const span = commitSpan(g.commits);
+      // Workers running side by side add up past a day (agent time, not yours): at most the day's target, said so.
+      const raw = g.ms ? quarter(g.ms / 3600000) : span ? span.hours : null;
+      const capped = raw !== null && target > 0 && raw > target;
+      const hours = capped ? target : raw;
+      if (span && (!g.start || span.start < g.start)) g.start = span.start;
       const description = (g.lines[0] ?? g.texts[0] ?? "").replace(/\s+/g, " ").slice(0, 120);
-      const from = [g.texts.length && `${g.texts.length} todo${g.texts.length > 1 ? "s" : ""} done`, g.ms && `Worker ${Math.round(g.ms / 60000)} min`].filter(Boolean).join(", ");
+      const from = [
+        g.texts.length && g.todoIds.length && `${g.todoIds.length} todo${g.todoIds.length > 1 ? "s" : ""} done`,
+        g.ms && `Worker ${Math.round(g.ms / 60000)} min`,
+        g.commits.length && `${g.commits.length} commit${g.commits.length > 1 ? "s" : ""} ${span ? `${span.start}–${span.end}` : ""}${!g.ms && span ? ` (≈ ${span.hours} h, estimated)` : ""}`.trim(),
+        capped && `capped at the day's ${target} h`,
+      ]
+        .filter(Boolean)
+        .join(", ");
       // Its start: when the work on its todos began (runs, time records) — the earliest of that and the runs listed above.
       const began = workStart(date, { todoIds: g.todoIds });
       const start = [g.start, began].filter((x): x is string => !!x).sort()[0];
@@ -116,8 +138,68 @@ export async function proposeDay(now = new Date()): Promise<DayProposal> {
     }
   }
 
+  // A day booked to its target already: nothing more ticked (shown, yours to tick) — booking it would go past the day.
+  const booked = entries.reduce((s, e) => s + e.hours, 0);
+  if (target > 0 && booked >= target) for (const r of rows) r.include = false;
   const { collectHeadsOn } = await import("@/lib/entry-parallel");
-  return { date, target: getDayTargets([now])[0]?.target ?? 0, booked: entries.reduce((s, e) => s + e.hours, 0), group: collectHeadsOn(date)[0]?.head.description ?? null, rows, jobs };
+  return { date, target, booked, group: collectHeadsOn(date)[0]?.head.description ?? null, rows, jobs };
+}
+
+/** The day after a "YYYY-MM-DD". */
+const nextDay = (date: string) => new Date(new Date(`${date}T12:00:00`).getTime() + 864e5).toISOString().slice(0, 10);
+
+const KEY = /\b([A-Z][A-Z0-9]+-\d+)\b/;
+const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
+/** Your commits on a day in every repo (your git email there), each with the ticket its message or branch names. */
+async function commitsOn(date: string): Promise<{ ticket: string; at: string; subject: string }[]> {
+  const out: { ticket: string; at: string; subject: string }[] = [];
+  try {
+    const { listRepos } = await import("@/lib/repos");
+    const { gitText } = await import("@/lib/git");
+    const next = nextDay(date);
+    const seen = new Set<string>();
+    for (const repo of listRepos().filter((r) => r.ok)) {
+      const email = (await gitText(repo.path, ["config", "user.email"]).catch(() => "")).trim();
+      if (!email) continue;
+      const log = await gitText(repo.path, ["log", "--all", "--source", `--author=${email}`, `--since=${date} 00:00`, `--until=${next} 00:00`, "--date=iso-strict", "--format=%h%x09%ad%x09%S%x09%s"]).catch(() => "");
+      for (const line of log.split("\n").filter(Boolean)) {
+        const [hash, at, ref, subject] = line.split("\t");
+        if (seen.has(hash)) continue;
+        seen.add(hash);
+        const ticket = KEY.exec(subject ?? "")?.[1] ?? KEY.exec(ref ?? "")?.[1];
+        if (ticket) out.push({ ticket: ticket.toUpperCase(), at, subject: (subject ?? "").trim() });
+      }
+    }
+  } catch {
+    // no repos
+  }
+  return out;
+}
+
+/** The span of a day's commits on a ticket as hours to book: half an hour before the first to the last, in quarters (at most 6 h). */
+export function commitSpan(ats: string[]): { start: string; end: string; hours: number } | null {
+  const times = ats.map((a) => new Date(a)).filter((d) => !Number.isNaN(d.getTime())).sort((a, b) => a.getTime() - b.getTime());
+  if (!times.length) return null;
+  const first = times[0];
+  const last = times[times.length - 1];
+  const hours = Math.min(6, quarter((last.getTime() - first.getTime()) / 3600000 + 0.5));
+  return { start: hhmm(new Date(first.getTime() - 30 * 60000)), end: hhmm(last), hours };
+}
+
+/** The week drafted for booking, day by day (Monday to today, or the whole week when it is over) — each as proposeDay has it. */
+export async function proposeWeek(weekKey?: string | null): Promise<{ key: string; days: DayProposal[] }> {
+  const { resolveWeek, currentWeek, isoDate } = await import("@/lib/week");
+  const week = resolveWeek(weekKey) ?? currentWeek();
+  const today = isoDate(new Date());
+  const days: DayProposal[] = [];
+  for (const d of week.days.slice(0, 5)) {
+    const date = isoDate(d);
+    if (date > today) break;
+    // An earlier day: as at its end (all its meetings over); today: as now.
+    days.push(await proposeDay(date === today ? new Date() : new Date(`${date}T23:59:00`)));
+  }
+  return { key: week.key, days };
 }
 
 /** A line to book, as you left it on the Feierabend page. */

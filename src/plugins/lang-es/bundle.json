@@ -7509,5 +7509,11 @@
   "Where Zeff books your times and reads your days — preset; change it only when Punch moves": "Donde Zeff registra tus horas y lee tus días — predefinida; cámbiala solo si Punch se muda",
   "New row in “{group}”": "Nueva fila en «{group}»",
   "Hide empty groups": "Ocultar grupos vacíos",
-  "Not up to date when this ran:": "No actualizado en esta ejecución:"
+  "Not up to date when this ran:": "No actualizado en esta ejecución:",
+  "Prepared — one click": "Preparado: un clic",
+  "The week to book": "La semana para registrar",
+  "{week} — each day as a booking suggestion: its meetings, the agents' suggestions, the tickets you worked on (todos done, worker runs, your commits — an estimate from their span where no time was taken, said so). Check each day, book it with its button — nothing is booked before.": "{week}: cada día como propuesta de registro: sus reuniones, las sugerencias de los agentes, los tickets en los que trabajaste (tareas hechas, ejecuciones de workers, tus commits; donde no se midió tiempo, una estimación por su intervalo, indicada). Revisa cada día y regístralo con su botón; nada se registra antes.",
+  "Then the week goes to Chrono/Punch from the Weekly report — your click, as always.": "Luego la semana va a Chrono/Punch desde el informe semanal: tu clic, como siempre.",
+  "Nothing to propose for this day.": "No hay nada que proponer para este día.",
+  "The whole week →": "Toda la semana →"
 }
