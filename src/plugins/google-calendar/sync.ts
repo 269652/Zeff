@@ -11,6 +11,7 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { getPref, setPref } from "@/lib/prefs";
 import { automationEnv, automationUp, driverPath } from "@/plugins/drivers";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /** `weeks`: how far ahead it reads; `pastMonths`: how far back (the API — from the 1st of that month). */
 export type GoogleCalendarSettings = { account: string; weeks: number; pastMonths: number };
@@ -35,8 +36,7 @@ export function rangesToRead(window: DayRange, asked?: DayRange): DayRange[] {
 }
 
 /** One Google sync at a time across the whole server. */
-const flag = globalThis as { __zeffGcalSyncing?: boolean };
-export const gcalSyncing = () => !!flag.__zeffGcalSyncing;
+export const gcalSyncing = () => !!accountFlag("__zeffGcalSyncing");
 
 type Read = {
   calendars: { id: string; name: string; color: string; shown: boolean; role?: string }[];
@@ -100,8 +100,8 @@ export function applyRead(data: Read, days: DayRange): number {
 
 /** `range`: the days shown (a month gone by) — read too, besides the window of the settings (the API only). */
 export async function syncGoogleCalendar({ background = false, range }: { background?: boolean; range?: DayRange } = {}): Promise<{ ok: boolean; message: string }> {
-  if (flag.__zeffGcalSyncing) return { ok: false, message: t("A Google Calendar sync is already running.") };
-  flag.__zeffGcalSyncing = true;
+  if (accountFlag("__zeffGcalSyncing")) return { ok: false, message: t("A Google Calendar sync is already running.") };
+  setAccountFlag("__zeffGcalSyncing", true);
   try {
     const viaApi = driverOf("gcalendar") === "api";
     if (!viaApi && background && !(await chromeUp())) return { ok: false, message: t("The automation Chrome isn't running. Not synced.") };
@@ -139,7 +139,7 @@ export async function syncGoogleCalendar({ background = false, range }: { backgr
     if (driverOf("gcalendar") === "cdp" && (needsSignIn(message) || /sign[- ]in|anmeld|not signed/i.test(message))) raiseLogin("gcalendar", message);
     return { ok: false, message };
   } finally {
-    flag.__zeffGcalSyncing = false;
+    setAccountFlag("__zeffGcalSyncing", false);
   }
 }
 

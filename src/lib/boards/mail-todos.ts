@@ -22,6 +22,7 @@ import { isChatFolder, sourceOn } from "@/lib/mail/shared";
 import { mustDo } from "./must-do";
 import { STEPS } from "@/lib/learning/ledger";
 import { learnedRules, mailRuleFor } from "@/lib/learning/rules";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 export { mustDo };
 
@@ -110,7 +111,6 @@ Unter „Was ich verworfen habe“ stehen Vorschläge, die ich nicht wollte (mit
 /** Signal's chats (Signal plugin) — told only when its messages are there (the instructions stay as they were). */
 export const SIGNAL_NOTE = "Einträge im Ordner „Signal“ sind ebenfalls keine Mails, sondern Signal-Chats — genauso zu lesen wie die WhatsApp-Chats (Betreff = Chat, Absender = wer schrieb, „Ich“ = ich selbst).";
 
-const state = globalThis as unknown as { __zeffMailTodos?: Promise<MailTodosResult> | null };
 export type MailTodosResult = { ok: boolean; reviewed: number; added: number; /** New todos that repeated an open one and were merged into it. */ merged?: number; updated?: number; batches: number; error?: string };
 
 /** Words too common to tell a topic by (German, English, mail and chat filler). */
@@ -284,7 +284,8 @@ export function verdictLines(dropped: TodoView[]): { dropped: string[]; done: st
  * gone through once. In batches, each its own prompt; one at a time.
  */
 export function reviewMailsForTodos(runId: number | null = null): Promise<MailTodosResult> {
-  if (state.__zeffMailTodos) return state.__zeffMailTodos;
+  const running = accountFlag<Promise<MailTodosResult>>("__zeffMailTodos");
+  if (running) return running;
   const run = (async (): Promise<MailTodosResult> => {
     // How far back, and which: the Auswerten settings (a source switched off: its messages wait, not gone through).
     const cp = getContextPrefs().mailtodos;
@@ -494,8 +495,8 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
       return { ok: false, reviewed: 0, added: 0, batches: 0, error: errorMessage(e) };
     })
     .finally(() => {
-      state.__zeffMailTodos = null;
+      setAccountFlag("__zeffMailTodos", null);
     });
-  state.__zeffMailTodos = run;
+  setAccountFlag("__zeffMailTodos", run);
   return run;
 }

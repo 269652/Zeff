@@ -11,6 +11,7 @@ import type { MailView } from "@/lib/mail/shared";
 import { plain } from "./collect";
 import type { TodoView } from "./shared";
 import { listTodos, setTodoMailRefs } from "./store";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /** How many of a ticket's mails the run weighs (the newest) — more than the Ticket-Lage sees. */
 /** A prompt's room for tickets, todos and mails (Copilot takes it on the command line). */
@@ -48,7 +49,6 @@ function block(key: string, todos: TodoView[], mails: MailView[]): string {
   ].join("\n");
 }
 
-const state = globalThis as unknown as { __zeffMailRelations?: Promise<MailRelationResult> | null };
 export type MailRelationResult = { ok: boolean; todos: number; changed: number; batches: number; error?: string };
 
 /**
@@ -57,7 +57,8 @@ export type MailRelationResult = { ok: boolean; todos: number; changed: number; 
  * (todo.mailRefs). In batches of tickets, each its own prompt; one run at a time.
  */
 export function relateMails(): Promise<MailRelationResult> {
-  if (state.__zeffMailRelations) return state.__zeffMailRelations;
+  const running = accountFlag<Promise<MailRelationResult>>("__zeffMailRelations");
+  if (running) return running;
   const run = (async (): Promise<MailRelationResult> => {
     // Todos on a ticket (those from the Mail-Durchsicht, on none, have their mails already).
     const open = listTodos({ status: "open" }).filter((t) => t.ticket);
@@ -120,8 +121,8 @@ export function relateMails(): Promise<MailRelationResult> {
       return { ok: false, todos: 0, changed: 0, batches: 0, error: errorMessage(e) };
     })
     .finally(() => {
-      state.__zeffMailRelations = null;
+      setAccountFlag("__zeffMailRelations", null);
     });
-  state.__zeffMailRelations = run;
+  setAccountFlag("__zeffMailRelations", run);
   return run;
 }

@@ -1,3 +1,4 @@
+import { activeAccountId } from "@/db/accounts";
 import { callHost } from "./client";
 import { delegates } from "./role";
 
@@ -9,43 +10,26 @@ import { delegates } from "./role";
  * doesn't know the difference. Only these fields — nothing else of the host's memory leaves it.
  */
 export const MIRRORED_FLAGS = [
-  "__zeffBoardRun",
-  "__zeffRecap",
+  // What runs per account (lib/sync/account-flags.ts: flag → account → value).
+  "__zeffAccountFlags",
   "__zeffBoardSync",
   "__zeffPeopleDates",
-  "__zeffTeamsSyncing",
-  "__zeffMailSyncing",
-  "__zeffWhatsappSyncing",
-  "__zeffSignalSyncing",
-  "__zeffKeepSyncing",
-  "__zeffNewsSyncing",
-  "__zeffGcalSyncing",
-  "__zeffGitlabSyncing",
-  "__zeffDriveBackup",
-  "__zeffDriveDocs",
-  "__zeffMailTodos",
-  "__zeffMailRelations",
-  "__zeffNoteTodos",
-  "__zeffNoteRelations",
-  "__zeffDocTodos",
-  "__zeffDocRelations",
-  "__zeffAutoActions",
-  "__zeffBoardLage",
-  "__zeffPeopleNormalize",
-  "__zeffKnowledgeRelations",
 ] as const;
 
 export type HostSnapshot = {
   /** The mirrored fields that are set (objects as they are, flags as true). */
   flags: Record<string, unknown>;
-  /** The syncs of the sync menu: the steps running, and "Sync all" (null: not; "" : starting; else its step). */
+  /** The syncs of the sync menu: the steps running, and "Sync all" (null: not; "" : starting; else its step) — the active account's (a host before the per-account syncs sends only this). */
   syncs: { running: string[]; all: string | null };
+  /** The same, per account (each runs its own). */
+  syncsByAccount?: Record<string, { running: string[]; all: string | null }>;
   /** Backups running (a number: the account switch only asks whether there are any). */
   backups: number;
 };
 
+type LiveSyncs = { running: Set<string>; all: string | null | undefined; stops?: Map<string, AbortController>; allStopped?: boolean };
 type Globals = Record<string, unknown> & {
-  __zeffSyncs?: { running: Set<string>; all: string | null | undefined; stops?: Map<string, AbortController>; allStopped?: boolean };
+  __zeffSyncsByAccount?: Record<string, LiveSyncs>;
   __zeffBackups?: Map<string, unknown>;
 };
 const g = globalThis as Globals;
@@ -62,10 +46,12 @@ export function buildSnapshot(): HostSnapshot {
       flags[name] = true;
     }
   }
-  const s = g.__zeffSyncs;
+  const view = (s: LiveSyncs | undefined) => ({ running: s ? [...s.running] : [], all: s && s.all !== undefined ? (s.all ?? "") : null });
+  const syncsByAccount = Object.fromEntries(Object.entries(g.__zeffSyncsByAccount ?? {}).map(([a, s]) => [a, view(s)]));
   return {
     flags,
-    syncs: { running: s ? [...s.running] : [], all: s && s.all !== undefined ? (s.all ?? "") : null },
+    syncs: syncsByAccount[activeAccountId()] ?? view(undefined),
+    syncsByAccount,
     backups: g.__zeffBackups?.size ?? 0,
   };
 }
@@ -77,9 +63,14 @@ export function applySnapshot(snap: HostSnapshot | null): void {
     if (v) g[name] = v;
     else delete g[name];
   }
-  const syncs = (g.__zeffSyncs ??= { running: new Set(), all: undefined });
-  syncs.running = new Set(snap?.syncs.running ?? []);
-  syncs.all = snap?.syncs.all == null ? undefined : snap.syncs.all === "" ? null : snap.syncs.all;
+  const views = snap?.syncsByAccount ?? (snap ? { [activeAccountId()]: snap.syncs } : {});
+  const byAccount = (g.__zeffSyncsByAccount ??= {});
+  for (const a of Object.keys(byAccount)) if (!views[a]) delete byAccount[a];
+  for (const [a, v] of Object.entries(views)) {
+    const syncs = (byAccount[a] ??= { running: new Set(), all: undefined });
+    syncs.running = new Set(v.running);
+    syncs.all = v.all == null ? undefined : v.all === "" ? null : v.all;
+  }
   if (snap?.backups) g.__zeffBackups = new Map(Array.from({ length: snap.backups }, (_, i) => [String(i), true]));
   else delete g.__zeffBackups;
 }

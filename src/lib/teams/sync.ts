@@ -4,6 +4,7 @@ import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { saveTeamsMessages, updateTeamsSettings, type TeamsMessageInput } from "./store";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /** How far back 1:1 chats (PMs) are read on each sync. */
 const PM_DAYS = 90;
@@ -11,7 +12,6 @@ const PM_DAYS = 90;
 const CHAT_DAYS = 3;
 
 /** One sync at a time across the whole server (actions and the scheduler are separate module copies). */
-const state = globalThis as { __zeffTeamsSyncing?: boolean };
 
 /** Remember how the sync went, for the Teams page (and the scheduler's next turn). */
 function record(ok: boolean, message: string): { ok: boolean; message: string } {
@@ -30,8 +30,8 @@ async function chromeUp(): Promise<boolean> {
  * `background`: only when Chrome runs with Teams open; by hand it may open Teams.
  */
 export async function syncTeams({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
-  if (state.__zeffTeamsSyncing) return { ok: false, message: t("A Teams sync is already running.") };
-  state.__zeffTeamsSyncing = true;
+  if (accountFlag("__zeffTeamsSyncing")) return { ok: false, message: t("A Teams sync is already running.") };
+  setAccountFlag("__zeffTeamsSyncing", true);
   try {
     // Through Graph (the API driver) no Chrome is needed; else, in the background without the automation Chrome: later — not a failure.
     const viaApi = driverOf("teams") === "api";
@@ -59,6 +59,6 @@ export async function syncTeams({ background = false } = {}): Promise<{ ok: bool
     if (driverOf("teams") === "cdp" && needsSignIn(message)) raiseLogin("teams", message);
     return record(false, message);
   } finally {
-    state.__zeffTeamsSyncing = false;
+    setAccountFlag("__zeffTeamsSyncing", false);
   }
 }

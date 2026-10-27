@@ -33,6 +33,7 @@ import { isChatFolder } from "@/lib/mail/shared";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { opAvailable } from "@/plugins/ops";
 import { OFFERED_ACTIONS } from "@/plugins/actions/catalog";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 const { todos, emails } = schema;
 
@@ -285,7 +286,6 @@ export const AUTO_ACTIONS_SCHEMA = SCHEMA;
 export type AutoActionsAnswer = Answer;
 export { accountsOf, addressBook, busyTimes };
 
-const state = globalThis as unknown as { __zeffAutoActions?: Promise<AutoActionsResult> | null };
 export type AutoActionsResult = { ok: boolean; reviewed: number; withActions: number; batches: number; error?: string };
 
 /**
@@ -294,9 +294,10 @@ export type AutoActionsResult = { ok: boolean; reviewed: number; withActions: nu
  * rules and the installed plugins, goes on the todo (marked as proposed, with why). One at a time.
  */
 export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = {}): Promise<AutoActionsResult> {
-  if (state.__zeffAutoActions && !opts.ids) return state.__zeffAutoActions;
+  const running = accountFlag<Promise<AutoActionsResult>>("__zeffAutoActions");
+  if (running && !opts.ids) return running;
   const run = (async (): Promise<AutoActionsResult> => {
-    if (opts.ids && state.__zeffAutoActions) await state.__zeffAutoActions;
+    if (opts.ids && running) await running;
     // What can be done changed (a plugin or an extension came — WhatsApp, Gmail, Keep, a calendar):
     // every open todo without actions is looked at again, once — and those whose actions this review
     // proposed itself (not run yet: what ran is gone from a todo), so they can get the new kind.
@@ -445,8 +446,8 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
       return { ok: false, reviewed: 0, withActions: 0, batches: 0, error: errorMessage(e) };
     })
     .finally(() => {
-      if (!opts.ids) state.__zeffAutoActions = null;
+      if (!opts.ids) setAccountFlag("__zeffAutoActions", null);
     });
-  if (!opts.ids) state.__zeffAutoActions = run;
+  if (!opts.ids) setAccountFlag("__zeffAutoActions", run);
   return run;
 }

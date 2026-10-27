@@ -8,6 +8,7 @@ import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { emitChange } from "@/lib/events";
 import { errorMessage } from "@/lib/errors";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /**
  * The Board-Lage — the review step of every board, done by the Workspace's AI review: each board database (the Jira
@@ -66,19 +67,19 @@ async function freshFromJira(keys: string[]): Promise<number> {
   return issues.length;
 }
 
-const state = globalThis as unknown as { __zeffBoardLage?: Promise<BoardLageResult> | null; __zeffBoardLageAll?: boolean };
 export type BoardLageResult = { ok: boolean; all: boolean; relevant: number; analyzed: number; unchanged: number; failed: number; error?: string };
 
 /** The next run's scope (set by the button before it starts the step): all Jira tickets read fresh, or the ones you're in. */
 export function setBoardLageScope(all: boolean): void {
-  state.__zeffBoardLageAll = all;
+  setAccountFlag("__zeffBoardLageAll", all);
 }
 
 /** The Board-Lage now (one at a time): Jira's relevant tickets read fresh, every board with its Lage fields, the reviews. */
 export function runBoardLage(opts: { force?: boolean; all?: boolean } = {}): Promise<BoardLageResult> {
-  if (state.__zeffBoardLage) return state.__zeffBoardLage;
-  const all = opts.all ?? !!state.__zeffBoardLageAll;
-  state.__zeffBoardLageAll = false;
+  const running = accountFlag<Promise<BoardLageResult>>("__zeffBoardLage");
+  if (running) return running;
+  const all = opts.all ?? !!accountFlag<boolean>("__zeffBoardLageAll");
+  setAccountFlag("__zeffBoardLageAll", false);
   const run = (async (): Promise<BoardLageResult> => {
     let note: string | undefined;
     await freshFromJira(relevantKeys(all)).catch((e) => void (note = errorMessage(e).slice(0, 300)));
@@ -93,10 +94,10 @@ export function runBoardLage(opts: { force?: boolean; all?: boolean } = {}): Pro
   })()
     .catch((e) => ({ ok: false, all, relevant: 0, analyzed: 0, unchanged: 0, failed: 0, error: errorMessage(e).slice(0, 300) }))
     .finally(() => {
-      state.__zeffBoardLage = null;
+      setAccountFlag("__zeffBoardLage", null);
       emitChange("kanban");
       emitChange("workspace");
     });
-  state.__zeffBoardLage = run;
+  setAccountFlag("__zeffBoardLage", run);
   return run;
 }

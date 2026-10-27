@@ -10,7 +10,7 @@ import { getTeamsSettings } from "@/lib/teams/store";
 import { getMailSettings } from "@/lib/mail/store";
 import { SYNC_KEYS, type SyncKey, type SyncOverview, type SyncView } from "./shared";
 import { stepAvailable } from "@/plugins/state";
-import { inThisAccount } from "@/db/accounts";
+import { currentAccountId, inThisAccount } from "@/db/accounts";
 import { ABORTED, sleep, withAbort } from "@/lib/abort";
 import { emitChange } from "@/lib/events";
 import { noteSyncResult } from "./health";
@@ -19,17 +19,22 @@ import { callHost, HostDownError } from "@/lib/host/client";
 import { remoteResult } from "@/lib/host/commands";
 import { delegates } from "@/lib/host/role";
 import { integrationServer, integrationServerIds } from "@/lib/integrations/server";
+import { accountFlag } from "@/lib/sync/account-flags";
 /** Quiet hours: from 19:00 to 08:00 nothing syncs by itself (by hand it still does). */
 export const QUIET = { from: 19, to: 8 };
 export const quietAt = (at = new Date()) => at.getHours() >= QUIET.from || at.getHours() < QUIET.to;
 
 const { syncState, jiraTickets } = schema;
 
-/** What's running from the menu, and "Sync all" (the step it's on) — across the server's module copies. */
-const state = globalThis as {
-  __zeffSyncs?: { running: Set<SyncKey>; all: SyncKey | null | undefined; stops?: Map<string, AbortController>; allStopped?: boolean };
-};
-const live = () => (state.__zeffSyncs ??= { running: new Set(), all: undefined });
+/**
+ * What's running from the menu, and "Sync all" (the step it's on) — across the server's module copies, per account:
+ * two accounts sync side by side, each its own steps (one's mail sync neither blocks nor stops the other's).
+ */
+export type LiveSyncs = { running: Set<SyncKey>; all: SyncKey | null | undefined; stops?: Map<string, AbortController>; allStopped?: boolean };
+const state = globalThis as { __zeffSyncsByAccount?: Record<string, LiveSyncs> };
+const live = (account = currentAccountId()) => ((state.__zeffSyncsByAccount ??= {})[account] ??= { running: new Set(), all: undefined });
+/** Every account's running syncs (a deploy waits for all; the mirror copies all). */
+export const liveSyncsAll = (): [string, LiveSyncs][] => Object.entries(state.__zeffSyncsByAccount ?? {});
 /** The running syncs' stop handles, by step (the menu's, the scheduler's, a page's button). */
 const stops = () => (live().stops ??= new Map());
 
@@ -77,8 +82,8 @@ export function stopSyncAllHere(): boolean {
   return true;
 }
 
-/** A flag another module keeps on globalThis while its sync runs (the scheduler, a page's button). */
-const flag = (name: string) => !!(globalThis as Record<string, unknown>)[name];
+/** A flag another module keeps while its sync runs (the scheduler, a page's button) — this account's (each runs its own). */
+const flag = (name: string) => !!accountFlag(name);
 
 /** Stored "YYYY-MM-DD HH:MM:SS" (UTC, SQLite's) or ISO → ISO. */
 const iso = (t: string | null | undefined) => (!t ? null : /^\d{4}-\d{2}-\d{2} /.test(t) ? `${t.replace(" ", "T")}Z` : t);
@@ -288,7 +293,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     },
     // The Lage itself: not while its run syncs first or relates the mails (their own steps show that).
     busy: () => {
-      const r = (globalThis as { __zeffBoardRun?: { phase: string } | null }).__zeffBoardRun;
+      const r = accountFlag<{ phase: string }>("__zeffBoardRun");
       return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "notetodos" && r.phase !== "notes" && r.phase !== "documents" && r.phase !== "docrelations" && r.phase !== "knowledge" && r.phase !== "autoactions";
     },
     last: () => {
@@ -308,7 +313,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     get what() { return t("Todos from your mails — what they ask of you (trainings, deadlines, forms), by the AI (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/lib/boards/mail-todos")).reviewMailsForTodos(
-        (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
+        accountFlag<{ id: number }>("__zeffBoardRun")?.id ?? null,
       );
       return r.ok
         ? {
@@ -402,7 +407,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     get what() { return t("Todos from your notes — new and edited ones (Google Keep, your Keep boards in the briefing), by the AI (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/plugins/keep/note-review")).reviewNotesForTodos(
-        (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
+        accountFlag<{ id: number }>("__zeffBoardRun")?.id ?? null,
       );
       return r.ok
         ? { ok: true, message: `${t("{reviewed} notes reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.merged ? `, ${t("{n} merged into open ones", { n: r.merged })}` : ""}${r.error ? ` (${r.error})` : ""}` }
@@ -431,7 +436,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     get what() { return t("Todos from your documents — what they ask of you: deadlines, bills, forms, open questions — new and changed ones, by the AI (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/plugins/documents/review")).reviewDocumentsForTodos(
-        (globalThis as { __zeffBoardRun?: { id: number } | null }).__zeffBoardRun?.id ?? null,
+        accountFlag<{ id: number }>("__zeffBoardRun")?.id ?? null,
       );
       return r.ok
         ? { ok: true, message: `${t("{reviewed} documents reviewed, {added} new todos", { reviewed: r.reviewed, added: r.added })}${r.merged ? `, ${t("{n} merged into open ones", { n: r.merged })}` : ""}${r.error ? ` (${r.error})` : ""}` }

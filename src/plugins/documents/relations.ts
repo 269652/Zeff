@@ -16,6 +16,7 @@ import { t } from "@/lib/i18n/server";
 import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { readableDocuments, type ReadableDoc } from "./store";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 const PER_TODO = 6;
 const BATCH_CHARS = COPILOT_MAX_PROMPT - 4000;
@@ -52,11 +53,11 @@ export function candidates(todo: TodoView, docs: { d: ReadableDoc; w: Set<string
 const docLine = (d: ReadableDoc) => `  - [${d.ref}] „${plain(d.name, 120)}“ (${d.kind})${d.abstract ? ` — ${plain(d.abstract, 400)}` : ""}\n    ${plain(d.text, 500)}`;
 const block = (todo: TodoView, list: ReadableDoc[]) => [`## [${todo.id}] ${plain(todo.text, 300)}${todo.ticket ? ` (${todo.ticket})` : ""}`, ...list.map(docLine)].join("\n");
 
-const state = globalThis as unknown as { __zeffDocRelations?: Promise<DocRelationResult> | null };
 export type DocRelationResult = { ok: boolean; todos: number; changed: number; batches: number; error?: string };
 
 export function relateDocuments(): Promise<DocRelationResult> {
-  if (state.__zeffDocRelations) return state.__zeffDocRelations;
+  const running = accountFlag<Promise<DocRelationResult>>("__zeffDocRelations");
+  if (running) return running;
   const run = (async (): Promise<DocRelationResult> => {
     const open = listTodos({ status: "open" });
     const docs = readableDocuments().map((d) => ({ d, w: words(`${d.name} ${d.abstract} ${d.concepts} ${d.text.slice(0, 4000)}`) }));
@@ -104,8 +105,8 @@ export function relateDocuments(): Promise<DocRelationResult> {
       return { ok: false, todos: 0, changed: 0, batches: 0, error: errorMessage(e) };
     })
     .finally(() => {
-      state.__zeffDocRelations = null;
+      setAccountFlag("__zeffDocRelations", null);
     });
-  state.__zeffDocRelations = run;
+  setAccountFlag("__zeffDocRelations", run);
   return run;
 }

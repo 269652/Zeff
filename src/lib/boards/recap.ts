@@ -25,6 +25,7 @@ import type { Entity } from "@/lib/entities-shared";
 import { jiraCommentUrl, todoRef } from "./shared";
 import { listTodos } from "./store";
 import { pushTo } from "@/lib/collections";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 const { dayRecaps, workRuns, gitlabItems, jiraTickets } = schema;
 
@@ -268,10 +269,10 @@ function clean(r: RecapResult, facts: RecapFacts): RecapResult {
 // The run
 // ---------------------------------------------------------------------------
 
-const state = globalThis as { __zeffRecap?: { id: number; day: string; phase: "gather" | "ai" | "saving"; since: number; provider: string } | null };
+type RecapNow = { id: number; day: string; phase: "gather" | "ai" | "saving"; since: number; provider: string };
 
 /** The recap being made in this server right now, and its step. */
-export const recapState = () => state.__zeffRecap ?? null;
+export const recapState = () => accountFlag<RecapNow>("__zeffRecap") ?? null;
 
 function finish(id: number, patch: Partial<typeof dayRecaps.$inferInsert>) {
   getDb()
@@ -286,7 +287,7 @@ export function startRecap(day: string): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day)) return { ok: false, message: t("Which day?") };
-    if (state.__zeffRecap) return { ok: false, message: t("A day is being recapped already.") };
+    if (accountFlag<RecapNow>("__zeffRecap")) return { ok: false, message: t("A day is being recapped already.") };
     const ai = aiChoice();
     const provider = AI_PROVIDER_INFO[ai.provider].label;
     const id = getDb()
@@ -295,7 +296,7 @@ export function startRecap(day: string): { ok: boolean; message: string } {
       .returning()
       .get().id;
     const t0 = Date.now();
-    state.__zeffRecap = { id, day, phase: "gather", since: t0, provider };
+    setAccountFlag("__zeffRecap", { id, day, phase: "gather", since: t0, provider });
     void (async () => {
       try {
         const { facts, notes } = await gather(day);
@@ -303,16 +304,16 @@ export function startRecap(day: string): { ok: boolean; message: string } {
           finish(id, { status: "ok", facts: JSON.stringify(facts), result: JSON.stringify({ summary: `${t("Zeff found nothing of yours for this day.")}${notes.length ? ` (${notes.join(" ")})` : ""}`, tickets: [], other: [] }), durationMs: Date.now() - t0 });
           return;
         }
-        state.__zeffRecap = { id, day, phase: "ai", since: t0, provider };
+        setAccountFlag("__zeffRecap", { id, day, phase: "ai", since: t0, provider });
         const answer = await runAi<RecapResult>(promptOf(day, facts, myJiraName()), RECAP_SCHEMA, { task: "recap", maxBudgetUsd: 2, timeoutMs: 10 * 60000 });
-        state.__zeffRecap = { id, day, phase: "saving", since: t0, provider };
+        setAccountFlag("__zeffRecap", { id, day, phase: "saving", since: t0, provider });
         const result = clean(answer.output, facts);
         if (notes.length) result.summary = `${result.summary}\n\n(${notes.join(" ")})`;
         finish(id, { status: "ok", facts: JSON.stringify(facts), result: JSON.stringify(result), model: answer.model ?? undefined, costUsd: answer.costUsd ?? null, durationMs: Date.now() - t0 });
       } catch (e) {
         finish(id, { status: "error", error: errorMessage(e).slice(0, 2000), durationMs: Date.now() - t0 });
       } finally {
-        state.__zeffRecap = null;
+        setAccountFlag("__zeffRecap", null);
       }
     })();
     return { ok: true, message: t("Recapping.") };

@@ -4,12 +4,12 @@ import { clearAttention, needsSignIn, raiseLogin } from "@/lib/attention";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { getGitlabSettings, saveGitlabItems, updateGitlabSettings, type GitlabItemInput } from "./store";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /** How far back a full sync (and branches on every sync) goes. */
 const DAYS = 90;
 
 /** One sync at a time across the whole server (actions and the scheduler are separate module copies). */
-const state = globalThis as { __zeffGitlabSyncing?: boolean };
 
 /** Remember how the sync went, for the GitLab page (and the scheduler's next turn). */
 function record(ok: boolean, message: string): { ok: boolean; message: string } {
@@ -29,8 +29,8 @@ async function chromeUp(): Promise<boolean> {
  * `background`: only when Chrome runs with GitLab open; by hand it may open GitLab.
  */
 export async function syncGitlab({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
-  if (state.__zeffGitlabSyncing) return { ok: false, message: t("A GitLab sync is already running.") };
-  state.__zeffGitlabSyncing = true;
+  if (accountFlag("__zeffGitlabSyncing")) return { ok: false, message: t("A GitLab sync is already running.") };
+  setAccountFlag("__zeffGitlabSyncing", true);
   try {
     const s = getGitlabSettings();
     const base = s.baseUrl.replace(/\/+$/, "");
@@ -82,6 +82,6 @@ export async function syncGitlab({ background = false } = {}): Promise<{ ok: boo
     if (driverOf("gitlab") === "cdp" && needsSignIn(message) && !/reachable/i.test(message)) raiseLogin("gitlab", message);
     return record(false, message);
   } finally {
-    state.__zeffGitlabSyncing = false;
+    setAccountFlag("__zeffGitlabSyncing", false);
   }
 }

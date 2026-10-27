@@ -8,24 +8,26 @@
 import { delegates } from "./role";
 
 type Globals = {
-  __zeffBoardRun?: { id: number; phase: string } | null;
-  __zeffSyncs?: { running: Set<string>; all: string | null | undefined };
+  __zeffSyncsByAccount?: Record<string, { running: Set<string>; all: string | null | undefined }>;
   __zeffBoardSync?: { boardId: number } | null;
-  __zeffKeepSyncing?: boolean;
+  __zeffAccountFlags?: Record<string, Record<string, unknown>>;
   __zeffPeopleDates?: { done: number; total: number } | null;
-  __zeffRecap?: { id: number; day: string } | null;
 };
 
 export function busyThings(): string[] {
   if (delegates()) return [];
   const g = globalThis as Globals;
   const busy: string[] = [];
-  if (g.__zeffBoardRun) busy.push(`briefing run #${g.__zeffBoardRun.id} (${g.__zeffBoardRun.phase})`);
-  for (const key of g.__zeffSyncs?.running ?? []) busy.push(`sync ${key}`);
-  if (g.__zeffSyncs && g.__zeffSyncs.all !== undefined) busy.push("Sync all");
+  const each = <T>(name: string) => Object.entries(g.__zeffAccountFlags?.[name] ?? {}) as [string, T][];
+  for (const [account, r] of each<{ id: number; phase: string }>("__zeffBoardRun")) busy.push(`briefing run #${r.id} (${r.phase}, ${account})`);
+  // Every account's: each syncs on its own.
+  for (const [account, s] of Object.entries(g.__zeffSyncsByAccount ?? {})) {
+    for (const key of s.running) busy.push(`sync ${key} (${account})`);
+    if (s.all !== undefined) busy.push(`Sync all (${account})`);
+  }
   if (g.__zeffBoardSync) busy.push(`Keep board sync (board ${g.__zeffBoardSync.boardId})`);
-  if (g.__zeffKeepSyncing) busy.push("Keep sync");
+  for (const [account] of each("__zeffKeepSyncing")) busy.push(`Keep sync (${account})`);
   if (g.__zeffPeopleDates) busy.push(`people's dates (${g.__zeffPeopleDates.done}/${g.__zeffPeopleDates.total})`);
-  if (g.__zeffRecap) busy.push(`day recap ${g.__zeffRecap.day}`);
+  for (const [account, r] of each<{ day: string }>("__zeffRecap")) busy.push(`day recap ${r.day} (${account})`);
   return busy;
 }

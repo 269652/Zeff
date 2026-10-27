@@ -15,6 +15,7 @@ import { getTodoDisplayOff } from "@/lib/todo-display-store";
 import { kindOfPage, kindOn } from "@/lib/todo-display";
 import { relateRepoSystems } from "./repo-systems";
 import { entitiesFor, parseTodoKnowledge, type KnowledgeEntity, type KnowledgePage, type TodoKnowledge, type TodoLink } from "./shared";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 export type { TodoKnowledge } from "./shared";
 
@@ -49,7 +50,6 @@ Wähle je Todo NUR die Kandidaten, die mir beim Erledigen dieses Todos wirklich 
 
 const LANGUAGE_NAMES = { de: "Deutsch", en: "Englisch", es: "Spanisch" } as const;
 
-const state = globalThis as unknown as { __zeffKnowledgeRelations?: Promise<KnowledgeRelationResult> | null };
 export type KnowledgeRelationResult = { ok: boolean; todos: number; assigned: number; error?: string };
 
 
@@ -61,7 +61,8 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s
  * really fit. Stored on the todo: the "Knowledge" toggle shows just them.
  */
 export function relateKnowledge(): Promise<KnowledgeRelationResult> {
-  if (state.__zeffKnowledgeRelations) return state.__zeffKnowledgeRelations;
+  const running = accountFlag<Promise<KnowledgeRelationResult>>("__zeffKnowledgeRelations");
+  if (running) return running;
   const run = (async (): Promise<KnowledgeRelationResult> => {
     const cp = getContextPrefs().knowledge;
     const db = getDb();
@@ -153,9 +154,9 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
     emitChange("todos");
     return failed && failed === batches.length ? { ok: false, todos: due.length, assigned, error: t("The AI didn't answer.") } : { ok: true, todos: due.length, assigned };
   })();
-  state.__zeffKnowledgeRelations = run;
+  setAccountFlag("__zeffKnowledgeRelations", run);
   void run.finally(() => {
-    state.__zeffKnowledgeRelations = null;
+    setAccountFlag("__zeffKnowledgeRelations", null);
   });
   return run;
 }

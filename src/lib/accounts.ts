@@ -5,6 +5,7 @@ import { t } from "@/lib/i18n/server";
 import { emitChange } from "./events";
 import { noteSyncingSince } from "./sync/source-health";
 import { runsByStatus } from "./work/store";
+import { accountFlag } from "./sync/account-flags";
 
 /**
  * Switching accounts (Accounts plugin): only while nothing runs — a sync, a Lage, a worker, a
@@ -13,16 +14,17 @@ import { runsByStatus } from "./work/store";
  */
 export function accountBusy(): string | null {
   const g = globalThis as Record<string, unknown> & {
-    __zeffSyncs?: { running: Set<string>; all: unknown };
+    __zeffSyncsByAccount?: Record<string, { running: Set<string>; all: unknown }>;
     __zeffBackups?: Map<string, unknown>;
     __zeffOpsNow?: Set<number>;
   };
   const busy: string[] = [];
-  if (g.__zeffSyncs?.running.size || g.__zeffSyncs?.all) busy.push(t("a sync"));
-  if (g.__zeffTeamsSyncing || g.__zeffMailSyncing || g.__zeffGitlabSyncing || g.__zeffKeepSyncing) busy.push(t("a sync"));
-  if (g.__zeffBoardRun) busy.push(t("the briefing"));
-  if (g.__zeffRecap) busy.push(t("a day recap"));
-  if (g.__zeffMailTodos || g.__zeffMailRelations || g.__zeffAutoActions || g.__zeffBoardLage) busy.push(t("an AI step"));
+  const syncs = g.__zeffSyncsByAccount?.[currentAccountId()];
+  if (syncs?.running.size || syncs?.all !== undefined) busy.push(t("a sync"));
+  if (["__zeffTeamsSyncing", "__zeffMailSyncing", "__zeffGitlabSyncing", "__zeffKeepSyncing"].some((f) => accountFlag(f))) busy.push(t("a sync"));
+  if (accountFlag("__zeffBoardRun")) busy.push(t("the briefing"));
+  if (accountFlag("__zeffRecap")) busy.push(t("a day recap"));
+  if (["__zeffMailTodos", "__zeffMailRelations", "__zeffAutoActions", "__zeffBoardLage"].some((f) => accountFlag(f))) busy.push(t("an AI step"));
   if (g.__zeffBackups?.size) busy.push(t("a backup"));
   if (g.__zeffWhatsappHistory) busy.push(t("a WhatsApp history"));
   if (g.__zeffSignalHistory) busy.push(t("a Signal history"));

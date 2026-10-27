@@ -3,9 +3,9 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { automationEnv, automationUp, driverPath } from "@/plugins/drivers";
 import { keepSettings, saveKeepNotes, type KeepNote } from "./store";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /** One Keep sync at a time across the whole server (actions and the scheduler are separate module copies). */
-const flag = globalThis as { __zeffKeepSyncing?: boolean };
 
 /** Whether the automation Chrome runs — the background sync never starts it. */
 async function chromeUp(): Promise<boolean> {
@@ -18,8 +18,8 @@ async function chromeUp(): Promise<boolean> {
  * them. `background`: only while Chrome runs; by hand it may start it. "N new · M changed · K in all".
  */
 export async function syncKeep({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
-  if (flag.__zeffKeepSyncing) return { ok: false, message: t("A Keep sync is already running.") };
-  flag.__zeffKeepSyncing = true;
+  if (accountFlag("__zeffKeepSyncing")) return { ok: false, message: t("A Keep sync is already running.") };
+  setAccountFlag("__zeffKeepSyncing", true);
   try {
     if (background && !(await chromeUp())) return { ok: false, message: t("The automation Chrome isn't running. Not synced.") };
     const { runStdioSession, resultToPayload } = await import("@/lib/jira/mcp-client");
@@ -47,6 +47,6 @@ export async function syncKeep({ background = false } = {}): Promise<{ ok: boole
     if (needsSignIn(message) || /sign[- ]in|anmeld/i.test(message)) raiseLogin("keep", message);
     return { ok: false, message };
   } finally {
-    flag.__zeffKeepSyncing = false;
+    setAccountFlag("__zeffKeepSyncing", false);
   }
 }

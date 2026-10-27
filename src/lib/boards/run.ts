@@ -8,12 +8,13 @@ import { collectBoard } from "./collect";
 import { answerOpenQuestions } from "./questions";
 import { BOARD_RESULT_SCHEMA, isAttention, TICKET_ACTION_TYPES, type BoardResult, type BoardTicket } from "./shared";
 import { closeTodosOfDoneTickets, finishRun, getBoardSettings, lastGoodRun, reconcileTodos, startRun } from "./store";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
-/** What a run is doing right now — one at a time across the server (actions and the scheduler are separate module copies). */
-const state = globalThis as { __zeffBoardRun?: { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "documents" | "docrelations" | "knowledge" | "people" | "autoactions"; since: number; provider: string } | null };
+/** What a run is doing right now — one at a time per account (each runs its own; kept across the server's module copies: lib/sync/account-flags.ts). */
+type BoardRunNow = { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "documents" | "docrelations" | "knowledge" | "people" | "autoactions"; since: number; provider: string };
 
 /** The run going on in this server, and its step — null when none is. */
-export const boardRunState = () => state.__zeffBoardRun ?? null;
+export const boardRunState = () => accountFlag<BoardRunNow>("__zeffBoardRun") ?? null;
 
 /** Claude's answer, held to the tickets it was given: each once, known attention, todos with text. */
 export function cleanResult(r: BoardResult, tickets: BoardTicket[]): BoardResult {
@@ -76,16 +77,16 @@ export function cleanResult(r: BoardResult, tickets: BoardTicket[]): BoardResult
 export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
-    if (state.__zeffBoardRun) return { ok: false, message: t("A briefing run is already running.") };
+    if (accountFlag<BoardRunNow>("__zeffBoardRun")) return { ok: false, message: t("A briefing run is already running.") };
     const s = getBoardSettings();
     const ai = aiChoice();
     const provider = AI_PROVIDER_INFO[ai.provider].label;
     const id = startRun(s.jql, `${provider}${ai.model ? ` · ${ai.model}` : ""}`);
     const t0 = Date.now();
-    state.__zeffBoardRun = { id, phase: opts.syncJira ? "sync" : "jira", since: t0, provider };
+    setAccountFlag("__zeffBoardRun", { id, phase: opts.syncJira ? "sync" : "jira", since: t0, provider });
     // Stoppable (its button, the Sync menu): the sync, the AI, the step it's on — ended.
     const stop = new AbortController();
-    stopState.__zeffBoardRunStop = stop;
+    setAccountFlag("__zeffBoardRunStop", stop);
     void withAbort(stop, async () => {
       // The Lage kept (ok): a later step stopped or failing doesn't make the run an error.
       let kept = false;
@@ -104,7 +105,7 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           // before the AI reads it (what is still wrong after it goes into the prompt, below).
           const unwell = new Set((await (await import("./lage-gaps")).sourceGaps(PRESYNC_ORDER)).map((h) => h.key));
           for (const key of PRESYNC_ORDER) if (pre.sources[key] && stepAvailable(key) && (stale(key) || unwell.has(key))) await syncAndWait(key).catch(() => null);
-          state.__zeffBoardRun = { id, phase: "jira", since: t0, provider };
+          setAccountFlag("__zeffBoardRun", { id, phase: "jira", since: t0, provider });
         }
         // The sources it reads that still aren't well: said in the prompt and under the lede.
         const { PRESYNC_ORDER: lageSources } = await import("./context-prefs-shared");
@@ -115,9 +116,9 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           finishRun(id, { status: "ok", tickets, result: { lede: "No open tickets to brief on.", tickets: [], left: [] }, durationMs: Date.now() - t0 });
           kept = true;
         } else {
-          state.__zeffBoardRun = { id, phase: "ai", since: t0, provider };
+          setAccountFlag("__zeffBoardRun", { id, phase: "ai", since: t0, provider });
           const answer = await runAi<BoardResult>(prompt, BOARD_RESULT_SCHEMA, { task: "ticket-lage", maxBudgetUsd: 5, timeoutMs: 15 * 60000 });
-          state.__zeffBoardRun = { id, phase: "saving", since: t0, provider };
+          setAccountFlag("__zeffBoardRun", { id, phase: "saving", since: t0, provider });
           const result = cleanResult(answer.output, tickets);
           if (fromCache) result.lede = `⚠ Jira wasn't reachable (${fromCache}) — briefed from Zeff's last copy. ${result.lede}`;
           if (gaps.length) result.gaps = gaps.map((h) => ({ key: h.key, label: h.label, state: h.state, href: h.href }));
@@ -149,39 +150,39 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         // the new mails and WhatsApp messages gone through for todos (a training, a deadline) — then
         // which mails each todo is about (picked by content, with more room for mails).
         const { syncAndWait } = await import("@/lib/sync/registry");
-        state.__zeffBoardRun = { id, phase: "mailtodos", since: t0, provider };
+        setAccountFlag("__zeffBoardRun", { id, phase: "mailtodos", since: t0, provider });
         await syncAndWait("mailtodos");
-        state.__zeffBoardRun = { id, phase: "mails", since: t0, provider };
+        setAccountFlag("__zeffBoardRun", { id, phase: "mails", since: t0, provider });
         await syncAndWait("relations");
         // Google Keep's extensions (while they're on): the notes gone through for todos, then which
         // notes each todo is about.
         const { stepAvailable } = await import("@/plugins/state");
         if (stepAvailable("notetodos")) {
-          state.__zeffBoardRun = { id, phase: "notetodos", since: t0, provider };
+          setAccountFlag("__zeffBoardRun", { id, phase: "notetodos", since: t0, provider });
           await syncAndWait("notetodos");
         }
         if (stepAvailable("noterelations")) {
-          state.__zeffBoardRun = { id, phase: "notes", since: t0, provider };
+          setAccountFlag("__zeffBoardRun", { id, phase: "notes", since: t0, provider });
           await syncAndWait("noterelations");
         }
         // The Documents plugin's extensions (while they're on): the documents gone through for todos, then which
         // documents each todo is about.
         if (stepAvailable("doctodos")) {
-          state.__zeffBoardRun = { id, phase: "documents", since: t0, provider };
+          setAccountFlag("__zeffBoardRun", { id, phase: "documents", since: t0, provider });
           await syncAndWait("doctodos");
         }
         if (stepAvailable("docrelations")) {
-          state.__zeffBoardRun = { id, phase: "docrelations", since: t0, provider };
+          setAccountFlag("__zeffBoardRun", { id, phase: "docrelations", since: t0, provider });
           await syncAndWait("docrelations");
         }
         // The Knowledge plugin's extension: which knowledge pages each todo needs (only those that fit).
         if (stepAvailable("knowledgerel")) {
-          state.__zeffBoardRun = { id, phase: "knowledge", since: t0, provider };
+          setAccountFlag("__zeffBoardRun", { id, phase: "knowledge", since: t0, provider });
           await syncAndWait("knowledgerel");
         }
         // The People plugin: who the names in the todos are (aliases, profiles, merges) — before the actions, which name them.
         if (stepAvailable("peoplenorm")) {
-          state.__zeffBoardRun = { id, phase: "people", since: t0, provider };
+          setAccountFlag("__zeffBoardRun", { id, phase: "people", since: t0, provider });
           await syncAndWait("peoplenorm");
         }
         // The Cases plugin: the case numbers in what came in (by rule), then the cases with new sources summed up (AI) — a
@@ -222,25 +223,24 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         // The duplicates the steps above may have left (and any from before): merged into the oldest, before the actions look at them.
         await syncAndWait("tododupes");
         // Last: the todos without a button get ready actions (with the mails related to them in their context).
-        state.__zeffBoardRun = { id, phase: "autoactions", since: t0, provider };
+        setAccountFlag("__zeffBoardRun", { id, phase: "autoactions", since: t0, provider });
         await syncAndWait("autoactions");
       } catch (e) {
         if (!kept) finishRun(id, { status: "error", error: stop.signal.aborted ? ABORTED : errorMessage(e), durationMs: Date.now() - t0 });
         else if (!stop.signal.aborted) console.error("[boards] a step after the Lage failed:", errorMessage(e));
       } finally {
-        state.__zeffBoardRun = null;
-        if (stopState.__zeffBoardRunStop === stop) stopState.__zeffBoardRunStop = null;
+        setAccountFlag("__zeffBoardRun", null);
+        if (accountFlag<AbortController>("__zeffBoardRunStop") === stop) setAccountFlag("__zeffBoardRunStop", null);
       }
     });
     return { ok: true, message: t("Briefing started.") };
   });
 }
 
-const stopState = globalThis as { __zeffBoardRunStop?: AbortController | null };
 
 /** Stop the Ticket-Lage's run (and the step it's on). Whether one was running. */
 export function stopBoardRun(): boolean {
-  const c = stopState.__zeffBoardRunStop;
+  const c = accountFlag<AbortController>("__zeffBoardRunStop");
   if (!c) return false;
   c.abort();
   return true;

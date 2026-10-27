@@ -17,6 +17,7 @@ import { buildPeopleIndex, mentionMatcher, splitMentions } from "./mentions";
 import { addAliases, addRelation, createPerson, getPerson, listPeople, mergePeople, namesOf, namesThem, relationsOf, updatePerson, whatsappChats } from "./store";
 import type { Person } from "./shared";
 import type { TodoView } from "@/lib/boards/shared";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 const { emails } = schema;
 
@@ -116,15 +117,14 @@ function mentions(people: Person[]): Map<number, string> {
   return out;
 }
 
-const flag = globalThis as { __zeffPeopleNormalize?: boolean };
-export const peopleNormalizing = () => !!flag.__zeffPeopleNormalize;
+export const peopleNormalizing = () => !!accountFlag<boolean>("__zeffPeopleNormalize");
 
 export type NormalizeResult = { ok: boolean; aliases: number; created: number; merged: number; relations: number; claims?: number; links?: number; error?: string };
 
 /** The step after each briefing: names matched (AI), then what the new messages say about people read (extract.ts). */
 export async function normalizePeople(): Promise<NormalizeResult> {
-  if (flag.__zeffPeopleNormalize) return { ok: false, aliases: 0, created: 0, merged: 0, relations: 0, error: "already running" };
-  flag.__zeffPeopleNormalize = true;
+  if (accountFlag<boolean>("__zeffPeopleNormalize")) return { ok: false, aliases: 0, created: 0, merged: 0, relations: 0, error: "already running" };
+  setAccountFlag("__zeffPeopleNormalize", true);
   try {
     const r = await matchNames();
     // What the new messages say about them — a failure here doesn't undo the matching.
@@ -137,7 +137,7 @@ export async function normalizePeople(): Promise<NormalizeResult> {
       return r;
     }
   } finally {
-    flag.__zeffPeopleNormalize = false;
+    setAccountFlag("__zeffPeopleNormalize", false);
   }
 }
 

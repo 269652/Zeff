@@ -100,48 +100,51 @@ test("the host being down is said so, not guessed: nothing starts, nothing hangs
   asWeb(false);
 });
 
-test("the mirror: what the host is doing becomes the fields the pages read — and clears when it stops", async () => {
+test("the mirror: what the host is doing becomes the fields the pages read — per account, and clears when it stops", async () => {
   const { buildSnapshot, applySnapshot, MIRRORED_FLAGS } = await import("@/lib/host/mirror");
-  const g = globalThis as Record<string, unknown> & { __zeffSyncs?: { running: Set<string>; all: string | null | undefined } };
-  // The host's side: a briefing run in its "ai" step, the news sync and "Sync all" on its way.
-  g.__zeffBoardRun = { id: 7, phase: "ai", since: 1, provider: "Claude" };
-  g.__zeffMailTodos = true;
-  g.__zeffSyncs = { running: new Set(["news"]), all: "jira" };
+  const { accountFlag, setAccountFlag } = await import("@/lib/sync/account-flags");
+  const { activeAccountId } = await import("@/db/accounts");
+  type Live = { running: Set<string>; all: string | null | undefined };
+  const g = globalThis as Record<string, unknown> & { __zeffSyncsByAccount?: Record<string, Live> };
+  const me = activeAccountId();
+  // The host's side: a briefing run in its "ai" step here, the news sync and "Sync all" here, a mail sync in the other account.
+  setAccountFlag("__zeffBoardRun", { id: 7, phase: "ai", since: 1, provider: "Claude" }, me);
+  setAccountFlag("__zeffMailTodos", true, me);
+  g.__zeffSyncsByAccount = { [me]: { running: new Set(["news"]), all: "jira" }, privat: { running: new Set(["mail"]), all: undefined } };
   const snap = buildSnapshot();
-  assert.deepEqual(snap.syncs, { running: ["news"], all: "jira" });
-  assert.deepEqual(snap.flags.__zeffBoardRun, { id: 7, phase: "ai", since: 1, provider: "Claude" });
-  assert.equal(snap.flags.__zeffMailTodos, true);
+  assert.deepEqual(snap.syncs, { running: ["news"], all: "jira" }, "the active account's, for a web server before the per-account syncs");
+  assert.deepEqual(snap.syncsByAccount?.privat, { running: ["mail"], all: null });
   assert.ok(!("__zeffSecret" in snap.flags) && MIRRORED_FLAGS.every((n) => n.startsWith("__zeff")), "only the listed fields leave");
   // The web side: it copies them; later, an idle host clears them.
-  delete g.__zeffBoardRun;
-  delete g.__zeffMailTodos;
-  g.__zeffSyncs = { running: new Set(), all: undefined };
+  delete g.__zeffAccountFlags;
+  g.__zeffSyncsByAccount = {};
   applySnapshot(snap);
-  assert.deepEqual(g.__zeffBoardRun, { id: 7, phase: "ai", since: 1, provider: "Claude" });
-  assert.equal(g.__zeffMailTodos, true);
-  assert.deepEqual([...g.__zeffSyncs!.running], ["news"]);
-  assert.equal(g.__zeffSyncs!.all, "jira");
-  applySnapshot({ flags: {}, syncs: { running: [], all: null }, backups: 0 });
-  assert.equal(g.__zeffBoardRun, undefined);
-  assert.equal(g.__zeffMailTodos, undefined);
-  assert.equal(g.__zeffSyncs!.all, undefined);
-  assert.equal(g.__zeffSyncs!.running.size, 0);
-  // "Sync all" that is starting (no step yet) is kept apart from "not syncing all".
+  assert.deepEqual(accountFlag("__zeffBoardRun", me), { id: 7, phase: "ai", since: 1, provider: "Claude" });
+  assert.equal(accountFlag("__zeffMailTodos", me), true);
+  assert.equal(accountFlag("__zeffBoardRun", "privat"), undefined, "one account's run isn't the other's");
+  assert.deepEqual([...g.__zeffSyncsByAccount![me].running], ["news"]);
+  assert.equal(g.__zeffSyncsByAccount![me].all, "jira");
+  assert.deepEqual([...g.__zeffSyncsByAccount!.privat.running], ["mail"]);
+  applySnapshot({ flags: {}, syncs: { running: [], all: null }, syncsByAccount: {}, backups: 0 });
+  assert.equal(accountFlag("__zeffBoardRun", me), undefined);
+  assert.equal(accountFlag("__zeffMailTodos", me), undefined);
+  assert.deepEqual(g.__zeffSyncsByAccount, {});
+  // A host before the per-account syncs: its syncs are the active account's. "Sync all" that is starting (no step yet) is kept apart from "not syncing all".
   applySnapshot({ flags: {}, syncs: { running: [], all: "" }, backups: 0 });
-  assert.equal(g.__zeffSyncs!.all, null);
+  assert.equal(g.__zeffSyncsByAccount![me].all, null);
   applySnapshot(null);
 });
 
 test("a web server that delegates has nothing of its own to wait for in a deploy", async () => {
   const { busyThings } = await import("@/lib/host/busy");
-  const g = globalThis as Record<string, unknown>;
-  g.__zeffBoardRun = { id: 1, phase: "ai" };
+  const { setAccountFlag } = await import("@/lib/sync/account-flags");
+  setAccountFlag("__zeffBoardRun", { id: 1, phase: "ai" }, "privat");
   process.env.ZEFF_ROLE = "all";
-  assert.match(busyThings().join(), /briefing run #1/);
+  assert.match(busyThings().join(), /briefing run #1 \(ai, privat\)/, "a deploy waits for every account's");
   asWeb();
   assert.deepEqual(busyThings(), [], "the copy of the host's briefing isn't this server's");
   asWeb(false);
-  delete g.__zeffBoardRun;
+  setAccountFlag("__zeffBoardRun", null, "privat");
 });
 
 test("Google Calendar with the days shown: the web server hands it to the host too", async () => {

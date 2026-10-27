@@ -20,6 +20,7 @@ import { getJiraTicket } from "@/lib/jira/store";
 import { isoDate } from "@/lib/week";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { readableDocuments, type ReadableDoc } from "./store";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 const BATCH_CHARS = COPILOT_MAX_PROMPT - 6000;
 /** How much of a document the AI reads: its beginning and — where reports and letters put what's asked — its end. */
@@ -64,7 +65,6 @@ function db() {
   return d;
 }
 
-const state = globalThis as unknown as { __zeffDocTodos?: Promise<DocTodosResult> | null };
 export type DocTodosResult = { ok: boolean; reviewed: number; added: number; /** New todos that repeated an open one and were merged into it. */ merged?: number; batches: number; error?: string };
 
 /** The part of a document's text the AI reads. */
@@ -86,7 +86,8 @@ const line = (d: ReadableDoc) =>
     .join("\n")}`;
 
 export function reviewDocumentsForTodos(runId: number | null = null): Promise<DocTodosResult> {
-  if (state.__zeffDocTodos) return state.__zeffDocTodos;
+  const running = accountFlag<Promise<DocTodosResult>>("__zeffDocTodos");
+  if (running) return running;
   const run = (async (): Promise<DocTodosResult> => {
     const docs = unread();
     const mark = (list: ReadableDoc[]) => {
@@ -176,8 +177,8 @@ export function reviewDocumentsForTodos(runId: number | null = null): Promise<Do
       return { ok: false, reviewed: 0, added: 0, batches: 0, error: errorMessage(e) };
     })
     .finally(() => {
-      state.__zeffDocTodos = null;
+      setAccountFlag("__zeffDocTodos", null);
     });
-  state.__zeffDocTodos = run;
+  setAccountFlag("__zeffDocTodos", run);
   return run;
 }

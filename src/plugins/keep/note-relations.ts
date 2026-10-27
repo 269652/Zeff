@@ -8,6 +8,7 @@ import { t } from "@/lib/i18n/server";
 import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { briefingNotes, type Item } from "@/lib/items";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /**
  * The Notiz-Zuordnung (Google Keep's extension for Todos, a step after the Ticket-Lage): each open
@@ -55,11 +56,11 @@ function candidates(todo: TodoView, notes: { n: Note; w: Set<string> }[]): Note[
 const noteLine = (n: Note) => `  - [${n.ref}] (${n.where}) „${plain(n.title || "(ohne Titel)", 160)}“ — ${plain(n.text, 500)}`;
 const block = (t: TodoView, list: Note[]) => [`## [${t.id}] ${plain(t.text, 300)}${t.ticket ? ` (${t.ticket})` : ""}`, ...list.map(noteLine)].join("\n");
 
-const state = globalThis as unknown as { __zeffNoteRelations?: Promise<NoteRelationResult> | null };
 export type NoteRelationResult = { ok: boolean; todos: number; changed: number; batches: number; error?: string };
 
 export function relateNotes(): Promise<NoteRelationResult> {
-  if (state.__zeffNoteRelations) return state.__zeffNoteRelations;
+  const running = accountFlag<Promise<NoteRelationResult>>("__zeffNoteRelations");
+  if (running) return running;
   const run = (async (): Promise<NoteRelationResult> => {
     const open = listTodos({ status: "open" });
     const notes = briefingNotes()
@@ -110,8 +111,8 @@ export function relateNotes(): Promise<NoteRelationResult> {
       return { ok: false, todos: 0, changed: 0, batches: 0, error: errorMessage(e) };
     })
     .finally(() => {
-      state.__zeffNoteRelations = null;
+      setAccountFlag("__zeffNoteRelations", null);
     });
-  state.__zeffNoteRelations = run;
+  setAccountFlag("__zeffNoteRelations", run);
   return run;
 }

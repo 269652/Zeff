@@ -13,6 +13,7 @@ import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { briefingNotes, type Item } from "@/lib/items";
 import { isoDate } from "@/lib/week";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /**
  * The Notiz-Durchsicht (Google Keep's extension for Todos, a step after the Ticket-Lage): the AI
@@ -96,7 +97,6 @@ export type Note = Item & { where: string };
 
 const versionOf = (n: Note) => n.updatedAt ?? n.createdAt ?? "";
 
-const state = globalThis as unknown as { __zeffNoteTodos?: Promise<NoteTodosResult> | null };
 export type NoteTodosResult = { ok: boolean; reviewed: number; added: number; /** New todos that repeated an open one and were merged into it. */ merged?: number; batches: number; error?: string };
 
 /** The notes to read now: edited lately, not read at this version, not empty. */
@@ -109,7 +109,8 @@ function unread(): Note[] {
 }
 
 export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTodosResult> {
-  if (state.__zeffNoteTodos) return state.__zeffNoteTodos;
+  const running = accountFlag<Promise<NoteTodosResult>>("__zeffNoteTodos");
+  if (running) return running;
   const run = (async (): Promise<NoteTodosResult> => {
     const notes = unread();
     const mark = (list: Note[]) => {
@@ -185,8 +186,8 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
       return { ok: false, reviewed: 0, added: 0, batches: 0, error: errorMessage(e) };
     })
     .finally(() => {
-      state.__zeffNoteTodos = null;
+      setAccountFlag("__zeffNoteTodos", null);
     });
-  state.__zeffNoteTodos = run;
+  setAccountFlag("__zeffNoteTodos", run);
   return run;
 }

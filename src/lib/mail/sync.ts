@@ -13,7 +13,6 @@ const DAYS = 3;
 const FULL_DAYS = 60;
 
 /** One sync at a time across the whole server (actions and the scheduler are separate module copies). */
-const state = globalThis as { __zeffMailSyncing?: boolean };
 
 function record(ok: boolean, message: string): { ok: boolean; message: string } {
   updateMailSettings({ lastSyncAt: new Date().toISOString(), lastResult: message, lastOk: ok });
@@ -26,6 +25,7 @@ async function chromeUp(): Promise<boolean> {
 }
 
 import { archiveGone, moveSent, type MirrorRead } from "./mirror";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /** The Gmail labels kept as folders of their own (names, added by hand on the Mail settings page). */
 export const GMAIL_LABELS_PREF = "mail:gmailLabels";
@@ -121,8 +121,8 @@ async function syncSource(source: Source, days: number, background: boolean, pre
  * may start it. A mailbox that fails doesn't stop the other.
  */
 export async function syncMail({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
-  if (state.__zeffMailSyncing) return { ok: false, message: t("A mail sync is already running.") };
-  state.__zeffMailSyncing = true;
+  if (accountFlag("__zeffMailSyncing")) return { ok: false, message: t("A mail sync is already running.") };
+  setAccountFlag("__zeffMailSyncing", true);
   try {
     // In the background without the automation Chrome: later, as for the other sources — not a failure
     // (that would also make the next sync read two months again).
@@ -154,7 +154,7 @@ export async function syncMail({ background = false } = {}): Promise<{ ok: boole
     }
     return record(done.some((d) => d.ok), done.map((d) => d.part).join(" · "));
   } finally {
-    state.__zeffMailSyncing = false;
+    setAccountFlag("__zeffMailSyncing", false);
   }
 }
 
@@ -165,9 +165,8 @@ export async function syncMail({ background = false } = {}): Promise<{ ok: boole
  * The first time two months, then the last days.
  */
 export async function syncWhatsapp({ background = false } = {}): Promise<{ ok: boolean; message: string }> {
-  const flag = globalThis as { __zeffWhatsappSyncing?: boolean };
-  if (flag.__zeffWhatsappSyncing) return { ok: false, message: t("A WhatsApp sync is already running.") };
-  flag.__zeffWhatsappSyncing = true;
+  if (accountFlag("__zeffWhatsappSyncing")) return { ok: false, message: t("A WhatsApp sync is already running.") };
+  setAccountFlag("__zeffWhatsappSyncing", true);
   try {
     if (background && !(await chromeUp())) return { ok: false, message: "The automation Chrome isn't running. Not synced." };
     // The first time (the messages read — not only the chat list's last ones): the whole window.
@@ -177,7 +176,7 @@ export async function syncWhatsapp({ background = false } = {}): Promise<{ ok: b
     if (r.ok) setPref("whatsapp:messages-read", true);
     return { ok: r.ok, message: r.part };
   } finally {
-    flag.__zeffWhatsappSyncing = false;
+    setAccountFlag("__zeffWhatsappSyncing", false);
   }
 }
 
@@ -188,14 +187,13 @@ export async function syncWhatsapp({ background = false } = {}): Promise<{ ok: b
  * — the scheduler only runs it while Signal runs. The first time two months, then the last days.
  */
 export async function syncSignal(): Promise<{ ok: boolean; message: string }> {
-  const flag = globalThis as { __zeffSignalSyncing?: boolean };
-  if (flag.__zeffSignalSyncing) return { ok: false, message: t("A Signal sync is already running.") };
-  flag.__zeffSignalSyncing = true;
+  if (accountFlag("__zeffSignalSyncing")) return { ok: false, message: t("A Signal sync is already running.") };
+  setAccountFlag("__zeffSignalSyncing", true);
   try {
     const known = (getDb().select({ n: sql<number>`count(*)` }).from(schema.emails).where(sql`${schema.emails.folder} = 'Signal'`).get()?.n ?? 0) > 0;
     const r = await syncSource("signal", known ? DAYS : FULL_DAYS, false, false);
     return { ok: r.ok, message: r.part };
   } finally {
-    flag.__zeffSignalSyncing = false;
+    setAccountFlag("__zeffSignalSyncing", false);
   }
 }

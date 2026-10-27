@@ -15,6 +15,7 @@ import { MAX_DOCUMENT_BYTES } from "@/plugins/documents/shared";
 import { deleteFile, download, ensureFolder, exportFile, folderExists, FOLDER_MIME, listFolder, uploadFile } from "./api";
 import { driveFiles, driveRow, folderNameOf, forgetDriveFile, hasFullAccess, isConnected, recordDriveFile, updateDrive } from "./config";
 import { pullFolders } from "./folders";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 export type SyncResult = { ok: boolean; message: string };
 
@@ -33,15 +34,15 @@ const flags = globalThis as unknown as Record<string, boolean | undefined>;
 export const driveBusy = (flag: string) => !!flags[flag];
 
 async function guarded(flag: string, run: () => Promise<SyncResult>): Promise<SyncResult> {
-  if (flags[flag]) return { ok: true, message: t("Already running.") };
-  flags[flag] = true;
+  if (accountFlag(flag)) return { ok: true, message: t("Already running.") };
+  setAccountFlag(flag, true);
   try {
     if (!isConnected()) return { ok: false, message: t("Google Drive isn't connected — connect it on its page.") };
     return await run();
   } catch (e) {
     return { ok: false, message: errorMessage(e) };
   } finally {
-    flags[flag] = false;
+    setAccountFlag(flag, false);
   }
 }
 
