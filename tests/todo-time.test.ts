@@ -185,9 +185,8 @@ test("a suggestion covers its records: not offered again; accepting books them; 
   const { acceptSuggestion, openSuggestions, getSuggestion } = await import("@/lib/work/suggestions");
   const { getTodo } = await import("@/lib/boards/store");
 
-  // start_todo, a record on the way, finish_todo with the rest: ONE suggestion with both as evidence.
+  // Without a clock (an agent that didn't start one): a record on the way, finish_todo with the rest — ONE suggestion with both as evidence.
   const t = await todo("TT-6", "Agent work");
-  await mcp.start_todo({ todo: `T-${t.id}`, agent: "Claude Code" });
   const rec = await mcp.todo_time({ todo: `T-${t.id}`, minutes: 40, note: "phase one", agent: "Claude Code" });
   assert.match(text(rec), /Recorded/);
   const fin = text(await mcp.finish_todo({ todo: `T-${t.id}`, summary: "Done.", entry: "Feature built", minutes: 20, agent: "Claude Code", outcome: "done" }));
@@ -218,4 +217,25 @@ test("a suggestion covers its records: not offered again; accepting books them; 
   assert.ok(listTodoTimes([t.id]).every((r) => r.entryId === e.entryId));
   assert.equal(getSuggestion(mine[0].id)!.status, "accepted");
   assert.equal(getTodo(t.id)!.status, "done");
+});
+
+test("measured: start_todo starts the todo's clock; todo_time without minutes records a lap, finish_todo the rest — no minutes needed", async () => {
+  await setup("TT-7");
+  const mcp = await tools();
+  const { listTodoTimes } = await import("@/lib/work/todo-time");
+  const { openClock } = await import("@/lib/work/todo-clock");
+  const t = await todo("TT-7", "Measured work");
+  assert.match(text(await mcp.start_todo({ todo: `T-${t.id}`, agent: "Claude Code" })), /Clock: running on T-\d+/);
+  assert.ok(openClock(t.id, "Claude Code"));
+  assert.match(text(await mcp.todo_time({ todo: `T-${t.id}`, note: "Recherche", agent: "Claude Code" })), /measured by its clock/);
+  assert.match(text(await mcp.todo_needs_input({ todo: `T-${t.id}`, question: "Welche Variante?" })), /clock is paused/);
+  assert.match(text(await mcp.todo_progress({ todo: `T-${t.id}`, message: "weiter" })), /Clock running again/);
+  assert.match(text(await mcp.finish_todo({ todo: `T-${t.id}`, summary: "Done.", entry: "Feature built", agent: "Claude Code", outcome: "done" })), /booking suggestion S-\d+/);
+  assert.equal(openClock(t.id, "Claude Code"), null, "finish stopped it");
+  assert.deepEqual(listTodoTimes([t.id]).map((r) => r.note), ["Recherche", "Feature built"]);
+  // Without a clock and without minutes: told to start one.
+  const u = await todo("TT-7", "No clock");
+  assert.match(text(await mcp.todo_time({ todo: `T-${u.id}`, agent: "Claude Code" })), /No clock runs on it/);
+  assert.match(text(await mcp.todo_clock_start({ todo: `T-${u.id}`, agent: "Claude Code" })), /Clock started/);
+  assert.match(text(await mcp.todo_clock_stop({ todo: `T-${u.id}`, note: "kurz", agent: "Claude Code" })), /Clock stopped on T-\d+: 1 min recorded/);
 });

@@ -7515,5 +7515,7 @@
   "{week} — each day as a booking suggestion: its meetings, the agents' suggestions, the tickets you worked on (todos done, worker runs, your commits — an estimate from their span where no time was taken, said so). Check each day, book it with its button — nothing is booked before.": "{week} — jeder Tag als Buchungsvorschlag: seine Meetings, die Vorschläge der Agenten, die Tickets, an denen du gearbeitet hast (erledigte Todos, Worker-Läufe, deine Commits — wo keine Zeit gemessen wurde, eine Schätzung aus ihrer Spanne, als solche markiert). Prüf jeden Tag und buch ihn mit seinem Knopf — vorher wird nichts gebucht.",
   "Then the week goes to Chrono/Punch from the Weekly report — your click, as always.": "Danach geht die Woche aus dem Wochenbericht nach Chrono/Punch — dein Klick, wie immer.",
   "Nothing to propose for this day.": "Für diesen Tag gibt es nichts vorzuschlagen.",
-  "The whole week →": "Die ganze Woche →"
+  "The whole week →": "Die ganze Woche →",
+  "Start the clock on a todo before you work on it (todo, agent) — Zeff notes the time; start_todo starts it too.": "Die Uhr eines Todos starten, bevor du daran arbeitest (todo, agent) — Zeff merkt sich die Zeit; start_todo startet sie auch.",
+  "Stop the clock when you stop working on it (todo, note, agent) — the difference is recorded as the todo's time, measured.": "Die Uhr stoppen, wenn du aufhörst (todo, note, agent) — die Differenz wird als Zeit des Todos erfasst, gemessen."
 }
