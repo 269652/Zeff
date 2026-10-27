@@ -547,6 +547,8 @@ export type TicketQuestion = { q: string; a?: string; search?: string; sources?:
 /** What Claude answers for a run (see BOARD_RESULT_SCHEMA). */
 export type BoardResult = {
   lede: string;
+  /** The sources it read that weren't well as it ran (failing, stale, silent, drift): what it may not know — shown under the lede. */
+  gaps?: { key: string; label: string; state: string; href: string }[];
   tickets: {
     key: string;
     attention: Attention;

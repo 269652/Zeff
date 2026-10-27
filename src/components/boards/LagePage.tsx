@@ -1,4 +1,5 @@
 import { workingTodoIds } from "@/lib/work/live-driver";
+import { healthLabel, type HealthState } from "@/lib/sync/source-health-shared";
 import { isInstalled, stepAvailable } from "@/plugins/state";
 import { getContextPrefs } from "@/lib/boards/context-prefs";
 import { PRESYNC_ORDER } from "@/lib/boards/context-prefs-shared";
@@ -109,6 +110,21 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
             <section className="rounded-lg border border-zinc-200 bg-zinc-50/60 p-3 dark:border-zinc-800 dark:bg-zinc-900/60">
               <h2 className="mb-1 text-xs font-semibold tracking-wide text-zinc-500">{t("Briefing")}</h2>
               <p className="text-[13px] leading-relaxed text-zinc-700 dark:text-zinc-300">{shown.result.lede}</p>
+              {/* What it may not know: the sources it read that weren't well as it ran. */}
+              {!!shown.result.gaps?.length && (
+                <p className="mt-1.5 text-xs text-amber-700 dark:text-amber-400">
+                  ⚠ {t("Not up to date when this ran:")}{" "}
+                  {shown.result.gaps.map((g, i) => (
+                    <span key={g.key}>
+                      {i > 0 && ", "}
+                      <a href={g.href} className="underline decoration-dotted hover:decoration-solid">
+                        {g.label}
+                      </a>{" "}
+                      ({healthLabel(t, g.state as HealthState)})
+                    </span>
+                  ))}
+                </p>
+              )}
             </section>
           )}
           {failed && (

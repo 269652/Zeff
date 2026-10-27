@@ -7508,5 +7508,6 @@
   "Punch app address": "Adresse der Punch-App",
   "Where Zeff books your times and reads your days — preset; change it only when Punch moves": "Wo Zeff deine Zeiten bucht und deine Tage liest — voreingestellt; nur ändern, wenn Punch umzieht",
   "New row in “{group}”": "Neue Zeile in „{group}“",
-  "Hide empty groups": "Leere Gruppen ausblenden"
+  "Hide empty groups": "Leere Gruppen ausblenden",
+  "Not up to date when this ran:": "Nicht aktuell bei diesem Lauf:"
 }

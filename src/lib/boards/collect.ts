@@ -1,4 +1,6 @@
 import { attachmentLine, todoAttachments } from "@/plugins/documents/attachments";
+import { gapNotice } from "./lage-gaps";
+import type { SourceHealth } from "@/lib/sync/source-health-shared";
 import { promptText } from "@/lib/prompts";
 import { isJiraKey, isKanbanKey, isWorkspaceKey } from "@/lib/ticket-keys";
 import { and, desc, eq, gte, like, or, sql } from "drizzle-orm";
@@ -647,7 +649,7 @@ function cachedRead(previous: BoardRunView | null, followed: Map<string, string>
 export async function collectBoard(
   jql: string,
   previous: BoardRunView | null,
-  opts: { maxChars?: number | null } = {},
+  opts: { maxChars?: number | null; /** The sources it reads that aren't well (lage-gaps): said in the prompt. */ gaps?: SourceHealth[] } = {},
 ): Promise<Collected> {
   const cfg = getJiraSyncConfig();
   const { isInstalled } = await import("@/plugins/state");
@@ -909,6 +911,7 @@ export async function collectBoard(
             `ACHTUNG: Jira war bei diesem Lauf nicht erreichbar (${fromCache}). Die Ticketdaten (Status, Zuweisung, Kommentare) stammen aus Zeffs letztem Stand und können veraltet sein; Änderungsverlauf und mögliche Übergänge fehlen — schlag keine Status-Übergänge vor. Teams, GitLab, Git und Zeff sind aktuell.`,
           ]
         : []),
+      ...gapNotice(opts.gaps ?? []),
       previous
         ? `Letzter Lauf: ${stamp(previous.startedAt)} UTC. Damalige Lage: ${previous.result?.lede ?? "—"}`
         : "Es gab noch keinen Lauf.",

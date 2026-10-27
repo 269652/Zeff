@@ -100,10 +100,16 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           const pre = getContextPrefs().presync;
           const last = new Map(syncOverview().steps.map((s) => [s.key, s.lastAt]));
           const stale = (key: string) => !pre.numbers.maxAge || !last.get(key as never) || Date.now() - new Date(last.get(key as never)!).getTime() > pre.numbers.maxAge * 60000;
-          for (const key of PRESYNC_ORDER) if (pre.sources[key] && stepAvailable(key) && stale(key)) await syncAndWait(key).catch(() => null);
+          // …and whichever of them isn't well (failing, stale, silent): synced again, however recent its last run — a repair
+          // before the AI reads it (what is still wrong after it goes into the prompt, below).
+          const unwell = new Set((await (await import("./lage-gaps")).sourceGaps(PRESYNC_ORDER)).map((h) => h.key));
+          for (const key of PRESYNC_ORDER) if (pre.sources[key] && stepAvailable(key) && (stale(key) || unwell.has(key))) await syncAndWait(key).catch(() => null);
           state.__zeffBoardRun = { id, phase: "jira", since: t0, provider };
         }
-        const { tickets, prompt, doneLeft, fromCache } = await collectBoard(s.jql, lastGoodRun(id), { maxChars: ai.maxPrompt });
+        // The sources it reads that still aren't well: said in the prompt and under the lede.
+        const { PRESYNC_ORDER: lageSources } = await import("./context-prefs-shared");
+        const gaps = await (await import("./lage-gaps")).sourceGaps(lageSources);
+        const { tickets, prompt, doneLeft, fromCache } = await collectBoard(s.jql, lastGoodRun(id), { maxChars: ai.maxPrompt, gaps });
         if (!tickets.some((t) => t.analyzed)) {
           // No tickets: no Lage — the mails and WhatsApp messages are still gone through for todos (below).
           finishRun(id, { status: "ok", tickets, result: { lede: "No open tickets to brief on.", tickets: [], left: [] }, durationMs: Date.now() - t0 });
@@ -114,6 +120,7 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           state.__zeffBoardRun = { id, phase: "saving", since: t0, provider };
           const result = cleanResult(answer.output, tickets);
           if (fromCache) result.lede = `⚠ Jira wasn't reachable (${fromCache}) — briefed from Zeff's last copy. ${result.lede}`;
+          if (gaps.length) result.gaps = gaps.map((h) => ({ key: h.key, label: h.label, state: h.state, href: h.href }));
           // Questions the context left open: answered from what the knowledge base has on them (looked up now, not given in the prompt).
           await answerOpenQuestions(result).catch((e) => console.error("[boards] answering the questions failed:", errorMessage(e)));
           reconcileTodos(result, id);
