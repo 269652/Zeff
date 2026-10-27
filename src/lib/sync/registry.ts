@@ -572,6 +572,11 @@ async function runStep(key: SyncKey): Promise<void> {
     const { isInstalled } = await import("@/plugins/state");
     if (isInstalled("workspace")) await (await import("@/plugins/workspace/pipeline")).runPipelinesAfterSync().catch((e) => console.error("[workspace] the pipelines failed", e));
   }
+  // Your answers it brought close the reply todos they answer (by rule, no AI) — at once, not only with the next briefing.
+  if (outcome?.ok && (key === "mail" || key === "teams" || key === "whatsapp" || key === "signal" || key === "gmail" || key === "jira")) {
+    const r = await (await import("@/lib/boards/evidence-close")).closeTodosByEvidence().catch((e) => (console.error("[evidence] closing by your replies failed", e), null));
+    if (r && (r.closed || r.proposed)) console.log(`[evidence] after ${key}: ${r.closed} todo(s) closed, ${r.proposed} proposed — you replied`);
+  }
   // What it brought, into the timeline (by rule, no AI — cheap; the minute's tick catches up on what is left).
   if (outcome?.ok) {
     const { isInstalled } = await import("@/plugins/state");
