@@ -282,13 +282,13 @@ export async function addTodoNoteAction(todoId: number, text: string): Promise<A
   }
 }
 
-/** Time you spent on a todo, by hand: minutes and one line (a record like the agents'). */
-export async function addTodoTimeAction(todoId: number, minutes: number, note: string): Promise<ActionState> {
+/** Time you spent on a todo, by hand: minutes and one line (a record like the agents'). The record saved — shown at once, before the page's refresh comes. */
+export async function addTodoTimeAction(todoId: number, minutes: number, note: string): Promise<ActionState & { record?: import("@/lib/work/shared").TimeRecord }> {
   try {
     const { addTodoTime } = await import("@/lib/work/todo-time");
-    addTodoTime({ todoId: Number(todoId), minutes: Number(minutes), note: String(note ?? ""), by: "Du", source: "hand" });
+    const record = addTodoTime({ todoId: Number(todoId), minutes: Number(minutes), note: String(note ?? ""), by: "Du", source: "hand" });
     revalidateAll();
-    return { ok: true };
+    return { ok: true, record };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

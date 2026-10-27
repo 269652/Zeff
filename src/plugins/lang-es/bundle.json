@@ -7518,5 +7518,7 @@
   "The whole week →": "Toda la semana →",
   "Start the clock on a todo before you work on it (todo, agent) — Zeff notes the time; start_todo starts it too.": "Inicia el reloj de una tarea antes de trabajar en ella (todo, agent): Zeff anota la hora; start_todo también lo inicia.",
   "Stop the clock when you stop working on it (todo, note, agent) — the difference is recorded as the todo's time, measured.": "Detén el reloj cuando dejes de trabajar en ella (todo, note, agent): la diferencia se registra como el tiempo de la tarea, medido.",
-  "Keep a todo's clock running (todo, agent) — at least every 10 minutes, else it pauses as of the last ping.": "Mantén en marcha el reloj de una tarea (todo, agent): al menos cada 10 minutos, si no se pausa desde el último ping."
+  "Keep a todo's clock running (todo, agent) — at least every 10 minutes, else it pauses as of the last ping.": "Mantén en marcha el reloj de una tarea (todo, agent): al menos cada 10 minutos, si no se pausa desde el último ping.",
+  "Zeff hasn't answered for 30 seconds — it may still save it. Look at the list in a moment before you add it again.": "Zeff no ha respondido en 30 segundos; puede que aún lo guarde. Mira la lista en un momento antes de añadirlo de nuevo.",
+  "Zeff couldn't be reached: {error}": "No se pudo contactar con Zeff: {error}"
 }
