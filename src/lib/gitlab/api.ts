@@ -39,7 +39,7 @@ type Mr = {
   created_at: string;
   updated_at: string;
 };
-type Note = { id: number; body?: string; system?: boolean; resolvable?: boolean; resolved?: boolean; author?: { name?: string }; created_at: string; updated_at: string };
+type Note = { id: number; body?: string; system?: boolean; resolvable?: boolean; resolved?: boolean; author?: { name?: string }; created_at: string; updated_at: string; position?: NotePosition | null };
 type Discussion = { id: string; notes?: Note[] };
 type Branch = { name: string; merged?: boolean; default?: boolean; web_url?: string; commit?: { author_email?: string; author_name?: string; committed_date?: string; created_at?: string; message?: string; title?: string } };
 
@@ -152,7 +152,8 @@ export async function readItems(o: { sinceIso?: string; days?: number }): Promis
           ...p,
           ref: `!${mr.iid}`,
           title: mr.title,
-          body: n.body || "",
+          // A comment on the code: its file and line(s) first — the agent answering it needs where it is.
+          body: notePlace(n.position) ? `${notePlace(n.position)}\n\n${n.body || ""}` : n.body || "",
           author: n.author?.name ?? null,
           state: n.resolvable ? (n.resolved ? "resolved" : "unresolved") : null,
           createdAt: n.created_at,
@@ -263,3 +264,24 @@ export async function whoAmI(): Promise<{ username: string; name: string }> {
   const me = (await get("/user")) as User;
   return { username: String(me.username), name: String(me.name) };
 }
+
+/** Where a note on the code is: "src/x.ts:42", a range "src/x.ts:40-44", a removed line "src/x.ts:17 (removed line)"; "" for a note on the MR. */
+export function notePlace(pos: NotePosition | null | undefined): string {
+  if (!pos || pos.position_type === "image") return "";
+  const path = pos.new_path || pos.old_path;
+  if (!path) return "";
+  const from = pos.line_range?.start ? (pos.line_range.start.new_line ?? pos.line_range.start.old_line) : null;
+  const to = pos.line_range?.end ? (pos.line_range.end.new_line ?? pos.line_range.end.old_line) : null;
+  const line = pos.new_line ?? pos.old_line ?? null;
+  return `${path}${from && to && from !== to ? `:${from}-${to}` : line ? `:${line}` : ""}${pos.new_line == null && pos.old_line != null ? " (removed line)" : ""}`;
+}
+
+/** A diff note's position, as GitLab's API gives it. */
+export type NotePosition = {
+  position_type?: string;
+  new_path?: string | null;
+  old_path?: string | null;
+  new_line?: number | null;
+  old_line?: number | null;
+  line_range?: { start?: { new_line?: number | null; old_line?: number | null }; end?: { new_line?: number | null; old_line?: number | null } } | null;
+};

@@ -113,7 +113,17 @@ async function readGitlab({ sinceIso, branchSinceIso }) {
       for (const d of discussions) {
         const notes = (d.notes || []).filter((n) => !n.system);
         if (!notes.some((n) => n.created_at >= sinceIso || n.updated_at >= sinceIso)) continue;
-        for (const n of notes)
+        for (const n of notes) {
+        // A comment on the code: its file and line(s) first ("src/x.ts:42", a range "src/x.ts:40-44", a removed line
+        // "src/x.ts:17 (removed line)") — the agent answering it needs where it is.
+        const pos = n.position && n.position.position_type !== "image" ? n.position : null;
+        const range = pos && pos.line_range;
+        const from = range && range.start ? (range.start.new_line ?? range.start.old_line) : null;
+        const to = range && range.end ? (range.end.new_line ?? range.end.old_line) : null;
+        const line = pos ? (pos.new_line ?? pos.old_line ?? null) : null;
+        const place = pos && (pos.new_path || pos.old_path)
+          ? `${pos.new_path || pos.old_path}${from && to && from !== to ? `:${from}-${to}` : line ? `:${line}` : ""}${pos.new_line == null && pos.old_line != null ? " (removed line)" : ""}`
+          : "";
         items.push({
           thread: String(d.id),
           key: `note:${n.id}`,
@@ -121,7 +131,7 @@ async function readGitlab({ sinceIso, branchSinceIso }) {
           ...p,
           ref: `!${mr.iid}`,
           title: mr.title,
-          body: n.body || "",
+          body: place ? `${place}\n\n${n.body || ""}` : n.body || "",
           author: n.author?.name ?? null,
           state: n.resolvable ? (n.resolved ? "resolved" : "unresolved") : null,
           createdAt: n.created_at,
@@ -130,6 +140,7 @@ async function readGitlab({ sinceIso, branchSinceIso }) {
           branch: mr.source_branch,
           parent: `mr:${p.project}!${mr.iid}`,
         });
+        }
       }
     }
 
