@@ -44,8 +44,8 @@ import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOpt
 
 /** Zeff's own booking tools — a worker never books: Zeff books its runs (Weekly report). (complete_todo is allowed: it only marks a todo "done by the worker".) */
 const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "create_job"].map((tool) => `mcp__zeff__${tool}`);
-/** The todo tools a worker uses for its own steps on the ticket (add_todo, complete_todo with tick). */
-const TODO_TOOLS = ["list_todos", "add_todo", "complete_todo", "todo_needs_input", "todo_note"].map((tool) => `mcp__zeff__${tool}`);
+/** The todo tools a worker uses for its own steps on the ticket (add_todo, complete_todo with tick) — and its time on them: measured by the clock (todo_clock_*), laps and corrections (todo_time*), as its rules demand. */
+const TODO_TOOLS = ["list_todos", "add_todo", "complete_todo", "todo_needs_input", "todo_note", "todo_progress", "todo_time", "todo_time_update", "todo_time_delete", "todo_clock_start", "todo_clock_ping", "todo_clock_stop"].map((tool) => `mcp__zeff__${tool}`);
 /** The Jira tools a send run may use, from Zeff's own Jira connection (server "zeff-jira"). */
 const JIRA_SEND_TOOLS = ["jira_add_comment", "jira_get_transitions", "jira_transition_issue", "jira_update_issue", "jira_get_issue"].map((tool) => `mcp__zeff-jira__${tool}`);
 

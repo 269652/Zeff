@@ -72,7 +72,7 @@ Merge request review comments: mr_comments reads what the reviewers wrote on a m
 Use report_time (with todos: ['T-12'] — they're reported done with it) only for work no todo stands for, or that you did without start_todo / a clock / finish_todo (and without todo_time records), and complete_todo to report a todo done that nobody needs to book time for. Reporting a todo done marks it (highlighted in Zeff) — it stays open; the user closes it.`;
 
 // ---------------------------------------------------------------------------
-// Result helpers
+// Result helpers (each tool answers through these)
 // ---------------------------------------------------------------------------
 
 function ok(text: string) {
