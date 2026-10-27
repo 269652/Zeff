@@ -8,6 +8,7 @@ import { boardRunState } from "@/lib/boards/run";
 import { ticketChats, type ChatItem } from "@/lib/boards/ticket-chat";
 import { contextByTicket, lageByTicket, openTodosByTicket, type Lage, type TicketContextItem } from "@/lib/boards/ticket-lage";
 import type { BoardSummary, RichBoard, RichCard, RichColumn } from "@/plugins/kanban/shared";
+import { accountFlag } from "@/lib/sync/account-flags";
 
 /**
  * Jira Lage (built on Kanban): your Jira boards as Kanban boards — their columns as Jira has them
@@ -21,7 +22,7 @@ const { jiraBoards, jiraTickets, jiraComments, syncState } = schema;
 /** The Board-Lage: running now, and its last run (as the Sync menu keeps it). */
 function boardLageState(): RichBoard["boardLage"] {
   const r = getDb().select().from(syncState).where(eq(syncState.key, "boardlage")).get();
-  return { running: !!(globalThis as { __zeffBoardLage?: unknown }).__zeffBoardLage, lastAt: r?.lastAt ?? null, lastOk: r?.lastOk ?? null, lastMessage: r?.lastMessage ?? null };
+  return { running: !!accountFlag("__zeffBoardLage"), lastAt: r?.lastAt ?? null, lastOk: r?.lastOk ?? null, lastMessage: r?.lastMessage ?? null };
 }
 
 type JiraColumn = { name: string; statuses: string[] };
@@ -153,6 +154,22 @@ function place(tickets: Ticket[], cols: JiraColumn[] | null, byKey: Map<string, 
 
 
 /** The boards Jira Lage brings: "Meine Lage" and each Jira board chosen on the Jira page. */
+/** The briefing run's follow-up steps (it holds the run until they are done; the sync menu shows them as their own steps). */
+function followUpStep(phase: string | undefined): string | null {
+  const labels: Record<string, () => string> = {
+    mailtodos: () => t("Mail review"),
+    mails: () => t("Mail matching"),
+    notetodos: () => t("Note review"),
+    notes: () => t("Note matching"),
+    documents: () => t("Document review"),
+    docrelations: () => t("Document matching"),
+    knowledge: () => t("Knowledge matching"),
+    people: () => t("People matching"),
+    autoactions: () => t("Auto actions"),
+  };
+  return phase && labels[phase] ? labels[phase]() : null;
+}
+
 export function lageBoards(): BoardSummary[] {
   const counts = getDb()
     .select({ board: jiraTickets.boardId, resolved: jiraTickets.resolvedAt })
@@ -205,7 +222,7 @@ export async function lageBoard(id: string): Promise<RichBoard | null> {
       columns: place(list, merged.length ? merged : null, byKey, todos, context, chats),
       lede,
       lageAt: at,
-      briefing: { running: !!boardRunState(), lastAt: at },
+      briefing: { running: !!boardRunState(), lastAt: at, step: followUpStep(boardRunState()?.phase) },
       error: error ?? null,
     };
   }

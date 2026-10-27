@@ -39,7 +39,8 @@ export function BriefingRunButton({ state }: { state: NonNullable<RichBoard["bri
       >
         {running ? (
           <>
-            <span className="size-2 animate-pulse rounded-full bg-white" aria-hidden /> {t("Briefing running …")}
+            <span className="size-2 animate-pulse rounded-full bg-white" aria-hidden />{" "}
+            {state.step ? t("Briefing done — {step} …", { step: state.step }) : t("Briefing running …")}
           </>
         ) : (
           t("Run the briefing")

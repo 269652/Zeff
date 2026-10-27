@@ -1095,6 +1095,7 @@
   "Briefing ({when})": "Resumen ({when})",
   "Briefing of {when}": "Resumen de tickets de {when}",
   "Briefing run #{n}": "Ejecución del resumen #{n}",
+  "Briefing done — {step} …": "Informe listo — {step} …",
   "Briefing running …": "Informe en curso …",
   "Briefing started.": "Resumen de tickets iniciado.",
   "Briefing updated.": "Resumen de tickets actualizado.",

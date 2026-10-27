@@ -86,5 +86,6 @@ export type RichBoard = {
   /** The Board-Lage (Jira Lage's "Auswerten"): running, and how it went last. */
   boardLage?: { running: boolean; lastAt: string | null; lastOk: boolean | null; lastMessage: string | null };
   /** "My briefing" (the Ticket-Lage's own tickets): its run is the briefing itself — no Board-Lage, which leaves these tickets out. */
-  briefing?: { running: boolean; lastAt: string | null };
+  /** step: the run's follow-up step going on (its mail review, matching, auto actions …) — the briefing itself is done then; null while it runs. */
+  briefing?: { running: boolean; lastAt: string | null; step?: string | null };
 };

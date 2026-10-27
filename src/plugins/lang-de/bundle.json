@@ -1095,6 +1095,7 @@
   "Briefing ({when})": "Lage ({when})",
   "Briefing of {when}": "Lage vom {when}",
   "Briefing run #{n}": "Lage-Lauf #{n}",
+  "Briefing done — {step} …": "Lage fertig — {step} …",
   "Briefing running …": "Lage läuft …",
   "Briefing started.": "Lage gestartet.",
   "Briefing updated.": "Lage aktualisiert.",
