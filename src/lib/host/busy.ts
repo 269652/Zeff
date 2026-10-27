@@ -9,9 +9,7 @@ import { delegates } from "./role";
 
 type Globals = {
   __zeffSyncsByAccount?: Record<string, { running: Set<string>; all: string | null | undefined }>;
-  __zeffBoardSync?: { boardId: number } | null;
   __zeffAccountFlags?: Record<string, Record<string, unknown>>;
-  __zeffPeopleDates?: { done: number; total: number } | null;
 };
 
 export function busyThings(): string[] {
@@ -25,9 +23,9 @@ export function busyThings(): string[] {
     for (const key of s.running) busy.push(`sync ${key} (${account})`);
     if (s.all !== undefined) busy.push(`Sync all (${account})`);
   }
-  if (g.__zeffBoardSync) busy.push(`Keep board sync (board ${g.__zeffBoardSync.boardId})`);
+  for (const [account, s] of each<{ boardId: number }>("__zeffBoardSync")) busy.push(`Keep board sync (board ${s.boardId}, ${account})`);
   for (const [account] of each("__zeffKeepSyncing")) busy.push(`Keep sync (${account})`);
-  if (g.__zeffPeopleDates) busy.push(`people's dates (${g.__zeffPeopleDates.done}/${g.__zeffPeopleDates.total})`);
+  for (const [account, d] of each<{ done: number; total: number }>("__zeffPeopleDates")) busy.push(`people's dates (${d.done}/${d.total}, ${account})`);
   for (const [account, r] of each<{ day: string }>("__zeffRecap")) busy.push(`day recap ${r.day} (${account})`);
   return busy;
 }

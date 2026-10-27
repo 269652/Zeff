@@ -12,8 +12,6 @@ import { delegates } from "./role";
 export const MIRRORED_FLAGS = [
   // What runs per account (lib/sync/account-flags.ts: flag → account → value).
   "__zeffAccountFlags",
-  "__zeffBoardSync",
-  "__zeffPeopleDates",
 ] as const;
 
 export type HostSnapshot = {

@@ -8,6 +8,7 @@ import { isInstalled } from "@/plugins/state";
 import { isChatFolder } from "@/lib/mail/shared";
 import { DATE_KINDS, isDateKind, parseDayMonth, type DateKind, type Person } from "./shared";
 import { addDate, getPerson, listPeople, namesOf, namesThem } from "./store";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /**
  * A person's dates found — as proposals you confirm (no reminder before you do):
@@ -162,17 +163,18 @@ export async function datesAfterBriefing(now = new Date()): Promise<number> {
   return n;
 }
 
-const state = globalThis as unknown as { __zeffPeopleDates?: { done: number; total: number; found: number; error: string | null } | null };
-export const findAllProgress = () => state.__zeffPeopleDates ?? null;
+type DatesProgress = { done: number; total: number; found: number; error: string | null };
+/** This account's search (each runs its own). */
+export const findAllProgress = () => accountFlag<DatesProgress>("__zeffPeopleDates") ?? null;
 
 /** Everyone without a birthday yet: facts and AI, one after another, in the background. */
 export function findAllDates(): boolean {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
-    if (state.__zeffPeopleDates) return false;
+    if (accountFlag("__zeffPeopleDates")) return false;
     const people = listPeople().filter((p) => !(getSqlite().prepare("select 1 from people_dates where person_id = ? and kind = 'birthday'").get(p.id)));
     const run = { done: 0, total: people.length, found: 0, error: null as string | null };
-    state.__zeffPeopleDates = run;
+    setAccountFlag("__zeffPeopleDates", run);
     void (async () => {
       for (const p of people) {
         try {
@@ -184,7 +186,7 @@ export function findAllDates(): boolean {
         run.done++;
       }
     })().finally(() => {
-      state.__zeffPeopleDates = null;
+      setAccountFlag("__zeffPeopleDates", null);
     });
     return true;
   });

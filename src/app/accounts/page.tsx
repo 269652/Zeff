@@ -3,7 +3,6 @@ import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { accountDir, currentAccountId, listAccounts } from "@/db/accounts";
-import { accountBusy } from "@/lib/accounts";
 import { isInstalled } from "@/plugins/state";
 import { AccountsManager } from "@/plugins/accounts/AccountsManager";
 
@@ -31,7 +30,7 @@ export default async function AccountsPage() {
           )}
         </p>
       </div>
-      <AccountsManager accounts={accounts} busy={accountBusy()} />
+      <AccountsManager accounts={accounts} />
     </div>
   );
 }

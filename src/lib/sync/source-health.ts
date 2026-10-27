@@ -1,5 +1,5 @@
 import { getSqlite } from "@/db";
-import { activeAccountId, currentAccountId } from "@/db/accounts";
+import { currentAccountId } from "@/db/accounts";
 import { t } from "@/lib/i18n/server";
 import { getPref, setPref } from "@/lib/prefs";
 import { syncHealthRecords } from "./health";
@@ -84,17 +84,16 @@ export type HealthStep = Pick<SyncView, "key" | "label" | "href" | "running" | "
 
 const ACTIVE_SINCE = "sync-active-since";
 
-/** The scheduler syncs this account from now on (it became the one you're in, or the server started) — kept for the stale check. */
+/** The scheduler syncs this account from now on (its first turn since the server started) — kept for the stale check. */
 export function noteSyncingSince(at = Date.now()): void {
   setPref(ACTIVE_SINCE, at);
 }
 
 /**
- * Since when this account's steps run by themselves — before that, no run was missed: the server (its scheduler) started,
- * or you switched to this account. An account you're not in doesn't sync by itself at all (now: never stale).
+ * Since when this account's steps run by themselves — before that, no run was missed: the server (its scheduler) started.
+ * Every account syncs, the one you're in or not.
  */
 function upSince(): number {
-  if (currentAccountId() !== activeAccountId()) return Date.now();
   return Math.max(Date.now() - process.uptime() * 1000, getPref<number>(ACTIVE_SINCE, 0));
 }
 

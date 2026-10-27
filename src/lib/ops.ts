@@ -11,6 +11,7 @@ import { RUNNERS } from "@/plugins/actions/run";
 import type { NextTodo } from "@/plugins/actions/run-types";
 import { runJiraOps, type JiraOp } from "@/plugins/jira/run";
 import { opAvailable } from "@/plugins/ops";
+import { currentAccountId } from "@/db/accounts";
 
 export type { NextTodo };
 
@@ -127,9 +128,11 @@ export async function runTodoOpsNow(todoId: number, opts: { only?: number[] } = 
   if (!todo) throw new Error(t("{ref} doesn't exist.", { ref: todoRef(todoId) }));
   if (todo.status !== "open") throw new Error(todo.status === "done" ? t("{ref} is done already.", { ref: todo.ref }) : t("{ref} is dismissed already.", { ref: todo.ref }));
   if (!todo.ops.length) throw new Error(t("{ref} has no actions.", { ref: todo.ref }));
-  const running = (globalThis as { __zeffOpsNow?: Set<number> }).__zeffOpsNow ??= new Set();
-  if (running.has(todoId)) throw new Error(t("{ref} is running already.", { ref: todo.ref }));
-  running.add(todoId);
+  // Per account: todo #12 here is another than #12 there.
+  const running = ((globalThis as { __zeffOpsNow?: Set<string> }).__zeffOpsNow ??= new Set());
+  const key = `${currentAccountId()}:${todoId}`;
+  if (running.has(key)) throw new Error(t("{ref} is running already.", { ref: todo.ref }));
+  running.add(key);
   try {
     console.log(`[ops ${todo.ref}] start${opts.only ? ` (only ${opts.only.join(",")})` : ""}: ${todo.ops.map((o) => o.type).join(", ")}`);
     const { done, next, delivered } = await runTodoOps(todo, (line) => console.log(`[ops ${todo.ref}] ${line}`), opts);
@@ -145,7 +148,7 @@ export async function runTodoOpsNow(todoId: number, opts: { only?: number[] } = 
     if (settled) store.setTodoStatus(todo.id, "done", done.join("; ").slice(0, 500));
     return { done, settled };
   } finally {
-    running.delete(todoId);
+    running.delete(key);
   }
 }
 

@@ -34,7 +34,7 @@ function ColorPicker({ value, onChange, disabled }: { value: string; onChange: (
 }
 
 /** The accounts: switch, rename and recolor, remove — and a new one. */
-export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: string | null }) {
+export function AccountsManager({ accounts }: { accounts: Row[] }) {
   const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -52,11 +52,6 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
 
   return (
     <div className="space-y-6">
-      {busy && (
-        <p className="rounded-md border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950 dark:text-amber-200">
-          {t("{what} is running right now — you can switch as soon as it's finished.", { what: busy })}
-        </p>
-      )}
       <ul className="grid gap-3 md:grid-cols-2">
         {accounts.map((a) => (
           <li key={a.id} className={`card space-y-2 p-4 ${a.current ? "ring-2 ring-indigo-500/40" : ""}`}>
@@ -105,8 +100,8 @@ export function AccountsManager({ accounts, busy }: { accounts: Row[]; busy: str
                       <button
                         type="button"
                         className="btn btn-sm btn-primary"
-                        disabled={pending || !!busy}
-                        title={busy ? t("{what} is running right now", { what: busy }) : t("Switch to “{name}”", { name: a.name })}
+                        disabled={pending}
+                        title={t("Switch to “{name}”", { name: a.name })}
                         onClick={() =>
                           // At its own address: opened there (side by side with this one), not switched to.
                           a.host

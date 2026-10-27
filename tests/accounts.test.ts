@@ -42,21 +42,26 @@ test("an account made from another: settings over, Chrome shared, setup to come"
  * Into another account: it syncs from the switch on — no run of its was missed before it (each step "not running"
  * was told at once, before the scheduler's next tick noted the switch).
  */
-test("switching accounts: its sync runs count from the switch, nothing is overdue", async () => {
+test("switching accounts while something runs: it carries on in its own account, the switch isn't refused", async () => {
   const { setAccountsInstalled, addAccount, withAccount, activeAccountId, setActiveAccount } = await import("@/db/accounts");
   const { switchAccount } = await import("@/lib/accounts");
-  const { getPref, setPref } = await import("@/lib/prefs");
+  const { accountFlag, setAccountFlag } = await import("@/lib/sync/account-flags");
   setAccountsInstalled(true);
   const before = activeAccountId();
-  const other = addAccount("Privat", "amber");
-  withAccount(other.id, () => setPref("sync-active-since", Date.parse("2026-10-01T08:00:00Z"))); // when it was last the one you were in
-
-  const at = Date.now();
-  switchAccount(other.id);
+  const other = addAccount("Privat 2", "amber");
+  // A briefing run and a mail sync going in the account you're in.
+  setAccountFlag("__zeffBoardRun", { id: 3, phase: "ai" }, before);
+  setAccountFlag("__zeffMailSyncing", true, before);
   try {
+    switchAccount(other.id);
     assert.equal(activeAccountId(), other.id);
-    assert.ok(withAccount(other.id, () => getPref<number>("sync-active-since", 0)) >= at);
+    // Still the first account's — not shown, nor refusing, in the one switched to.
+    assert.deepEqual(accountFlag("__zeffBoardRun", before), { id: 3, phase: "ai" });
+    assert.equal(withAccount(other.id, () => accountFlag("__zeffBoardRun")), undefined);
+    assert.equal(withAccount(other.id, () => accountFlag("__zeffMailSyncing")), undefined);
   } finally {
+    setAccountFlag("__zeffBoardRun", null, before);
+    setAccountFlag("__zeffMailSyncing", null, before);
     setActiveAccount(before);
   }
 });

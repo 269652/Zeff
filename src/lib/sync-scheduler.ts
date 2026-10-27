@@ -94,12 +94,15 @@ export function startSyncScheduler(): void {
     if (key) jobs.push({ name: key, settings: () => ({ syncMinutes: stepMinutes(key as OwnIntervalKey), lastSyncAt: lastSyncOf(key) }), run: whileChromeRuns(key) });
   }
   let lastHealthCheck = 0;
-  let syncingAccount: string | null = null;
+  // The accounts synced since this server started (the first turn of each notes it: its steps weren't due before — the stale check).
+  const syncing = new Set<string>();
   const tick = async () => {
-    const { activeAccountId, listAccounts, withAccount, accountsInstalled } = await import("@/db/accounts");
+    const { activeAccountId, listAccounts, withAccount, accountsInstalled, reloadAccounts } = await import("@/db/accounts");
+    reloadAccounts(); // an account made or changed by the web server
+    const accounts = accountsInstalled() ? listAccounts() : [{ id: activeAccountId(), name: "" }];
     // A backup when it's due (Settings → Backups) — at any hour, quiet ones too; each account's
     // by its own settings, the one you're in or not.
-    for (const a of accountsInstalled() ? listAccounts() : [{ id: activeAccountId(), name: "" }]) {
+    for (const a of accounts) {
       await withAccount(a.id, async () => {
         try {
           const { backupDue, runBackup } = await import("@/plugins/backup/backup");
@@ -163,24 +166,25 @@ export function startSyncScheduler(): void {
         }
       });
     }
-    // The syncs: the account you're in — for the whole turn, even if you switch meanwhile.
+    // The syncs: every account's, one after the other (each in its own database and its own automation Chrome) —
+    // the one you're in or not: two accounts run side by side.
     try {
-      (await import("@/db/accounts")).reloadAccounts(); // a switch made by the web server
-      // The account synced from now on (a switch, or the first turn): its steps weren't due before (the stale check).
-      if (activeAccountId() !== syncingAccount) {
-        syncingAccount = activeAccountId();
-        await withAccount(syncingAccount, async () => (await import("./sync/source-health")).noteSyncingSince());
-      }
-      await withAccount(activeAccountId(), syncTurn);
-      // How the sources hold up (failing, not running, silent, their app changed) — every 5 minutes: a new incident
-      // is kept, and told once (the attention list: a notification, a toast).
-      if (Date.now() - lastHealthCheck >= 5 * 60000) {
-        lastHealthCheck = Date.now();
-        await withAccount(activeAccountId(), async () => {
+      const health = Date.now() - lastHealthCheck >= 5 * 60000;
+      if (health) lastHealthCheck = Date.now();
+      for (const a of accounts) {
+        await withAccount(a.id, async () => {
+          if (!syncing.has(a.id)) {
+            syncing.add(a.id);
+            (await import("./sync/source-health")).noteSyncingSince();
+          }
+          await syncTurn();
+          // How the sources hold up (failing, not running, silent, their app changed) — every 5 minutes: a new incident
+          // is kept, and told once (the attention list: a notification, a toast).
+          if (!health) return;
           try {
             await (await import("./sync/source-health")).sourceHealth({ fresh: true });
           } catch (e) {
-            console.error("[source health]", e);
+            console.error(`[source health${a.name ? ` ${a.name}` : ""}]`, e);
           }
         });
       }

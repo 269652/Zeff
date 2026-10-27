@@ -3,53 +3,16 @@ import { accountById, addAccount, currentAccountId, removeAccount, setActiveAcco
 import { writeKnowledgeInstances } from "@/plugins/knowledge/instances";
 import { t } from "@/lib/i18n/server";
 import { emitChange } from "./events";
-import { noteSyncingSince } from "./sync/source-health";
-import { runsByStatus } from "./work/store";
-import { accountFlag } from "./sync/account-flags";
-
-/**
- * Switching accounts (Accounts plugin): only while nothing runs — a sync, a Lage, a worker, a
- * backup would otherwise carry on in the other account's database. What's on the way, in words
- * (null: nothing).
- */
-export function accountBusy(): string | null {
-  const g = globalThis as Record<string, unknown> & {
-    __zeffSyncsByAccount?: Record<string, { running: Set<string>; all: unknown }>;
-    __zeffBackups?: Map<string, unknown>;
-    __zeffOpsNow?: Set<number>;
-  };
-  const busy: string[] = [];
-  const syncs = g.__zeffSyncsByAccount?.[currentAccountId()];
-  if (syncs?.running.size || syncs?.all !== undefined) busy.push(t("a sync"));
-  if (["__zeffTeamsSyncing", "__zeffMailSyncing", "__zeffGitlabSyncing", "__zeffKeepSyncing"].some((f) => accountFlag(f))) busy.push(t("a sync"));
-  if (accountFlag("__zeffBoardRun")) busy.push(t("the briefing"));
-  if (accountFlag("__zeffRecap")) busy.push(t("a day recap"));
-  if (["__zeffMailTodos", "__zeffMailRelations", "__zeffAutoActions", "__zeffBoardLage"].some((f) => accountFlag(f))) busy.push(t("an AI step"));
-  if (g.__zeffBackups?.size) busy.push(t("a backup"));
-  if (g.__zeffWhatsappHistory) busy.push(t("a WhatsApp history"));
-  if (g.__zeffSignalHistory) busy.push(t("a Signal history"));
-  if (g.__zeffPeopleDates) busy.push(t("finding dates"));
-  if (g.__zeffBoardSync) busy.push(t("a Keep board sync"));
-  if (g.__zeffOpsNow?.size) busy.push(t("a todo's actions"));
-  const runs = runsByStatus(["queued", "running"]).length;
-  if (runs) busy.push(runs === 1 ? t("a work run") : t("{n} work runs", { n: runs }));
-  return busy.length ? [...new Set(busy)].join(", ") : null;
-}
 
 /** Into another account: its data, settings and plugins from now on. */
 export function switchAccount(id: string): Account {
   const a = accountById(id);
   if (!a) throw new Error(t("Unknown account."));
   if (id === currentAccountId()) return a;
-  const busy = accountBusy();
-  if (busy) throw new Error(t("Running now: {busy} — switch once it's done.", { busy }));
+  // Whatever runs carries on: every account syncs, briefs and works in the background, each in its own database
+  // (its runs and flags kept per account) — the switch only changes which one localhost shows.
   setActiveAccount(id);
-  // It syncs from now on: before that, no run of its was missed. Noted at once — the scheduler notes it only on its
-  // next tick, and a page asking for the sources' health in between found every step overdue ("not running", each told).
-  withAccount(id, () => noteSyncingSince());
   writeKnowledgeInstances(); // https://knowledge.zeff follows the account you're in
-  // What's kept in memory belongs to the account before (and the sources' health judged before the switch).
-  (globalThis as { __zeffSourceHealth?: Map<string, unknown> }).__zeffSourceHealth?.delete(id);
   emitChange("attention");
   return a;
 }

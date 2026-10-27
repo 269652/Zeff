@@ -6,6 +6,8 @@ import { boardNotesForSync, deletedForSync, forgetDeleted, importOwnNote, keepBo
 import { allKeepNotes, type KeepNote } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
 import { createGoogleNote, trashGoogleNote, updateGoogleNote } from "./write";
+import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
+import { currentAccountId } from "@/db/accounts";
 
 /**
  * A board synced with Google Keep (Google Keep schreiben, beta): your board's notes are notes in
@@ -49,15 +51,15 @@ const withoutLabel = (labels: string[], label: string) => labels.filter((l) => l
 export type BoardSyncResult = { created: number; pushed: number; pulled: number; imported: number; trashed: number; archived: number; unchanged: number; failed: number; errors: string[] };
 type State = { boardId: number; step: string; done: number; total: number; result: BoardSyncResult; startedAt: string };
 
-const flag = globalThis as unknown as { __zeffBoardSync?: State | null };
 const PREF = (boardId: number) => `keep-write:board-sync:${boardId}`;
 
 /** How the board's sync stands: running now (how far), or how the last one went. */
 export function boardSyncState(boardId: number): { running: State | null; last: { at: string; ok: boolean; message: string } | null } {
-  const s = flag.__zeffBoardSync;
+  const s = accountFlag<State>("__zeffBoardSync");
   return { running: s && s.boardId === boardId ? s : null, last: getPref<{ at: string; ok: boolean; message: string } | null>(PREF(boardId), null) };
 }
-export const boardSyncRunning = () => !!flag.__zeffBoardSync;
+/** This account's (each syncs its own boards, in its own Chrome). */
+export const boardSyncRunning = () => !!accountFlag("__zeffBoardSync");
 
 const summary = (r: BoardSyncResult) =>
   [
@@ -74,17 +76,18 @@ const summary = (r: BoardSyncResult) =>
 
 /** Start the board's sync in the background — false when one runs already. */
 export function startBoardSync(boardId: number): boolean {
-  if (flag.__zeffBoardSync) return false;
+  if (accountFlag("__zeffBoardSync")) return false;
   if (!isInstalled("keep-write")) throw new Error("\"Google Keep schreiben\" isn't installed (Menu → Plugins).");
   const board = keepBoard(boardId);
   if (!board) throw new Error("That board doesn't exist.");
   const state: State = { boardId, step: "Reading Google Keep …", done: 0, total: 0, result: { created: 0, pushed: 0, pulled: 0, imported: 0, trashed: 0, archived: 0, unchanged: 0, failed: 0, errors: [] }, startedAt: new Date().toISOString() };
-  flag.__zeffBoardSync = state;
+  const account = currentAccountId();
+  setAccountFlag("__zeffBoardSync", state, account);
   void syncBoard(board.id, board.name, state)
     .then(() => setPref(PREF(boardId), { at: new Date().toISOString(), ok: state.result.failed === 0, message: summary(state.result) }))
     .catch((e) => setPref(PREF(boardId), { at: new Date().toISOString(), ok: false, message: errorMessage(e).slice(0, 300) }))
     .finally(() => {
-      flag.__zeffBoardSync = null;
+      setAccountFlag("__zeffBoardSync", null, account);
     });
   return true;
 }
