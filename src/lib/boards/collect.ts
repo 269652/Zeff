@@ -1,5 +1,6 @@
 import { attachmentLine, todoAttachments } from "@/plugins/documents/attachments";
 import { gapNotice } from "./lage-gaps";
+import { lageLearnedBlock } from "@/lib/learning/lage-learned";
 import type { SourceHealth } from "@/lib/sync/source-health-shared";
 import { promptText } from "@/lib/prompts";
 import { isJiraKey, isKanbanKey, isWorkspaceKey } from "@/lib/ticket-keys";
@@ -912,6 +913,11 @@ export async function collectBoard(
           ]
         : []),
       ...gapNotice(opts.gaps ?? []),
+      // Across tickets: the kinds of todo I mostly drop (learning/lage-learned.ts).
+      ...(() => {
+        const learned = lageLearnedBlock();
+        return learned.length ? ["", ...learned, ""] : [];
+      })(),
       previous
         ? `Letzter Lauf: ${stamp(previous.startedAt)} UTC. Damalige Lage: ${previous.result?.lede ?? "—"}`
         : "Es gab noch keinen Lauf.",
