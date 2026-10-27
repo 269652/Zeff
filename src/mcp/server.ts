@@ -609,6 +609,29 @@ export function registerZeffTools(server: McpServer): void {
   );
 
   server.registerTool(
+    "ticket_brief",
+    {
+      title: "Everything Zeff knows about a ticket — by its key, a branch or the repo you work in",
+      description:
+        "Before you work on a ticket: what it asks (status, assignee, description, acceptance criteria), who asked for it and in what words (the Teams messages or mails its todos came from), what was said about it lately (chats naming it; people and open loops around it), its merge requests and branches, its open todos. Give the ticket key, or a branch name, or the folder you work in (its checked-out branch names the ticket) — e.g. ticket_brief({ cwd: process.cwd() }). Read only.",
+      inputSchema: z.object({
+        ticket: z.string().optional().describe("The ticket key, e.g. 'PROJ-371'."),
+        branch: z.string().optional().describe("A branch name that contains the key, e.g. 'feature/PROJ-371-teaser'."),
+        cwd: z.string().optional().describe("The repo folder you work in: its checked-out branch names the ticket."),
+      }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        const { ticketFrom, ticketBrief } = await import("@/lib/work/ticket-brief");
+        const found = ticketFrom(args);
+        if (!found) return fail("No ticket key in what you gave (ticket, branch or the repo folder's branch) — pass the key, e.g. ticket: 'PROJ-371'.");
+        const text = await ticketBrief(found.key);
+        return text ? ok(found.via === "ticket" ? text : `(${found.key}, from ${found.via})\n\n${text}`) : fail(`Zeff knows nothing about ${found.key} (not synced from Jira, no todos on it).`);
+      }),
+  );
+
+  server.registerTool(
     "todo_attachment",
     {
       title: "A todo's attachments — look at its pictures",
