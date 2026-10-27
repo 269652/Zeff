@@ -51,6 +51,7 @@ Todos: Zeff's Todos tab reads the user's Jira tickets and finds concrete todos o
 ALWAYS LOOK FOR A TODO FIRST: before you start ANY piece of work for the user — a change, a fix, research, a review, writing a reply — check whether Zeff has a todo for it (list_todos with the ticket key, or search_context with a few words of the task). If there is one, its time MUST be measured — no exceptions:
 - todo_clock_start (todo, your name as agent) BEFORE you begin — reading and looking around already count;
 - todo_clock_stop (todo, a one-line note, agent) when you stop working on it — done for now, switching to other work, a break — and todo_clock_start again when you come back;
+- PING IT AT LEAST EVERY 10 MINUTES while you work on it: todo_clock_ping (todo, agent) — or todo_progress / todo_time, which count as a ping too. A clock that hears nothing for 10 minutes is PAUSED as of your last ping: the time after it is lost (not booked) until your next ping. So ping between steps — before and after a long command (a test suite, a build), after each file you change, whenever you read the next thing; when in doubt, ping;
 - todo_time WITHOUT minutes after each phase (research, implementation, tests …) records the time so far (a lap) and the clock runs on;
 - todo_needs_input before you ask the user pauses the clock (waiting doesn't count); todo_progress when you go on restarts it;
 - finish_todo stops it and takes the measured time.
@@ -62,7 +63,7 @@ Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
    Implement with STRICT TDD: first a test that fails for the right reason, then the smallest change that makes it pass, then tidy up — and run the affected suite at the end. What can only be checked by hand, name as open in your summary.
    Then call todo_context for everything Zeff knows about it (the ticket, comments, the Teams messages and mails it comes from, the user's notes, earlier runs) — read it before you start. If it lists attachments (pictures the user pasted into their notes: screenshots, mock-ups, error screens — and documents), LOOK at them with todo_attachment before you implement: a picture often shows exactly what is meant.
    Optionally call todo_progress with a short note now and then (what you're doing) — it's your log there.
-   Your time is measured by the clock start_todo started: todo_time without minutes after each phase (a lap); todo_needs_input pauses it while you wait; todo_clock_stop when you leave the todo for other work, todo_clock_start when you come back (see "ALWAYS LOOK FOR A TODO FIRST" above).
+   Your time is measured by the clock start_todo started: todo_clock_ping at least every 10 minutes (else it pauses as of your last ping); todo_time without minutes after each phase (a lap); todo_needs_input pauses it while you wait; todo_clock_stop when you leave the todo for other work, todo_clock_start when you come back (see "ALWAYS LOOK FOR A TODO FIRST" above).
    Whenever you stop to ask the user something (a question, a decision, a confirmation, a review) — call todo_needs_input with the question FIRST, then ask. The todo then shows ❗ on Zeff's Todos and Code tabs so the user sees you're waiting. Once you have the answer and go on, call todo_progress (that clears the ❗) — finish_todo clears it too.
 3. When you're done — or stop — call finish_todo with: summary (it's shown on the todo as your comment — so ALWAYS a summary of what you did: first ONE sentence saying what is done now, then short bullets: what you changed, how you tested, what's still open and why, where it is — branch and commit), entry (ONE short line for the booking, same rules as report_time descriptions), outcome (done / partial / blocked), branch (the feature branch you committed on — and repo, its folder, if Zeff doesn't know the ticket's repo) and followUps for what's left (replies, comments, ticket changes — with ready drafts).
    With a branch, Zeff creates a todo for the user to TEST AND VERIFY your work by hand first; once they've ticked it off, the delivery follows (push → merge request to main, or merge straight into main — one click each). Don't create test or delivery todos yourself, and say in your summary what the user should test.
@@ -524,7 +525,7 @@ export function registerZeffTools(server: McpServer): void {
       description:
         "Concrete todos the Todos tab found on the user's Jira tickets (from their comments, history and context), " +
         "each referenced as T-<id>. owner 'me' is the user's to do, 'other' is someone else's move being waited for. " +
-        "Look here before working on a ticket; close what you finished with report_time (todos) or complete_todo.",
+        "Look here BEFORE any work for the user (any agent — Copilot, Claude Code, a Zeff worker). If a todo stands for the work, its time MUST be measured: start_todo (or todo_clock_start) before you begin, todo_clock_ping at least every 10 minutes while you work (silent longer, the clock pauses as of your last ping and that time is lost), todo_clock_stop when you stop or switch, finish_todo when through. Close what you finished with finish_todo, report_time (todos) or complete_todo.",
       inputSchema: z.object({
         ticket: z.string().optional().describe("Only this ticket's todos, e.g. 'PROJ-364'."),
         status: z.enum(["open", "done", "dismissed", "all"]).optional().describe("Default 'open'."),
@@ -548,7 +549,9 @@ export function registerZeffTools(server: McpServer): void {
             (t.note ? `\n  note: ${t.note}` : "") +
             t.userNotes.map((n) => `\n  ${n.by ? `report by ${n.by}${n.url ? ` (${n.url})` : ""}` : "the user's note (context — it takes precedence)"}: ${n.text.replace(/\n+/g, " ")}`).join(""),
         );
-        return ok(`${list.length} todo(s):\n${lines.join("\n")}`);
+        // The clock rule with every list: whoever works on one of these (Copilot in VS Code too) reads it here.
+        const { CLOCK_RULE } = await import("@/lib/work/todo-clock");
+        return ok(`${list.length} todo(s):\n${lines.join("\n")}\n\n${CLOCK_RULE}`);
       }),
   );
 
@@ -582,7 +585,7 @@ export function registerZeffTools(server: McpServer): void {
         const preamble = (await import("@/plugins/llm/run")).llmPreamble();
         return ok(
           `${resumed ? "Still yours" : "Started"}: W-${r.id} — ${todo.ref} (${todo.ticket}): ${todo.text}\n` +
-            `Clock: running on ${todo.ref} since ${clock.since.slice(11, 16)} UTC${clock.switched ? ` (the one on ${todoRef(clock.switched.todoId)} stopped: ${clock.switched.minutes} min recorded)` : ""} — stop it with todo_clock_stop when you stop working on it, or finish_todo.\n` +
+            `Clock: running on ${todo.ref} since ${clock.since.slice(11, 16)} UTC${clock.switched ? ` (the one on ${todoRef(clock.switched.todoId)} stopped: ${clock.switched.minutes} min recorded)` : ""} — ping it at least every 10 minutes (todo_clock_ping, todo_progress or todo_time), else it pauses as of your last ping; stop it with todo_clock_stop when you stop working on it, or finish_todo.\n` +
             (todo.userNotes.length ? `Notes on it (the user's — context, they take precedence — and earlier runs' reports):\n${todo.userNotes.map((n) => `- ${n.by ? `[${n.by}] ` : ""}${n.text}${n.url ? ` (${n.url})` : ""}`).join("\n")}\n` : "") +
             (w.repo
               ? w.existing
@@ -789,7 +792,7 @@ export function registerZeffTools(server: McpServer): void {
         return ok(
           `${c.resumed ? "Clock running already" : "Clock started"} on ${todo.ref} (since ${c.since.slice(11, 16)} UTC).` +
             (c.switched ? ` The clock on ${todoRef(c.switched.todoId)} was stopped: ${c.switched.minutes} min recorded.` : "") +
-            " Stop it with todo_clock_stop when you stop working on it (or finish_todo); todo_time without minutes records a lap.",
+            " Ping it at least every 10 minutes while you work (todo_clock_ping, or todo_progress / todo_time) — silent longer, it pauses as of your last ping and that time is lost. Stop it with todo_clock_stop when you stop working on it (or finish_todo); todo_time without minutes records a lap.",
         );
       }),
   );
@@ -818,6 +821,36 @@ export function registerZeffTools(server: McpServer): void {
         const r = clockOut(todo.id, args.agent, { note: args.note });
         if (!r) return fail(`No clock runs on ${todo.ref}${args.agent ? ` for ${args.agent}` : ""} — start it with todo_clock_start before you work on it (or report the time with todo_time and minutes).`);
         return ok(`Clock stopped on ${todo.ref}: ${r.minutes} min recorded${r.record ? ` (${r.record.ref})` : ""}. Start it again with todo_clock_start when you go on.`);
+      }),
+  );
+
+  server.registerTool(
+    "todo_clock_ping",
+    {
+      title: "Keep a todo's clock running — a sign of life, at least every 10 minutes",
+      description:
+        "While you work on a todo with its clock running (start_todo, todo_clock_start), call it AT LEAST EVERY 10 MINUTES — between steps, before and after a long command. A clock that hears nothing for 10 minutes is paused as of your last ping (the time after it isn't booked); this ping lets it go on from now. todo_progress and todo_time count as pings too.",
+      inputSchema: z.object({
+        todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
+        agent: z.string().optional().describe("Who you are, as at todo_clock_start."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        const off = pluginOff("work");
+        if (off) return off;
+        const id = parseTodoRef(args.todo);
+        const todo = id === null ? undefined : getTodo(id);
+        if (!todo) return fail(`"${args.todo}" isn't a todo — list_todos shows them (T-12).`);
+        const { clockPing } = await import("@/lib/work/todo-clock");
+        const r = clockPing(todo.id, args.agent);
+        if (!r) return fail(`No clock runs on ${todo.ref}${args.agent ? ` for ${args.agent}` : ""} — start it with todo_clock_start.`);
+        return ok(
+          r.waiting
+            ? `${todo.ref}'s clock is paused while it waits for the user's answer — todo_progress when you go on.`
+            : `${todo.ref}: clock running, ${Math.round(r.minutes)} min so far.${r.resumedAfter !== null ? ` It had paused — silent for more than 10 minutes; ${r.resumedAfter} min weren't counted. Ping at least every 10 minutes.` : " Next ping within 10 minutes."}`,
+        );
       }),
   );
 

@@ -110,5 +110,9 @@ export async function ticketBrief(key: string): Promise<string | null> {
   const done = todos.filter((x) => x.status !== "open").slice(-6);
   if (done.length) out.push("", "## Done or dropped lately", ...done.map((x) => `- ${x.ref} ${x.status}: ${clip(x.text, 160)}`));
   out.push("", "(For one todo's full brief — its sources in full, earlier runs — use todo_context with its T-id.)");
+  if (open.length) {
+    const { CLOCK_RULE } = await import("./todo-clock");
+    out.push("", CLOCK_RULE);
+  }
   return out.join("\n");
 }

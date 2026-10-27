@@ -239,3 +239,15 @@ test("measured: start_todo starts the todo's clock; todo_time without minutes re
   assert.match(text(await mcp.todo_clock_start({ todo: `T-${u.id}`, agent: "Claude Code" })), /Clock started/);
   assert.match(text(await mcp.todo_clock_stop({ todo: `T-${u.id}`, note: "kurz", agent: "Claude Code" })), /Clock stopped on T-\d+: 1 min recorded/);
 });
+
+test("every agent (Copilot too) reads the clock rule where it meets a todo: list_todos says it; todo_clock_ping keeps the clock running", async () => {
+  await setup("TT-8");
+  const mcp = await tools();
+  const t = await todo("TT-8", "Copilot works on it");
+  const list = text(await mcp.list_todos({ ticket: "TT-8" }));
+  assert.match(list, /todo_clock_ping AT LEAST EVERY 10 MINUTES/);
+  assert.match(list, /for every agent \(Copilot/);
+  await mcp.start_todo({ todo: `T-${t.id}`, agent: "VS Code Copilot" });
+  assert.match(text(await mcp.todo_clock_ping({ todo: `T-${t.id}`, agent: "VS Code Copilot" })), /clock running, \d+ min so far\. Next ping within 10 minutes/);
+  assert.match(text(await mcp.todo_clock_ping({ todo: "T-999999", agent: "VS Code Copilot" })), /isn't a todo/);
+});

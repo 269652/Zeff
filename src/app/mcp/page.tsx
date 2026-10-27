@@ -11,6 +11,7 @@ export async function generateMetadata(): Promise<Metadata> {
 const tools = (): [string, string][] => [
   ["report_time", t("Book hours on a job (jobNumber, hours, description, date?, ticket?, reportedBy?).")],
   ["todo_clock_start", t("Start the clock on a todo before you work on it (todo, agent) — Zeff notes the time; start_todo starts it too.")],
+  ["todo_clock_ping", t("Keep a todo's clock running (todo, agent) — at least every 10 minutes, else it pauses as of the last ping.")],
   ["todo_clock_stop", t("Stop the clock when you stop working on it (todo, note, agent) — the difference is recorded as the todo's time, measured.")],
   ["todo_time", t("Report the time you spent on a todo (todo, minutes or hours, note, agent) — one record each, a todo can have many; they flow into its booking.")],
   ["list_jobs", t("List job numbers, optionally filtered by a search term.")],
