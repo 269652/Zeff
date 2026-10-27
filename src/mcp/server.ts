@@ -55,7 +55,7 @@ ALWAYS LOOK FOR A TODO FIRST: before you start ANY piece of work for the user �
 - todo_time WITHOUT minutes after each phase (research, implementation, tests …) records the time so far (a lap) and the clock runs on;
 - todo_needs_input before you ask the user pauses the clock (waiting doesn't count); todo_progress when you go on restarts it;
 - finish_todo stops it and takes the measured time.
-Zeff takes the difference between start and stop as the time record — measured, not guessed: don't estimate minutes while a clock runs. One clock per agent: starting on another todo stops the running one (its time recorded). Only work that no todo stands for is reported with report_time (hours honestly). When the user books, the time of all related todos (same ticket, follow-ups, the todos a session touched) flows into ONE booking suggestion, with each record linked as evidence — so the records are how your time is tracked. Don't report the same stretch twice, and don't also add it up in report_time.
+Zeff takes the difference between start and stop as the time record — measured, not guessed: don't estimate minutes while a clock runs. One clock per agent: starting on another todo stops the running one (its time recorded). Only work that no todo stands for is reported with report_time (hours honestly). When the user books, the time of all related todos (same ticket, follow-ups, the todos a session touched) flows into ONE booking suggestion, with each record linked as evidence — so the records are how your time is tracked. Don't report the same stretch twice, and don't also add it up in report_time. A record that came out wrong (too long, too short, twice, on the wrong todo) — correct it with todo_time_update (TT-<id>: minutes or hours, note) or remove it with todo_time_delete, while it isn't booked or suggested yet.
 
 Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
 1. Call start_todo with the todo and your name as agent IMMEDIATELY — as your very first step, before you read code, research, plan or ask anything. Research and looking around already count as working on it. Zeff then shows the todo as being worked on and you as a worker on its Code tab — and its clock starts (no todo_clock_start needed after it).
@@ -765,6 +765,55 @@ export function registerZeffTools(server: McpServer): void {
           `Recorded ${r.ref}: ${formatMinutes(r.minutes)} on ${todo.ref} (${r.by})${lap ? " — measured by its clock, which runs on" : ""}${r.note ? ` — "${r.note}"` : ""}. ` +
             `${todo.ref} has ${open.length} unbooked record(s), ${formatMinutes(open.reduce((a, x) => a + x.minutes, 0))} in all; the next one is the time since now.`,
         );
+      }),
+  );
+
+  server.registerTool(
+    "todo_time_update",
+    {
+      title: "Correct a time record on a todo",
+      description:
+        "Correct a time record (TT-<id>, as the answers of todo_time and todo_clock_stop and todo_context's 'Erfasste Zeit' name it) that is wrong — too long, too short, a wrong note: its minutes (or hours) and/or its note. Only while it isn't booked or in a booking suggestion yet (then the suggestion is corrected: update_time_entry S-<id>). The time a clock measured is changed the same way.",
+      inputSchema: z.object({
+        record: z.string().min(1).describe("The time record, e.g. 'TT-40' (or just 40)."),
+        minutes: z.number().positive().max(1440).optional().describe("The right minutes (1-1440)."),
+        hours: z.number().positive().max(24).optional().describe("Instead of minutes: hours as a decimal, e.g. 0.5."),
+        note: z.string().optional().describe("The right one-line note."),
+      }),
+      annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: true },
+    },
+    async (args) =>
+      run(async () => {
+        const off = pluginOff("work");
+        if (off) return off;
+        const id = Number(/^(?:TT-)?(\d+)$/i.exec(args.record.trim())?.[1]);
+        if (!id) return fail(`"${args.record}" isn't a time record — they're named TT-<id> (todo_time's answer, todo_context's 'Erfasste Zeit').`);
+        const minutes = args.minutes ?? (args.hours !== undefined ? Math.round(args.hours * 60) : undefined);
+        if (minutes === undefined && args.note === undefined) return fail("Pass the right minutes (or hours) and/or note.");
+        const { updateTodoTime } = await import("@/lib/work/todo-time");
+        const { formatMinutes } = await import("@/lib/work/shared");
+        const r = updateTodoTime(id, { minutes, note: args.note });
+        return ok(`${r.ref} on ${todoRef(r.todoId)} is now ${formatMinutes(r.minutes)}${r.note ? ` — "${r.note}"` : ""}.`);
+      }),
+  );
+
+  server.registerTool(
+    "todo_time_delete",
+    {
+      title: "Delete a time record on a todo",
+      description: "Delete a time record (TT-<id>) that shouldn't be there at all — reported twice, on the wrong todo. Only while it isn't booked or in a booking suggestion yet. A wrong length is corrected with todo_time_update instead.",
+      inputSchema: z.object({ record: z.string().min(1).describe("The time record, e.g. 'TT-40' (or just 40).") }),
+      annotations: { readOnlyHint: false, destructiveHint: true, idempotentHint: false },
+    },
+    async (args) =>
+      run(async () => {
+        const off = pluginOff("work");
+        if (off) return off;
+        const id = Number(/^(?:TT-)?(\d+)$/i.exec(args.record.trim())?.[1]);
+        if (!id) return fail(`"${args.record}" isn't a time record — they're named TT-<id>.`);
+        const { deleteTodoTime } = await import("@/lib/work/todo-time");
+        deleteTodoTime(id);
+        return ok(`TT-${id} deleted.`);
       }),
   );
 

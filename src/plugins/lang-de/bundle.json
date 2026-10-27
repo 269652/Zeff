@@ -7520,5 +7520,7 @@
   "Stop the clock when you stop working on it (todo, note, agent) — the difference is recorded as the todo's time, measured.": "Die Uhr stoppen, wenn du aufhörst (todo, note, agent) — die Differenz wird als Zeit des Todos erfasst, gemessen.",
   "Keep a todo's clock running (todo, agent) — at least every 10 minutes, else it pauses as of the last ping.": "Die Uhr eines Todos am Laufen halten (todo, agent) — mindestens alle 10 Minuten, sonst pausiert sie ab dem letzten Ping.",
   "Zeff hasn't answered for 30 seconds — it may still save it. Look at the list in a moment before you add it again.": "Zeff hat 30 Sekunden nicht geantwortet — es kann sein, dass es noch gespeichert wird. Schau gleich in die Liste, bevor du es nochmal einträgst.",
-  "Zeff couldn't be reached: {error}": "Zeff war nicht erreichbar: {error}"
+  "Zeff couldn't be reached: {error}": "Zeff war nicht erreichbar: {error}",
+  "Correct a time record (TT-<id>: minutes or hours, note) — while it isn't booked or suggested.": "Einen Zeiteintrag korrigieren (TT-<id>: Minuten oder Stunden, Notiz) — solange er weder gebucht noch vorgeschlagen ist.",
+  "Delete a time record that shouldn't be there (TT-<id>) — while it isn't booked or suggested.": "Einen Zeiteintrag löschen, der nicht da sein sollte (TT-<id>) — solange er weder gebucht noch vorgeschlagen ist."
 }

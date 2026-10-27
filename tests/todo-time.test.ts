@@ -251,3 +251,22 @@ test("every agent (Copilot too) reads the clock rule where it meets a todo: list
   assert.match(text(await mcp.todo_clock_ping({ todo: `T-${t.id}`, agent: "VS Code Copilot" })), /clock running, \d+ min so far\. Next ping within 10 minutes/);
   assert.match(text(await mcp.todo_clock_ping({ todo: "T-999999", agent: "VS Code Copilot" })), /isn't a todo/);
 });
+
+test("an agent corrects a wrong time record (TT-<id>) or deletes it — not once it's suggested or booked", async () => {
+  await setup("TT-9");
+  const mcp = await tools();
+  const { listTodoTimes, markTimeSuggested } = await import("@/lib/work/todo-time");
+  const t = await todo("TT-9", "Too much booked");
+  const rec = text(await mcp.todo_time({ todo: `T-${t.id}`, minutes: 60, note: "Teaser columns", agent: "Claude Code" }));
+  const ref = /Recorded (TT-\d+)/.exec(rec)![1];
+  assert.match(text(await mcp.todo_time_update({ record: ref, hours: 0.5 })), /is now 30 ?min/);
+  assert.equal(listTodoTimes([t.id])[0].minutes, 30);
+  assert.match(text(await mcp.todo_time_update({ record: ref.slice(3), note: "Teaser columns 11:36–12:02" })), /Teaser columns 11:36–12:02/);
+  assert.match(text(await mcp.todo_time_update({ record: "T-12" })), /isn't a time record/);
+  const id = Number(ref.slice(3));
+  markTimeSuggested([id], 1);
+  assert.match(text(await mcp.todo_time_update({ record: ref, minutes: 10 })), /can't be changed any more/);
+  markTimeSuggested([id], null);
+  assert.match(text(await mcp.todo_time_delete({ record: ref })), /deleted/);
+  assert.equal(listTodoTimes([t.id]).length, 0);
+});
