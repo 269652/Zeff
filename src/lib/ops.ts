@@ -26,9 +26,11 @@ export async function runTodoOps(
   todo: TodoView,
   note: (line: string) => void,
   opts: { only?: number[] } = {},
-): Promise<{ done: string[]; next: NextTodo[] }> {
+): Promise<{ done: string[]; next: NextTodo[]; delivered: { what: string; link: string | null } | null }> {
   const done: string[] = [];
   const next: NextTodo[] = [];
+  // What reached the others (a branch pushed, a merge request opened or merged): the one who asked hears of it (requester.ts).
+  let delivered: { what: string; link: string | null } | null = null;
   // `only`: just these operations (by their place on the todo) — the others (and the ones that open in your browser) stay as they are.
   const chosen = (i: number) => !opts.only || opts.only.includes(i);
   let left = todo.ops.filter((o, i) => !actionHref(o) && chosen(i));
@@ -96,9 +98,15 @@ export async function runTodoOps(
       }
       // What's next as a todo — unless this run delivers further itself (commit → push → MR, or → merge, in one go).
       if (r.next && !left.some((o) => actionOf(o.type).delivery)) next.push(r.next);
+      if (op.type === "git-push" || op.type === "gitlab-open-mr" || op.type === "gitlab-merge" || op.type === "git-merge-main") {
+        const { mrLink } = await import("@/lib/boards/requester");
+        // The merge request's link wins over a push's words (push → MR in one go: the MR is what they review).
+        const link = mrLink(r.what);
+        if (link || !delivered?.link) delivered = { what: r.what, link };
+      }
       note(`[Zeff] ✓ ${r.what}`);
     }
-    return { done, next };
+    return { done, next, delivered };
   } catch (e) {
     note(`[Zeff] ✗ ${errorMessage(e)}`);
     throw e;
@@ -124,11 +132,13 @@ export async function runTodoOpsNow(todoId: number, opts: { only?: number[] } = 
   running.add(todoId);
   try {
     console.log(`[ops ${todo.ref}] start${opts.only ? ` (only ${opts.only.join(",")})` : ""}: ${todo.ops.map((o) => o.type).join(", ")}`);
-    const { done, next } = await runTodoOps(todo, (line) => console.log(`[ops ${todo.ref}] ${line}`), opts);
+    const { done, next, delivered } = await runTodoOps(todo, (line) => console.log(`[ops ${todo.ref}] ${line}`), opts);
     for (const n of next) {
       const f = store.addFollowUp({ ticket: todo.ticket, text: n.text, kind: "merge", parentId: todo.id, workRunId: null, source: `Next step after ${todo.ref}`, ops: n.ops, owner: n.owner });
       store.handOverPlan(todo.id, f.id, ["merge", "review"]);
     }
+    // Delivered: the one who asked for it gets a reply todo in their chat, the link in its draft.
+    if (delivered) await (await import("@/lib/boards/requester")).tellRequester(todo, delivered).catch((e) => console.error(`[ops ${todo.ref}] telling the asker failed:`, e));
     // Settled when what ran is the todo — and nothing else is left on it.
     const ran = opts.only ? todo.ops.filter((_, i) => opts.only!.includes(i)) : todo.ops;
     const settled = (!opts.only || ran.length === todo.ops.length) && opsSettle({ ...todo, ops: ran });

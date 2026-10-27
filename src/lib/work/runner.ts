@@ -577,7 +577,12 @@ async function postReply(r: WorkRun, todo: TodoView): Promise<void> {
 async function runOps(r: WorkRun, todo: TodoView): Promise<void> {
   const note = (msg: string) => fs.appendFileSync(/*turbopackIgnore: true*/ logPath(r.id), `${msg}\n`);
   try {
-    const { done, next } = await runTodoOps(todo, note);
+    const { done, next, delivered } = await runTodoOps(todo, note);
+    // Delivered: the one who asked for it gets a reply todo in their chat, the link in its draft.
+    if (delivered) {
+      const told = await (await import("@/lib/boards/requester")).tellRequester(todo, delivered).catch(() => null);
+      if (told) note(`[Zeff] ${told.ref}: tell the one who asked — ${told.text}`);
+    }
     // What's next (the following delivery step) as a todo of its own.
     for (const n of next) {
       const f = addFollowUp({ ticket: todo.ticket, text: n.text, kind: "merge", parentId: todo.id, workRunId: r.id, source: `Follow-up from ${workRef(r.id)}`, ops: n.ops, owner: n.owner });

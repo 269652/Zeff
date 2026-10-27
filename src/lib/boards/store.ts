@@ -736,7 +736,8 @@ export function addFollowUp(v: {
   path?: string | null;
 }): Gated {
   const target = v.target?.trim() || null;
-  const refs = target && /^(jira-comment|teams|gitlab):./.test(target) ? [target] : [];
+  // (A mail it answers, too: who asked by mail — lib/boards/requester.ts.)
+  const refs = target && /^(jira-comment|teams|gitlab|mail):./.test(target) ? [target] : [];
   // What a worker or a plan makes again isn't made: the todo it repeats absorbs it (its plan takes what comes after).
   // Its parent - the todo its run has just marked done (or closed) - is the follow-up's reason, never its twin: that one isn't merged into.
   const parent = v.parentId ? getTodo(v.parentId) : undefined;

@@ -1,4 +1,5 @@
 import type { WorkRun } from "@/db/schema";
+import { whoWrote } from "@/lib/boards/requester";
 import { isTodoKind, todoRef, type TodoOp } from "@/lib/boards/shared";
 import { addFollowUp, addTodoAiNote, getTodo, listTodos, markWorkerDone, setTodoDraft, setTodoOps, setTodoStatus } from "@/lib/boards/store";
 import { pushedLink } from "./remote";
@@ -74,6 +75,16 @@ export function messageOp(f: { channel?: string; target?: string | null; draft?:
   const note = /(note:\d+)/.exec(f.target ?? "")?.[1];
   if (f.channel === "gitlab" && note) return { type: "gitlab-reply", note, body };
   if (f.channel === "jira") return { type: "jira-comment", ticket: /^[A-Z][A-Z0-9]+-\d+$/i.test(f.target ?? "") ? f.target!.toUpperCase() : ticket, body };
+  // A Teams reply to the one who asked: a button when it goes to them in a chat of the two of you (the message's sender, or
+  // their name as the target) — a group chat or a channel Zeff can't post into: copied by you.
+  if (f.channel === "teams") {
+    const target = f.target?.trim() ?? "";
+    if (target.startsWith("teams:")) {
+      const asker = whoWrote(target);
+      return asker?.oneOnOne ? { type: "teams-message", to: asker.who, body } : null;
+    }
+    if (/^[\p{L}][\p{L} .'-]{1,80}$/u.test(target)) return { type: "teams-message", to: target, body };
+  }
   return null;
 }
 
