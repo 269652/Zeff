@@ -56,6 +56,12 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
       window.location.assign(accountUrl(target.host));
       return;
     }
+    // The one account without an address while the others have theirs: it is every other address (localhost) — opened there, not switched to.
+    if (target && list.filter((a) => !a.host).length === 1 && list.some((a) => a.host)) {
+      setOpen(false);
+      if (list.some((a) => a.host === window.location.hostname)) window.location.assign(accountUrl("localhost"));
+      return;
+    }
     start(async () => {
       const r = await switchAccountAction(id);
       if (!r.ok) {

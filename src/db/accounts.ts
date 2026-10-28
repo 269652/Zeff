@@ -59,11 +59,29 @@ export const ACCOUNTS_DIR = path.join(BASE_DIR, "accounts");
 
 const first = (): Account => ({ id: DEFAULT_ACCOUNT, name: "Default", color: "indigo", createdAt: new Date(0).toISOString() });
 
-const state = globalThis as unknown as { __zeffAccounts?: Registry; __zeffAccountScope?: AsyncLocalStorage<string> };
+const state = globalThis as unknown as { __zeffAccounts?: Registry; __zeffAccountsSeen?: { at: number; mtime: number }; __zeffAccountScope?: AsyncLocalStorage<string> };
 const scope = (state.__zeffAccountScope ??= new AsyncLocalStorage<string>());
 
+const mtimeOf = () => {
+  try {
+    return fs.statSync(FILE).mtimeMs;
+  } catch {
+    return 0;
+  }
+};
+
+/**
+ * The registry — kept in memory, read again when the file changed (looked at once a second at most): the web server, the sync
+ * host and a script each keep their own, and one that wrote from an old copy put back what another had changed (an account's
+ * address gone, 2026-10-28).
+ */
 function read(): Registry {
-  if (state.__zeffAccounts) return state.__zeffAccounts;
+  const now = Date.now();
+  const seen = state.__zeffAccountsSeen;
+  if (state.__zeffAccounts && seen && now - seen.at < 1000) return state.__zeffAccounts;
+  const mtime = mtimeOf();
+  state.__zeffAccountsSeen = { at: now, mtime };
+  if (state.__zeffAccounts && seen && seen.mtime === mtime) return state.__zeffAccounts;
   let r: Registry = { active: DEFAULT_ACCOUNT, installed: false, accounts: [first()] };
   try {
     const v = JSON.parse(fs.readFileSync(FILE, "utf8")) as Partial<Registry>;
@@ -95,6 +113,13 @@ function write(r: Registry): void {
   fs.writeFileSync(`${FILE}.part`, JSON.stringify(r, null, 2));
   fs.renameSync(`${FILE}.part`, FILE);
   state.__zeffAccounts = r;
+  state.__zeffAccountsSeen = { at: Date.now(), mtime: mtimeOf() };
+}
+
+/** The registry as the file has it now — before a change is written over it (another process may have changed it). */
+function fresh(): Registry {
+  state.__zeffAccounts = undefined;
+  return read();
 }
 
 export const listAccounts = (): Account[] => read().accounts;
@@ -104,6 +129,7 @@ export const listAccounts = (): Account[] => read().accounts;
  */
 export const reloadAccounts = (): void => {
   state.__zeffAccounts = undefined;
+  state.__zeffAccountsSeen = undefined;
 };
 
 export const accountById = (id: string): Account | undefined => read().accounts.find((a) => a.id === id);
@@ -111,7 +137,7 @@ export const accountById = (id: string): Account | undefined => read().accounts.
 /** Whether the Accounts plugin is installed — kept here, for all accounts alike (not in one's database). */
 export const accountsInstalled = () => read().installed;
 export function setAccountsInstalled(installed: boolean): void {
-  const r = read();
+  const r = fresh();
   if (!installed && r.accounts.length > 1) {
     throw new Error(
       t("Delete the other accounts first ({others}) — without the plugin there's only “{first}”.", {
@@ -166,7 +192,7 @@ export const accountDbPath = (id: string) => (id === DEFAULT_ACCOUNT ? BASE_DB :
 export const accountDir = (id: string) => path.dirname(accountDbPath(id));
 
 export function setActiveAccount(id: string): void {
-  const r = read();
+  const r = fresh();
   if (!r.accounts.some((a) => a.id === id)) throw new Error(t("Unknown account."));
   write({ ...r, active: id });
 }
@@ -182,7 +208,7 @@ const slug = (name: string) =>
     .slice(0, 32) || "konto";
 
 export function addAccount(name: string, color: string, chromeFrom?: string): Account {
-  const r = read();
+  const r = fresh();
   const n = name.trim().slice(0, 60);
   if (!n) throw new Error(t("A name, please."));
   if (r.accounts.some((a) => a.name.toLowerCase() === n.toLowerCase())) throw new Error(t("“{name}” already exists.", { name: n }));
@@ -214,7 +240,7 @@ export function normalizeHost(v: string | null | undefined): string | undefined 
 export const sharesWorkerSetup = (id: string): boolean => accountById(id)?.workerSetup ?? id === DEFAULT_ACCOUNT;
 
 export function updateAccount(id: string, patch: { name?: string; color?: string; host?: string | null; workerSetup?: boolean }): Account {
-  const r = read();
+  const r = fresh();
   const a = r.accounts.find((x) => x.id === id);
   if (!a) throw new Error(t("Unknown account."));
   const name = patch.name?.trim().slice(0, 60);
@@ -233,7 +259,7 @@ export function updateAccount(id: string, patch: { name?: string; color?: string
  * gone. Not the first one, not the one you're in.
  */
 export function removeAccount(id: string): string {
-  const r = read();
+  const r = fresh();
   if (id === DEFAULT_ACCOUNT) throw new Error(t("The first account stays."));
   if (id === r.active) throw new Error(t("Switch to another account first."));
   if (!r.accounts.some((a) => a.id === id)) throw new Error(t("Unknown account."));

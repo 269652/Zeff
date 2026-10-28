@@ -107,13 +107,16 @@ export function AccountsManager({ accounts }: { accounts: Row[] }) {
                         disabled={pending}
                         title={t("Switch to “{name}”", { name: a.name })}
                         onClick={() =>
-                          // At its own address: opened there (side by side with this one), not switched to.
+                          // At its own address: opened there (side by side with this one), not switched to. The one without an
+                          // address while the others have theirs is every other address (localhost).
                           a.host
                             ? window.location.assign(accountUrl(a.host, "/"))
-                            : start(async () => {
-                                const r = await switchAccountAction(a.id);
-                                if (done(r)) router.push(r.href ?? "/");
-                              })
+                            : accounts.filter((x) => !x.host).length === 1 && accounts.some((x) => x.host)
+                              ? window.location.assign(accountUrl("localhost", "/"))
+                              : start(async () => {
+                                  const r = await switchAccountAction(a.id);
+                                  if (done(r)) router.push(r.href ?? "/");
+                                })
                         }
                       >
                         {t("Switch")}

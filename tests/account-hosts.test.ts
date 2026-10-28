@@ -28,6 +28,10 @@ test("each account at its own host — three of them, any of them on localhost; 
   assert.throws(() => updateAccount(verein.id, { host: "nicht gültig!" }), /isn't a host name/);
   // Empty: no address of its own any more.
   assert.equal(updateAccount(verein.id, { host: "" }).host, undefined);
+  // The only one without an address: every address no account claims is its (not the one switched to).
+  await new Promise((r) => setTimeout(r, 1100));
+  assert.equal(accountForHost("127.0.0.1:9333"), verein.id);
+  assert.equal(accountForHost("localhost:9333"), privat.id, "a claimed address stays its account's");
 });
 
 test("runs in memory per account: the same run id in two accounts is two runs; an earlier map's runs are taken over", async () => {

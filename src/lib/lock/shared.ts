@@ -65,7 +65,7 @@ export const ACCOUNT_HEADER = "x-zeff-account";
 /** The host names a request may arrive under ("privat.localhost:9333" → "privat.localhost"), lower case. */
 export const hostnameOf = (host: string | null | undefined): string => String(host ?? "").trim().toLowerCase().replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
 
-let hostsCache: { at: number; hosts: Map<string, string> } | null = null;
+let hostsCache: { at: number; hosts: Map<string, string>; rest: string | null } | null = null;
 /**
  * The account a request's host names: the account whose `host` (data/accounts.json, Settings → Accounts) is that host name
  * — "privat.localhost" for one, "localhost" for another, a third on "business.localhost" — so two (or more) run side by side
@@ -78,11 +78,18 @@ export function accountForHost(host: string | null | undefined): string | null {
   if (!hostsCache || now - hostsCache.at > 1000) {
     const r = readJson<{ installed?: boolean; accounts?: { id?: unknown; host?: unknown }[] }>(path.join(dataDir(), "accounts.json"));
     const hosts = new Map<string, string>();
+    const without: string[] = [];
     if (r?.installed)
-      for (const a of r.accounts ?? []) if (typeof a.id === "string" && typeof a.host === "string" && a.host.trim()) hosts.set(hostnameOf(a.host), a.id);
-    hostsCache = { at: now, hosts };
+      for (const a of r.accounts ?? []) {
+        if (typeof a.id !== "string") continue;
+        if (typeof a.host === "string" && a.host.trim()) hosts.set(hostnameOf(a.host), a.id);
+        else without.push(a.id);
+      }
+    // The one account without an address of its own (the others have theirs): every address no account claims is its —
+    // localhost, 127.0.0.1 — instead of the one switched to, which a switch in another tab would change under you.
+    hostsCache = { at: now, hosts, rest: hosts.size && without.length === 1 ? without[0] : null };
   }
-  return hostsCache.hosts.get(name) ?? null;
+  return hostsCache.hosts.get(name) ?? hostsCache.rest;
 }
 
 /** Read often (every request): a short cache. */
