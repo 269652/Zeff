@@ -20,7 +20,7 @@ const PING_MS = PING_MINUTES * 60000;
 
 /** The time rule every agent reads where it meets a todo (list_todos, ticket_brief) — not only in the server's instructions, which not every client (VS Code Copilot) shows its model. */
 export const CLOCK_RULE =
-  "Working on one of these? Its time MUST be measured — for every agent (Copilot, Claude Code, a Zeff worker): start_todo (or todo_clock_start) BEFORE you begin, todo_clock_ping AT LEAST EVERY 10 MINUTES while you work (silent longer, the clock pauses as of your last ping and that time is lost), todo_clock_stop when you stop or switch, finish_todo when you're through.";
+  "Working on one of these? Its time MUST be measured — for every agent (Copilot, Claude Code, a Zeff worker): start_todo (or todo_clock_start) BEFORE you begin, todo_clock_ping AT LEAST EVERY 10 MINUTES while you work (silent longer, the clock pauses as of your last ping and that time is lost), todo_clock_stop when you stop or switch, finish_todo when you're through. Only measured time is booked: never state minutes or hours yourself.";
 
 type Clock = {
   todoId: number;

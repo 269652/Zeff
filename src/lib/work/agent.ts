@@ -282,6 +282,8 @@ export async function finishAgentWork(v: {
   summary: string;
   entry: string;
   minutes?: number;
+  /** Only the minutes given (an agent's clock): no fallback to the run's time since its start. */
+  measuredOnly?: boolean;
   outcome?: "done" | "partial" | "blocked";
   /** The feature branch the work was committed on (and the repo's folder, when the ticket's repo isn't set up). */
   branch?: string;
@@ -311,7 +313,7 @@ export async function finishAgentWork(v: {
   const sinceStart = run.startedAt ? Date.parse(finishedAt) - Date.parse(run.startedAt) : null;
   // What it reported on the way (todo_time) comes first: the minutes given now are the rest, since its last record.
   const before = unsuggestedTimes([t.id]);
-  let durationMs = minutes > 0 ? Math.round(minutes * 60000) : sinceStart;
+  let durationMs = minutes > 0 ? Math.round(minutes * 60000) : v.measuredOnly ? 0 : sinceStart;
   note(run.id, `[${run.model ?? "Agent"}] finished (${res.outcome}): ${res.entry}`);
   updateRun(run.id, {
     ...(run.provider === "agent" ? { status: "done" as const, finishedAt } : {}),
@@ -322,7 +324,7 @@ export async function finishAgentWork(v: {
     durationMs,
   });
   // The last stretch as a record like the others (with no minutes and no records, the run's own time).
-  const lastMinutes = minutes > 0 ? minutes : !before.length && durationMs ? Math.max(1, Math.round(durationMs / 60000)) : 0;
+  const lastMinutes = minutes > 0 ? minutes : !v.measuredOnly && !before.length && durationMs ? Math.max(1, Math.round(durationMs / 60000)) : 0;
   if (lastMinutes > 0) addTodoTime({ todoId: t.id, minutes: lastMinutes, note: res.entry || t.text, by: run.model ?? v.agent ?? "agent", source: "agent", runId: run.id });
   // The run's time is what was reported in it, when something was.
   const inRun = listTodoTimes([t.id]).filter((r) => r.runId === run.id).reduce((a, r) => a + r.minutes, 0);

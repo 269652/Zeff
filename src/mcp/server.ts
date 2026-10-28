@@ -35,10 +35,12 @@ export const SERVER_INFO = { name: "zeff", version: "0.1.0" };
 
 export const INSTRUCTIONS = `Zeff is a time-tracking (Zeiterfassung) server. Time is booked in hours against job numbers.
 
-Record the time you work — accurately, with ONE simple line. You never book directly: what you report becomes a SUGGESTION (S-<id>), a shadow row in the user's Weekly report that they take over (or skip). Its evidence is attached automatically: the todos you name, your runs on them (their logs, durations, reports) and what the todos came from.
+ONLY MEASURED TIME IS BOOKED. You never state minutes or hours yourself — no estimates, no "planning took 45 minutes", no rounding up, no time from before the clock started. Time exists only where a clock measured it (start_todo / todo_clock_start … todo_clock_stop / finish_todo). Work you did without a clock running has no time — say so in your summary instead of guessing it. The tools take no minutes or hours from you; corrections (todo_time_update, update_time_entry) can only LOWER a time.
+
+Record the time you work — measured, with ONE simple line. You never book directly: what you report becomes a SUGGESTION (S-<id>), a shadow row in the user's Weekly report that they take over (or skip). Its evidence is attached automatically: the todos you name, your runs on them (their logs, durations, reports) and what the todos came from.
 When you finish or pause work on a ticket:
 1. Pick the job with list_jobs (jobs are the booking target; the ticket is just a reference stored on the entry) — or leave it out when the ticket has a job already (Zeff uses it).
-2. Call report_time with hours (decimal, e.g. 1.5 — the time actually spent, honestly; no padding, no rounding to whole hours), a concise one-line description, the ticket key, your name as reportedBy and the todos the work was on (todos: ['T-12']).
+2. Call report_time with a concise one-line description, the ticket key, your name as reportedBy and the todos the work was on (todos: ['T-12']) — the hours are the time MEASURED on those todos by their clocks (you don't give any).
    Work that belongs to a project (see list_projects) can be suggested with project instead of jobNumber — the project's job is used.
 3. Report each piece of work once. Fix your suggestion with update_time_entry / delete_time_entry (S-<id>, while it's still open) — don't re-report.
 
@@ -55,7 +57,7 @@ ALWAYS LOOK FOR A TODO FIRST: before you start ANY piece of work for the user �
 - todo_time WITHOUT minutes after each phase (research, implementation, tests …) records the time so far (a lap) and the clock runs on;
 - todo_needs_input before you ask the user pauses the clock (waiting doesn't count); todo_progress when you go on restarts it;
 - finish_todo stops it and takes the measured time.
-Zeff takes the difference between start and stop as the time record — measured, not guessed: don't estimate minutes while a clock runs. One clock per agent: starting on another todo stops the running one (its time recorded). Only work that no todo stands for is reported with report_time (hours honestly). When the user books, the time of all related todos (same ticket, follow-ups, the todos a session touched) flows into ONE booking suggestion, with each record linked as evidence — so the records are how your time is tracked. Don't report the same stretch twice, and don't also add it up in report_time. A record that came out wrong (too long, too short, twice, on the wrong todo) — correct it with todo_time_update (TT-<id>: minutes or hours, note) or remove it with todo_time_delete, while it isn't booked or suggested yet.
+Zeff takes the difference between start and stop as the time record — measured, never guessed. One clock per agent: starting on another todo stops the running one (its time recorded). Work that no todo stands for: make one first (add_todo), then start_todo on it — so its time is measured too. When the user books, the time of all related todos (same ticket, follow-ups, the todos a session touched) flows into ONE booking suggestion, with each record linked as evidence — so the records are how your time is tracked. Don't report the same stretch twice, and don't also add it up in report_time. A record that came out too long (the clock ran while you weren't working on it), twice or on the wrong todo — lower it with todo_time_update (TT-<id>: minutes or hours, note) or remove it with todo_time_delete, while it isn't booked or suggested yet. Never raise a record.
 
 Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
 1. Call start_todo with the todo and your name as agent IMMEDIATELY — as your very first step, before you read code, research, plan or ask anything. Research and looking around already count as working on it. Zeff then shows the todo as being worked on and you as a worker on its Code tab — and its clock starts (no todo_clock_start needed after it).
@@ -67,9 +69,9 @@ Working on a todo (you're an agent — VS Code Copilot, Claude Code, …):
    Whenever you stop to ask the user something (a question, a decision, a confirmation, a review) — call todo_needs_input with the question FIRST, then ask. The todo then shows ❗ on Zeff's Todos and Code tabs so the user sees you're waiting. Once you have the answer and go on, call todo_progress (that clears the ❗) — finish_todo clears it too.
 3. When you're done — or stop — call finish_todo with: summary (it's shown on the todo as your comment — so ALWAYS a summary of what you did: first ONE sentence saying what is done now, then short bullets: what you changed, how you tested, what's still open and why, where it is — branch and commit), entry (ONE short line for the booking, same rules as report_time descriptions), outcome (done / partial / blocked), branch (the feature branch you committed on — and repo, its folder, if Zeff doesn't know the ticket's repo) and followUps for what's left (replies, comments, ticket changes — with ready drafts).
    With a branch, Zeff creates a todo for the user to TEST AND VERIFY your work by hand first; once they've ticked it off, the delivery follows (push → merge request to main, or merge straight into main — one click each). Don't create test or delivery todos yourself, and say in your summary what the user should test.
-   finish_todo stops the clock and records its measured time since the last lap as one more time record on the todo (the entry line as its note) and suggests the booking itself — all the todo's records not suggested yet add up in it, with the todo and your run as evidence — so give a good one-line entry (minutes only when no clock ran), and do NOT also call report_time for that work (it would be suggested twice).
+   finish_todo stops the clock and records its measured time since the last lap as one more time record on the todo (the entry line as its note) and suggests the booking itself — all the todo's records not suggested yet add up in it, with the todo and your run as evidence — so give a good one-line entry, and do NOT also call report_time for that work (it would be suggested twice). No clock ran: no time is recorded — don't make one up.
 Merge request review comments: mr_comments reads what the reviewers wrote on a merge request (with the note:<id> of each); after you dealt with a thread answer it with mr_reply (once per thread, short: what you changed and where) and, when it's settled, mr_resolve. mr_comment adds a comment outside any thread. They post in GitLab under the user's name — only for comments the todo or the user asks you to answer.
-Use report_time (with todos: ['T-12'] — they're reported done with it) only for work no todo stands for, or that you did without start_todo / a clock / finish_todo (and without todo_time records), and complete_todo to report a todo done that nobody needs to book time for. Reporting a todo done marks it (highlighted in Zeff) — it stays open; the user closes it.`;
+Use report_time (with todos: ['T-12'] — they're reported done with it) to suggest the booking of time measured on todos when you don't finish them with finish_todo, and complete_todo to report a todo done that nobody needs to book time for. Reporting a todo done marks it (highlighted in Zeff) — it stays open; the user closes it.`;
 
 // ---------------------------------------------------------------------------
 // Result helpers (each tool answers through these)
@@ -169,7 +171,8 @@ export function registerZeffTools(server: McpServer): void {
     {
       title: "Report time",
       description:
-        "Suggest a booking of hours (one entry) with ONE concise line of what was done — it becomes a suggestion (S-<id>), " +
+        "Suggest a booking (one entry) of the time MEASURED on the todos you name (their clocks' records not suggested yet — you give no hours), " +
+        "with ONE concise line of what was done — it becomes a suggestion (S-<id>), " +
         "a shadow row the user takes over in Zeff; nothing is booked directly. Name the todos the work was on: their runs, " +
         "logs and sources become its evidence. jobNumber is optional if the ticket has a job (its board's, or the last booked); " +
         "otherwise see list_jobs. #tags in the description become the entry's tags.",
@@ -182,11 +185,6 @@ export function registerZeffTools(server: McpServer): void {
           .string()
           .optional()
           .describe("Project title to book on instead of a job (see list_projects); the project's job is used."),
-        hours: z
-          .number()
-          .positive()
-          .max(24)
-          .describe("Hours spent as a decimal, e.g. 0.25, 0.5, 1.5, 3."),
         description: z
           .string()
           .min(1)
@@ -216,8 +214,8 @@ export function registerZeffTools(server: McpServer): void {
           .describe("Name of the agent or person reporting, e.g. 'Claude Code'. Defaults to 'agent'."),
         todos: z
           .array(z.string())
-          .optional()
-          .describe("Board todos this work was on and finished, e.g. ['T-12'] (see list_todos) — the suggestion's evidence; they're reported done with it (highlighted, the user closes them)."),
+          .min(1)
+          .describe("Board todos this work was on and finished, e.g. ['T-12'] (see list_todos) — their measured time is the suggestion's hours, they its evidence; they're reported done with it (highlighted, the user closes them)."),
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
@@ -244,17 +242,25 @@ export function registerZeffTools(server: McpServer): void {
           if (id === null || !getTodo(id)) unknown.push(ref);
           else known.push(id);
         }
-        // Time already reported on these todos (todo_time): attached as evidence, not added to the hours — the agent is told.
+        // Only measured time: the hours are the records the todos' clocks made (not suggested yet) — the agent gives none.
         const { listTodoTimes } = await import("@/lib/work/todo-time");
         const { formatMinutes } = await import("@/lib/work/shared");
-        const taken = (await import("@/lib/work/suggestions")).suggestedEvidence().timeIds;
+        const { quarterHours, suggestedEvidence } = await import("@/lib/work/suggestions");
+        const taken = suggestedEvidence().timeIds;
         const reported = listTodoTimes(known, { open: true }).filter((r) => !taken.has(r.id));
+        const measured = reported.reduce((a, r) => a + r.minutes, 0);
+        if (!measured) {
+          return fail(
+            `No measured time on ${known.length ? known.map((id) => todoRef(id)).join(", ") : args.todos.join(", ")} — only measured time is booked. ` +
+              "Start a clock before you work (start_todo or todo_clock_start), stop it when you stop (todo_clock_stop / finish_todo); work without a clock has no time.",
+          );
+        }
         // A suggestion, not a booking: the user takes it over in Zeff (with its evidence).
         const { suggestEntry } = await import("@/lib/work/suggestions");
         const s = suggestEntry({
           jobNumber: projectId === undefined ? jobNumber : null,
           projectId: projectId ?? null,
-          hours: args.hours,
+          hours: quarterHours(measured * 60000),
           description: args.description,
           date: args.date ?? todayIso(),
           ticket: args.ticket,
@@ -279,7 +285,7 @@ export function registerZeffTools(server: McpServer): void {
             ` — "${s.description}". Not booked: the user takes it over in Zeff.` +
             (s.todos.length || s.runs.length ? ` Evidence: ${[...s.todos.map((t) => t.ref), ...s.runs.map((r) => r.ref)].join(", ")}.` : "") +
             (closed.length ? ` Reported done (still open for you to close): ${closed.join(", ")}.` : "") +
-            (reported.length ? ` Note: ${formatMinutes(reported.reduce((a, r) => a + r.minutes, 0))} was already reported on ${[...new Set(reported.map((r) => r.todo))].join(", ")} with todo_time (${reported.length} record(s)) — attached as evidence; your ${formatHours(s.hours)}h stand for the booking, so make sure it doesn't count that time twice (update_time_entry ${s.ref}).` : "") +
+            ` Measured: ${formatMinutes(measured)} in ${reported.length} record(s) on ${[...new Set(reported.map((r) => r.todo))].join(", ")} (to the next quarter hour).` +
             (unknown.length ? ` Unknown todos (not linked): ${unknown.join(", ")}.` : ""),
         );
       }),
@@ -733,13 +739,11 @@ export function registerZeffTools(server: McpServer): void {
     {
       title: "Report time spent on a board todo",
       description:
-        "Report the time you spent on a todo (T-<id>) — ONE record for one stretch of work: minutes since your last record, honestly, with a one-line note of what was done. " +
-        "Call it after each phase, before you ask the user something and when you pause or stop; a todo gets many records. When the user books, the time of all related todos " +
+        "Record the time MEASURED on a todo (T-<id>) since its clock started or since your last record — ONE record (a lap; the clock runs on), with a one-line note of what was done. " +
+        "Only with a running clock (start_todo, todo_clock_start): you give no minutes — only measured time counts. Call it after each phase; a todo gets many records. When the user books, the time of all related todos " +
         "(same ticket, follow-ups, the todos a session touched) flows into one booking suggestion with every record linked as evidence. Not a booking by itself.",
       inputSchema: z.object({
         todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
-        minutes: z.number().positive().max(1440).optional().describe("Minutes spent since your last record (1-1440) — only without a clock: with one running (start_todo, todo_clock_start) leave it out, the measured time is recorded."),
-        hours: z.number().positive().max(24).optional().describe("Instead of minutes: hours as a decimal, e.g. 0.75."),
         note: z.string().optional().describe("What was done in that time, ONE short line (<80 chars); no commit logs or file lists."),
         agent: z.string().optional().describe("Who you are — e.g. 'Claude Code', 'VS Code Copilot'; a Zeff worker: its run, 'W-45'."),
       }),
@@ -752,14 +756,13 @@ export function registerZeffTools(server: McpServer): void {
         const id = parseTodoRef(args.todo);
         const todo = id === null ? undefined : getTodo(id);
         if (!todo) return fail(`"${args.todo}" isn't a todo — list_todos shows them (T-12).`);
-        const { addTodoTime, listTodoTimes } = await import("@/lib/work/todo-time");
+        const { listTodoTimes } = await import("@/lib/work/todo-time");
         const { formatMinutes } = await import("@/lib/work/shared");
-        // A clock runs on it: the measured time since its start (or the last lap) is recorded — not a guess; it runs on.
+        // Only measured time: the clock's since its start (or the last lap) is recorded — it runs on. No clock, no time.
         const { clockLap } = await import("@/lib/work/todo-clock");
         const lap = clockLap(todo.id, args.agent, args.note);
-        const minutes = args.minutes ?? (args.hours !== undefined ? Math.round(args.hours * 60) : undefined);
-        if (!lap && minutes === undefined) return fail("No clock runs on it (todo_clock_start) — pass minutes (or hours): the time you spent since your last record.");
-        const r = lap ? lap.record : addTodoTime({ todoId: todo.id, minutes: minutes!, note: args.note, by: args.agent, source: "agent" });
+        if (!lap) return fail(`No clock runs on ${todo.ref} — only measured time is recorded. Start it (todo_clock_start, or start_todo) when you begin working; the time before has no record.`);
+        const r = lap.record;
         const open = listTodoTimes([todo.id], { open: true });
         return ok(
           `Recorded ${r.ref}: ${formatMinutes(r.minutes)} on ${todo.ref} (${r.by})${lap ? " — measured by its clock, which runs on" : ""}${r.note ? ` — "${r.note}"` : ""}. ` +
@@ -773,7 +776,7 @@ export function registerZeffTools(server: McpServer): void {
     {
       title: "Correct a time record on a todo",
       description:
-        "Correct a time record (TT-<id>, as the answers of todo_time and todo_clock_stop and todo_context's 'Erfasste Zeit' name it) that is wrong — too long, too short, a wrong note: its minutes (or hours) and/or its note. Only while it isn't booked or in a booking suggestion yet (then the suggestion is corrected: update_time_entry S-<id>). The time a clock measured is changed the same way.",
+        "Correct a time record (TT-<id>, as the answers of todo_time and todo_clock_stop and todo_context's 'Erfasste Zeit' name it) that is wrong — too long (the clock ran while nobody worked on it), a wrong note: LOWER its minutes (or hours) and/or change its note. A record is never raised — only measured time counts. Only while it isn't booked or in a booking suggestion yet (then the suggestion is corrected: update_time_entry S-<id>). The time a clock measured is changed the same way.",
       inputSchema: z.object({
         record: z.string().min(1).describe("The time record, e.g. 'TT-40' (or just 40)."),
         minutes: z.number().positive().max(1440).optional().describe("The right minutes (1-1440)."),
@@ -790,8 +793,10 @@ export function registerZeffTools(server: McpServer): void {
         if (!id) return fail(`"${args.record}" isn't a time record — they're named TT-<id> (todo_time's answer, todo_context's 'Erfasste Zeit').`);
         const minutes = args.minutes ?? (args.hours !== undefined ? Math.round(args.hours * 60) : undefined);
         if (minutes === undefined && args.note === undefined) return fail("Pass the right minutes (or hours) and/or note.");
-        const { updateTodoTime } = await import("@/lib/work/todo-time");
+        const { timesByIds, updateTodoTime } = await import("@/lib/work/todo-time");
         const { formatMinutes } = await import("@/lib/work/shared");
+        const was = timesByIds([id])[0];
+        if (was && minutes !== undefined && minutes > was.minutes) return fail(`TT-${id} has ${formatMinutes(was.minutes)} measured — a record can only be lowered, never raised (only measured time counts).`);
         const r = updateTodoTime(id, { minutes, note: args.note });
         return ok(`${r.ref} on ${todoRef(r.todoId)} is now ${formatMinutes(r.minutes)}${r.note ? ` — "${r.note}"` : ""}.`);
       }),
@@ -934,7 +939,7 @@ export function registerZeffTools(server: McpServer): void {
       title: "Finish working on a board todo",
       description:
         "Report on a todo you worked on (after start_todo): what you did, the line to book, how long it took. Zeff ends your run with it, ticks the todo off when it's done " +
-        "(and the comments it came from), keeps your follow-ups as new todos, and records your minutes as one more time record on the todo and suggests the booking (S-<id>: all the todo's unsuggested time records, your entry line, the todo and your run as evidence) — the user takes it over. Don't also call report_time for this work.",
+        "(and the comments it came from), keeps your follow-ups as new todos, and records the time its clock MEASURED as one more time record on the todo (no clock: no time — you give none) and suggests the booking (S-<id>: all the todo's unsuggested time records, your entry line, the todo and your run as evidence) — the user takes it over. Don't also call report_time for this work.",
       inputSchema: z.object({
         todo: z.string().min(1).describe("The todo, e.g. 'T-12'."),
         summary: z
@@ -944,7 +949,6 @@ export function registerZeffTools(server: McpServer): void {
         changes: z.array(z.string()).optional().describe("Every changed file or place, one line each (path: what), and the commits (hash: title)."),
         checks: z.array(z.string()).optional().describe("Every check, one line each: 'command/kind: result' — or 'not run: reason'."),
         entry: z.string().min(1).describe("ONE short line for the time booking: what was done, not how (no commit/MR numbers, no file lists)."),
-        minutes: z.number().positive().optional().describe("Only without a clock: the time since your last todo_time record, in minutes. With the clock running (start_todo, todo_clock_start) leave it out — the measured time is taken."),
         outcome: z.enum(["done", "partial", "blocked"]).optional().describe("done (default): the todo is finished; partial: some of it; blocked: you couldn't go on."),
         agent: z.string().optional().describe("Who you are (when you didn't call start_todo)."),
         branch: z.string().optional().describe("The feature branch you committed the work on — Zeff then creates the delivery todo (push → merge request, or merge into main)."),
@@ -972,12 +976,12 @@ export function registerZeffTools(server: McpServer): void {
         // The clock stops: its measured time is the rest of the work's time (finish records it itself, so not twice).
         const id = parseTodoRef(args.todo);
         const measured = id === null ? null : (await import("@/lib/work/todo-clock")).clockOut(id, args.agent, { record: false });
-        const minutes = measured?.minutes ?? args.minutes;
-        if (minutes === undefined) return fail("No clock ran on it — pass minutes: the time since your last todo_time record.");
-        const r = await finishAgentWork({ ...args, minutes });
+        // Only measured time: no clock ran — no time from this stretch (the records made on the way stay).
+        const minutes = measured?.minutes ?? 0;
+        const r = await finishAgentWork({ ...args, minutes, measuredOnly: true });
         const mins = r.durationMs ? Math.round(r.durationMs / 60000) : minutes;
         return ok(
-          `W-${r.run.id} finished (${r.run.outcome}) — ${mins} min recorded on the todo${r.suggestion ? ` as booking suggestion ${r.suggestion}` : ""} ("${r.run.entryLine ?? ""}"); the user takes it over in Zeff.` +
+          `W-${r.run.id} finished (${r.run.outcome}) — ${mins ? `${mins} min measured` : "no measured time (no clock ran)"} on the todo${r.suggestion ? ` as booking suggestion ${r.suggestion}` : ""} ("${r.run.entryLine ?? ""}"); the user takes it over in Zeff.` +
             (r.closed.length || r.marked.length ? ` Reported done: ${[...r.closed, ...r.marked].map((id) => todoRef(id)).join(", ")} (they stay open and are highlighted — the user closes them).` : "") +
             (r.added.length ? ` Follow-ups: ${r.added.map((id) => todoRef(id)).join(", ")}.` : "") +
             (r.delivery ? ` Delivery: ${r.delivery}.` : args.branch ? "" : " No branch given — if you changed code, tell the user which branch it's on."),
@@ -1209,7 +1213,7 @@ export function registerZeffTools(server: McpServer): void {
     "update_time_entry",
     {
       title: "Update time suggestion",
-      description: "Correct a booking you suggested (S-<id>, from report_time or finish_todo) while it's still open — booked entries are the user's. Only the given fields are changed.",
+      description: "Correct a booking you suggested (S-<id>, from report_time or finish_todo) while it's still open — booked entries are the user's. Only the given fields are changed; hours only lower (they're measured time).",
       inputSchema: z.object({
         id: z.union([z.number().int().positive(), z.string()]).describe("The suggestion: 'S-12' or 12."),
         jobNumber: z.string().optional().describe("Book on this job directly (takes the entry out of its project)."),
@@ -1229,6 +1233,9 @@ export function registerZeffTools(server: McpServer): void {
         const n = parseSuggestionRef(id);
         if (n === null) return fail(`"${id}" isn't a suggestion (S-<id>).`);
         const projectId = project === undefined ? undefined : project === null ? null : requireProjectByTitle(project).id;
+        // Its hours are measured time: lowered, never raised.
+        const was = (await import("@/lib/work/suggestions")).getSuggestion(n);
+        if (was && patch.hours !== undefined && patch.hours > was.hours) return fail(`${was.ref} has ${formatHours(was.hours)}h of measured time — its hours can only be lowered, never raised.`);
         const s = updateSuggestion(n, { ...patch, ...(projectId !== undefined && { projectId }) });
         return ok(`Updated ${s.ref}: ${formatHours(s.hours)}h for ${s.date}${s.ticket ? `, ${s.ticket}` : ""} — "${s.description}".`);
       }),

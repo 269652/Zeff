@@ -56,33 +56,40 @@ test("a todo has many time records that add up; unbooked ones can be changed and
   assert.equal(listTodoTimes([t.id]).length, 2);
 });
 
-test("the MCP tool todo_time validates and records; the instructions and the worker rules mention it", async () => {
+test("the MCP tool todo_time records only measured time — minutes given are no time; the instructions and the worker rules say so", async () => {
   const mcp = await tools();
   const { INSTRUCTIONS } = await import("@/mcp/server");
   const { workerRules } = await import("@/lib/work/brief");
-  const { listTodoTimes } = await import("@/lib/work/todo-time");
+  const { addTodoTime, listTodoTimes } = await import("@/lib/work/todo-time");
   const t = await todo("TT-2", "Reported by an agent");
-  assert.match(text(await mcp.todo_time({ todo: "T-999999", minutes: 5 })), /isn't a todo/);
-  assert.match(text(await mcp.todo_time({ todo: `T-${t.id}` })), /minutes/i);
-  const bad = await mcp.todo_time({ todo: `T-${t.id}`, minutes: 2000 });
-  assert.equal(bad.isError, true);
-  const ok = await mcp.todo_time({ todo: `T-${t.id}`, minutes: 30, note: "first phase\nmore", agent: "Claude Code" });
-  assert.match(text(ok), /Recorded TT-\d+: 30 min on T-\d+/);
-  await mcp.todo_time({ todo: `T-${t.id}`, hours: 0.5, note: "second phase", agent: "Claude Code" });
-  const rec = listTodoTimes([t.id]);
-  assert.deepEqual(rec.map((r) => r.minutes), [30, 30]);
-  assert.equal(rec[0].note, "first phase");
+  assert.match(text(await mcp.todo_time({ todo: "T-999999" })), /isn't a todo/);
+  // "45 minutes of planning", no clock running: refused — nothing recorded.
+  const guessed = await mcp.todo_time({ todo: `T-${t.id}`, minutes: 45, note: "Planung", agent: "Claude Code" });
+  assert.equal(guessed.isError, true);
+  assert.match(text(guessed), /only measured time/);
+  assert.equal(listTodoTimes([t.id]).length, 0);
+  // With a clock: a lap, measured (the minutes given count for nothing).
+  await mcp.todo_clock_start({ todo: `T-${t.id}`, agent: "Claude Code" });
+  const lap = await mcp.todo_time({ todo: `T-${t.id}`, minutes: 45, note: "first phase\nmore", agent: "Claude Code" });
+  assert.match(text(lap), /Recorded TT-\d+: 1 min on T-\d+ .*measured by its clock/);
+  await mcp.todo_clock_stop({ todo: `T-${t.id}`, agent: "Claude Code" });
+  assert.equal(listTodoTimes([t.id])[0].note, "first phase");
+  for (const r of listTodoTimes([t.id])) (await import("@/lib/work/todo-time")).deleteTodoTime(r.id);
+  addTodoTime({ todoId: t.id, minutes: 30, note: "a", by: "Claude Code" });
+  addTodoTime({ todoId: t.id, minutes: 30, note: "b", by: "Claude Code" });
   // list_todos shows the tracked time; todo_context the records.
   assert.match(text(await mcp.list_todos({})), new RegExp(`T-${t.id}[^\\n]*\\[tracked: 1 h\\]`));
   assert.match(text(await mcp.todo_context({ todo: `T-${t.id}` })), /## Erfasste Zeit \(1 h\)/);
 
   assert.match(INSTRUCTIONS, /todo_time/);
   assert.match(INSTRUCTIONS, /after each phase/);
+  assert.match(INSTRUCTIONS, /ONLY MEASURED TIME IS BOOKED/);
   for (const opts of [{}, { conversation: true }, { conversation: true, live: true }]) {
     const rules = workerRules("", opts);
     assert.match(rules, /todo_time/, JSON.stringify(opts));
     assert.match(rules, /mcp__zeff__todo_time/);
     assert.match(rules, /report_time/); // still not allowed for booking
+    assert.match(rules, /NUR gemessene Zeit/);
   }
   // The booking tools stay off for workers; todo_time isn't among them.
   const runner = (await import("node:fs")).readFileSync("src/lib/work/runner.ts", "utf8");
@@ -185,32 +192,38 @@ test("a suggestion covers its records: not offered again; accepting books them; 
   const { acceptSuggestion, openSuggestions, getSuggestion } = await import("@/lib/work/suggestions");
   const { getTodo } = await import("@/lib/boards/store");
 
-  // Without a clock (an agent that didn't start one): a record on the way, finish_todo with the rest — ONE suggestion with both as evidence.
+  // A record its clock measured on the way; finish_todo without a clock: the minutes it names are no time — ONE suggestion of the measured.
   const t = await todo("TT-6", "Agent work");
-  const rec = await mcp.todo_time({ todo: `T-${t.id}`, minutes: 40, note: "phase one", agent: "Claude Code" });
-  assert.match(text(rec), /Recorded/);
+  addTodoTime({ todoId: t.id, minutes: 40, note: "phase one", by: "Claude Code" });
   const fin = text(await mcp.finish_todo({ todo: `T-${t.id}`, summary: "Done.", entry: "Feature built", minutes: 20, agent: "Claude Code", outcome: "done" }));
   assert.match(fin, /booking suggestion S-\d+/);
+  assert.match(fin, /no measured time \(no clock ran\)/);
   const records = listTodoTimes([t.id]);
-  assert.deepEqual(records.map((r) => r.minutes), [40, 20]);
-  assert.equal(records[1].note, "Feature built");
+  assert.deepEqual(records.map((r) => r.minutes), [40], "the 20 minutes it named aren't recorded");
   assert.ok(records.every((r) => r.suggestionId != null));
   const mine = openSuggestions().filter((s) => s.todos.some((x) => x.id === t.id));
   assert.equal(mine.length, 1);
-  assert.equal(mine[0].hours, 1); // 60 min
-  assert.equal(mine[0].times.length, 2);
+  assert.equal(mine[0].hours, 0.75); // 40 min, to the next quarter hour
+  assert.equal(mine[0].times.length, 1);
 
   // The todo is done, but the suggestion covers it: not offered by doneToday.
   const { setTodoStatus } = await import("@/lib/boards/store");
   setTodoStatus(t.id, "done");
   assert.equal(doneToday().find((g) => g.todoIds.includes(t.id)), undefined);
 
-  // A report_time for a todo with records tells the agent.
+  // report_time: the hours are the todos' measured records — the hours it names count for nothing; none measured, refused.
   const u = await todo("TT-6", "Reported twice?");
   addTodoTime({ todoId: u.id, minutes: 10, note: "x", by: "Copilot" });
-  const rt = text(await mcp.report_time({ jobNumber: number, hours: 0.25, description: "Quick fix", ticket: "TT-6", todos: [`T-${u.id}`], reportedBy: "Copilot" }));
-  assert.match(rt, /already reported on T-\d+ with todo_time/);
+  const rt = text(await mcp.report_time({ jobNumber: number, hours: 3, description: "Quick fix", ticket: "TT-6", todos: [`T-${u.id}`], reportedBy: "Copilot" }));
+  assert.match(rt, /Suggested S-\d+: 0\.25h/);
+  assert.match(rt, /Measured: 10 min in 1 record/);
   assert.ok(listTodoTimes([u.id]).every((r) => r.suggestionId != null));
+  const none = await todo("TT-6", "Never clocked");
+  const refused = await mcp.report_time({ jobNumber: number, hours: 0.75, description: "Planung", ticket: "TT-6", todos: [`T-${none.id}`], reportedBy: "Copilot" });
+  assert.equal(refused.isError, true);
+  assert.match(text(refused), /No measured time on T-\d+ — only measured time is booked/);
+  const s0 = openSuggestions().find((x) => x.todos.some((y) => y.id === u.id))!;
+  assert.match(text(await mcp.update_time_entry({ id: s0.ref, hours: 2 })), /can only be lowered/);
 
   // Accepting books the records with the entry.
   const e = acceptSuggestion(mine[0].id);
@@ -235,7 +248,7 @@ test("measured: start_todo starts the todo's clock; todo_time without minutes re
   assert.deepEqual(listTodoTimes([t.id]).map((r) => r.note), ["Recherche", "Feature built"]);
   // Without a clock and without minutes: told to start one.
   const u = await todo("TT-7", "No clock");
-  assert.match(text(await mcp.todo_time({ todo: `T-${u.id}`, agent: "Claude Code" })), /No clock runs on it/);
+  assert.match(text(await mcp.todo_time({ todo: `T-${u.id}`, agent: "Claude Code" })), /No clock runs on T-\d+ — only measured time/);
   assert.match(text(await mcp.todo_clock_start({ todo: `T-${u.id}`, agent: "Claude Code" })), /Clock started/);
   assert.match(text(await mcp.todo_clock_stop({ todo: `T-${u.id}`, note: "kurz", agent: "Claude Code" })), /Clock stopped on T-\d+: 1 min recorded/);
 });
@@ -257,9 +270,10 @@ test("an agent corrects a wrong time record (TT-<id>) or deletes it — not once
   const mcp = await tools();
   const { listTodoTimes, markTimeSuggested } = await import("@/lib/work/todo-time");
   const t = await todo("TT-9", "Too much booked");
-  const rec = text(await mcp.todo_time({ todo: `T-${t.id}`, minutes: 60, note: "Teaser columns", agent: "Claude Code" }));
-  const ref = /Recorded (TT-\d+)/.exec(rec)![1];
+  const { addTodoTime } = await import("@/lib/work/todo-time");
+  const ref = addTodoTime({ todoId: t.id, minutes: 60, note: "Teaser columns", by: "Claude Code" }).ref;
   assert.match(text(await mcp.todo_time_update({ record: ref, hours: 0.5 })), /is now 30 ?min/);
+  assert.match(text(await mcp.todo_time_update({ record: ref, minutes: 45 })), /only be lowered, never raised/);
   assert.equal(listTodoTimes([t.id])[0].minutes, 30);
   assert.match(text(await mcp.todo_time_update({ record: ref.slice(3), note: "Teaser columns 11:36–12:02" })), /Teaser columns 11:36–12:02/);
   assert.match(text(await mcp.todo_time_update({ record: "T-12" })), /isn't a time record/);
