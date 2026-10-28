@@ -246,6 +246,15 @@ test("measured: start_todo starts the todo's clock; todo_time without minutes re
   assert.match(text(await mcp.finish_todo({ todo: `T-${t.id}`, summary: "Done.", entry: "Feature built", agent: "Claude Code", outcome: "done" })), /booking suggestion S-\d+/);
   assert.equal(openClock(t.id, "Claude Code"), null, "finish stopped it");
   assert.deepEqual(listTodoTimes([t.id]).map((r) => r.note), ["Recherche", "Feature built"]);
+  // A clock that went quiet: finish_todo with the agent's own log (read times) — Zeff computes from it.
+  const q = await todo("TT-7", "Forgot to ping");
+  await mcp.start_todo({ todo: `T-${q.id}`, agent: "VS Code Copilot" });
+  const began = new Date(Date.now() - 50 * 60000).toISOString();
+  const fq = text(await mcp.finish_todo({ todo: `T-${q.id}`, summary: "Done.", entry: "Built it", agent: "VS Code Copilot", outcome: "done", log: { from: began, to: new Date().toISOString() } }));
+  assert.match(fq, /\d+ min measured/);
+  assert.ok(listTodoTimes([q.id]).reduce((a, r) => a + r.minutes, 0) <= 2, "never before the clock started (just now): not 50 minutes");
+  const bad = await mcp.todo_clock_stop({ todo: `T-${t.id}`, agent: "Claude Code", log: { from: "vorhin", to: "jetzt" } });
+  assert.match(text(bad), /isn't a todo|No clock|isn't a time/);
   // Without a clock and without minutes: told to start one.
   const u = await todo("TT-7", "No clock");
   assert.match(text(await mcp.todo_time({ todo: `T-${u.id}`, agent: "Claude Code" })), /No clock runs on T-\d+ — only measured time/);

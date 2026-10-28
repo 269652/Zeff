@@ -121,6 +121,29 @@ test("VS Code Copilot and the Copilot CLI too: the requests that ran (VS Code) a
   assert.equal(clockOut(cli.id, "Copilot CLI", { now: min(40), record: false })!.minutes, 24, "0→24 by its events, silent after");
 });
 
+test("the agent's own log when it didn't ping: Zeff computes the time from the times it read (to − from; steps with gaps over 10 minutes left out) — never before the clock, never in the future", async () => {
+  const { addManualTodo } = await import("@/lib/boards/store");
+  const { clockIn, clockOut, loggedMs } = await import("@/lib/work/todo-clock");
+  const at = (m: number) => new Date(min(m)).toISOString();
+  const t = addManualTodo({ ticket: "PROJ-377", text: "Forgot to ping" });
+  clockIn(t.id, "Copilot", min(0));
+  // Never pinged: the clock alone has nothing (paused as of its start) — the log from 0 to 95 gives 95.
+  const r = clockOut(t.id, "Copilot", { now: min(100), log: { from: at(0), to: at(95) } })!;
+  assert.equal(r.measured, 0);
+  assert.equal(r.logged, 95);
+  assert.equal(r.minutes, 95);
+  // Steps: 0→40 every 5, then 70→80 — the 30 silent minutes left out.
+  const steps = [5, 10, 15, 20, 25, 30, 35, 40, 70, 75, 80].map(at);
+  assert.equal(loggedMs({ steps }, min(0), min(90)) / 60000, 40 + 10);
+  // Before the clock started or after now: not counted; unreadable or in the future: refused; a night isn't work.
+  assert.equal(loggedMs({ from: at(-60), to: at(30) }, min(0), min(30)) / 60000, 30, "from the clock's start");
+  assert.throws(() => loggedMs({ from: "heute früh", to: at(10) }, min(0), min(30)), /isn't a time/);
+  assert.throws(() => loggedMs({ from: at(0), to: at(300) }, min(0), min(30)), /in the future/);
+  assert.throws(() => loggedMs({ from: at(0), to: at(13 * 60) }, min(0), min(14 * 60)), /more than 12 hours/);
+  assert.throws(() => loggedMs({ from: at(0) }, min(0), min(30)), /both from and to/);
+  assert.equal(loggedMs(undefined, min(0), min(30)), 0);
+});
+
 test("starting on another todo stops the running one (its time recorded); stop without a name finds the todo's only clock; record:false only measures", async () => {
   const { addManualTodo } = await import("@/lib/boards/store");
   const { clockIn, clockPing, clockOut } = await import("@/lib/work/todo-clock");

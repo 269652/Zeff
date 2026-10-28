@@ -15,6 +15,7 @@ import { getPref, setPref } from "@/lib/prefs";
 import { addTodoTime } from "./todo-time";
 import { sessionActivity } from "./clock-activity";
 import type { TimeRecord } from "./shared";
+import { ValidationError } from "@/lib/errors";
 
 /** Minutes a running clock goes without a sign of life before it is paused (as of the last one). */
 export const PING_MINUTES = 10;
@@ -22,7 +23,7 @@ const PING_MS = PING_MINUTES * 60000;
 
 /** The time rule every agent reads where it meets a todo (list_todos, ticket_brief) — not only in the server's instructions, which not every client (VS Code Copilot) shows its model. */
 export const CLOCK_RULE =
-  "Working on one of these? Its time MUST be measured — for every agent (Copilot, Claude Code, a Zeff worker): start_todo (or todo_clock_start) BEFORE you begin, todo_clock_ping AT LEAST EVERY 10 MINUTES while you work (silent longer, the clock pauses as of your last ping and that time is lost), todo_clock_stop when you stop or switch, finish_todo when you're through. Only measured time is booked: never state minutes or hours yourself.";
+  "Working on one of these? Its time MUST be measured — for every agent (Copilot, Claude Code, a Zeff worker): start_todo (or todo_clock_start) BEFORE you begin, todo_clock_ping AT LEAST EVERY 10 MINUTES while you work (silent longer, the clock pauses as of your last ping and that time is lost), todo_clock_stop when you stop or switch, finish_todo when you're through. Only measured time is booked: never state minutes or hours yourself — can't ping reliably? Read the time (date -u +%FT%TZ) when you begin and when you stop, and give both as log: { from, to } to todo_clock_stop / finish_todo.";
 
 type Clock = {
   todoId: number;
@@ -110,6 +111,48 @@ export function openClock(todoId: number, agent?: string | null, now = Date.now(
 /** All open clocks (the Code tab, the brief). */
 export const openClocks = (): Clock[] => Object.values(read());
 
+/**
+ * The agent's own record of a stretch — for when its clock went quiet (it didn't ping): times it READ, not guessed — from its
+ * session (its steps' times), or taken with `date -u +%FT%TZ` / new Date().toISOString() when it began and when it ended.
+ * steps: the times of its steps (a silence of more than PING_MINUTES between them left out, as between pings);
+ * from/to: began and ended — the whole span counts.
+ */
+export type SessionLog = { steps?: string[]; from?: string; to?: string };
+
+/** Longest stretch a log may give (a forgotten clock across the night isn't work). */
+const MAX_LOG_MS = 12 * 3600000;
+
+/**
+ * The milliseconds an agent's log gives for the stretch since `since` (the clock's start, or the last record) up to `now` —
+ * worked out here from the times it read, not taken from it. A time that can't be (unreadable, in the future) is refused.
+ */
+export function loggedMs(log: SessionLog | undefined, since: number, now: number): number {
+  if (!log || (!log.steps?.length && !log.from && !log.to)) return 0;
+  const when = (v: string, what: string) => {
+    const ms = Date.parse(v);
+    if (!Number.isFinite(ms)) throw new ValidationError(`${what} "${v}" isn't a time — ISO 8601, e.g. 2026-10-28T10:30:00Z (read it, e.g. date -u +%FT%TZ).`);
+    if (ms > now + 60000) throw new ValidationError(`${what} ${v} is in the future.`);
+    return ms;
+  };
+  if (log.steps?.length) {
+    // From the clock's start: each step within PING_MINUTES of the one before counts the time between them.
+    const steps = log.steps.map((v) => when(v, "A step's time")).filter((t) => t > since).sort((a, b) => a - b);
+    let ms = 0;
+    let last = since;
+    for (const t of steps) {
+      if (t - last <= PING_MS) ms += t - last;
+      last = t;
+    }
+    return Math.min(ms, MAX_LOG_MS);
+  }
+  if (!log.from || !log.to) throw new ValidationError("A log needs both from and to (or steps).");
+  const from = Math.max(when(log.from, "from"), since);
+  const to = Math.min(when(log.to, "to"), now);
+  if (to <= from) return 0;
+  if (to - from > MAX_LOG_MS) throw new ValidationError(`From ${log.from} to ${log.to} is more than 12 hours — send the steps' times instead.`);
+  return to - from;
+}
+
 /** The minutes of a stretch as a record takes them: at least one, whole minutes. */
 const asMinutes = (ms: number) => Math.max(1, Math.round(ms / 60000));
 
@@ -160,31 +203,34 @@ export function clockPing(todoId: number, agent?: string | null, now = Date.now(
  * time record with `note` — unless `record` is false (finish_todo records it itself). The minutes, and the record; null when
  * no clock ran.
  */
-export function clockOut(todoId: number, agent?: string | null, opts: { note?: string; record?: boolean; now?: number } = {}): { minutes: number; record: TimeRecord | null } | null {
+export function clockOut(todoId: number, agent?: string | null, opts: { note?: string; record?: boolean; now?: number; log?: SessionLog } = {}): { minutes: number; record: TimeRecord | null; measured: number; logged: number } | null {
   const all = read();
   const k = find(all, todoId, agent);
   const c = k ? all[k] : undefined;
   if (!k || !c) return null;
   const now = opts.now ?? Date.now();
   settle(c, now);
-  const minutes = asMinutes(ranMs(c, now));
+  // What the clock heard — or, when it went quiet, what the agent's own log of the stretch gives (the more of the two).
+  const measured = ranMs(c, now);
+  const logged = loggedMs(opts.log, Date.parse(c.startedAt), now);
+  const minutes = asMinutes(Math.max(measured, logged));
   delete all[k];
   write(all);
   const record = opts.record === false ? null : addTodoTime({ todoId, minutes, note: opts.note, by: c.agent, source: "agent", at: iso(now) });
-  return { minutes, record };
+  return { minutes, record, measured: Math.round(measured / 60000), logged: Math.round(logged / 60000) };
 }
 
 /**
  * A lap: the time since the clock started (or the last lap) recorded — silent too long: up to its last sign of life — and the
  * clock running on from now (a sign of life; waiting for the user, it stays paused). Null: no clock ran.
  */
-export function clockLap(todoId: number, agent?: string | null, note?: string, now = Date.now()): { minutes: number; record: TimeRecord } | null {
+export function clockLap(todoId: number, agent?: string | null, note?: string, now = Date.now(), log?: SessionLog): { minutes: number; record: TimeRecord } | null {
   const all = read();
   const k = find(all, todoId, agent);
   const c = k ? all[k] : undefined;
   if (!k || !c) return null;
   settle(c, now);
-  const minutes = asMinutes(ranMs(c, now));
+  const minutes = asMinutes(Math.max(ranMs(c, now), loggedMs(log, Date.parse(c.startedAt), now)));
   const record = addTodoTime({ todoId, minutes, note, by: c.agent, source: "agent", at: iso(now) });
   const waiting = !!c.pausedAt && !c.silent;
   all[k] = { ...c, startedAt: iso(now), pausedAt: waiting ? iso(now) : null, pausedMs: 0, lastPing: iso(now), silent: false };
