@@ -302,111 +302,114 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
           />
         </Modal>
       )}
-      <div className="flex items-center gap-1">
-        <Link href="/workspace" className="flex-1 text-lg font-semibold hover:underline">
-          {t("Workspace")}
-        </Link>
-        <button
-          type="button"
-          className="btn btn-sm"
-          title={t("Today's page — made at the first use, with your todos that are due")}
-          onClick={async () => {
-            const r = await todayPageAction();
-            if (!r.ok) return toast(r.error, { tone: "error" });
-            router.push(`/workspace/${r.id}`);
-            router.refresh();
-          }}
-        >
-          📅 {t("Today")}
-        </button>
-        <Dropdown
-          label="+"
-          title={t("New")}
-          align="right"
-          className="btn btn-primary btn-sm"
-        >
-          {(close) => (
-            <>
-              <MenuItem onClick={() => (close(), void create({}))}>📄 {t("Page")}</MenuItem>
-              <MenuItem onClick={() => (close(), void create({ kind: "database", title: t("Database") }))}>🗂️ {t("Database")}</MenuItem>
-              {((channels && (channels.mail || channels.messages)) || extSources.length > 0) && (
-                <>
-                  <div className="px-2 pt-1 text-xs font-semibold text-zinc-500 uppercase">{t("From channels")}</div>
-                  {(
-                    [
-                      ...extSources.map((x) => ({ k: `ext:${x.id}`, icon: x.icon, label: t(x.label) })),
-                      ...(channels?.mail && channels.messages ? [{ k: "inbox", icon: "📬", label: t("Inbox") }] : []),
-                      ...(channels?.mail ? [{ k: "mail", icon: "✉", label: t("Mail") }] : []),
-                      ...(channels?.messages ? [{ k: "messages", icon: "💬", label: t("Chat") }] : []),
-                    ]
-                  ).map((c) => (
-                    <MenuItem
-                      key={c.k}
-                      onClick={() =>
-                        void (async () => {
-                          close();
-                          const r = await createSourceDatabaseAction(c.k);
-                          if (!r.ok) return toast(r.error, { tone: "error" });
-                          router.push(`/workspace/${r.id}`);
-                          router.refresh();
-                        })()
-                      }
-                    >
-                      {c.icon} {c.label}
-                    </MenuItem>
-                  ))}
-                </>
-              )}
-              <MenuItem
-                onClick={() => {
-                  close();
-                  const input = document.createElement("input");
-                  input.type = "file";
-                  input.accept = ".json,application/json";
-                  input.onchange = async () => {
-                    const file = input.files?.[0];
-                    if (!file) return;
-                    const r = await installPackageAction(await file.text(), null);
-                    if (!r.ok) return toast(r.error, { tone: "error" });
-                    router.push(`/workspace/${r.id}`);
-                    router.refresh();
-                  };
-                  input.click();
-                }}
-              >
-                📦 {t("Import a package …")}
-              </MenuItem>
-              <MenuItem
-                onClick={() => {
-                  close();
-                  void templatesAction().then((r) => setTemplates(r.ok ? r.templates : []));
-                }}
-              >
-                🧩 {t("From a template …")}
-              </MenuItem>
-            </>
-          )}
-        </Dropdown>
-      </div>
+      {/* The header and the search stay on top while the tree scrolls under them. */}
+      <div className="ws-side-head space-y-3">
+        <div className="flex items-center gap-1">
+          <Link href="/workspace" className="flex-1 text-lg font-semibold hover:underline">
+            {t("Workspace")}
+          </Link>
+          <button
+            type="button"
+            className="btn btn-sm"
+            title={t("Today's page — made at the first use, with your todos that are due")}
+            onClick={async () => {
+              const r = await todayPageAction();
+              if (!r.ok) return toast(r.error, { tone: "error" });
+              router.push(`/workspace/${r.id}`);
+              router.refresh();
+            }}
+          >
+            📅 {t("Today")}
+          </button>
+          <Dropdown
+            label="+"
+            title={t("New")}
+            align="right"
+            className="btn btn-primary btn-sm"
+          >
+            {(close) => (
+              <>
+                <MenuItem onClick={() => (close(), void create({}))}>📄 {t("Page")}</MenuItem>
+                <MenuItem onClick={() => (close(), void create({ kind: "database", title: t("Database") }))}>🗂️ {t("Database")}</MenuItem>
+                {((channels && (channels.mail || channels.messages)) || extSources.length > 0) && (
+                  <>
+                    <div className="px-2 pt-1 text-xs font-semibold text-zinc-500 uppercase">{t("From channels")}</div>
+                    {(
+                      [
+                        ...extSources.map((x) => ({ k: `ext:${x.id}`, icon: x.icon, label: t(x.label) })),
+                        ...(channels?.mail && channels.messages ? [{ k: "inbox", icon: "📬", label: t("Inbox") }] : []),
+                        ...(channels?.mail ? [{ k: "mail", icon: "✉", label: t("Mail") }] : []),
+                        ...(channels?.messages ? [{ k: "messages", icon: "💬", label: t("Chat") }] : []),
+                      ]
+                    ).map((c) => (
+                      <MenuItem
+                        key={c.k}
+                        onClick={() =>
+                          void (async () => {
+                            close();
+                            const r = await createSourceDatabaseAction(c.k);
+                            if (!r.ok) return toast(r.error, { tone: "error" });
+                            router.push(`/workspace/${r.id}`);
+                            router.refresh();
+                          })()
+                        }
+                      >
+                        {c.icon} {c.label}
+                      </MenuItem>
+                    ))}
+                  </>
+                )}
+                <MenuItem
+                  onClick={() => {
+                    close();
+                    const input = document.createElement("input");
+                    input.type = "file";
+                    input.accept = ".json,application/json";
+                    input.onchange = async () => {
+                      const file = input.files?.[0];
+                      if (!file) return;
+                      const r = await installPackageAction(await file.text(), null);
+                      if (!r.ok) return toast(r.error, { tone: "error" });
+                      router.push(`/workspace/${r.id}`);
+                      router.refresh();
+                    };
+                    input.click();
+                  }}
+                >
+                  📦 {t("Import a package …")}
+                </MenuItem>
+                <MenuItem
+                  onClick={() => {
+                    close();
+                    void templatesAction().then((r) => setTemplates(r.ok ? r.templates : []));
+                  }}
+                >
+                  🧩 {t("From a template …")}
+                </MenuItem>
+              </>
+            )}
+          </Dropdown>
+        </div>
 
-      <div className="relative">
-        <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search pages …")} aria-label={t("Search pages")} className="input w-full text-sm" />
-        {hits && (
-          <ul className="absolute z-40 mt-1 max-h-80 w-[min(24rem,90vw)] overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-            {hits.map((h) => (
-              <li key={h.id}>
-                <Link href={`/workspace/${h.id}`} className="block rounded-md px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setQ("")}>
-                  <span className="block truncate font-medium">
-                    {h.icon || (h.kind === "database" ? "🗂️" : "📄")} {h.title || t("Untitled")}
-                  </span>
-                  {h.snippet && <span className="line-clamp-2 text-xs text-zinc-500">{h.snippet}</span>}
-                  {h.path && <span className="block truncate text-xs text-zinc-400">{h.path}</span>}
-                </Link>
-              </li>
-            ))}
-            {!hits.length && <li className="px-2 py-1.5 text-zinc-500">{t("Nothing found")}</li>}
-          </ul>
-        )}
+        <div className="relative">
+          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search pages …")} aria-label={t("Search pages")} className="input w-full text-sm" />
+          {hits && (
+            <ul className="absolute z-40 mt-1 max-h-80 w-[min(24rem,90vw)] overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+              {hits.map((h) => (
+                <li key={h.id}>
+                  <Link href={`/workspace/${h.id}`} className="block rounded-md px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setQ("")}>
+                    <span className="block truncate font-medium">
+                      {h.icon || (h.kind === "database" ? "🗂️" : "📄")} {h.title || t("Untitled")}
+                    </span>
+                    {h.snippet && <span className="line-clamp-2 text-xs text-zinc-500">{h.snippet}</span>}
+                    {h.path && <span className="block truncate text-xs text-zinc-400">{h.path}</span>}
+                  </Link>
+                </li>
+              ))}
+              {!hits.length && <li className="px-2 py-1.5 text-zinc-500">{t("Nothing found")}</li>}
+            </ul>
+          )}
+        </div>
       </div>
 
       {favorites.length > 0 && (

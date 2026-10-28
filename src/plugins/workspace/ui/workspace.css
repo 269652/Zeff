@@ -1253,3 +1253,13 @@
     grid-template-columns: var(--split);
   }
 }
+
+/* The Workspace sidebar's header and search: on top while the page tree scrolls (the page aside is the scroller). */
+.ws-side-head {
+  position: sticky;
+  top: 0;
+  z-index: 30;
+  background: var(--background);
+  padding-bottom: 0.5rem;
+  margin-bottom: -0.5rem;
+}
