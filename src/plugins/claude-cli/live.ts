@@ -5,7 +5,7 @@ import crypto from "node:crypto";
 import fs from "node:fs";
 import net from "node:net";
 import path from "node:path";
-import { currentAccountId, withAccount } from "@/db/accounts";
+import { currentAccountId, withAccount, sharesWorkerSetup } from "@/db/accounts";
 import { killPid, sleep } from "@/lib/abort";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
@@ -1042,6 +1042,8 @@ async function startFrom(s: LiveStart): Promise<void> {
         // Zeff's own, of this run's account, with the run's id: start_todo in a session without a ticket moves this session under the todo's ticket.
         "--mcp-config",
         JSON.stringify(workerMcpServers(currentAccountId(), {}, s.runId)),
+        // An account that doesn't share this computer's setup: only these — not your settings' or the folder's servers.
+        ...(sharesWorkerSetup(currentAccountId()) ? [] : ["--strict-mcp-config"]),
       ],
       cwd: s.cwd,
       resumeSession: s.resumeSession,

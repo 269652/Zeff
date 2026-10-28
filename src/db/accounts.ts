@@ -30,6 +30,11 @@ export type Account = {
   chromeFrom?: string;
   /** The host name it is served under ("privat.localhost", "business.localhost", "localhost") — any number of accounts side by side. */
   host?: string;
+  /**
+   * Whether its workers may use this computer's own setup: Zeff's .env (its secrets — Jira, GitLab …) and your MCP servers
+   * (your settings', the folder's). Unset: the first account yes, the others no — a private worker sees nothing of work's.
+   */
+  workerSetup?: boolean;
 };
 
 /** The first account's automation Chrome (as it always was); the others' from 9231 up. */
@@ -205,7 +210,10 @@ export function normalizeHost(v: string | null | undefined): string | undefined 
   return h;
 }
 
-export function updateAccount(id: string, patch: { name?: string; color?: string; host?: string | null }): Account {
+/** Whether the account's workers get this computer's setup (Zeff's .env, your MCP servers) — see Account.workerSetup. */
+export const sharesWorkerSetup = (id: string): boolean => accountById(id)?.workerSetup ?? id === DEFAULT_ACCOUNT;
+
+export function updateAccount(id: string, patch: { name?: string; color?: string; host?: string | null; workerSetup?: boolean }): Account {
   const r = read();
   const a = r.accounts.find((x) => x.id === id);
   if (!a) throw new Error(t("Unknown account."));
@@ -214,7 +222,7 @@ export function updateAccount(id: string, patch: { name?: string; color?: string
   if (name && r.accounts.some((x) => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) throw new Error(t("“{name}” already exists.", { name }));
   const host = patch.host === undefined ? a.host : normalizeHost(patch.host);
   if (host && r.accounts.some((x) => x.id !== id && x.host === host)) throw new Error(t("“{host}” is the address of another account already.", { host }));
-  const next: Account = { ...a, ...(name ? { name } : {}), ...(patch.color && (ACCOUNT_COLORS as readonly string[]).includes(patch.color) ? { color: patch.color } : {}), host };
+  const next: Account = { ...a, ...(name ? { name } : {}), ...(patch.color && (ACCOUNT_COLORS as readonly string[]).includes(patch.color) ? { color: patch.color } : {}), host, ...(patch.workerSetup !== undefined ? { workerSetup: patch.workerSetup } : {}) };
   if (!host) delete next.host;
   write({ ...r, accounts: r.accounts.map((x) => (x.id === id ? next : x)) });
   return next;

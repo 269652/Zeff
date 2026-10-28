@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import { BASE_DIR, DEFAULT_ACCOUNT, accountKnowledge, activeAccountId, listAccounts, withAccount } from "@/db/accounts";
 import { isInstalled } from "@/plugins/state";
+import { accountToken } from "@/lib/account-tokens";
 
 /**
  * Which knowledge servers there should be: the first account's always (knowledge/data — the
@@ -12,7 +13,8 @@ import { isInstalled } from "@/plugins/state";
  */
 export const KNOWLEDGE_INSTANCES_FILE = path.join(BASE_DIR, "knowledge-instances.json");
 
-export type KnowledgeInstance = { account: string; name: string; port: number; dataDir: string | null };
+/** token: what it shows Zeff for its account's export (/api/knowledge/export) — that account's only. */
+export type KnowledgeInstance = { account: string; name: string; port: number; dataDir: string | null; token: string };
 
 function hasKnowledge(id: string): boolean {
   try {
@@ -28,7 +30,7 @@ export function knowledgeInstances(): { active: string; instances: KnowledgeInst
   for (const a of listAccounts()) {
     if (a.id !== DEFAULT_ACCOUNT && !hasKnowledge(a.id)) continue;
     const { port, dataDir } = accountKnowledge(a.id);
-    instances.push({ account: a.id, name: a.name, port, dataDir });
+    instances.push({ account: a.id, name: a.name, port, dataDir, token: accountToken("knowledge", a.id) });
   }
   return { active: activeAccountId(), instances };
 }

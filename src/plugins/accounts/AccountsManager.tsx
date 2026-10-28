@@ -9,7 +9,7 @@ import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { ACCOUNT_DOT, accountUrl, dotOf } from "./AccountSwitcher";
 
-type Row = { id: string; name: string; color: string; host: string; createdAt: string; dir: string; current: boolean };
+type Row = { id: string; name: string; color: string; host: string; createdAt: string; dir: string; current: boolean; workerSetup: boolean };
 
 const COLORS = Object.keys(ACCOUNT_DOT);
 
@@ -39,7 +39,7 @@ export function AccountsManager({ accounts }: { accounts: Row[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ name: "", color: "indigo", host: "" });
+  const [draft, setDraft] = useState({ name: "", color: "indigo", host: "", workerSetup: false });
   const [fresh, setFresh] = useState({ name: "", color: "emerald", copyFrom: "", shareChrome: true });
   // The account just made: its setup assistant one click away.
   const [made, setMade] = useState<{ id: string; name: string } | null>(null);
@@ -69,6 +69,10 @@ export function AccountsManager({ accounts }: { accounts: Row[] }) {
                 <label className="block text-xs text-zinc-500">
                   {t("Its own address (host name) — accounts with one run side by side, each in its own tab: e.g. privat.localhost, business.localhost. Empty: the address of whichever account is active.")}
                   <input className="input mt-1 w-full font-mono text-sm" value={draft.host} onChange={(e) => setDraft({ ...draft, host: e.target.value })} placeholder="privat.localhost" aria-label={t("Address (host name)")} />
+                </label>
+                <label className="flex items-start gap-2 text-xs text-zinc-500">
+                  <input type="checkbox" className="mt-0.5" checked={draft.workerSetup} onChange={(e) => setDraft({ ...draft, workerSetup: e.target.checked })} />
+                  <span>{t("Its workers may use this computer's setup: Zeff's .env (its secrets) and your own MCP servers. Off: they get only this account's Zeff — nothing of another account's.")}</span>
                 </label>
                 <div className="flex items-center justify-between gap-2">
                   <ColorPicker value={draft.color} onChange={(color) => setDraft({ ...draft, color })} disabled={pending} />
@@ -120,7 +124,7 @@ export function AccountsManager({ accounts }: { accounts: Row[] }) {
                       className="btn btn-sm"
                       disabled={pending}
                       onClick={() => {
-                        setDraft({ name: a.name, color: a.color, host: a.host });
+                        setDraft({ name: a.name, color: a.color, host: a.host, workerSetup: a.workerSetup });
                         setEditing(a.id);
                       }}
                     >

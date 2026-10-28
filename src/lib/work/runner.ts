@@ -5,7 +5,7 @@ import { execFile, spawn } from "node:child_process";
 import { randomUUID } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
-import { currentAccountId, withAccount } from "@/db/accounts";
+import { currentAccountId, sharesWorkerSetup, withAccount } from "@/db/accounts";
 import { sendToHost, spawnOnHost, workHostUp } from "./host";
 import { announceRun, extWorkerRules } from "@/lib/ext/work";
 import { workerMcpServers } from "./mcp";
@@ -53,16 +53,34 @@ const now = () => new Date().toISOString();
 /** The run's MCP config (Zeff's server, for a send run Jira too). */
 const jiraConfigPath = (id: number) => path.join(workDir(), `jira-mcp-${id}.json`);
 
+/** The names Zeff's .env files set (their values are Zeff's secrets: Jira's, GitLab's …). */
+export function envFileKeys(dir = process.cwd()): Set<string> {
+  const keys = new Set<string>();
+  for (const f of [".env", ".env.local", ".env.development", ".env.development.local", ".env.production", ".env.production.local"]) {
+    let text = "";
+    try {
+      text = fs.readFileSync(/*turbopackIgnore: true*/ path.join(dir, f), "utf8");
+    } catch {
+      continue;
+    }
+    for (const m of text.matchAll(/^\s*(?:export\s+)?([A-Za-z_][A-Za-z0-9_]*)\s*=/gm)) keys.add(m[1]);
+  }
+  return keys;
+}
+
 /**
  * The environment a worker gets: Zeff's, without what belongs to Zeff's own server — a nested
  * Claude Code session's markers, NODE_ENV=production (npm would skip devDependencies), Next's
- * and npm's variables, Zeff's settings.
+ * and npm's variables, Zeff's settings. An account that doesn't share this computer's setup (Account.workerSetup):
+ * without what Zeff's .env files set either — a private worker gets none of work's secrets.
  */
 export function workerEnv(runId: number, viaHost = false): Record<string, string | undefined> {
   const env: Record<string, string | undefined> = {};
+  const secrets = sharesWorkerSetup(currentAccountId()) ? null : envFileKeys();
   for (const [k, v] of Object.entries(process.env)) {
     if (/^(CLAUDECODE|CLAUDE_CODE_ENTRYPOINT|NODE_ENV|PORT|HOSTNAME|DATABASE_PATH|NODE_OPTIONS)$/i.test(k)) continue;
     if (/^(NEXT_|__NEXT|npm_|ZEFF_|TURBOPACK)/i.test(k)) continue;
+    if (secrets?.has(k)) continue;
     env[k] = v;
   }
   // Which run this is: `npm run deploy` doesn't wait for its own session — and needs it off this server's process tree.
@@ -488,6 +506,8 @@ async function start(id: number): Promise<void> {
       }
       fs.writeFileSync(/*turbopackIgnore: true*/ jiraConfigPath(id), JSON.stringify(workerMcpServers(currentAccountId(), extra)), { mode: 0o600 });
       args.push("--mcp-config", jiraConfigPath(id));
+      // An account that doesn't share this computer's setup: only these servers — not your settings' or the folder's (work's Jira, say).
+      if (!sharesWorkerSetup(currentAccountId())) args.push("--strict-mcp-config");
       // (A worker writes its steps as todos on the ticket and ticks them off: no permission prompt for that, there is nobody to answer it.)
       const preApproved = [...(mode === "send" ? JIRA_SEND_TOOLS : []), ...TODO_TOOLS, ...approvedToolsFor(id)];
       if (preApproved.length) args.push("--allowedTools", preApproved.join(","));

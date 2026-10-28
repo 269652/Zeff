@@ -24,7 +24,8 @@ test("another website's request is refused; Zeff's pages, agents and scripts pas
 test("the MCP endpoint refuses a website's post, answers an agent's", async () => {
   const { handleMcp } = await import("@/mcp/http");
   const body = JSON.stringify({ jsonrpc: "2.0", id: 1, method: "initialize", params: { protocolVersion: "2025-06-18", capabilities: {}, clientInfo: { name: "t", version: "1" } } });
-  const h = { "content-type": "application/json", accept: "application/json, text/event-stream" };
+  const { accountToken } = await import("@/lib/account-tokens");
+  const h = { "content-type": "application/json", accept: "application/json, text/event-stream", authorization: `Bearer ${accountToken("mcp", "default")}` };
   const site = await handleMcp(new Request("http://127.0.0.1/api/mcp", { method: "POST", headers: { ...h, origin: "https://evil.example", "sec-fetch-site": "cross-site" }, body }));
   assert.equal(site.status, 403);
   const agent = await handleMcp(new Request("http://127.0.0.1/api/mcp", { method: "POST", headers: h, body }));

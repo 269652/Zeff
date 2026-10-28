@@ -2,7 +2,8 @@
   "mcpServers": {
     "zeff": {
       "type": "http",
-      "url": "http://127.0.0.1:9333/api/mcp"
+      "url": "http://127.0.0.1:9333/api/mcp",
+      "headers": { "Authorization": "Bearer ${ZEFF_MCP_TOKEN}" }
     },
 
     "jira": {

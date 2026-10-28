@@ -7528,5 +7528,8 @@
   "Address (host name)": "Adresse (Hostname)",
   "Opens this account at its own address": "Öffnet dieses Konto unter seiner eigenen Adresse",
   "“{host}” isn't a host name — letters, digits, dots and dashes, e.g. privat.localhost.": "„{host}“ ist kein Hostname — Buchstaben, Ziffern, Punkte und Bindestriche, z. B. privat.localhost.",
-  "“{host}” is the address of another account already.": "„{host}“ ist schon die Adresse eines anderen Kontos."
+  "“{host}” is the address of another account already.": "„{host}“ ist schon die Adresse eines anderen Kontos.",
+  "Account “{name}”. Agents send its token — it opens this account only: <code>{header}</code>": "Konto „{name}“. Agenten senden seinen Token — er öffnet nur dieses Konto: <code>{header}</code>",
+  "The other accounts ({names}) each have their own endpoint and token: open this page in that account.": "Die anderen Konten ({names}) haben je ihren eigenen Endpunkt und Token: öffne diese Seite in dem Konto.",
+  "Its workers may use this computer's setup: Zeff's .env (its secrets) and your own MCP servers. Off: they get only this account's Zeff — nothing of another account's.": "Seine Worker dürfen die Einrichtung dieses Rechners nutzen: Zeffs .env (seine Geheimnisse) und deine eigenen MCP-Server. Aus: Sie bekommen nur das Zeff dieses Kontos — nichts von einem anderen Konto."
 }

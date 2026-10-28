@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
-import { accountDir, currentAccountId, listAccounts } from "@/db/accounts";
+import { accountDir, currentAccountId, listAccounts, sharesWorkerSetup } from "@/db/accounts";
 import { isInstalled } from "@/plugins/state";
 import { AccountsManager } from "@/plugins/accounts/AccountsManager";
 
@@ -19,7 +19,7 @@ export default async function AccountsPage() {
   await connection();
   if (!isInstalled("accounts")) return <PluginNotInstalled id="accounts" />;
   const current = currentAccountId();
-  const accounts = listAccounts().map((a) => ({ ...a, host: a.host ?? "", dir: accountDir(a.id), current: a.id === current }));
+  const accounts = listAccounts().map((a) => ({ ...a, host: a.host ?? "", dir: accountDir(a.id), current: a.id === current, workerSetup: sharesWorkerSetup(a.id) }));
   return (
     <div className="page">
       <div className="page-aside">

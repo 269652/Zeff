@@ -425,7 +425,8 @@ async function start() {
     const first = k.account === "default";
     const s = spec(first ? "Knowledge" : `Knowledge · ${k.name}`, "knowledge", first ? cfg.knowledgePort : k.port);
     s.logFile = path.join(paths.logs, first ? "knowledge.log" : `knowledge-${k.account}.log`);
-    s.env = { ...env, KNOWLEDGE_ACCOUNT: k.account, KNOWLEDGE_ACCOUNT_NAME: first ? "" : k.name, ...(k.dataDir ? { KNOWLEDGE_DATA_DIR: k.dataDir } : {}) };
+    // (Its account's token for Zeff's export: that account's only — knowledge-instances.json has it.)
+    s.env = { ...env, KNOWLEDGE_ACCOUNT: k.account, KNOWLEDGE_ACCOUNT_NAME: first ? "" : k.name, ...(k.dataDir ? { KNOWLEDGE_DATA_DIR: k.dataDir } : {}), ...(k.token ? { KNOWLEDGE_ZEFF_TOKEN: k.token } : {}) };
     if (state.modes.knowledge === "docker") {
       // In a container of its own (its data folder mounted); published on the same port, so the proxy and Zeff find it as ever.
       const dataDir = k.dataDir || firstDataDir || path.join(paths.app, "knowledge", "data");

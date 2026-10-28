@@ -2,7 +2,8 @@ import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
 import { headers } from "next/headers";
-import { DEFAULT_ACCOUNT, accountsInstalled, listAccounts } from "@/db/accounts";
+import { accountById, accountsInstalled, currentAccountId, listAccounts } from "@/db/accounts";
+import { accountToken } from "@/lib/account-tokens";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("MCP setup") };
@@ -28,14 +29,14 @@ export default async function McpPage() {
   const h = await headers();
   const host = h.get("x-forwarded-host") ?? h.get("host") ?? "127.0.0.1:9333";
   const proto = h.get("x-forwarded-proto") ?? (/^(localhost|127\.0\.0\.1)/.test(host) ? "http" : "https");
+  // One endpoint; the token says which account — this one's opens only it (another account's: at its address, Menu → MCP).
+  const id = currentAccountId();
+  const name = accountById(id)?.name ?? id;
   const url = `${proto}://${host}/api/mcp`;
-  // Each account its own endpoint; /api/mcp is the first account's, never the one switched to.
-  const accounts = accountsInstalled() ? listAccounts() : [];
-  const tokenSet = Boolean(process.env.ZEFF_MCP_TOKEN);
-  const headerFlag = tokenSet ? ` --header "Authorization: Bearer <ZEFF_MCP_TOKEN>"` : "";
-  const headersJson = tokenSet
-    ? `,\n      "headers": { "Authorization": "Bearer <ZEFF_MCP_TOKEN>" }`
-    : "";
+  const others = accountsInstalled() ? listAccounts().filter((a) => a.id !== id) : [];
+  const token = accountToken("mcp", id);
+  const headerFlag = ` --header "Authorization: Bearer ${token}"`;
+  const headersJson = `,\n      "headers": { "Authorization": "Bearer ${token}" }`;
 
   const claudeCli = `claude mcp add --transport http zeff ${url}${headerFlag}`;
   const mcpJson = `{
@@ -50,11 +51,11 @@ export default async function McpPage() {
   "mcpServers": {
     "zeff": {
       "command": "npx",
-      "args": ["-y", "mcp-remote", "${url}"${tokenSet ? `, "--header", "Authorization: Bearer <ZEFF_MCP_TOKEN>"` : ""}]
+      "args": ["-y", "mcp-remote", "${url}", "--header", "Authorization: Bearer ${token}"]
     }
   }
 }`;
-  const curl = `curl -s ${url} -H "content-type: application/json" -H "accept: application/json, text/event-stream"${tokenSet ? ' -H "authorization: Bearer <ZEFF_MCP_TOKEN>"' : ""} \
+  const curl = `curl -s ${url} -H "content-type: application/json" -H "accept: application/json, text/event-stream" -H "authorization: Bearer ${token}" \
   -d '{"jsonrpc":"2.0","id":1,"method":"tools/list"}'`;
 
   return (
@@ -74,35 +75,14 @@ export default async function McpPage() {
       <section className="card space-y-2 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Endpoint")}</h2>
         <pre className="pre">{url}</pre>
-        {accounts.length > 1 && (
-          <>
-            <p className="text-sm">{t("One endpoint per account — an agent stays in its account, whichever one you switch to in Zeff:")}</p>
-            <table className="table">
-              <tbody>
-                {accounts.map((a) => (
-                  <tr key={a.id}>
-                    <td className="whitespace-nowrap">{a.name}</td>
-                    <td className="font-mono">{a.id === DEFAULT_ACCOUNT ? url : `${url}/${a.id}`}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </>
-        )}
-        <p className="text-sm text-zinc-500">
-          {tokenSet ? (
-            <>
-              {rich(t("Protected: requests must send <code>{header}</code>.", { header: "Authorization: Bearer <ZEFF_MCP_TOKEN>" }), { code: (s) => <code className="code">{s}</code> })}
-            </>
-          ) : (
-            <>
-              {rich(
-                t("Currently unprotected (fine on localhost). Set <code>ZEFF_MCP_TOKEN</code> in <code>.env.local</code> to require a bearer token."),
-                { code: (s) => <code className="code">{s}</code> },
-              )}
-            </>
-          )}
+        <p className="text-sm">
+          {rich(t("Account “{name}”. Agents send its token — it opens this account only: <code>{header}</code>", { name, header: `Authorization: Bearer ${token}` }), { code: (s) => <code className="code break-all">{s}</code> })}
         </p>
+        {others.length > 0 && (
+          <p className="text-sm text-zinc-500">
+            {t("The other accounts ({names}) each have their own endpoint and token: open this page in that account.", { names: others.map((a) => a.name).join(", ") })}
+          </p>
+        )}
       </section>
 
       <section className="card space-y-3 p-4">

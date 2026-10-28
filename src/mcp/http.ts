@@ -1,18 +1,19 @@
 import { promptText } from "@/lib/prompts";
-import { timingSafeEqual } from "node:crypto";
 import { createMcpHandler } from "mcp-handler";
-import { DEFAULT_ACCOUNT, accountById, withAccount } from "@/db/accounts";
+import { accountById, listAccounts, withAccount } from "@/db/accounts";
+import { bearerIs } from "@/lib/account-tokens";
 import { RUN_HEADER, withCallerRun } from "@/mcp/caller";
 import { INSTRUCTIONS, SERVER_INFO, registerZeffTools } from "@/mcp/server";
 import { foreignRequest, refused } from "@/lib/request-guard";
 
 /**
- * The MCP endpoint, one per account: /api/mcp is the first account's (the one Zeff always had),
- * /api/mcp/<account> another's. An agent's connection never follows the account switched to in the
- * app — a coding agent on a work ticket books into work and searches work's knowledge, even while
- * you're in "Privat".
+ * The MCP endpoint, one per account: /api/mcp/<account> — or /api/mcp, where the token says which account
+ * (each account's token opens only that one). An agent's connection never follows the account switched to in the app — a coding agent on a work ticket books
+ * into work and searches work's knowledge, even while you're in "Privat".
  *
- * Optional protection: set ZEFF_MCP_TOKEN and clients must send `Authorization: Bearer <token>`.
+ * Every request shows the account's own token (`Authorization: Bearer zm_…`, Menu → MCP shows it; Zeff's
+ * workers get theirs): one account's token opens only that account — an agent on a private todo can't
+ * read work's todos, nor the other way round.
  */
 
 type Handler = (req: Request) => Promise<Response>;
@@ -37,26 +38,18 @@ function handlerFor(id: string, name: string): Handler {
   return h;
 }
 
-function tokenMatches(header: string | null, expected: string): boolean {
-  if (!header?.startsWith("Bearer ")) return false;
-  const given = Buffer.from(header.slice("Bearer ".length));
-  const want = Buffer.from(expected);
-  return given.length === want.length && timingSafeEqual(given, want);
-}
+const unauthorized = (message: string) =>
+  Response.json({ error: "unauthorized", message }, { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="zeff"' } });
 
-/** A request to the MCP endpoint of an account (default: the first) — run inside that account. */
-export async function handleMcp(req: Request, accountId: string = DEFAULT_ACCOUNT): Promise<Response> {
+/** A request to the MCP endpoint of an account (none named: the one whose token it shows) — run inside that account. */
+export async function handleMcp(req: Request, accountId?: string): Promise<Response> {
   // Agents and scripts — not another website open in your browser.
   const why = foreignRequest(req);
   if (why) return refused(why);
-  const expected = process.env.ZEFF_MCP_TOKEN;
-  if (expected && !tokenMatches(req.headers.get("authorization"), expected)) {
-    return Response.json(
-      { error: "unauthorized", message: "Send 'Authorization: Bearer <ZEFF_MCP_TOKEN>'." },
-      { status: 401, headers: { "WWW-Authenticate": 'Bearer realm="zeff"' } },
-    );
-  }
-  const account = accountById(accountId);
+  const auth = req.headers.get("authorization");
+  const account = accountId === undefined ? listAccounts().find((a) => bearerIs(auth, "mcp", a.id)) : accountById(accountId);
+  if (accountId === undefined && !account) return unauthorized("Send 'Authorization: Bearer <token>' with the token of a Zeff account (Zeff → Menu → MCP, in that account).");
   if (!account) return Response.json({ error: "not_found", message: `No Zeff account "${accountId}".` }, { status: 404 });
+  if (!bearerIs(auth, "mcp", account.id)) return unauthorized(`Send 'Authorization: Bearer <token>' with the token of Zeff's account "${account.name}" (Zeff → Menu → MCP, in that account).`);
   return withAccount(account.id, () => withCallerRun(req.headers.get(RUN_HEADER), () => handlerFor(account.id, account.name)(req)));
 }
