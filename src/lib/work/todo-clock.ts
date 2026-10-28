@@ -7,13 +7,12 @@
  *
  * A running clock needs a sign of life at least every PING_MINUTES (todo_clock_ping — or todo_progress, todo_time, starting
  * it again): without one it is paused as of the last one — the time after it isn't proven, so it doesn't count. The next
- * sign of life goes on from then (the silence left out). A Claude Code session that started the clock needs no pings: each step
- * in its transcript is a sign of life (clock-activity.ts). Worked out when the clock is read, not by a timer. Kept with the
+ * sign of life goes on from then (the silence left out) — unless the agent hands in its own log of the stretch when it stops
+ * (SessionLog: times it read). Worked out when the clock is read, not by a timer. Kept with the
  * account's settings (open clocks only). Server only.
  */
 import { getPref, setPref } from "@/lib/prefs";
 import { addTodoTime } from "./todo-time";
-import { sessionActivity } from "./clock-activity";
 import type { TimeRecord } from "./shared";
 import { ValidationError } from "@/lib/errors";
 
@@ -54,29 +53,14 @@ function find(all: Record<string, Clock>, todoId: number, agent?: string | null)
   return on.length === 1 ? on[0][0] : null;
 }
 
-/** Silent too long (running, no sign of life for PING_MINUTES — no ping, no step of its session): paused as of its last sign of life. Whether it changed. */
+/** Silent too long (running, no sign of life for PING_MINUTES): paused as of its last sign of life. Whether it changed. */
 function settle(c: Clock, now: number): boolean {
-  // Waiting for the user: paused until the work goes on.
-  if (c.pausedAt && !c.silent) return false;
-  const from = Date.parse(c.silent ? c.pausedAt! : (c.lastPing ?? c.startedAt));
-  if (!c.silent && now - from <= PING_MS) return false;
-  const was = JSON.stringify(c);
-  // The agent's own session worked on it meanwhile (its steps in its transcript — no ping needed, clock-activity.ts): each
-  // step is a sign of life as a ping is — a silence of more than PING_MINUTES between them left out, as between pings.
-  // (Judged again from its last sign of life: a clock paused for silence may have worked on after all.)
-  c.pausedAt = null;
-  c.silent = false;
-  let last = from;
-  for (const t of sessionActivity(`T-${c.todoId}`, from, now)) {
-    if (t - last > PING_MS) c.pausedMs += t - last;
-    last = t;
-  }
-  c.lastPing = iso(last);
-  if (now - last > PING_MS) {
-    c.pausedAt = iso(last);
-    c.silent = true;
-  }
-  return JSON.stringify(c) !== was;
+  if (c.pausedAt) return false;
+  const last = Date.parse(c.lastPing ?? c.startedAt);
+  if (now - last <= PING_MS) return false;
+  c.pausedAt = iso(last);
+  c.silent = true;
+  return true;
 }
 
 /** A sign of life: silent too long, it goes on from now (the silence left out); running, its last sign of life is now. */
