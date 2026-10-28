@@ -81,6 +81,46 @@ test("no pings, but the agent's session worked on: its own steps (Claude Code's 
   assert.equal(Math.round(openClock(other.id, "Claude Code", min(60))!.minutes), 0);
 });
 
+test("VS Code Copilot and the Copilot CLI too: the requests that ran (VS Code) and the events (CLI) of the session that started the clock keep it running", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { addManualTodo } = await import("@/lib/boards/store");
+  const { clockIn, clockOut } = await import("@/lib/work/todo-clock");
+  const vs = addManualTodo({ ticket: "PROJ-376", text: "In VS Code" });
+  const cli = addManualTodo({ ticket: "PROJ-376", text: "In the CLI" });
+
+  // VS Code: the session, then a request added (its start), then its state set (completed) — as the chat log writes them.
+  const chat = path.join(process.env.ZEFF_VSCODE_STORAGE!, "ws1", "chatSessions");
+  fs.mkdirSync(chat, { recursive: true });
+  const call = { kind: "toolInvocationSerialized", toolId: "mcp_zeff_start_todo", toolSpecificData: { kind: "input", rawInput: { todo: `T-${vs.id}`, agent: "GitHub Copilot" } } };
+  fs.writeFileSync(
+    path.join(chat, "s.jsonl"),
+    [
+      { kind: 0, v: { requests: [{ requestId: "r0", timestamp: min(0), modelState: { value: 1, completedAt: min(2) }, response: [call] }] } },
+      // A long request: 5 → 38 (no ping in it), then the user's next one at 60 → 66.
+      { kind: 2, k: ["requests"], v: [{ requestId: "r1", timestamp: min(5), modelState: { value: 0 }, response: [] }] },
+      { kind: 1, k: ["requests", 1, "modelState"], v: { value: 1, completedAt: min(38) } },
+      { kind: 2, k: ["requests"], v: [{ requestId: "r2", timestamp: min(60), modelState: { value: 0 }, response: [] }] },
+      { kind: 1, k: ["requests", 2, "modelState"], v: { value: 1, completedAt: min(66) } },
+    ]
+      .map((l) => JSON.stringify(l))
+      .join("\n") + "\n",
+  );
+  clockIn(vs.id, "GitHub Copilot", min(0));
+  assert.equal(clockOut(vs.id, "GitHub Copilot", { now: min(70), record: false })!.minutes, 38 + 10, "0→38 by its requests, 38→60 waiting left out, 60→70");
+
+  // The Copilot CLI: its events, each with its time; the clock started with a tool event.
+  const sess = path.join(process.env.ZEFF_COPILOT_SESSIONS!, "c1");
+  fs.mkdirSync(sess, { recursive: true });
+  const ev = (m: number, type: string, data: object) => JSON.stringify({ type, data, id: `e${m}`, timestamp: new Date(min(m)).toISOString() });
+  fs.writeFileSync(
+    path.join(sess, "events.jsonl"),
+    [ev(0, "tool.execution_start", { toolName: "zeff-start_todo", arguments: { todo: `T-${cli.id}` } }), ...[6, 12, 18, 24].map((m) => ev(m, "assistant.message", { content: "…" }))].join("\n") + "\n",
+  );
+  clockIn(cli.id, "Copilot CLI", min(0));
+  assert.equal(clockOut(cli.id, "Copilot CLI", { now: min(40), record: false })!.minutes, 24, "0→24 by its events, silent after");
+});
+
 test("starting on another todo stops the running one (its time recorded); stop without a name finds the todo's only clock; record:false only measures", async () => {
   const { addManualTodo } = await import("@/lib/boards/store");
   const { clockIn, clockPing, clockOut } = await import("@/lib/work/todo-clock");
