@@ -12,6 +12,7 @@ import "./jira-lage/server";
 import "./kanban/server";
 import "./keep/server";
 import "./llm/server";
+import "./loops/server";
 import "./mail-client/server";
 import "./news/server";
 import "./people/server";

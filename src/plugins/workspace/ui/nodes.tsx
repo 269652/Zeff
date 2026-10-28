@@ -146,7 +146,7 @@ export const FlexBox = Node.create({
 // Mentions: @person, @page, @todo, @ticket
 // ---------------------------------------------------------------------------
 
-type RefState = { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean; href?: string };
+type RefState = { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean; href?: string; value?: string };
 const stateCache = new Map<string, { at: number; state: RefState }>();
 let pending: { kind: string; ref: string; resolve: (s: RefState) => void }[] = [];
 let timer: ReturnType<typeof setTimeout> | null = null;
@@ -163,7 +163,7 @@ function refState(kind: string, ref: string): Promise<RefState> {
         const batch = pending;
         pending = [];
         timer = null;
-        const res = await mentionStateAction(batch.map((b) => ({ kind: b.kind as "person" | "page" | "todo" | "ticket", ref: b.ref }))).catch(() => ({}) as Record<string, RefState>);
+        const res = await mentionStateAction(batch.map((b) => ({ kind: b.kind as "person" | "page" | "todo" | "ticket" | "metric", ref: b.ref }))).catch(() => ({}) as Record<string, RefState>);
         for (const b of batch) {
           const state = res[`${b.kind}:${b.ref}`] ?? {};
           stateCache.set(`${b.kind}:${b.ref}`, { at: Date.now(), state });
@@ -187,7 +187,7 @@ function RefView({ node, editor, getPos }: NodeViewProps) {
       alive = false;
     };
   }, [kind, ref]);
-  const icon = state.icon ?? (kind === "person" ? "👤" : kind === "todo" ? (state.done ? "✅" : "☑️") : kind === "ticket" ? "🎫" : "📄");
+  const icon = state.icon ?? (kind === "person" ? "👤" : kind === "todo" ? (state.done ? "✅" : "☑️") : kind === "ticket" ? "🎫" : kind === "metric" ? "📊" : "📄");
   const text = kind === "todo" || kind === "ticket" ? label : (state.label ?? label);
   const external = /^https?:\/\//.test(href ?? "");
   // A page's chip: shown inline instead (its content in place) — a click on ⤢.
@@ -215,6 +215,8 @@ function RefView({ node, editor, getPos }: NodeViewProps) {
       <span aria-hidden>{icon}</span>
       {text}
       {state.status && kind === "todo" && !state.done ? <span className="opacity-60">· {state.status}</span> : null}
+      {/* A Kennzahl: its value now. */}
+      {kind === "metric" ? <strong className="font-semibold tabular-nums">{state.value ?? "…"}</strong> : null}
     </a>
   );
   return (

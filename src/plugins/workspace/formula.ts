@@ -12,6 +12,17 @@ export type FormulaContext = {
   prop: (name: string) => unknown;
   /** The time "now" means (tests set it). */
   now?: Date;
+  /** A Kennzahl's value by its name (kennzahl("Sparrate")) — none given: the server's (setMetricReader). */
+  metric?: (name: string) => unknown;
+};
+
+/**
+ * Where kennzahl() reads on the server (metrics.ts sets it): a formula anywhere — a database's column, a Kennzahl's own
+ * formula — reads the account's Kennzahlen. In the browser there is none: the preview says so, the server computes it.
+ */
+const reader = globalThis as { __zeffMetricReader?: (name: string) => unknown };
+export const setMetricReader = (fn: (name: string) => unknown): void => {
+  reader.__zeffMetricReader = fn;
 };
 
 // ---------------------------------------------------------------------------
@@ -382,6 +393,12 @@ function run(n: Node, ctx: FormulaContext): FormulaValue {
         for (let i = 0; i + 1 < n.args.length; i += 2) if (bool(run(n.args[i], ctx))) return run(n.args[i + 1], ctx);
         return n.args.length % 2 ? run(n.args[n.args.length - 1], ctx) : null;
       }
+      if (name === "kennzahl" || name === "metric") {
+        if (n.args.length !== 1) throw new Error('kennzahl() takes the Kennzahl\'s name: kennzahl("Sparrate")');
+        const read = ctx.metric ?? reader.__zeffMetricReader;
+        if (!read) throw new Error("Kennzahlen are read on the server — saved, the value shows");
+        return toFormulaValue(read(str(run(n.args[0], ctx))));
+      }
       if (name === "prop") {
         if (n.args.length !== 1) throw new Error('prop() takes the property\'s name: prop("Name")');
         return toFormulaValue(ctx.prop(str(run(n.args[0], ctx))));
@@ -397,11 +414,12 @@ function run(n: Node, ctx: FormulaContext): FormulaValue {
 }
 
 /** The function names, for the editor's help. */
-export const FORMULA_FUNCTIONS = ["if", "ifs", "prop", ...Object.keys(FUNCTIONS)].sort();
+export const FORMULA_FUNCTIONS = ["if", "ifs", "prop", "kennzahl", ...Object.keys(FUNCTIONS)].sort();
 
 /** How each function is called — the editor shows it beside the name. */
 export const FORMULA_SIGNATURES: Record<string, string> = {
   prop: 'prop("Name")',
+  kennzahl: 'kennzahl("Sparrate")',
   if: "if(condition, then, else)",
   ifs: "ifs(condition, value, …, else)",
   concat: "concat(text, …)",

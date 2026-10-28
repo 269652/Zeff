@@ -164,6 +164,15 @@ export function startSyncScheduler(): void {
         } catch (e) {
           console.error("[calendar todos]", e);
         }
+        // The Kennzahlen's value of the day into their history — and a todo for one that crossed a threshold (once a day).
+        try {
+          if ((await import("@/plugins/state")).isInstalled("workspace")) {
+            const r = await (await import("@/plugins/workspace/metrics")).snapshotMetrics();
+            if (r.alerts.length) console.log(`[kennzahlen${a.name ? ` ${a.name}` : ""}] beyond a threshold: ${r.alerts.join(", ")}`);
+          }
+        } catch (e) {
+          console.error("[kennzahlen]", e);
+        }
       });
     }
     // The syncs: every account's, one after the other (each in its own database and its own automation Chrome) —

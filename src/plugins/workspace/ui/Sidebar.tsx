@@ -449,6 +449,9 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
         )}
       </section>
 
+      <Link href="/workspace/metrics" className="ws-tree-row px-1.5 text-zinc-500" data-active={path === "/workspace/metrics"}>
+        📊 {t("Metrics")}
+      </Link>
       <Link href="/workspace/settings/sources" className="ws-tree-row px-1.5 text-zinc-500" data-active={path.startsWith("/workspace/settings")}>
         ⚙ {t("Settings")}
       </Link>

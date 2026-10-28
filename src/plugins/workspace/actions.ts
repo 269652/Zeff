@@ -14,6 +14,7 @@ import type { TicketExtras } from "@/lib/items/shared";
 import { rowKey } from "./collections";
 import { rowsToCsv, subtaskCounts, type DbSchema, type Row } from "./model";
 import * as store from "./store";
+import "./metrics"; // (kennzahl() in the databases' formulas reads the Kennzahlen)
 
 /** The Workspace plugin's server actions: what its pages and editors call. Each says what came of it; none throws at the page. */
 
@@ -193,12 +194,19 @@ export async function restoreVersionAction(versionId: number) {
 
 export type MentionItem = { kind: DocRef["kind"]; ref: string; label: string; hint: string; icon: string; href: string };
 
-/** What the @ menu offers for some letters: people, pages, todos, tickets. */
+/** What the @ menu offers for some letters: Kennzahlen, people, pages, todos, tickets. */
 export async function mentionSearchAction(q: string): Promise<MentionItem[]> {
   try {
     guard();
     const w = String(q ?? "").trim();
     const items: MentionItem[] = [];
+    // Kennzahlen: by their name (shown with their value now).
+    if (w) {
+      const { formatMetric, listMetrics } = await import("./metrics");
+      const lw = w.toLowerCase();
+      for (const m of listMetrics().filter((x) => x.label.toLowerCase().includes(lw)).slice(0, 4))
+        items.push({ kind: "metric", ref: m.key, label: m.label, hint: `${t("Metric")} · ${formatMetric(m.value, m.unit)}`, icon: "📊", href: `/workspace/metrics#${m.key}` });
+    }
     for (const p of store.suggestPages(w, 6)) items.push({ kind: "page", ref: String(p.id), label: p.title || t("Untitled"), hint: p.kind === "database" ? t("Database") : t("Page"), icon: p.icon || (p.kind === "database" ? "🗂️" : "📄"), href: `/workspace/${p.id}` });
     if (isInstalled("people")) {
       const { searchPeopleAction } = await import("@/plugins/todos/server-actions");
@@ -230,14 +238,18 @@ export async function mentionSearchAction(q: string): Promise<MentionItem[]> {
   }
 }
 
-/** What a mention shows live: a todo's status, a ticket's status, a page's title and icon. */
-export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: string }[]): Promise<Record<string, { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean; href?: string }>> {
-  const out: Record<string, { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean; href?: string }> = {};
+/** What a mention shows live: a todo's status, a ticket's status, a page's title and icon, a Kennzahl's value. */
+export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: string }[]): Promise<Record<string, { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean; href?: string; value?: string }>> {
+  const out: Record<string, { label?: string; icon?: string; status?: string; done?: boolean; missing?: boolean; href?: string; value?: string }> = {};
   try {
     guard();
     for (const r of refs.slice(0, 60)) {
       const key = `${r.kind}:${r.ref}`;
-      if (r.kind === "page") {
+      if (r.kind === "metric") {
+        const { formatMetric, getMetric } = await import("./metrics");
+        const m = getMetric(r.ref);
+        out[key] = m ? { label: m.label, value: m.error ? "⚠" : formatMetric(m.value, m.unit), href: `/workspace/metrics#${m.key}` } : { missing: true };
+      } else if (r.kind === "page") {
         const p = store.getPage(Number(r.ref));
         out[key] = p && !p.archivedAt ? { label: p.title || t("Untitled"), icon: p.icon || (p.kind === "database" ? "🗂️" : "📄") } : { missing: true };
       } else if (r.kind === "todo" && isInstalled("todos")) {

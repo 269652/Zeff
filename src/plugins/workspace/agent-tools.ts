@@ -15,6 +15,8 @@ export const AGENT_TOOL_GROUPS: ToolGroup[] = [
   { id: "time.read", label: "Read jobs and time entries", hint: "Jobs, projects, the weekly report and booked time (booking stays closed to agents)", tools: ["list_jobs", "list_projects", "get_weekly_report", "list_time_entries"], default: true },
   { id: "merge.read", label: "Read merge-request comments", hint: "Comments and discussions on a merge request", tools: ["mr_comments"], default: true },
   { id: "merge.write", label: "Comment on merge requests", hint: "Comment, reply and resolve on GitLab — it leaves Zeff", tools: ["mr_comment", "mr_reply", "mr_resolve"], default: false },
+  { id: "metrics.read", label: "Read metrics", hint: "The named numbers (Tilgungsrate, Sparquote, hours …) with their history", tools: ["metric_list", "metric_get"], default: true },
+  { id: "metrics.write", label: "Make metrics", hint: "Define a new metric from a formula", tools: ["metric_define"], default: false },
   { id: "web", label: "Search and read the web", hint: "Web search and fetching pages", tools: ["web_search", "web_fetch"], default: true },
   { id: "gmail.read", label: "Search Gmail", hint: "Find mails with Gmail's search, list its labels and filters", tools: ["gmail_find", "gmail_labels", "gmail_filters"], default: true },
 ];

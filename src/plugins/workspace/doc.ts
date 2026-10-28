@@ -13,7 +13,8 @@ export type Doc = { type: "doc"; content: DocNode[] };
 
 export const emptyDoc = (): Doc => ({ type: "doc", content: [{ type: "paragraph" }] });
 
-export type RefKind = "person" | "page" | "todo" | "ticket";
+/** metric: a Kennzahl (its key) — shown with its value now. */
+export type RefKind = "person" | "page" | "todo" | "ticket" | "metric";
 export type DocRef = { kind: RefKind; ref: string; label: string };
 
 // ---------------------------------------------------------------------------
@@ -101,7 +102,7 @@ export function docRefs(doc: DocNode | null | undefined): DocRef[] {
   const walk = (n: DocNode) => {
     if (n.type === "zeffRef") {
       const kind = String(n.attrs?.kind ?? "");
-      if (kind === "person" || kind === "page" || kind === "todo" || kind === "ticket") add(kind, String(n.attrs?.ref ?? ""), String(n.attrs?.label ?? ""));
+      if (kind === "person" || kind === "page" || kind === "todo" || kind === "ticket" || kind === "metric") add(kind, String(n.attrs?.ref ?? ""), String(n.attrs?.label ?? ""));
     }
     for (const m of n.marks ?? []) {
       const href = m.type === "link" ? String(m.attrs?.href ?? "") : "";
@@ -132,7 +133,7 @@ function inline(nodes: DocNode[] | undefined): string {
       const kind = String(n.attrs?.kind ?? "");
       const ref = String(n.attrs?.ref ?? "");
       // A mention as the reference it is ([[page:12|Label]]), so writing the text back keeps it a mention.
-      if ((kind === "page" || kind === "todo" || kind === "ticket" || kind === "person") && ref) out += `[[${kind}:${ref}${label ? `|${label.replace(/[\]|]/g, "")}` : ""}]]`;
+      if ((kind === "page" || kind === "todo" || kind === "ticket" || kind === "person" || kind === "metric") && ref) out += `[[${kind}:${ref}${label ? `|${label.replace(/[\]|]/g, "")}` : ""}]]`;
       else out += label;
       continue;
     }
@@ -262,7 +263,7 @@ export function docToMarkdown(doc: DocNode | null | undefined): string {
 
 function parseInline(src: string): DocNode[] {
   const out: DocNode[] = [];
-  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(~~[^~]+~~)|(==[^=]+==)|(\*[^*\s][^*]*\*)|(_[^_\s][^_]*_)|(\[\[(?:page|todo|ticket|person):[^\]|]+(?:\|[^\]]*)?\]\])|(!?\[[^\]]*\]\([^)\s]+\))/g;
+  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(~~[^~]+~~)|(==[^=]+==)|(\*[^*\s][^*]*\*)|(_[^_\s][^_]*_)|(\[\[(?:page|todo|ticket|person|metric):[^\]|]+(?:\|[^\]]*)?\]\])|(!?\[[^\]]*\]\([^)\s]+\))/g;
   let at = 0;
   const text = (t: string, marks: Mark[] = []) => {
     if (t) out.push(marks.length ? { type: "text", text: t.replace(/\\([\\`*_[\]<>])/g, "$1"), marks } : { type: "text", text: t.replace(/\\([\\`*_[\]<>])/g, "$1") });
@@ -277,9 +278,9 @@ function parseInline(src: string): DocNode[] {
     else if (s.startsWith("==")) text(s.slice(2, -2), [{ type: "highlight" }]);
     else if (s.startsWith("*") || s.startsWith("_")) text(s.slice(1, -1), [{ type: "italic" }]);
     else if (s.startsWith("[[")) {
-      const r = /^\[\[(page|todo|ticket|person):([^\]|]+)(?:\|([^\]]*))?\]\]$/.exec(s)!;
+      const r = /^\[\[(page|todo|ticket|person|metric):([^\]|]+)(?:\|([^\]]*))?\]\]$/.exec(s)!;
       const ref = r[2].trim();
-      out.push({ type: "zeffRef", attrs: { kind: r[1], ref, label: (r[3] ?? "").trim() || (r[1] === "todo" ? `T-${ref}` : ref), href: r[1] === "page" ? `/workspace/${ref}` : "" } });
+      out.push({ type: "zeffRef", attrs: { kind: r[1], ref, label: (r[3] ?? "").trim() || (r[1] === "todo" ? `T-${ref}` : ref), href: r[1] === "page" ? `/workspace/${ref}` : r[1] === "metric" ? `/workspace/metrics#${ref}` : "" } });
     } else {
       const l = /^(!?)\[([^\]]*)\]\(([^)\s]+)\)$/.exec(s)!;
       if (l[1]) out.push({ type: "image", attrs: { src: l[3], alt: l[2] } });
