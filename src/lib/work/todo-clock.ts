@@ -101,7 +101,7 @@ export const openClocks = (): Clock[] => Object.values(read());
  * steps: the times of its steps (a silence of more than PING_MINUTES between them left out, as between pings);
  * from/to: began and ended — the whole span counts.
  */
-export type SessionLog = { steps?: string[]; from?: string; to?: string };
+export type SessionLog = { steps?: string[]; from?: string; to?: string; /** It really wasn't working on it after its last sign of life. */ idle?: boolean };
 
 /** Longest stretch a log may give (a forgotten clock across the night isn't work). */
 const MAX_LOG_MS = 12 * 3600000;
@@ -111,7 +111,7 @@ const MAX_LOG_MS = 12 * 3600000;
  * worked out here from the times it read, not taken from it. A time that can't be (unreadable, in the future) is refused.
  */
 export function loggedMs(log: SessionLog | undefined, since: number, now: number): number {
-  if (!log || (!log.steps?.length && !log.from && !log.to)) return 0;
+  if (!log || log.idle || (!log.steps?.length && !log.from && !log.to)) return 0;
   const when = (v: string, what: string) => {
     const ms = Date.parse(v);
     if (!Number.isFinite(ms)) throw new ValidationError(`${what} "${v}" isn't a time — ISO 8601, e.g. 2026-10-28T10:30:00Z (read it, e.g. date -u +%FT%TZ).`);
@@ -135,6 +135,21 @@ export function loggedMs(log: SessionLog | undefined, since: number, now: number
   if (to <= from) return 0;
   if (to - from > MAX_LOG_MS) throw new ValidationError(`From ${log.from} to ${log.to} is more than 12 hours — send the steps' times instead.`);
   return to - from;
+}
+
+/**
+ * A clock that went quiet (no sign of life for PING_MINUTES) is not stopped without the agent saying how it was: time
+ * isn't lost silently. It is told when the clock started and when it last heard from it — and calls again with its log
+ * (log.from = that start, log.to = now, read), or log.idle when it really wasn't working on it any more. The clock stays.
+ */
+function askWhenQuiet(c: Clock, now: number, log: SessionLog | undefined): void {
+  if (!c.silent || log) return;
+  const measured = Math.round(ranMs(c, now) / 60000);
+  throw new ValidationError(
+    `Nothing recorded yet: the clock on T-${c.todoId} went quiet — started ${c.startedAt}, last sign of life ${c.lastPing ?? c.startedAt} (${measured} min measured; you didn't ping for 10 minutes). ` +
+      `Call this again with your own log: if you worked on it after that, log: { from: "${c.startedAt}", to: "<now — READ it: date -u +%FT%TZ>" } (or log.steps: the times of your steps) — Zeff computes the minutes; ` +
+      `if you really weren't working on it after ${c.lastPing ?? c.startedAt}, log: { idle: true }. The clock keeps running until then.`,
+  );
 }
 
 /** The minutes of a stretch as a record takes them: at least one, whole minutes. */
@@ -194,6 +209,7 @@ export function clockOut(todoId: number, agent?: string | null, opts: { note?: s
   if (!k || !c) return null;
   const now = opts.now ?? Date.now();
   settle(c, now);
+  askWhenQuiet(c, now, opts.log);
   // What the clock heard — or, when it went quiet, what the agent's own log of the stretch gives (the more of the two).
   const measured = ranMs(c, now);
   const logged = loggedMs(opts.log, Date.parse(c.startedAt), now);
@@ -214,6 +230,7 @@ export function clockLap(todoId: number, agent?: string | null, note?: string, n
   const c = k ? all[k] : undefined;
   if (!k || !c) return null;
   settle(c, now);
+  askWhenQuiet(c, now, log);
   const minutes = asMinutes(Math.max(ranMs(c, now), loggedMs(log, Date.parse(c.startedAt), now)));
   const record = addTodoTime({ todoId, minutes, note, by: c.agent, source: "agent", at: iso(now) });
   const waiting = !!c.pausedAt && !c.silent;

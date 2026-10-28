@@ -255,6 +255,10 @@ test("measured: start_todo starts the todo's clock; todo_time without minutes re
   assert.ok(listTodoTimes([q.id]).reduce((a, r) => a + r.minutes, 0) <= 2, "never before the clock started (just now): not 50 minutes");
   const bad = await mcp.todo_clock_stop({ todo: `T-${t.id}`, agent: "Claude Code", log: { from: "vorhin", to: "jetzt" } });
   assert.match(text(bad), /isn't a todo|No clock|isn't a time/);
+  // The start answer gives the exact start time to keep (log.from).
+  const s2 = await todo("TT-7", "Start time given");
+  assert.match(text(await mcp.start_todo({ todo: `T-${s2.id}`, agent: "Codex" })), /since \d{4}-\d\d-\d\dT[\d:.]+Z [\s\S]*KEEP THIS START TIME/);
+  await mcp.todo_clock_stop({ todo: `T-${s2.id}`, agent: "Codex" });
   // Without a clock and without minutes: told to start one.
   const u = await todo("TT-7", "No clock");
   assert.match(text(await mcp.todo_time({ todo: `T-${u.id}`, agent: "Claude Code" })), /No clock runs on T-\d+ — only measured time/);

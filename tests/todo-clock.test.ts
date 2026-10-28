@@ -45,9 +45,12 @@ test("silent for more than 10 minutes: paused as of the last ping — the silenc
   const back = clockPing(t.id, "Copilot", min(38))!;
   assert.equal(back.resumedAfter, 30, "30 minutes not counted, said so");
   assert.equal(openClock(t.id, "Copilot", min(40))?.state, "running");
-  // Stopped later, silent again since 45: counted to 45.
+  // Stopped later, silent again since 45: not stopped without the agent saying how it was — it's asked, the clock stays.
   clockPing(t.id, "Copilot", min(45));
-  assert.equal(clockOut(t.id, "Copilot", { now: min(70) })!.minutes, 8 + 7, "0→8 and 38→45");
+  assert.throws(() => clockOut(t.id, "Copilot", { now: min(70) }), /went quiet — started [\s\S]* last sign of life [\s\S]*log: \{ idle: true \}/);
+  assert.equal(openClock(t.id, "Copilot", min(70))?.state, "silent", "still there");
+  // It really wasn't working after 45: what the clock measured.
+  assert.equal(clockOut(t.id, "Copilot", { now: min(70), log: { idle: true } })!.minutes, 8 + 7, "0→8 and 38→45");
 });
 
 test("the agent's own log when it didn't ping: Zeff computes the time from the times it read (to − from; steps with gaps over 10 minutes left out) — never before the clock, never in the future", async () => {

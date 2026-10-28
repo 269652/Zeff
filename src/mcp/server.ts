@@ -37,7 +37,7 @@ export const INSTRUCTIONS = `Zeff is a time-tracking (Zeiterfassung) server. Tim
 
 ONLY MEASURED TIME IS BOOKED. You never state minutes or hours yourself — no estimates, no "planning took 45 minutes", no rounding up, no time from before the clock started. Time exists only where a clock measured it (start_todo / todo_clock_start … todo_clock_stop / finish_todo) — or where your own log of it shows it: times you READ, never guessed (see "YOUR OWN LOG" below). Work with neither has no time — say so in your summary instead of guessing it. The tools take no minutes or hours from you; corrections (todo_time_update, update_time_entry) can only LOWER a time.
 
-YOUR OWN LOG — when you can't ping reliably: when you start on a todo, READ the time (run: date -u +%FT%TZ — or: node -e "console.log(new Date().toISOString())") and keep it; when you stop, read it again. Give both to todo_clock_stop / finish_todo / todo_time as log: { from, to } — or, better, log: { steps: [...] } with the times of your steps from your session. Zeff computes the minutes from them itself (to − from; steps: gaps over 10 minutes left out) and takes the more of that and what the clock measured. Never type a time you didn't read.
+YOUR OWN LOG — when you can't ping reliably: when you start on a todo, READ the time (run: date -u +%FT%TZ — or: node -e "console.log(new Date().toISOString())") and keep it; when you stop, read it again. Give both to todo_clock_stop / finish_todo / todo_time as log: { from, to } — or, better, log: { steps: [...] } with the times of your steps from your session. Zeff computes the minutes from them itself (to − from; steps: gaps over 10 minutes left out) and takes the more of that and what the clock measured. Never type a time you didn't read. A clock that went quiet is never stopped silently: todo_clock_stop / finish_todo / todo_time then answer with its start and its last sign of life and ask for your log — call again with log: { from: <that start>, to: <now, read> }, or log: { idle: true } if you really weren't working on it after the last sign of life.
 
 Record the time you work — measured, with ONE simple line. You never book directly: what you report becomes a SUGGESTION (S-<id>), a shadow row in the user's Weekly report that they take over (or skip). Its evidence is attached automatically: the todos you name, your runs on them (their logs, durations, reports) and what the todos came from.
 When you finish or pause work on a ticket:
@@ -91,6 +91,7 @@ const SESSION_LOG = z
       .describe("The times (ISO 8601) of your steps on this todo since the clock started — read from your session (each tool call's time), not estimated. Gaps over 10 minutes don't count."),
     from: z.string().optional().describe("When you began (ISO 8601) — read when you began: date -u +%FT%TZ, or new Date().toISOString()."),
     to: z.string().optional().describe("When you ended (ISO 8601) — read now the same way. Zeff counts to − from (never before the clock started)."),
+    idle: z.boolean().optional().describe("true: you really weren't working on it after the clock's last sign of life — only what it measured counts."),
   })
   .optional()
   .describe("Only if you didn't ping the clock reliably: your own record of the stretch — times you READ (from your session, or taken with date/JS at start and end), never estimated. Zeff computes the minutes from them and takes the more of that and what the clock measured.");
@@ -609,7 +610,7 @@ export function registerZeffTools(server: McpServer): void {
         const preamble = (await import("@/plugins/llm/run")).llmPreamble();
         return ok(
           `${resumed ? "Still yours" : "Started"}: W-${r.id} — ${todo.ref} (${todo.ticket}): ${todo.text}\n` +
-            `Clock: running on ${todo.ref} since ${clock.since.slice(11, 16)} UTC${clock.switched ? ` (the one on ${todoRef(clock.switched.todoId)} stopped: ${clock.switched.minutes} min recorded)` : ""} — ping it at least every 10 minutes (todo_clock_ping, todo_progress or todo_time), else it pauses as of your last ping; stop it with todo_clock_stop when you stop working on it, or finish_todo.\n` +
+            `Clock: running on ${todo.ref} since ${clock.since}${clock.switched ? ` (the one on ${todoRef(clock.switched.todoId)} stopped: ${clock.switched.minutes} min recorded)` : ""} — ping it at least every 10 minutes (todo_clock_ping, todo_progress or todo_time), else it pauses as of your last ping; stop it with todo_clock_stop when you stop working on it, or finish_todo. KEEP THIS START TIME: if you don't ping reliably, give it when you stop as log: { from: "${clock.since}", to: <now, read with date -u +%FT%TZ> }.\n` +
             (todo.userNotes.length ? `Notes on it (the user's — context, they take precedence — and earlier runs' reports):\n${todo.userNotes.map((n) => `- ${n.by ? `[${n.by}] ` : ""}${n.text}${n.url ? ` (${n.url})` : ""}`).join("\n")}\n` : "") +
             (w.repo
               ? w.existing
@@ -863,7 +864,7 @@ export function registerZeffTools(server: McpServer): void {
         const { clockIn } = await import("@/lib/work/todo-clock");
         const c = clockIn(todo.id, args.agent);
         return ok(
-          `${c.resumed ? "Clock running already" : "Clock started"} on ${todo.ref} (since ${c.since.slice(11, 16)} UTC).` +
+          `${c.resumed ? "Clock running already" : "Clock started"} on ${todo.ref} (since ${c.since} — keep it: if you don't ping reliably, give it when you stop as log.from, with log.to read then).` +
             (c.switched ? ` The clock on ${todoRef(c.switched.todoId)} was stopped: ${c.switched.minutes} min recorded.` : "") +
             " Ping it at least every 10 minutes while you work (todo_clock_ping, or todo_progress / todo_time) — silent longer, it pauses as of your last ping and that time is lost. Stop it with todo_clock_stop when you stop working on it (or finish_todo); todo_time without minutes records a lap.",
         );
