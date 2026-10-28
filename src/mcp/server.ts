@@ -30,12 +30,13 @@ import { createJob, listJobs } from "@/lib/jobs";
 import { listProjects, requireProjectByTitle } from "@/lib/projects";
 import { NO_JOB_NUMBER } from "@/lib/projects-shared";
 import { formatDay, formatWeekRange, resolveWeek, todayIso } from "@/lib/week";
+import type { TimeRecord } from "@/lib/work/shared";
 
 export const SERVER_INFO = { name: "zeff", version: "0.1.0" };
 
 export const INSTRUCTIONS = `Zeff is a time-tracking (Zeiterfassung) server. Time is booked in hours against job numbers.
 
-ONLY MEASURED TIME IS BOOKED. You never state minutes or hours yourself — no estimates, no "planning took 45 minutes", no rounding up, no time from before the clock started. Time exists only where a clock measured it (start_todo / todo_clock_start … todo_clock_stop / finish_todo) — or where your own log of it shows it: times you READ, never guessed (see "YOUR OWN LOG" below). Work with neither has no time — say so in your summary instead of guessing it. The tools take no minutes or hours from you; corrections (todo_time_update, update_time_entry) can only LOWER a time.
+ONLY MEASURED TIME IS BOOKED. You never state minutes or hours yourself — no estimates, no "planning took 45 minutes", no rounding up, no time from before the clock started. Time exists only where a clock measured it (start_todo / todo_clock_start … todo_clock_stop / finish_todo) — or where your own log of it shows it: times you READ, never guessed (see "YOUR OWN LOG" below). Work with neither has no time — say so in your summary instead of guessing it. Forgot to start the clock? Your log still counts: give it to todo_time, report_time or finish_todo (log: { from, to } read from your session's message times, or log.steps) — Zeff computes the minutes from it (never before the todo's last record). The tools take no minutes or hours from you; corrections (todo_time_update, update_time_entry) can only LOWER a time.
 
 YOUR OWN LOG — when you can't ping reliably: when you start on a todo, READ the time (run: date -u +%FT%TZ — or: node -e "console.log(new Date().toISOString())") and keep it; when you stop, read it again. Give both to todo_clock_stop / finish_todo / todo_time as log: { from, to } — or, better, log: { steps: [...] } with the times of your steps from your session. Zeff computes the minutes from them itself (to − from; steps: gaps over 10 minutes left out) and takes the more of that and what the clock measured. Never type a time you didn't read. A clock that went quiet is never stopped silently: todo_clock_stop / finish_todo / todo_time then answer with its start and its last sign of life and ask for your log — call again with log: { from: <that start>, to: <now, read> }, or log: { idle: true } if you really weren't working on it after the last sign of life.
 
@@ -95,6 +96,24 @@ const SESSION_LOG = z
   })
   .optional()
   .describe("Only if you didn't ping the clock reliably: your own record of the stretch — times you READ (from your session, or taken with date/JS at start and end), never estimated. Zeff computes the minutes from them and takes the more of that and what the clock measured.");
+
+/**
+ * Work no clock measured (the agent didn't start one): its own log of it, as one time record on the todo — the minutes
+ * worked out from the times it READ (todo-clock.ts loggedMs), never before the todo's last record or before it was made,
+ * never in the future. The note says it came from the log. Null: the log gives no time.
+ */
+async function recordFromLog(todoId: number, log: z.infer<typeof SESSION_LOG>, note: string | undefined, agent: string | undefined): Promise<TimeRecord | null> {
+  if (!log || log.idle) return null;
+  const { loggedMs } = await import("@/lib/work/todo-clock");
+  const { addTodoTime, listTodoTimes } = await import("@/lib/work/todo-time");
+  const now = Date.now();
+  const since = Math.max(0, ...listTodoTimes([todoId]).map((r) => Date.parse(r.at)), Date.parse(getTodo(todoId)?.createdAt ?? "") || 0);
+  const ms = loggedMs(log, since, now);
+  if (ms < 30000) return null;
+  const hhmm = (v: string | undefined) => (v ? new Date(v).toISOString().slice(11, 16) : "");
+  const span = log.steps?.length ? `${log.steps.length} steps` : `${hhmm(log.from)}–${hhmm(log.to)} UTC`;
+  return addTodoTime({ todoId, minutes: Math.max(1, Math.round(ms / 60000)), note: `${note ? `${note} ` : ""}(from the agent's log, ${span})`, by: agent, source: "agent", at: new Date(now).toISOString() });
+}
 
 function ok(text: string) {
   return { content: [{ type: "text" as const, text }] };
@@ -235,6 +254,7 @@ export function registerZeffTools(server: McpServer): void {
           .array(z.string())
           .min(1)
           .describe("Board todos this work was on and finished, e.g. ['T-12'] (see list_todos) — their measured time is the suggestion's hours, they its evidence; they're reported done with it (highlighted, the user closes them)."),
+        log: SESSION_LOG,
       }),
       annotations: { readOnlyHint: false, destructiveHint: false, idempotentHint: false },
     },
@@ -266,12 +286,14 @@ export function registerZeffTools(server: McpServer): void {
         const { formatMinutes } = await import("@/lib/work/shared");
         const { quarterHours, suggestedEvidence } = await import("@/lib/work/suggestions");
         const taken = suggestedEvidence().timeIds;
+        // Work no clock measured: the agent's log of it (times it read) becomes a record on the first todo first.
+        if (args.log && known.length) await recordFromLog(known[0], args.log, args.description, args.reportedBy);
         const reported = listTodoTimes(known, { open: true }).filter((r) => !taken.has(r.id));
         const measured = reported.reduce((a, r) => a + r.minutes, 0);
         if (!measured) {
           return fail(
             `No measured time on ${known.length ? known.map((id) => todoRef(id)).join(", ") : args.todos.join(", ")} — only measured time is booked. ` +
-              "Start a clock before you work (start_todo or todo_clock_start), stop it when you stop (todo_clock_stop / finish_todo); work without a clock has no time.",
+              "Worked without a clock? Call again with your log: log: { from, to } — times you READ (your session's messages, or date -u +%FT%TZ), or log.steps; Zeff computes the minutes. Next time start a clock first (start_todo or todo_clock_start).",
           );
         }
         // A suggestion, not a booking: the user takes it over in Zeff (with its evidence).
@@ -781,8 +803,9 @@ export function registerZeffTools(server: McpServer): void {
         // Only measured time: the clock's since its start (or the last lap) is recorded — it runs on. No clock, no time.
         const { clockLap } = await import("@/lib/work/todo-clock");
         const lap = clockLap(todo.id, args.agent, args.note, Date.now(), args.log);
-        if (!lap) return fail(`No clock runs on ${todo.ref} — only measured time is recorded. Start it (todo_clock_start, or start_todo) when you begin working; the time before has no record.`);
-        const r = lap.record;
+        // No clock ran: the agent's own log of the work (times it read) — else nothing.
+        const r = lap?.record ?? (await recordFromLog(todo.id, args.log, args.note, args.agent));
+        if (!r) return fail(`No clock runs on ${todo.ref} and no log given — only measured time is recorded. Worked on it without a clock? Give your log: log: { from, to } — times you READ (from your session's messages, or date -u +%FT%TZ), or log.steps; Zeff computes the minutes. Next time start the clock first (todo_clock_start, or start_todo).`);
         const open = listTodoTimes([todo.id], { open: true });
         return ok(
           `Recorded ${r.ref}: ${formatMinutes(r.minutes)} on ${todo.ref} (${r.by})${lap ? " — measured by its clock, which runs on" : ""}${r.note ? ` — "${r.note}"` : ""}. ` +
@@ -1002,7 +1025,7 @@ export function registerZeffTools(server: McpServer): void {
         // Only measured time: what the clock heard, or the agent's own log of the stretch (times it read). No clock ran: its
         // log from the todo's last record on (or from when the todo was made) — without one, no time from this stretch.
         let minutes = measured?.minutes ?? 0;
-        if (!measured && id !== null && args.log) {
+        if (!measured && id !== null && args.log && !args.log.idle) {
           const { listTodoTimes } = await import("@/lib/work/todo-time");
           const since = Math.max(0, ...listTodoTimes([id]).map((r) => Date.parse(r.at)), Date.parse(getTodo(id)?.createdAt ?? "") || 0);
           minutes = Math.round(clock.loggedMs(args.log, since, Date.now()) / 60000);

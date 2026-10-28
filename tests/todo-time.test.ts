@@ -255,13 +255,27 @@ test("measured: start_todo starts the todo's clock; todo_time without minutes re
   assert.ok(listTodoTimes([q.id]).reduce((a, r) => a + r.minutes, 0) <= 2, "never before the clock started (just now): not 50 minutes");
   const bad = await mcp.todo_clock_stop({ todo: `T-${t.id}`, agent: "Claude Code", log: { from: "vorhin", to: "jetzt" } });
   assert.match(text(bad), /isn't a todo|No clock|isn't a time/);
+  // Work without a clock (a review round, no start_todo): the agent's log still books — computed from the times it read,
+  // never before the todo was made (or its last record).
+  const { getSqlite } = await import("@/db");
+  const rv = await todo("TT-7", "Review round");
+  getSqlite().prepare("update todos set created_at = ? where id = ?").run(new Date(Date.now() - 3 * 3600000).toISOString(), rv.id);
+  const from = new Date(Date.now() - 40 * 60000).toISOString();
+  const lg = text(await mcp.todo_time({ todo: `T-${rv.id}`, note: "Review", agent: "Claude Code", log: { from, to: new Date().toISOString() } }));
+  assert.match(lg, /Recorded TT-\d+: 40 min/);
+  assert.match(listTodoTimes([rv.id])[0].note, /Review \(from the agent's log, \d\d:\d\d–\d\d:\d\d UTC\)/);
+  assert.match(text(await mcp.todo_time({ todo: `T-${rv.id}`, agent: "Claude Code" })), /no log given/);
+  const rv2 = await todo("TT-7", "Second review");
+  getSqlite().prepare("update todos set created_at = ? where id = ?").run(new Date(Date.now() - 3 * 3600000).toISOString(), rv2.id);
+  const rt2 = text(await mcp.report_time({ description: "Review", ticket: "TT-7", todos: [`T-${rv2.id}`], reportedBy: "Claude Code", log: { from: new Date(Date.now() - 25 * 60000).toISOString(), to: new Date().toISOString() } }));
+  assert.match(rt2, /Suggested S-\d+: 0\.5h/);
   // The start answer gives the exact start time to keep (log.from).
   const s2 = await todo("TT-7", "Start time given");
   assert.match(text(await mcp.start_todo({ todo: `T-${s2.id}`, agent: "Codex" })), /since \d{4}-\d\d-\d\dT[\d:.]+Z [\s\S]*KEEP THIS START TIME/);
   await mcp.todo_clock_stop({ todo: `T-${s2.id}`, agent: "Codex" });
   // Without a clock and without minutes: told to start one.
   const u = await todo("TT-7", "No clock");
-  assert.match(text(await mcp.todo_time({ todo: `T-${u.id}`, agent: "Claude Code" })), /No clock runs on T-\d+ — only measured time/);
+  assert.match(text(await mcp.todo_time({ todo: `T-${u.id}`, agent: "Claude Code" })), /No clock runs on T-\d+ and no log given — only measured time/);
   assert.match(text(await mcp.todo_clock_start({ todo: `T-${u.id}`, agent: "Claude Code" })), /Clock started/);
   assert.match(text(await mcp.todo_clock_stop({ todo: `T-${u.id}`, note: "kurz", agent: "Claude Code" })), /Clock stopped on T-\d+: 1 min recorded/);
 });
