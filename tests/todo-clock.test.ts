@@ -50,6 +50,37 @@ test("silent for more than 10 minutes: paused as of the last ping — the silenc
   assert.equal(clockOut(t.id, "Copilot", { now: min(70) })!.minutes, 8 + 7, "0→8 and 38→45");
 });
 
+test("no pings, but the agent's session worked on: its own steps (Claude Code's transcript) keep the clock running — a longer silence there still doesn't count", async () => {
+  const fs = await import("node:fs");
+  const path = await import("node:path");
+  const { addManualTodo } = await import("@/lib/boards/store");
+  const { clockIn, clockOut, openClock } = await import("@/lib/work/todo-clock");
+  const t = addManualTodo({ ticket: "PROJ-375", text: "Deep work" });
+  const other = addManualTodo({ ticket: "PROJ-375", text: "Only mentioned" });
+  const dir = path.join(process.env.ZEFF_CLAUDE_PROJECTS!, "C--work-repo");
+  fs.mkdirSync(dir, { recursive: true });
+  const at = (m: number) => new Date(min(m)).toISOString();
+  const step = (m: number, extra: object = {}) => JSON.stringify({ type: "assistant", timestamp: at(m), message: { content: [{ type: "text", text: "…" }] }, ...extra });
+  const lines = [
+    // The clock started the way that session reaches Zeff — a script with the tool's call in its command.
+    JSON.stringify({ type: "assistant", timestamp: at(0), message: { content: [{ type: "tool_use", name: "Bash", input: { command: `python zeff.py 'start_todo {"todo":"T-${t.id}","agent":"Claude Code"}'` } }] } }),
+    // Steps every 5 minutes up to 40, then nothing until 70 (waiting), one more at 72.
+    ...[5, 10, 15, 20, 25, 30, 35, 40, 72].map((m) => step(m)),
+  ];
+  fs.writeFileSync(path.join(dir, "s1.jsonl"), `${lines.join("\n")}\n`);
+  // Another session only talks about the other todo (a text, a grep) — not working on it.
+  fs.writeFileSync(path.join(dir, "s2.jsonl"), `${[JSON.stringify({ type: "assistant", timestamp: at(1), message: { content: [{ type: "tool_use", name: "Bash", input: { command: `grep start_todo log | grep T-${other.id}` } }] } }), step(30), step(50)].join("\n")}\n`);
+
+  clockIn(t.id, "Claude Code", min(0));
+  // Never pinged: still running at 45 — the session's steps kept it going.
+  assert.equal(openClock(t.id, "Claude Code", min(45))?.state, "running");
+  assert.equal(clockOut(t.id, "Claude Code", { now: min(75), record: false })!.minutes, 40 + 3, "0→40 by its steps, the 32 silent minutes left out, 72→75 after its last step");
+
+  clockIn(other.id, "Claude Code", min(0));
+  assert.equal(openClock(other.id, "Claude Code", min(60))?.state, "silent", "a session that only mentions it doesn't count");
+  assert.equal(Math.round(openClock(other.id, "Claude Code", min(60))!.minutes), 0);
+});
+
 test("starting on another todo stops the running one (its time recorded); stop without a name finds the todo's only clock; record:false only measures", async () => {
   const { addManualTodo } = await import("@/lib/boards/store");
   const { clockIn, clockPing, clockOut } = await import("@/lib/work/todo-clock");

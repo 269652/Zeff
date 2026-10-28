@@ -12,6 +12,8 @@ export function setupTempData(): string {
   process.env.ZEFF_TEAMS_SYNC = "off";
   // (The calendar inbox is a file beside the data, not in the database: the tests' own — else they read this computer's appointments.)
   process.env.ZEFF_CALENDAR_INBOX = path.join(dir, "calendar-inbox.json");
+  // (Agents' session transcripts, read by the todo clocks: the tests' own — not this computer's Claude Code.)
+  process.env.ZEFF_CLAUDE_PROJECTS = path.join(dir, "claude-projects");
   // Gone when the test run ends (the database may still be open then: what can't be removed is left).
   process.on("exit", () => {
     try {
