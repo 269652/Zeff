@@ -54,6 +54,9 @@ const DEFAULTS = {
   claudeMounts: "",
   /** Run Zeff as `next dev` (hot reload) instead of `next start`. Also: --dev, or the tray toggle (kept in <data>/launcher/dev-mode). */
   dev: false,
+  /** Restart Zeff's server every night at nightlyRestartAt (local) once it has been idle 10 minutes — gives back what next dev grew to. The tray switch overrides it. */
+  nightlyRestart: true,
+  nightlyRestartAt: "04:30",
   /** Start the servers with the launcher. */
   autostartServers: true,
   /** Extra environment for both servers. */
