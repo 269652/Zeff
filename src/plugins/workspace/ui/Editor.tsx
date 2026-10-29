@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useLang, useT } from "@/components/I18nProvider";
-import { formulaCallsAction, formulaDataAction, aiTextAction, aiTodosFromPageAction, createPageAction, createTodoListAction, createTodosAction, databasesAction, pageContentAction, savePageAction, taskListsAction, treeAction, type AiMode, type TaskListInfo } from "../actions";
+import { widgetCatalogAction, formulaCallsAction, formulaDataAction, aiTextAction, aiTodosFromPageAction, createPageAction, createTodoListAction, createTodosAction, databasesAction, pageContentAction, savePageAction, taskListsAction, treeAction, type AiMode, type TaskListInfo } from "../actions";
 import { markdownToDoc } from "../doc";
 import { fitAiContent, relocate, type TextBlock } from "../ai-fit";
 import { embedChoices } from "../embed-picker";
@@ -210,11 +210,20 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
     }
   }, []);
 
+  // The plugins' widgets, for the slash menu (each its own item).
+  const widgetsRef = useRef<{ id: string; label: string; icon: string; description: string }[]>([]);
+  useEffect(() => {
+    void widgetCatalogAction().then((r) => {
+      if (r.ok) widgetsRef.current = r.widgets;
+    });
+  }, []);
+
   // What the slash menu items call (read when picked, so always the latest).
   const ctxRef = useRef<SlashContext | null>(null);
   useEffect(() => {
     ctxRef.current = {
     pageId,
+    widgets: () => widgetsRef.current,
     t,
     lang,
     pickImage: () => void pickFile("image/*").then((f) => f && insertImage(f)),
@@ -327,7 +336,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       DatabaseViewNode,
       ZeffModuleNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffRoutine.configure({ pageId }),
-      ZeffWidget,
+      ZeffWidget.configure({ pageId: contextRowId ?? pageId }),
       ZeffForm,
       ZeffIf.configure({ pageId: contextRowId ?? pageId }),
       RowViewNode.configure({ pageId: contextRowId ?? pageId }),

@@ -265,11 +265,13 @@ function Picker({ defs, pick }: { defs: CatalogWidget[]; pick: (id: string) => v
   );
 }
 
-function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: NodeViewProps) {
+function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extension }: NodeViewProps) {
   const t = useT();
   const id = String(node.attrs.widget ?? "");
   const config = parseConfig(node.attrs.config);
-  const configKey = JSON.stringify(config);
+  // The page it stands on goes with what is asked (not kept in the block): a person's widget on their page takes them.
+  const pageId = Number((extension.options as { pageId?: number }).pageId) || 0;
+  const configKey = JSON.stringify(pageId ? { ...config, __page: pageId } : config);
   const ownTitle = String(node.attrs.title ?? "");
   const [defs, setDefs] = useState<CatalogWidget[]>([]);
   const [data, setData] = useState<WidgetData | null>(null);
@@ -407,9 +409,12 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode }: Node
   );
 }
 
-/** A plugin's widget as a block of a page. */
-export const ZeffWidget = Node.create({
+/** A plugin's widget as a block of a page (`pageId`: the page — or the row — it stands on). */
+export const ZeffWidget = Node.create<{ pageId: number }>({
   name: "zeffWidget",
+  addOptions() {
+    return { pageId: 0 };
+  },
   group: "block",
   atom: true,
   draggable: true,

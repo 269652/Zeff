@@ -34,6 +34,8 @@ export type SlashContext = {
   ai: (mode: "continue" | "summarize" | "actions" | "custom") => void;
   /** Make todos of the page (the AI proposes, you choose). */
   todosFromPage: () => void;
+  /** The plugins' widgets (read once per page): each its own item — /todo, /versprechen find them. */
+  widgets?: () => { id: string; label: string; icon: string; description: string }[];
 };
 
 export type SlashItem = { key: string; title: string; hint: string; icon: string; group: string; keywords: string[]; run: (c: { editor: Editor; range: Range; ctx: SlashContext }) => void };
@@ -260,6 +262,20 @@ export const slashItems = (t: T): SlashItem[] => [
   { key: "ai-todos", title: t("Make Zeff todos"), hint: t("The AI finds todos in this page"), icon: "☑️", group: t("AI"), keywords: ["ai", "todos", "tasks", "zeff"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.todosFromPage()) },
 ];
 
+/** Each widget a plugin brings as an item of its own (its name and what it shows are what it is found by). */
+function widgetItems(ctx: SlashContext): SlashItem[] {
+  const words = (s: string) => s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3);
+  return (ctx.widgets?.() ?? []).map((w) => ({
+    key: `widget:${w.id}`,
+    title: w.label,
+    hint: w.description,
+    icon: w.icon || "🧩",
+    group: ctx.t("Widgets"),
+    keywords: ["widget", ...w.id.split(/[._-]/), ...words(w.label), ...words(w.description)],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffWidget", attrs: { widget: w.id, config: "{}" } }).run(),
+  }));
+}
+
 function filterItems(all: SlashItem[], query: string): SlashItem[] {
   const q = query.trim().toLowerCase();
   if (!q) return all;
@@ -309,7 +325,7 @@ export const SlashCommand = Extension.create<{ getContext: () => SlashContext }>
         startOfLine: false,
         allowSpaces: true,
         allowedPrefixes: [" ", "\n"],
-        items: ({ query }) => filterItems(slashItems(getContext().t), query),
+        items: ({ query }) => filterItems([...slashItems(getContext().t), ...widgetItems(getContext())], query),
         command: ({ editor, range, props }) => props.run({ editor, range, ctx: getContext() }),
         render: suggestionRender<SlashItem>(SlashMenu, () => getContext().lang, { hideEmpty: true }),
       }),

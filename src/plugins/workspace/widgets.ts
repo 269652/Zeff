@@ -30,6 +30,9 @@ export function checkedConfig(w: WorkspaceWidget, raw: Record<string, unknown>):
     else if (s.kind === "checkbox") out[s.key] = v === undefined ? !!s.default : v === true || v === "true";
     else out[s.key] = typeof v === "string" ? v.slice(0, 200) : String(s.default ?? "");
   }
+  // The page the block stands on (widget-node.tsx): a person's widget on their page takes them.
+  const page = Number(raw.__page);
+  if (Number.isInteger(page) && page > 0) out.__page = page;
   return out;
 }
 
