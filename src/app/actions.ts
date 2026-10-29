@@ -476,9 +476,16 @@ export async function createAbsenceAction(_prev: ActionState, fd: FormData): Pro
     const end = str(fd, "endDate") || start;
     const type = (str(fd, "type") ?? "vacation") as "vacation" | "sick" | "holiday" | "other";
     const hours = num(fd, "hours");
+    const until = str(fd, "repeatUntil");
+    const label = { vacation: t("vacation"), sick: t("sick"), holiday: t("holiday"), other: t("other") }[type] ?? type;
+    if (until) {
+      // Every week until then (Fridays off): one absence per week.
+      const all = (await import("@/lib/schedule")).createWeeklyAbsences({ startDate: start, endDate: end, type, hours: hours ?? null, note: str(fd, "note") ?? null, until });
+      revalidateAll();
+      return { ok: true, message: t("Added {type} every week: {n} times, up to {until}.", { type: label, n: all.length, until: all[all.length - 1]?.startDate ?? until }) };
+    }
     const a = createAbsence({ startDate: start, endDate: end, type, hours: hours ?? null, note: str(fd, "note") ?? null });
     revalidateAll();
-    const label = { vacation: t("vacation"), sick: t("sick"), holiday: t("holiday"), other: t("other") }[type] ?? type;
     const dates = `${a.startDate}${a.endDate !== a.startDate ? `–${a.endDate}` : ""}`;
     return { ok: true, message: t("Added {type} {dates}.", { type: label, dates }) };
   } catch (err) {

@@ -7947,5 +7947,9 @@
   "A checkbox and a date among the columns can stamp the time a row is ticked.": "Una casilla y una fecha entre las columnas pueden marcar la hora en que se marca una fila.",
   "Sent, the rows are changed in place — no new row is made for them.": "Al enviar, las filas se cambian en su sitio — no se crea ninguna fila nueva para ellas.",
   "No entries yet.": "Aún no hay entradas.",
-  "Back to the form": "Volver al formulario"
+  "Back to the form": "Volver al formulario",
+  "Every week until": "Cada semana hasta",
+  "Optional: the same days again every week up to this date (e.g. Fridays off).": "Opcional: los mismos días cada semana hasta esta fecha (p. ej. viernes libres).",
+  "Repeat until must be a date after the start.": "«Cada semana hasta» debe ser una fecha posterior al inicio.",
+  "Added {type} every week: {n} times, up to {until}.": "{type} añadido cada semana: {n} veces, hasta {until}."
 }

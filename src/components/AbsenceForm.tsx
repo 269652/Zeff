@@ -33,7 +33,12 @@ export function AbsenceForm({ defaultDate }: { defaultDate: string }) {
         <label className="label" htmlFor="hours">{t("Hours/day")}</label>
         <input id="hours" name="hours" type="number" step="0.5" min="0" max="24" placeholder={t("full day")} className="input num" />
       </div>
-      <div className="sm:col-span-2">
+      <div>
+        <label className="label" htmlFor="repeatUntil">{t("Every week until")}</label>
+        <input id="repeatUntil" name="repeatUntil" type="date" className="input" aria-describedby="repeatUntil-help" />
+        <span id="repeatUntil-help" className="sr-only">{t("Optional: the same days again every week up to this date (e.g. Fridays off).")}</span>
+      </div>
+      <div className="sm:col-span-1">
         <label className="label" htmlFor="note">{t("Note")}</label>
         <input id="note" name="note" type="text" placeholder={t("optional")} className="input" />
       </div>

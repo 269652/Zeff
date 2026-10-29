@@ -153,6 +153,28 @@ export function createAbsence(input: {
     .get();
 }
 
+/**
+ * An absence every week (Fridays off, 8 h of vacation each): the same days of the week, one absence per week from the first
+ * up to `until` — each its own, so one of them can be taken back (a Friday worked after all). At most two years.
+ */
+export function createWeeklyAbsences(input: { startDate: string; endDate: string; type: AbsenceType; hours?: number | null; note?: string | null; until: string }): Absence[] {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(input.until) || input.until < input.startDate) {
+    throw new ValidationError(t("Repeat until must be a date after the start."));
+  }
+  const shift = (iso: string, days: number) => {
+    const d = new Date(`${iso}T12:00:00`);
+    d.setDate(d.getDate() + days);
+    return isoDate(d);
+  };
+  const out: Absence[] = [];
+  for (let w = 0; w < 105; w++) {
+    const startDate = shift(input.startDate, 7 * w);
+    if (startDate > input.until) break;
+    out.push(createAbsence({ ...input, startDate, endDate: shift(input.endDate, 7 * w) }));
+  }
+  return out;
+}
+
 export function deleteAbsence(id: number): void {
   getDb().delete(absences).where(eq(absences.id, id)).run();
 }

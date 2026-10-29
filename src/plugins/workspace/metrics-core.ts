@@ -58,14 +58,42 @@ function meetingHoursThisWeek(): number | null {
   return (total + ce - cs) / 60;
 }
 
+/** An account that books no time (a private one): its hours are those of the working plan — none booked ever. */
+function plansOnly(): boolean {
+  try {
+    return !getSqlite().prepare("select 1 from time_entries limit 1").get();
+  } catch {
+    return false;
+  }
+}
+/** The planned hours of this week's days up to today (the working plan less absences: a Friday off counts none). */
+function plannedSoFar(onlyToday = false): number {
+  const w = currentWeek();
+  const t0 = today();
+  return sum(getWeekTargets(w).targets.filter((_, i) => (onlyToday ? isoDate(w.days[i]) === t0 : isoDate(w.days[i]) <= t0)));
+}
+
 export const CORE_METRICS: MetricProvider[] = [
-  { label: "Stunden diese Woche", unit: "h", what: "The hours booked this week (time entries)", read: () => getWeeklyReport(currentWeek()).total, href: () => "/entries" },
-  { label: "Stunden heute", unit: "h", what: "The hours booked today", read: () => sum(listEntries({ from: today(), to: today() }).map((e) => e.hours)), href: () => "/entries" },
+  {
+    label: "Stunden diese Woche",
+    unit: "h",
+    what: "The hours booked this week (time entries) — in an account that books none, the working plan's hours up to today (absences left out)",
+    read: () => (plansOnly() ? plannedSoFar() : getWeeklyReport(currentWeek()).total),
+    href: () => "/entries",
+  },
+  {
+    label: "Stunden heute",
+    unit: "h",
+    what: "The hours booked today — in an account that books none, today's hours of the working plan (none on a day off)",
+    read: () => (plansOnly() ? plannedSoFar(true) : sum(listEntries({ from: today(), to: today() }).map((e) => e.hours))),
+    href: () => "/entries",
+  },
   {
     label: "Auslastung",
     unit: "%",
     what: "This week's booked hours of the week's target (your working hours, absences left out)",
     read: () => {
+      if (plansOnly()) return null;
       const w = currentWeek();
       const target = sum(getWeekTargets(w).targets);
       return target > 0 ? (getWeeklyReport(w).total / target) * 100 : null;
