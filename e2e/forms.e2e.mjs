@@ -91,3 +91,50 @@ test("forms: a person as a field's default shows by name in the designer, not as
     });
     assert.equal(await page.locator("main").getByText(`#${SEED.personId}`, { exact: true }).count(), 0, "the default still shows its id");
   }));
+
+test("form designer: a field added by its ＋, moved up by Alt+↑, filled in and sent makes a row of the database", (t) =>
+  withPage(t, async (page) => {
+    const title = `E2E Gamma ${Date.now()}`;
+    await open(page, "/workspace");
+    await page.getByRole("button", { name: rx("New", "Neu") }).filter({ hasText: "+" }).first().click();
+    await page.getByRole("menuitem", { name: rx("Form", "Formular") }).click();
+    await page.waitForURL(/\/workspace\/\d+$/, { timeout: 60_000 });
+    await page.getByLabel(rx("Database it fills", "Datenbank, die es füllt")).selectOption({ label: SEED.dbTitle });
+
+    // The palette's ＋ of "Dosis": it goes to the end (after the title field the database brought), selected and focused.
+    const add = page.getByRole("button", { name: rx("Add Dosis to the form", "Dosis zum Formular hinzufügen") });
+    await add.waitFor({ timeout: 15_000 }).catch(() => {
+      throw new Error('No "＋" for the field "Dosis" in the palette after choosing the database.');
+    });
+    await add.click();
+    const part = (n) => page.getByRole("button", { name: new RegExp(`^Dosis .*(position|Position) ${n} (of|von) 2$`) });
+    await part(2).waitFor({ timeout: 10_000 }).catch(async () => {
+      throw new Error(`"Dosis" isn't on the form as the second of two parts (the canvas: ${(await page.locator("[data-item]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))).join(" | ")}).`);
+    });
+    await part(2).focus();
+    await page.keyboard.press("Alt+ArrowUp");
+    await part(1).waitFor({ timeout: 10_000 }).catch(async () => {
+      throw new Error(`Alt+↑ didn't move "Dosis" to the top (the canvas: ${(await page.locator("[data-item]").evaluateAll((els) => els.map((e) => e.getAttribute("aria-label")))).join(" | ")}).`);
+    });
+    await waitSaved(page);
+
+    await page.getByRole("button", { name: rx("Fill in", "Ausfüllen") }).click();
+    const dose = page.getByLabel(/^Dosis/);
+    const name = page.getByLabel(/^Name/);
+    await dose.waitFor({ timeout: 15_000 }).catch(() => {
+      throw new Error('The filled-in form has no field "Dosis".');
+    });
+    const order = await page.evaluate(([a, b]) => !!(a.compareDocumentPosition(b) & Node.DOCUMENT_POSITION_FOLLOWING), [await dose.elementHandle(), await name.elementHandle()]);
+    assert.ok(order, "the filled-in form asks Dosis first (it was moved up)");
+    await name.fill(title);
+    await dose.fill("7");
+    await page.getByRole("button", { name: rx("Send", "Senden") }).click();
+    await page.getByText(rx("Thank you — it is saved.", "Danke — es ist gespeichert.")).first().waitFor({ timeout: 20_000 }).catch(() => {
+      throw new Error('No "Thank you — it is saved." after sending the form.');
+    });
+
+    await open(page, `/workspace/${SEED.dbId}`);
+    await page.locator("main tr", { hasText: title }).first().waitFor({ timeout: 20_000 }).catch(() => {
+      throw new Error(`The database has no row "${title}" after the form was sent.`);
+    });
+  }));

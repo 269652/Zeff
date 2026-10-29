@@ -24,6 +24,7 @@ const tlsCert = require("./lib/tls");
 const setup = require("./lib/setup");
 const autostart = require("./lib/autostart");
 const { startNotifications } = require("./lib/notifications");
+const nightly = require("./lib/nightly");
 
 const argv = process.argv.slice(app.isPackaged ? 1 : 2);
 const flag = (f) => argv.includes(f);
@@ -74,6 +75,10 @@ const state = {
   autostart: false,
   /** Zeff runs as `next dev` (hot reload) instead of `next start` on the last build. */
   dev: false,
+  /** The nightly restart of Zeff's server (lib/nightly.js): { enabled, at, lastDay }. */
+  nightly: { ...nightly.DEFAULTS, lastDay: null },
+  /** When someone last used Zeff through the https proxy (ms). */
+  lastActivity: Date.now(),
 };
 let tray = null;
 let win = null;
@@ -167,6 +172,31 @@ function setDev(on) {
   refresh();
 }
 
+/** The nightly restart switched on or off (tray) — kept in <state>/nightly-restart.json. */
+function setNightly(on) {
+  state.nightly = { ...state.nightly, enabled: on };
+  nightly.write(state.paths.state, state.nightly);
+  log(`nightly restart: ${on ? `on (${state.nightly.at}, when idle)` : "off"}`);
+  refresh();
+}
+
+/** Every half minute: is it time for the nightly restart (lib/nightly.js decides)? Zeff's server only — the others keep running. */
+function nightlyTick() {
+  const s = zeff();
+  if (!s || quitting) return;
+  const d = nightly.decide({ now: new Date(), ...state.nightly, lastActivity: state.lastActivity, running: s.status === "running" });
+  if (d.action !== "restart" && d.action !== "skip") return;
+  state.nightly = { ...state.nightly, lastDay: d.day };
+  try {
+    nightly.write(state.paths.state, state.nightly);
+  } catch (e) {
+    log(`nightly restart: ${e.message}`);
+  }
+  if (d.action === "skip") return log(`nightly restart: skipped for ${d.day} — Zeff wasn't idle for ${nightly.IDLE_MS / 60000} minutes in the ${nightly.WINDOW_MS / 3600000} hours after ${state.nightly.at}`);
+  log(`nightly restart: restarting Zeff (idle since ${new Date(state.lastActivity).toLocaleTimeString()}) to give back its memory`);
+  s.restart();
+}
+
 function buildMenu() {
   return Menu.buildFromTemplate([
     { label: "Open Zeff", click: () => shell.openExternal(state.url) },
@@ -176,6 +206,7 @@ function buildMenu() {
     ...state.services.filter((s) => s.name === "Work" || s.name === "Sync" || s.name === "Claude").map((w) => serviceMenu(w)),
     ...knowledges().map((k) => serviceMenu(k, [{ label: "Open knowledge", click: () => shell.openExternal(knowledgeUrl(k)) }, { type: "separator" }])),
     { label: "Dev mode (hot reload)", type: "checkbox", checked: state.dev, click: (item) => setDev(item.checked) },
+    { label: `Restart Zeff nightly (${state.nightly.at}, when idle)`, type: "checkbox", checked: state.nightly.enabled, click: (item) => setNightly(item.checked) },
     { type: "separator" },
     { label: "Open data folder", click: () => shell.openPath(state.paths.data) },
     { label: "Open plugins folder", click: openPluginsFolder },
@@ -300,6 +331,8 @@ async function start() {
   Object.assign(state, { cfg, paths });
   // Where each part runs: host (as it always was) or Docker — set in the status window (lib/modes.js).
   state.modes = modes.read(paths.state, cfg);
+  // The nightly restart (zeff-launcher.json: nightlyRestart / nightlyRestartAt as the defaults; the tray switch is kept).
+  state.nightly = nightly.read(paths.state, cfg);
   initLog(path.join(paths.logs, "launcher.log"));
   log(`launcher ${app.getVersion()} (Electron ${process.versions.electron}, ${PLATFORM}) — app ${paths.app}, data ${paths.data}, node ${paths.node}`);
   if (PLATFORM === "darwin" && app.isPackaged) unquarantine();
@@ -471,11 +504,15 @@ async function start() {
   const queueReconcile = () => (reconciling = reconciling.then(reconcile).catch((e) => log(`knowledge servers: ${e.message}`)));
   await queueReconcile();
   fs.watchFile(instancesFile, { interval: 2000 }, queueReconcile);
+  // Someone using Zeff (the nightly restart waits until nobody has for a while).
+  const onZeffRequest = (req) => {
+    if (nightly.isActivity(req)) state.lastActivity = Date.now();
+  };
   for (const port of cfg.httpsPorts) {
-    const v4 = await proxy.listen(proxy.createHttpsServer({ ...state.cert, routes, listenPort: port }), port, "127.0.0.1");
+    const v4 = await proxy.listen(proxy.createHttpsServer({ ...state.cert, routes, listenPort: port, onZeffRequest }), port, "127.0.0.1");
     // IPv6 only with IPv4: a port someone else holds on 127.0.0.1 (Docker on 443) must not be half
     // ours — a browser picking either address would sometimes get the other's certificate.
-    if (v4) await proxy.listen(proxy.createHttpsServer({ ...state.cert, routes, listenPort: port }), port, "::1");
+    if (v4) await proxy.listen(proxy.createHttpsServer({ ...state.cert, routes, listenPort: port, onZeffRequest }), port, "::1");
     else log(`https port ${port} is taken on 127.0.0.1 — not used`);
     if (v4) {
       log(`https on 127.0.0.1:${port}`);
@@ -495,6 +532,7 @@ async function start() {
   log(`serving ${state.url} (zeff:${cfg.zeffPort} knowledge:${cfg.knowledgePort})`);
 
   if (smokeTest) return runSmokeTest();
+  setInterval(nightlyTick, 30_000);
   if (!flag("--no-setup")) await machineSetup(false);
   else state.trusted = await setup.caTrusted(state.cert);
   refresh();

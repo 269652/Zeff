@@ -50,8 +50,11 @@ function page(res, status, title, text, retry) {
   res.end(html);
 }
 
-/** tls: the certificate's options (tls.ensure); routes: { knowledgeHost?, zeffPort, knowledgePort } */
-function createHttpsServer({ tls, routes, listenPort }) {
+/**
+ * tls: the certificate's options (tls.ensure); routes: { knowledgeHost?, zeffPort, knowledgePort }; onZeffRequest(req): told of
+ * each request that goes to Zeff (the nightly restart waits for a quiet moment).
+ */
+function createHttpsServer({ tls, routes, listenPort, onZeffRequest }) {
   const agent = new http.Agent({ keepAlive: true, maxSockets: 256 });
   const backend = (hostHeader) => {
     const host = hostOnly(hostHeader ?? "").toLowerCase();
@@ -63,6 +66,7 @@ function createHttpsServer({ tls, routes, listenPort }) {
 
   const server = https.createServer({ ...tls, minVersion: "TLSv1.2" }, (req, res) => {
     const { port, name } = backend(req.headers.host);
+    if (port === routes.zeffPort) onZeffRequest?.(req);
     const up = http.request(
       { host: "127.0.0.1", port, method: req.method, path: req.url, headers: forwarded(req, listenPort), agent },
       (r) => {
