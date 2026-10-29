@@ -71,8 +71,11 @@ export function periodOf(text: string, today = new Date()): { from: Date; to: Da
 
 const QUESTION_KINDS: readonly AssistQuestionKind[] = ["choice", "multi", "text", "number", "date"];
 
+/** Options that are dates or spans of days ("9.–10.1.", "2027-01-16", "Wochenende im Januar"): several of them can suit. */
+const DATEISH = /\d{1,2}\.|\d{4}-\d{2}|\b(jan|feb|mär|mar|apr|mai|may|jun|jul|aug|sep|okt|oct|nov|dez|dec)|wochenende|weekend/i;
+
 /** The questions as they may be shown: each with a text, a known kind, short options (a choice needs two) — at most four. */
-function cleanQuestions(raw: unknown): AssistQuestion[] {
+export function cleanQuestions(raw: unknown): AssistQuestion[] {
   const out: AssistQuestion[] = [];
   for (const [i, q] of (Array.isArray(raw) ? raw : []).entries()) {
     if (!q || typeof q !== "object" || out.length >= MAX_ASSIST_QUESTIONS) continue;
@@ -84,6 +87,8 @@ function cleanQuestions(raw: unknown): AssistQuestion[] {
     let kind: AssistQuestionKind = QUESTION_KINDS.includes(o.kind as AssistQuestionKind) ? (o.kind as AssistQuestionKind) : "text";
     let options = kind === "choice" || kind === "multi" ? [...new Set((Array.isArray(o.options) ? o.options : []).map((x) => str(x, 60)).filter(Boolean))].slice(0, 6) : [];
     if ((kind === "choice" || kind === "multi") && options.length < 2) [kind, options] = ["text", []];
+    // Dates to choose from: as many as suit (which weekends would do), never just one.
+    if (kind === "choice" && options.filter((x) => DATEISH.test(x)).length >= 2) kind = "multi";
     out.push({ id, text, kind, options });
   }
   return out;
@@ -133,7 +138,16 @@ function cleanAction(raw: unknown, check: AssistCheck): AssistActionBody | null 
   const label = str(o.label, 120);
   if (kind === "shadowCalendar") {
     if (!check.can.calendar) return null;
-    const events = (Array.isArray(o.events) ? o.events : []).slice(0, 31).map((e) => cleanEvent(e, check.busy)).filter((e): e is AssistEvent => !!e);
+    // One appointment per time: one overlapping an earlier one is dropped (the plan's days are moved by drag and drop instead).
+    const span = (e: AssistEvent) => [new Date(e.start.length === 10 ? `${e.start}T00:00` : e.start).getTime(), new Date(e.end.length === 10 ? `${e.end}T00:00` : e.end).getTime()];
+    const events = (Array.isArray(o.events) ? o.events : [])
+      .slice(0, 31)
+      .map((e) => cleanEvent(e, check.busy))
+      .filter((e): e is AssistEvent => !!e)
+      .reduce<AssistEvent[]>((kept, e) => {
+        const [a, b] = span(e);
+        return kept.some((k) => span(k)[0] < b && span(k)[1] > a) ? kept : [...kept, e];
+      }, []);
     const name = str(o.name, 80) || label;
     const own = Number(o.calendarId);
     return events.length && name ? { kind, label: label || name, name, events, ...(check.calendars?.has(own) ? { calendarId: own } : {}) } : null;
@@ -275,7 +289,7 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
   const lastRound = v.state.round >= MAX_ASSIST_ROUNDS;
   const widgets = [...v.check.widgets].map(([id, w]) => `${id} (${w.label}${w.settings.length ? `; config: ${w.settings.join(", ")}` : ""})`).join("; ");
   const kinds = [
-    v.check.can.calendar && `- {"kind":"shadowCalendar","label","name","events":[{"title","start","end","allDay"}]} — ein Planungskalender (nur Vorschläge, blockiert nichts). Ganze Tage "YYYY-MM-DD" (end = Tag nach dem letzten, allDay true), sonst "YYYY-MM-DDTHH:MM". Meide die belegten Zeiten.`,
+    v.check.can.calendar && `- {"kind":"shadowCalendar","label","name","events":[{"title","start","end","allDay"}]} — ein Planungskalender (nur Vorschläge, blockiert nichts). Ganze Tage "YYYY-MM-DD" (end = Tag nach dem letzten, allDay true), sonst "YYYY-MM-DDTHH:MM". Meide die belegten Zeiten. Pro Zeitraum genau ein Vorschlag, nichts überlappt (auch keine Anreise im Besuch) — der Nutzer verschiebt die Tage per Drag & Drop.`,
     v.check.can.todos && `- {"kind":"todo","label","text","due"} — eine Aufgabe; Personen beim Namen; due "YYYY-MM-DD" nur wenn sinnvoll.`,
     `- {"kind":"widget","label","widget","person","config"} — ein Baustein der Seite; person = id einer Person oben. Widgets: ${widgets || "(keine)"}`,
     `- {"kind":"text","label","markdown"} — Text für die Seite (z. B. eine Checkliste "- [ ] …").`,
@@ -306,7 +320,7 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
     "- summary: eine Zeile, wie du es verstehst (offenes als Frage).",
     lastRound
       ? "- questions: [] — keine Fragen mehr, schlage jetzt vor."
-      : `- questions: 0–${MAX_ASSIST_QUESTIONS} kurze Fragen (Runde ${v.state.round + 1} von ${MAX_ASSIST_ROUNDS}), nur was den Plan ändert; kind: choice (eine Antwort), multi (mehrere), text, number, date; options kurz (2–5) bei choice/multi. Weißt du genug: [] und gleich actions.`,
+      : `- questions: 0–${MAX_ASSIST_QUESTIONS} kurze Fragen (Runde ${v.state.round + 1} von ${MAX_ASSIST_ROUNDS}), nur was den Plan ändert; kind: multi, wenn mehrere Antworten passen können (Termine, Zeiträume, Optionen zum Vergleichen — immer multi), choice nur wenn genau eine stimmt, sonst text, number, date; options kurz (2–5) bei choice/multi. Weißt du genug: [] und gleich actions.`,
     `- actions (nur ohne questions): 1–${MAX_ASSIST_ACTIONS}, die wenigsten, die wirklich helfen; label: kurz, was es ist.`,
     ...kinds,
     "Erfinde nichts; Personen nur mit den ids oben.",

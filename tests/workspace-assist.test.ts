@@ -161,7 +161,7 @@ test("applying: only the chosen actions — a plan calendar with its days (embed
     ...newAssistState(),
     status: "proposing" as const,
     actions: [
-      { id: "a1", kind: "shadowCalendar", label: "Hamburg-Reise", name: "Hamburg-Reise", events: [{ title: "Hamburg", start: "2027-01-15", end: "2027-01-18", allDay: true }, { title: "Zug", start: "2027-01-15T08:00", end: "2027-01-15T11:30" }] },
+      { id: "a1", kind: "shadowCalendar", label: "Hamburg-Reise", name: "Hamburg-Reise", events: [{ title: "Hamburg", start: "2027-01-15", end: "2027-01-18", allDay: true }, { title: "Zug", start: "2027-01-18T08:00", end: "2027-01-18T11:30" }] },
       { id: "a2", kind: "todo", label: "Karla fragen", text: "Karla fragen, ob sie mitkommt", due: "2026-12-01" },
       { id: "a3", kind: "widget", label: "Mit Nadine", widget: "people.coming", config: {} },
       { id: "a4", kind: "text", label: "Packliste", markdown: "## Packliste\n\n- [ ] Zahnbürste" },
@@ -176,7 +176,7 @@ test("applying: only the chosen actions — a plan calendar with its days (embed
   const cal = ir.listCalendars().find((c) => c.id === embed.calendarId)!;
   assert.deepEqual([cal.name, cal.shadow], ["Hamburg-Reise", true], "a shadow calendar: suggestions, nothing blocked");
   assert.deepEqual([embed.view, embed.day, embed.also], ["week", "2027-01-15", ""]);
-  assert.deepEqual(ir.eventsBetween("2027-01-15T00:00", "2027-01-18T00:00").filter((e) => e.calendarId === cal.id).map((e) => e.title).sort(), ["Hamburg", "Zug"]);
+  assert.deepEqual(ir.eventsBetween("2027-01-15T00:00", "2027-01-19T00:00").filter((e) => e.calendarId === cal.id).map((e) => e.title).sort(), ["Hamburg", "Zug"]);
 
   // Its todos: one checklist of the page that feeds the Todo engine (ticked there, the todo is done) — not chips of their own.
   const list = r.nodes[1];
@@ -245,4 +245,32 @@ test("asked again: the plan calendar it made is updated (its days replaced, no s
   assert.deepEqual(r.created, [], "nothing new made");
   assert.equal(ir.listCalendars().filter((x) => x.name === "Hamburg-Reise").length, 1);
   assert.deepEqual(ir.eventsBetween("2027-01-01T00:00", "2027-01-31T00:00").filter((e) => e.calendarId === made.id).map((e) => [e.title, e.start]), [["Hamburg", "2027-01-09"]], "its days replaced");
+});
+
+test("a plan calendar proposes one appointment per time: those overlapping an earlier one are dropped (moved by drag and drop instead)", async () => {
+  const { cleanActions } = await import("@/plugins/workspace/assist");
+  const [cal] = cleanActions(
+    [
+      {
+        kind: "shadowCalendar",
+        name: "Hamburg",
+        events: [
+          { title: "Option A", start: "2027-01-15", end: "2027-01-18", allDay: true },
+          { title: "Option B", start: "2027-01-16", end: "2027-01-19", allDay: true },
+          { title: "Zug hin", start: "2027-01-15T08:00", end: "2027-01-15T11:00" },
+          { title: "Option C", start: "2027-01-22", end: "2027-01-25", allDay: true },
+        ],
+      },
+    ],
+    check(),
+  ) as Extract<import("@/plugins/workspace/assist-shared").AssistAction, { kind: "shadowCalendar" }>[];
+  assert.deepEqual(cal.events.map((e) => e.title), ["Option A", "Option C"], "B overlaps A, the train lies inside A: one per time");
+});
+
+test("the questions: several answers allowed where several can be true (dates, options to compare) — the prompt asks for multi", async () => {
+  const { cleanQuestions } = await import("@/plugins/workspace/assist");
+  const [q] = cleanQuestions([{ id: "q1", text: "Welche Wochenenden passen?", kind: "choice", options: ["2.–3.1.", "9.–10.1.", "16.–17.1."] }]);
+  assert.equal(q.kind, "multi", "dates offered as options: several can be picked");
+  const [one] = cleanQuestions([{ id: "q2", text: "Wie reist du?", kind: "choice", options: ["Zug", "Auto"] }]);
+  assert.equal(one.kind, "choice", "one way of travel: one answer");
 });
