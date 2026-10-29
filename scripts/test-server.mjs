@@ -137,9 +137,13 @@ export async function startTestServer({ port, ttlMs = DEFAULT_TTL_MS, seeds = []
     const out = runSeed(s, env);
     if (out) log(out);
   }
-  // `next dev` adds its dist dir's types to tsconfig.json when they aren't listed: put back as it was once it runs.
+  // `next dev` adds its dist dir's types to tsconfig.json (they aren't listed — on purpose: a test server killed while it writes
+  // them would leave tsc a broken file): put back as it was once the server answers (or failed to).
   const tsconfig = path.join(REPO, "tsconfig.json");
   const tsBefore = fs.readFileSync(tsconfig, "utf8");
+  const restoreTsconfig = () => {
+    if (fs.readFileSync(tsconfig, "utf8") !== tsBefore) fs.writeFileSync(tsconfig, tsBefore);
+  };
   const logFile = path.join(dataDir, "server.log");
   const out = fs.openSync(logFile, "a");
   const child = spawn(process.execPath, [MARKER, NEXT_BIN, "dev", "-H", "127.0.0.1", "-p", String(port)], { cwd: REPO, env, detached: true, stdio: ["ignore", out, out], windowsHide: true });
@@ -151,24 +155,24 @@ export async function startTestServer({ port, ttlMs = DEFAULT_TTL_MS, seeds = []
   const dog = spawn(process.execPath, [path.join(REPO, "scripts", "test-server.mjs"), "--watchdog", String(child.pid)], { cwd: REPO, detached: true, stdio: "ignore", windowsHide: true });
   dog.unref();
   addEntry(REGISTRY_FILE, { ...entry, watchdogPid: dog.pid });
+  const fail = async (why) => {
+    const tail = safeTail(logFile);
+    await stopTestServer(child.pid).catch(() => killTree(child.pid));
+    restoreTsconfig();
+    throw new Error(`${why} — its log:\n${tail}`);
+  };
   const until = Date.now() + readyTimeoutMs;
   for (;;) {
-    if (!alive(child.pid)) {
-      await stopTestServer(child.pid);
-      throw new Error(`The test server exited while starting — its log:\n${safeTail(logFile)}`);
-    }
+    if (!alive(child.pid)) await fail("The test server exited while starting");
     try {
       await fetch(`http://127.0.0.1:${port}/favicon.ico`, { signal: AbortSignal.timeout(5000) });
       break;
     } catch {
-      if (Date.now() > until) {
-        await stopTestServer(child.pid);
-        throw new Error(`The test server didn't answer within ${readyTimeoutMs / 1000} s — its log:\n${safeTail(logFile)}`);
-      }
+      if (Date.now() > until) await fail(`The test server didn't answer within ${readyTimeoutMs / 1000} s`);
       await new Promise((r) => setTimeout(r, 1000));
     }
   }
-  if (fs.readFileSync(tsconfig, "utf8") !== tsBefore) fs.writeFileSync(tsconfig, tsBefore);
+  restoreTsconfig();
   log(`✔ test server ${entry.url} (pid ${entry.pid}), stops by itself at ${entry.expires}`);
   return { ...entry, watchdogPid: dog.pid };
 }

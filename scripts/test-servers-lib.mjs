@@ -71,6 +71,10 @@ const isNextServer = (cmdline) => /node_modules[\\/]next[\\/]dist[\\/](bin[\\/]n
  * and never one on a protected port (9333), nor anything above or below it, nor one of the main checkout without the marker.
  *
  * `processes`: [{pid, ppid, cmdline, startedAt, port?}]; times in ms.
+ *
+ * @param {{ pid: number, ppid: number, cmdline: string, startedAt: number, port?: number }[]} processes
+ * @param {{ now: number, ttlMs?: number, registry?: { pid: number, port: number, startedAt: number, ttlMs: number }[], mainCheckout: string, worktrees?: string[], tmpDir?: string, protectedPorts?: number[] }} opts
+ * @returns {{ pid: number, reason: string, cmdline: string }[]}
  */
 export function reapPlan(processes, { now, ttlMs = DEFAULT_TTL_MS, registry = [], mainCheckout, worktrees = [], tmpDir = os.tmpdir(), protectedPorts = PROTECTED_PORTS }) {
   const byPid = new Map(processes.map((p) => [p.pid, p]));

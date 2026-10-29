@@ -40,9 +40,7 @@
     ".next-probe/types/**/*.ts",
     ".next-probe/dev/types/**/*.ts",
     ".next-ws-test/types/**/*.ts",
-    ".next-ws-test/dev/types/**/*.ts",
-    ".next-e2e/types/**/*.ts",
-    ".next-e2e/dev/types/**/*.ts"
+    ".next-ws-test/dev/types/**/*.ts"
   ],
   "exclude": [
     "node_modules",

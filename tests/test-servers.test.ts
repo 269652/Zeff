@@ -43,7 +43,7 @@ const MIN = 60_000;
 const NOW = 100 * MIN;
 const nextDev = (root: string, extra = "") => `"C:\\Program Files\\nodejs\\node.exe" ${extra}${root}\\node_modules\\next\\dist\\bin\\next dev -H 127.0.0.1 -p 9448`;
 const startServer = (root: string) => `"C:\\Program Files\\nodejs\\node.exe" ${root}\\node_modules\\next\\dist\\server\\lib\\start-server.js`;
-const opts = (registry: unknown[] = []) => ({ now: NOW, ttlMs: 30 * MIN, registry, mainCheckout: MAIN, worktrees: [WT], tmpDir: TMP, protectedPorts: [9333] });
+const opts = (registry: { pid: number; port: number; startedAt: number; ttlMs: number }[] = []) => ({ now: NOW, ttlMs: 30 * MIN, registry, mainCheckout: MAIN, worktrees: [WT], tmpDir: TMP, protectedPorts: [9333] });
 
 test("reap: a registered server past its TTL goes, one within it stays; a pid reused by something else is left", async () => {
   const { reapPlan, MARKER } = await lib();
