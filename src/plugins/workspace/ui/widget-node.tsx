@@ -366,7 +366,7 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
       {!id ? (
         <Picker defs={defs} pick={(w) => updateAttributes({ widget: w, config: "{}" })} />
       ) : (
-        <section className={`group/widget relative ${bare ? "" : "rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"} ${!showHeader && !bare ? "transition-[border-radius] group-hover/widget:rounded-tl-none" : ""}`} data-widget={id}>
+        <section className={`group/widget relative ${bare ? "" : "rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"} ${!showHeader && !bare ? "hover:rounded-tl-none focus-within:rounded-tl-none" : ""}`} data-widget={id}>
           {/* Without its header: its name shows over the card on hover (it takes no room in the page), the controls top right. */}
           {!showHeader && (
             // (a tab of the card: its colour and border, rounded on top, no border below — on the card's left edge, over it by a pixel)
