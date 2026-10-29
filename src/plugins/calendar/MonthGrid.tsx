@@ -117,7 +117,7 @@ export function MonthGrid({
                   aria-label={local(d).toLocaleDateString(locale, { weekday: "long", day: "numeric", month: "long" })}
                   data-day={d}
                   onClick={(e) => (e.target === e.currentTarget || (e.target as HTMLElement).dataset.free) && onCreate({ start: `${d}T09:00`, end: `${d}T10:00`, allDay: false })}
-                  className={`flex min-w-0 cursor-cell flex-col gap-0.5 overflow-hidden border-l border-zinc-100 p-1 dark:border-zinc-800 ${other ? "bg-zinc-50/70 dark:bg-zinc-900/50" : ""} ${target ? "bg-indigo-50 ring-2 ring-indigo-400 ring-inset dark:bg-indigo-950/40" : ""}`}
+                  className={`flex min-w-0 cursor-cell flex-col gap-0.5 overflow-clip [overflow-clip-margin:2px] border-l border-zinc-100 p-1 dark:border-zinc-800 ${other ? "bg-zinc-50/70 dark:bg-zinc-900/50" : ""} ${target ? "bg-indigo-50 ring-2 ring-indigo-400 ring-inset dark:bg-indigo-950/40" : ""}`}
                 >
                   <button
                     type="button"
@@ -127,7 +127,12 @@ export function MonthGrid({
                   >
                     {Number(d.slice(8)) === 1 ? local(d).toLocaleDateString(locale, { day: "numeric", month: "short" }) : Number(d.slice(8))}
                   </button>
-                  {list.slice(0, MAX).map((it) => (
+                  {list.slice(0, MAX).map((it) => {
+                    // A day of a longer all-day event: one bar across the days of the week (no gap, no round corner where it goes on;
+                    // its title where it starts and at the start of a week).
+                    const from = it.allDay && it.start.slice(0, 10) < d && d !== w[0];
+                    const on = it.allDay && it.end.slice(0, 10) > addDays(d, 1) && d !== w[6];
+                    return (
                     <button
                       key={it.id}
                       type="button"
@@ -141,16 +146,17 @@ export function MonthGrid({
                       onClick={(e) => e.detail === 0 && onOpen(it, e.currentTarget.getBoundingClientRect())}
                       onKeyDown={(e) => onItemKey(e, it)}
                       aria-label={itemLabel(it, t)}
-                      className={`flex w-full min-w-0 items-center gap-1 truncate rounded px-1 text-left text-xs leading-5 ${it.allDay ? "font-medium" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"} ${it.editable ? "cursor-grab" : "cursor-pointer"} ${drag?.moved && drag.item.id === it.id ? "opacity-60" : ""} ${it.proposed || it.shadow ? "border border-dashed" : ""}`}
+                      className={`flex min-w-0 items-center gap-1 truncate rounded px-1 text-left text-xs leading-5 ${from ? "-ml-[5px] rounded-l-none border-l-0 pl-[9px]" : ""} ${on ? "-mr-[5px] rounded-r-none border-r-0" : ""} ${from && on ? "w-[calc(100%+10px)]" : from || on ? "w-[calc(100%+5px)]" : "w-full"} ${it.allDay ? "font-medium" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"} ${it.editable ? "cursor-grab" : "cursor-pointer"} ${drag?.moved && drag.item.id === it.id ? "opacity-60" : ""} ${it.proposed || it.shadow ? "border border-dashed" : ""}`}
                       style={it.allDay && !it.shadow ? { background: it.color, color: textOn(it.color) } : it.proposed || it.shadow ? { borderColor: it.color } : undefined}
                       title={`${it.allDay ? "" : `${timeText(it.start)} `}${it.title}${it.merged ? ` ✓ ${it.merged.title}` : ""}`}
                     >
                       {!it.allDay && <span className="size-1.5 shrink-0 rounded-full" style={{ background: it.color }} />}
                       {!it.allDay && <span className="shrink-0 text-zinc-600 tabular-nums dark:text-zinc-400">{it.start.slice(0, 10) === d ? timeText(it.start) : "…"}</span>}
-                      <span className="min-w-0 truncate">{it.title}</span>
+                      <span className={`min-w-0 truncate ${from ? "invisible" : ""}`}>{it.title}</span>
                       {it.merged && <span className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden>✓</span>}
                     </button>
-                  ))}
+                    );
+                  })}
                   {list.length > MAX && (
                     <button type="button" onClick={() => onPickDay(d)} className="self-start rounded px-1 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800">
                       {t("+{n} more", { n: list.length - MAX })}
