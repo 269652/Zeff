@@ -7667,5 +7667,16 @@
   "Read it from another table like this": "Léela desde otra tabla así",
   "this row": "esta fila",
   "No Kennzahl like that": "Ninguna cifra clave así",
-  "A1 · A1:B3 · B:B · [Column] · @Kennzahl · SUMME(…) · WENN(…; …; …)": "A1 · A1:B3 · B:B · [Columna] · @Cifra · SUM(…) · IF(…; …; …)"
+  "A1 · A1:B3 · B:B · [Column] · @Kennzahl · SUMME(…) · WENN(…; …; …)": "A1 · A1:B3 · B:B · [Columna] · @Cifra · SUM(…) · IF(…; …; …)",
+  "This cell, as formulas name it": "Esta celda, como la nombran las fórmulas",
+  "Row above": "Fila encima",
+  "Row below": "Fila debajo",
+  "Column left": "Columna a la izquierda",
+  "Column right": "Columna a la derecha",
+  "Header row on / off": "Fila de encabezado sí / no",
+  "Remove the row": "Quitar la fila",
+  "Remove the column": "Quitar la columna",
+  "e.g. Kosten": "p. ej. Costes",
+  "Enter to keep. The page's other tables then read it as Name!A1, SUMME(Name!B:B).": "Intro para guardar. Las demás tablas de la página la leen entonces como Nombre!A1, SUM(Nombre!B:B).",
+  "Remove the table": "Quitar la tabla"
 }

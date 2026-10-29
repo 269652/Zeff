@@ -9,7 +9,8 @@ import { PersonHover } from "@/plugins/people/PersonMention";
 import { aiFillCellAction, cellChoicesAction, type DatabaseData } from "../actions";
 import { cellFormula, choiceColor, COLORS, dateRange, formatNumber, isComputed, newId, takesCellFormula, type Option, type Property, type Row } from "../model";
 import { FormulaEditor } from "./formula-editor";
-import { FormulaHelp } from "./sheet";
+import { FormulaHelp, mentionQuery } from "./sheet";
+import { splitRefs } from "../formula";
 import { Dropdown, useDismiss } from "./kit";
 
 /** The cells of a database: how each property type is shown, and edited in place. */
@@ -200,8 +201,27 @@ export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx 
       if (v && p.aiChoices?.includes(String(v))) return <Tag option={{ id: String(v), name: String(v), color: choiceColor(p, String(v)) }} />;
       return v ? <span className="line-clamp-3 whitespace-pre-wrap">{String(v)}</span> : <span className="text-xs text-violet-600 dark:text-violet-300">✨ {t("Fill")}</span>;
     default:
-      return v ? <span className="line-clamp-4 break-words whitespace-pre-wrap">{String(v)}</span> : null;
+      if (!v) return null;
+      // Mentions ([[page:12|Titel]], as @ puts them in) as chips.
+      if (typeof v === "string" && v.includes("[[")) return <span className="line-clamp-4 break-words whitespace-pre-wrap">{splitRefs(v).map((x, i) => ("text" in x ? <span key={i}>{x.text}</span> : <RefChip key={i} {...x} />))}</span>;
+      return <span className="line-clamp-4 break-words whitespace-pre-wrap">{String(v)}</span>;
   }
+}
+
+/** A mention in a cell's text as a chip: a page, a todo, a Kennzahl link to theirs. */
+function RefChip({ kind, ref, label }: { kind: string; ref: string; label: string }) {
+  const href = kind === "page" ? `/workspace/${ref}` : kind === "todo" ? `/t/${ref}` : kind === "metric" ? `/workspace/metrics#${ref}` : "";
+  const icon = { page: "📄", todo: "☑️", ticket: "🎫", person: "👤", metric: "📊" }[kind] ?? "";
+  const body = `${icon} ${label}`;
+  return href ? (
+    <Link href={href} onClick={(e) => e.stopPropagation()} className="ws-chip" data-kind={kind}>
+      {body}
+    </Link>
+  ) : (
+    <span className="ws-chip" data-kind={kind}>
+      {body}
+    </span>
+  );
 }
 
 /** An editor that needs more than one field (a list to pick from, two dates, a text and its AI button): it opens over the table, not squeezed into the cell. */
@@ -276,13 +296,16 @@ function TextEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx
   const box = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
   const formula = takesCellFormula(p) && text.trimStart().startsWith("=");
   const rowNumber = ctx.data.rows.findIndex((r) => r.id === row.id) + 1;
-  const help = formula ? (
+  // (a text cell has the @ menu too: a mention goes in as [[page:12|Titel]] and shows as a chip)
+  const mentioning = !formula && (p.type === "text" || p.type === "markdown") && !!mentionQuery(text);
+  const help = formula || mentioning ? (
     <CellPanel anchor={box}>
       <div className="w-[min(26rem,calc(100vw-32px))]">
         <FormulaHelp
           schema={ctx.data.schema}
           row={rowNumber || undefined}
           text={text}
+          formula={formula}
           onPick={(next) => {
             setText(next);
             box.current?.focus();

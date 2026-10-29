@@ -3,8 +3,8 @@
 import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { formulaNamesAction, setTableShareAction } from "../actions";
-import { colLetters } from "../formula";
+import { formulaNamesAction, mentionSearchAction, setTableShareAction, type MentionItem } from "../actions";
+import { colLetters, refToken, type RefKind } from "../formula";
 import { sheetColumns, sheetRef, TITLE, type DbSchema } from "../model";
 import { Modal } from "./kit";
 
@@ -108,11 +108,54 @@ const loadNames = () =>
 /** @Sparrate, or @[Frei im Monat] when the name has more than a word. */
 export const metricRef = (name: string) => (/^[\p{L}_][\p{L}\p{N}_]*$/u.test(name) ? `@${name}` : `@[${name}]`);
 
+/** An @ being typed at the end of a cell's text: where it starts and what follows it — null when there is none. */
+/** (In a formula a name ends at what isn't part of one: @Sparrate*12 is done after "Sparrate".) */
+export function mentionQuery(text: string, formula = false): { at: number; q: string } | null {
+  if (formula) {
+    const f = /@(\[[^\]]*|[\p{L}\p{N}_]*)$/u.exec(text);
+    return f ? { at: f.index, q: f[1].replace(/^\[/, "") } : null;
+  }
+  const m = /(^|[\s=+\-*/;,&(<>])@(\[[^\]\n]*|[^@\n\[\]]{0,40})$/u.exec(text);
+  return m ? { at: m.index + m[1].length, q: m[2].replace(/^\[/, "") } : null;
+}
+
+/** What a pick of the @ menu puts in a cell: in a formula a Kennzahl by its name (@Sparrate) and the rest as a mention; in a text the mention. */
+export const mentionInsert = (it: Pick<MentionItem, "kind" | "ref" | "label">, formula: boolean): string => (formula && it.kind === "metric" ? metricRef(it.label) : refToken(it.kind as RefKind, it.ref, it.label));
+
+/** The @ menu of a cell — what a block's @ offers: Kennzahlen, people, pages, todos, tickets (a click puts it in). */
+function CellMentions({ q, onPick }: { q: string; onPick: (it: MentionItem) => void }) {
+  const t = useT();
+  const [items, setItems] = useState<MentionItem[] | null>(null);
+  useEffect(() => {
+    let live = true;
+    const timer = setTimeout(() => void mentionSearchAction(q).then((r) => live && setItems(r), () => live && setItems([])), 150);
+    return () => {
+      live = false;
+      clearTimeout(timer);
+    };
+  }, [q]);
+  if (!items) return <p className="text-xs text-zinc-500">{t("Loading …")}</p>;
+  if (!items.length) return <p className="text-xs text-zinc-500">{t("Type a name, a page, a todo or a ticket key")}</p>;
+  return (
+    <ul className="max-h-56 overflow-y-auto">
+      {items.slice(0, 12).map((it) => (
+        <li key={`${it.kind}:${it.ref}`}>
+          <button type="button" className="flex w-full items-center gap-2 rounded px-1.5 py-1 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => onPick(it)}>
+            <span>{it.icon}</span>
+            <span className="min-w-0 flex-1 truncate">{it.label}</span>
+            <span className="shrink-0 text-xs text-zinc-500">{it.hint}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 /**
- * The help under a cell while "=…" is typed: the columns' letters and this row's number, the Kennzahlen matching what follows
- * an @ (a click puts it in), the tables shared for formulas.
+ * The help under a cell: while "=…" is typed the whole formula, the columns' letters and this row's number, the shared tables;
+ * after an @ (in a formula or a text) the @ menu as a block has it — a pick goes in at the @.
  */
-export function FormulaHelp({ schema, row, text, onPick }: { schema: DbSchema; row?: number; text: string; onPick: (next: string) => void }) {
+export function FormulaHelp({ schema, row, text, formula = true, onPick }: { schema: DbSchema; row?: number; text: string; formula?: boolean; onPick: (next: string) => void }) {
   const t = useT();
   const [n, setN] = useState<{ metrics: string[]; tables: { name: string; title: string }[] } | null>(null);
   useEffect(() => {
@@ -122,24 +165,15 @@ export function FormulaHelp({ schema, row, text, onPick }: { schema: DbSchema; r
       live = false;
     };
   }, []);
-  const at = /@(\[[^\]]*|[\p{L}\p{N}_]*)$/u.exec(text);
-  const q = (at?.[1] ?? "").replace(/^\[/, "").toLowerCase();
-  const metrics = at ? (n?.metrics ?? []).filter((m) => m.toLowerCase().includes(q)).slice(0, 8) : [];
+  const at = mentionQuery(text, formula);
   return (
     <div className="space-y-1 px-1" onMouseDown={(e) => e.preventDefault()}>
       {/* The whole formula (the cell is narrow). */}
-      <p className="font-mono text-sm break-all text-zinc-800 dark:text-zinc-100">{text}</p>
-      <ColumnLegend schema={schema} row={row} />
+      {formula && <p className="font-mono text-sm break-all text-zinc-800 dark:text-zinc-100">{text}</p>}
+      {formula && <ColumnLegend schema={schema} row={row} />}
       {at ? (
-        <div className="flex flex-wrap gap-1">
-          {metrics.map((m) => (
-            <button key={m} type="button" className="ws-tag" onClick={() => onPick(`${text.slice(0, at.index)}${metricRef(m)}`)}>
-              @{m}
-            </button>
-          ))}
-          {!metrics.length && <span className="text-xs text-zinc-500">{n ? t("No Kennzahl like that") : t("Loading …")}</span>}
-        </div>
-      ) : (
+        <CellMentions q={at.q} onPick={(it) => onPick(`${text.slice(0, at.at)}${mentionInsert(it, formula)}${formula ? "" : " "}`)} />
+      ) : !formula ? null : (
         <p className="text-xs text-zinc-500">
           {t("A1 · A1:B3 · B:B · [Column] · @Kennzahl · SUMME(…) · WENN(…; …; …)")}
           {n?.tables.length ? ` · ${n.tables.map((x) => `${sheetRef(x.name)}!A1`).join(" · ")}` : ""}

@@ -8,7 +8,7 @@ import { Details, DetailsContent, DetailsSummary } from "@tiptap/extension-detai
 import Highlight from "@tiptap/extension-highlight";
 import Image from "@tiptap/extension-image";
 import { TaskIds, TaskItemWithId, TaskListBlock, TodoListEmbedNode } from "./task-list-node";
-import { Table, TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
+import { TableCell, TableHeader, TableRow } from "@tiptap/extension-table";
 import { Placeholder } from "@tiptap/extensions";
 import StarterKit from "@tiptap/starter-kit";
 import { common, createLowlight } from "lowlight";
@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useLang, useT } from "@/components/I18nProvider";
-import { aiTextAction, aiTodosFromPageAction, createPageAction, createTodoListAction, createTodosAction, databasesAction, pageContentAction, savePageAction, taskListsAction, treeAction, type AiMode, type TaskListInfo } from "../actions";
+import { formulaDataAction, aiTextAction, aiTodosFromPageAction, createPageAction, createTodoListAction, createTodosAction, databasesAction, pageContentAction, savePageAction, taskListsAction, treeAction, type AiMode, type TaskListInfo } from "../actions";
 import { markdownToDoc } from "../doc";
 import { fitAiContent, relocate, type TextBlock } from "../ai-fit";
 import { embedChoices } from "../embed-picker";
@@ -34,6 +34,9 @@ import { ZeffWidget } from "./widget-node";
 import { ZeffForm, ZeffIf } from "./form-nodes";
 import { PageEmbedNode } from "./page-embed";
 import { SlashCommand, type SlashContext } from "./slash";
+import { SheetTable, TableFormulas, tableFormulasKey } from "./table-formulas";
+import { TableTools } from "./table-tools";
+import type { FormulaData } from "../page-sheet";
 import "./workspace.css";
 
 const lowlight = createLowlight(common);
@@ -58,11 +61,18 @@ type Proposal = { markdown: string; mode: AiMode; from: number; to: number; repl
 export function Editor({ pageId, contextRowId, initial, rev, editable, smallText, onSave, dragHandles = true }: { /** The handle at the side of each top-level block (drag, add below). */ dragHandles?: boolean; pageId: number; /** The row whose data the modules of this page show (a detail view laid out on a row: the page saves, the modules are the row's). */ contextRowId?: number; initial: JSONContent; rev: number; editable: boolean; smallText: boolean; onSave?: (s: SaveState) => void }) {
   const t = useT();
   const lang = useLang();
+  const langRef = useRef<string>(lang);
+  useEffect(() => {
+    langRef.current = lang;
+  }, [lang]);
   const router = useRouter();
   const revRef = useRef(rev);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const dirty = useRef(false);
   const editorRef = useRef<TiptapEditor | null>(null);
+  // What the formulas of the page's tables need from the server (Kennzahlen, shared tables): asked once a formula is there.
+  const formulaData = useRef<FormulaData | null>(null);
+  const formulaAsked = useRef(false);
   const saving = useRef(false);
   const [state, setState] = useState<SaveState>("saved");
   const [conflictRev, setConflictRev] = useState<number | null>(null);
@@ -270,7 +280,21 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       TaskItemWithId.configure({ nested: true }),
       TaskIds,
       TodoListEmbedNode,
-      Table.configure({ resizable: true }),
+      SheetTable.configure({ resizable: true }),
+      // eslint-disable-next-line react-hooks/refs -- the refs are read when a formula cell is shown or the data comes, not while the editor is set up
+      TableFormulas.configure({
+        getData: () => formulaData.current,
+        requestData: () => {
+          if (formulaAsked.current) return;
+          formulaAsked.current = true;
+          void formulaDataAction().then((r) => {
+            formulaData.current = r.ok ? { metrics: r.metrics, sheets: r.sheets } : { metrics: {}, sheets: {} };
+            const ed = editorRef.current;
+            if (ed && !ed.isDestroyed) ed.view.dispatch(ed.state.tr.setMeta(tableFormulasKey, true));
+          });
+        },
+        locale: () => langRef.current,
+      }),
       TableRow,
       TableHeader,
       TableCell,
@@ -562,6 +586,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
         </div>
       )}
       <EditorContent editor={editor} />
+      <TableTools editor={editor} />
 
       {aiBusy && <p className="mt-2 text-sm text-violet-700 dark:text-violet-300">✨ {t("The AI is working …")}</p>}
       {proposal && (

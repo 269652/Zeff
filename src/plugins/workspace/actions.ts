@@ -1661,3 +1661,24 @@ export async function formulaNamesAction() {
     tables: store.sharedTables().map((x) => ({ name: x.name, title: x.title })),
   }));
 }
+
+/** What a page's tables (/Tabelle) need from the server for their formulas: the Kennzahlen' values (by key) and the shared tables' cells (by name). */
+export async function formulaDataAction() {
+  return run(async () => {
+    const { listMetrics } = await import("./metrics");
+    const { sheetColumns, TITLE } = await import("./model");
+    const metrics: Record<string, number | null> = {};
+    for (const m of listMetrics()) metrics[m.key] = m.value;
+    const sheets: Record<string, { cols: string[]; rows: unknown[][] }> = {};
+    for (const s of store.sharedTables()) {
+      const d = store.rowsOf(s.id);
+      if (!d) continue;
+      const ids = sheetColumns(d.schema);
+      sheets[s.name.toLowerCase()] = {
+        cols: ids.map((id) => (id === TITLE ? d.schema.titleName : (d.schema.properties.find((p) => p.id === id)?.name ?? ""))),
+        rows: d.rows.slice(0, 2000).map((r) => ids.map((id) => (id === TITLE ? r.title : (r.cells[id] ?? null)))),
+      };
+    }
+    return { metrics, sheets };
+  });
+}

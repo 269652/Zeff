@@ -527,7 +527,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   hardBreak: [],
   text: [],
   image: ["src", "alt", "title", "width"],
-  table: [],
+  table: ["name"],
   tableRow: [],
   tableHeader: ["colspan", "rowspan", "colwidth"],
   tableCell: ["colspan", "rowspan", "colwidth"],

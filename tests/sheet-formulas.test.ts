@@ -118,3 +118,50 @@ test("in a table: =… in a cell is kept as its formula and worked out when read
   store.setTableShare(costs, null);
   assert.match(String(cell(plan, r, wert.id)[`${wert.id}!`]), /No table "Kosten 2026" shared/);
 });
+
+test("a page's tables (/Tabelle): formula cells worked out in the browser — their own cells, the page's named tables, shared tables and Kennzahlen from the server, mentions; numbers written the German way", async () => {
+  const { evaluatePageTables, cellNumberOrText, formatCellValue, metricKey } = await import("@/plugins/workspace/page-sheet");
+  let pos = 0;
+  const table = (name: string, rows: string[][], header = true) => ({ name, pos: (pos += 1000), rows: rows.map((r, ri) => r.map((text) => ({ text, pos: (pos += 10), size: 4, header: header && ri === 0 }))) });
+  const kosten = table("Kosten", [
+    ["Posten", "Betrag"],
+    ["Miete", "800"],
+    ["Strom", "60,50 €"],
+    ["Summe", "=SUMME(B2:B3)"],
+    ["Anteil", "=round(B2 / B4 * 100)"],
+    ["Kreis", "=B6"],
+  ]);
+  const plan = table("", [
+    ["Was", "Wert"],
+    ["Im Jahr", "=Kosten!B4*12"],
+    ["Frei", "=@[Frei im Monat] - SUMME(Kosten[Betrag])"],
+    ["DB", "=SUMME(Verträge!B:B)"],
+    ["Seite", '="Siehe " & [[page:12|Budget]]'],
+    ["KZ", "=[[metric:frei-im-monat|Frei im Monat]] * 2"],
+    ["Mitte", "=[Wert]"],
+    ["Nix", "=Nope!A1"],
+  ]);
+  const data = { metrics: { [metricKey("Frei im Monat")]: 1000 }, sheets: { verträge: { cols: ["Name", "Pro Monat"], rows: [["Netflix", 13], ["Strom", 60]] } } };
+  const r = evaluatePageTables([kosten, plan], data);
+  const at = (t: typeof kosten, row: number, col = 1) => r.get(t.rows[row][col].pos);
+  assert.equal(at(kosten, 3)?.value, 860.5);
+  assert.equal(at(kosten, 4)?.value, 93);
+  assert.match(String(at(kosten, 5)?.error), /Circular/);
+  assert.equal(at(plan, 1)?.value, 10326);
+  assert.equal(at(plan, 2)?.value, 1000 - (800 + 60.5 + 860.5 + 93), "the whole column of the named table, its formulas worked out");
+  assert.equal(at(plan, 3)?.value, 73, "a table shared for formulas, from the server");
+  assert.equal(at(plan, 4)?.value, "Siehe Budget", "a mention is its name");
+  assert.equal(at(plan, 5)?.value, 2000, "a Kennzahl's mention is its value");
+  assert.match(String(at(plan, 6)?.error ?? at(plan, 6)?.value), /Circular|^$/);
+  assert.match(String(at(plan, 7)?.error), /No table "Nope"/);
+  assert.deepEqual([cellNumberOrText("1.200,50"), cellNumberOrText("-3,5"), cellNumberOrText("12 %"), cellNumberOrText(" "), cellNumberOrText("[[person:3|Max]] kommt")], [1200.5, -3.5, 12, null, "Max kommt"]);
+  assert.equal(formatCellValue(true), "✓");
+});
+
+test("mentions as @ puts them in a cell: [[page:12|Titel]] in a formula, split for chips", async () => {
+  const { evalFormula, refToken, splitRefs } = await import("@/plugins/workspace/formula");
+  const v = evalFormula('concat([[todo:7|T-7 Rechnung]], " / ", [[metric:sparrate|Sparrate]] * 2)', { prop: () => null, metric: (n) => (n === "sparrate" ? 50 : null) });
+  assert.deepEqual(v, { value: "T-7 Rechnung / 100" });
+  assert.equal(refToken("page", "12", "Bud|get]"), "[[page:12|Budget]]");
+  assert.deepEqual(splitRefs("Mit [[person:3|Max]] und [[page:12|Plan]]."), [{ text: "Mit " }, { kind: "person", ref: "3", label: "Max" }, { text: " und " }, { kind: "page", ref: "12", label: "Plan" }, { text: "." }]);
+});

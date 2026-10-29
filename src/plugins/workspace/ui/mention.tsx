@@ -47,7 +47,8 @@ export const MentionCommand = Extension.create<{ getLang: () => Lang }>({
         editor: this.editor,
         char: "@",
         allowSpaces: true,
-        allowedPrefixes: [" ", "\n", "("],
+        // (also after what a formula has before a name: =, +, ;, & …)
+        allowedPrefixes: [" ", "\n", "(", "=", "+", "-", "*", "/", ";", ",", "&", "<", ">"],
         items: async ({ query }) => mentionSearchAction(query),
         command: ({ editor, range, props }) => {
           editor

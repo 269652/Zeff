@@ -49,7 +49,7 @@ export const setMetricReader = (fn: (name: string) => unknown): void => {
 // ---------------------------------------------------------------------------
 
 /** A token; `end` is where it stops (A1:B3 and Kosten!A1 are told by their parts touching). */
-type Tok = { t: "num" | "str" | "id" | "op" | "br" | "eof"; v: string; at: number; end: number };
+type Tok = { t: "num" | "str" | "id" | "op" | "br" | "ref" | "eof"; v: string; at: number; end: number };
 /** A cell reference's end: a column and a row (0-based), either left out for a whole row / column. */
 type Pt = { c: number | null; r: number | null };
 type Node =
@@ -73,6 +73,23 @@ export function colLetters(i: number): string {
   return s;
 }
 const CELL = /^([A-Za-z]{1,3})(\d+)$/;
+/** A mention's inside: kind:ref|Label. */
+const REF = /^(page|todo|ticket|person|metric):([^|\]]+)(?:\|(.*))?$/;
+export type RefKind = "page" | "todo" | "ticket" | "person" | "metric";
+/** A mention as text (as a page writes it): [[page:12|Titel]]. */
+export const refToken = (kind: RefKind, ref: string, label: string): string => `[[${kind}:${ref}${label ? `|${label.replace(/[\]|]/g, "")}` : ""}]]`;
+/** A text's mentions and the text between them, for showing them as chips. */
+export function splitRefs(text: string): ({ text: string } | { kind: RefKind; ref: string; label: string })[] {
+  const out: ({ text: string } | { kind: RefKind; ref: string; label: string })[] = [];
+  let at = 0;
+  for (const m of text.matchAll(/\[\[(page|todo|ticket|person|metric):([^|\]]+)(?:\|([^\]]*))?\]\]/g)) {
+    if (m.index > at) out.push({ text: text.slice(at, m.index) });
+    out.push({ kind: m[1] as RefKind, ref: m[2], label: (m[3] ?? "").trim() || m[2] });
+    at = m.index + m[0].length;
+  }
+  if (at < text.length) out.push({ text: text.slice(at) });
+  return out;
+}
 const COLUMN = /^[A-Za-z]{1,3}$/;
 
 function tokenize(src: string): Tok[] {
@@ -89,6 +106,14 @@ function tokenize(src: string): Tok[] {
     }
     if (/\s/.test(c) || c === "$") {
       i++;
+      continue;
+    }
+    // [[page:12|Titel]] — a mention, as a page writes one (doc.ts): what @ puts in a cell.
+    if (src.startsWith("[[", i)) {
+      const j = src.indexOf("]]", i);
+      if (j < 0) throw new Error("Unclosed [[");
+      out.push({ t: "ref", v: src.slice(i + 2, j), at: i, end: j + 2 });
+      i = j + 2;
       continue;
     }
     if (c === "[") {
@@ -270,6 +295,13 @@ class Parser {
     }
     if (t.t === "str") return this.eat(), { k: "lit", v: t.v };
     if (t.t === "br") return this.reference(null);
+    // A mention: a Kennzahl is its value, a page, person, todo or ticket its name.
+    if (t.t === "ref") {
+      this.eat();
+      const m = REF.exec(t.v);
+      if (!m) throw new Error(`Not a reference: [[${t.v}]]`);
+      return m[1] === "metric" ? { k: "metric", name: m[2] } : { k: "lit", v: (m[3] ?? "").trim() || m[2] };
+    }
     // @Sparrate, @[Frei im Monat], @"Frei im Monat"
     if (this.is("@")) {
       this.eat("@");

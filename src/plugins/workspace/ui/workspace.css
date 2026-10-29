@@ -1263,3 +1263,35 @@
   padding-bottom: 0.5rem;
   margin-bottom: -0.5rem;
 }
+
+/* A page's table (/Tabelle) as a spreadsheet: a formula cell shows its value (table-formulas.ts) — the formula while the caret is in it. */
+.ws-editor .ProseMirror td.ws-formula-cell > p,
+.ws-editor .ProseMirror th.ws-formula-cell > p {
+  display: none;
+}
+.ws-formula-value {
+  display: block;
+  cursor: text;
+  min-height: 1.5em;
+}
+.ws-formula-value.is-num {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
+.ws-formula-cell.is-error .ws-formula-value {
+  color: rgb(220 38 38);
+  font-size: 0.75rem;
+}
+.ws-formula-editing > p {
+  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
+  font-size: 0.875em;
+}
+.ws-formula-preview {
+  display: block;
+  font-size: 0.75rem;
+  color: rgb(113 113 122);
+  user-select: none;
+}
+.ws-formula-preview.is-error {
+  color: rgb(220 38 38);
+}
