@@ -1306,6 +1306,15 @@ export async function rowViewAction(rowId: number) {
   });
 }
 
+/** "Use the default layout" on a row's page that is (nearly) empty: its view's widgets put in after the view block. */
+export async function applyRowLayoutAction(rowId: number) {
+  return run(async () => {
+    const r = await asUndoable(t("Use the default layout"), async () => ({ done: (await import("./row-views")).applyRowLayout(Number(rowId)) }));
+    if (!r.done) throw new Error(t("The page has content of its own already — add the widgets with / instead."));
+    return {};
+  });
+}
+
 /** A database's rows' page as your template (null: back to the plugin's). */
 export async function setRowTemplateAction(dbId: number, template: string | null) {
   return run(async () => {

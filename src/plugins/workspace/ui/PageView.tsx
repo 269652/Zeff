@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
+import { applyRowLayoutAction, archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
 import { DayEntry } from "./day-entry";
@@ -36,6 +36,8 @@ export type PageViewData = {
   locked: boolean;
   template: boolean;
   isRow: boolean;
+  /** A row's page that is (nearly) empty and whose view brings a layout (a person's): "Use the default layout" is offered. */
+  layoutFits?: boolean;
   updatedAt: string;
   crumbs: { id: number; title: string; icon: string; kind: string }[];
   backlinks: { id: number; title: string; icon: string }[];
@@ -520,6 +522,21 @@ export function PageView({ page, row, database, form, person }: { page: PageView
         {row && <LinkedPanel target={{ rowId: page.id }} />}
 
         <SystemPageBar pageId={page.id} />
+        {/* A person's page that is (nearly) empty: their todos, what is coming up, the facts and your rhythm on a click. */}
+        {page.layoutFits && editable && (
+          <button
+            type="button"
+            className="btn btn-sm"
+            onClick={async () => {
+              const r = await applyRowLayoutAction(page.id);
+              if (!r.ok) return toast(r.error, { tone: "error" });
+              // The editor holds the old text in memory: a reload brings the page with its widgets.
+              window.location.reload();
+            }}
+          >
+            🧩 {t("Use the default layout")}
+          </button>
+        )}
         {page.kind === "database" ? (
           <DatabaseView initial={database ?? null} dbId={page.id} />
         ) : page.kind === "form" ? (

@@ -1,20 +1,21 @@
 import { getSqlite } from "@/db";
 import { isInstalled } from "@/plugins/state";
-import type { Doc, DocNode } from "./doc";
+import { docText, type Doc, type DocNode } from "./doc";
 import type { DataType } from "./model";
 import { getPref, setPref } from "@/lib/prefs";
 import { removeSystemPages } from "@/lib/prompts/system-pages";
 import { archivePage, getDatabase, getPage, subtree, updatePage } from "./store";
+import { personPageLayout } from "@/plugins/people/page-layout";
 
 /**
  * A custom view of a row: a plugin brings ONE view for the rows of a database of a type (the person's page for the people
  * database). It is a block of the row's own page (`rowView`) — the rest of the page is free text and blocks. Not installed, the
  * block shows nothing. Made once for each row: a page of such a row starts with it (the row's own text stays after it).
  */
-export type RowView = { id: string; plugin: string; dataType: DataType; label: string };
+export type RowView = { id: string; plugin: string; dataType: DataType; label: string; /** What a page of such a row starts with after the block (when it has nothing of its own). */ layout?: () => DocNode[] };
 
 export const ROW_VIEWS: RowView[] = [
-  { id: "person", plugin: "people", dataType: "people", label: "Person" },
+  { id: "person", plugin: "people", dataType: "people", label: "Person", layout: personPageLayout },
   { id: "case", plugin: "cases", dataType: "cases", label: "Case" },
 ];
 
@@ -23,15 +24,48 @@ export const rowViewOf = (dataType: DataType | undefined): RowView | undefined =
 
 const has = (doc: Doc): boolean => (doc.content ?? []).some((n) => n.type === "rowView");
 
-/** A row's page made to start with its database's custom view — when it has one and the page doesn't. True: it was written. */
+const blank = (n: DocNode): boolean => n.type === "paragraph" && !n.content?.length;
+const viewOfRow = (row: ReturnType<typeof getPage>): RowView | undefined => {
+  const db = row?.dbId && !row.archivedAt ? getDatabase(row.dbId) : null;
+  return db ? rowViewOf(db.schema.dataType) : undefined;
+};
+
+/**
+ * A row's page made to start with its database's custom view — when it has one and the page doesn't. A page with nothing of its
+ * own gets the view's layout after the block too (a new person's page: their todos, what is coming up …). True: it was written.
+ */
 export function ensureRowView(rowId: number): boolean {
   const row = getPage(rowId);
-  const db = row?.dbId ? getDatabase(row.dbId) : null;
-  if (!row || !db || row.archivedAt || !rowViewOf(db.schema.dataType) || has(row.content)) return false;
-  // (An empty page: just the block — not an empty paragraph after it.)
-  const own = (row.content.content ?? []).filter((n, i, all) => !(all.length === 1 && n.type === "paragraph" && !n.content?.length));
-  const content: Doc = { ...row.content, type: "doc", content: [{ type: "rowView" } as DocNode, ...own] };
+  const view = viewOfRow(row);
+  if (!row || !view || has(row.content)) return false;
+  const own = (row.content.content ?? []).every(blank) ? [] : (row.content.content ?? []);
+  // (An empty page without a layout: just the block — not an empty paragraph after it.)
+  const layout = own.length ? [] : (view.layout?.() ?? []);
+  const content: Doc = { ...row.content, type: "doc", content: [{ type: "rowView" } as DocNode, ...layout, ...(layout.length ? [{ type: "paragraph" }] : own)] };
   updatePage(rowId, { content });
+  return true;
+}
+
+const hasWidget = (n: DocNode): boolean => n.type === "zeffWidget" || (n.content ?? []).some(hasWidget);
+
+/** The row's view has a layout and its page is (nearly) empty: no widget, a line or two of its own at most — "Use the default layout" fits. */
+export function rowLayoutFits(rowId: number): boolean {
+  const row = getPage(rowId);
+  if (!viewOfRow(row)?.layout || !row) return false;
+  const own = (row.content.content ?? []).filter((n) => n.type !== "rowView");
+  return !own.some(hasWidget) && own.map((n) => docText(n)).join(" ").trim().length <= 280;
+}
+
+/** "Use the default layout": the view's layout put in after its block, what the page says kept after it. False: it doesn't fit. */
+export function applyRowLayout(rowId: number): boolean {
+  if (!rowLayoutFits(rowId)) return false;
+  // (A page without the view block yet and nothing of its own gets the layout with the block.)
+  if (ensureRowView(rowId) && !rowLayoutFits(rowId)) return true;
+  const row = getPage(rowId)!;
+  const nodes = row.content.content ?? [];
+  const at = nodes.findIndex((n) => n.type === "rowView") + 1;
+  const own = nodes.slice(at).filter((n) => !blank(n));
+  updatePage(rowId, { content: { ...row.content, type: "doc", content: [...nodes.slice(0, at), ...viewOfRow(row)!.layout!(), ...own, { type: "paragraph" }] } });
   return true;
 }
 

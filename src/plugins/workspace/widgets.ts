@@ -45,7 +45,7 @@ export async function widgetData(id: string, rawConfig: Record<string, unknown>)
   const w = find(id);
   const config = checkedConfig(w, rawConfig);
   // Per account (two served side by side): one's widget data is never the other's.
-  const key = `${currentAccountId()}:${id}:${JSON.stringify(config)}`;
+  const key = `${currentAccountId()}:${id}:${JSON.stringify(config)}${w.cacheKey ? `:${await w.cacheKey(config)}` : ""}`;
   const hit = cache.get(key);
   if (hit && Date.now() - hit.at < (w.ttl ?? 30) * 1000) return hit.data;
   let data: WidgetData;
