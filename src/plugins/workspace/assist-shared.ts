@@ -12,7 +12,7 @@ export type AssistEvent = { title: string; start: string; end: string; allDay?: 
 
 /** What the AI may propose — a small closed set, each with its executor in assist.ts. */
 export type AssistAction = { id: string; label: string } & (
-  | { kind: "shadowCalendar"; name: string; events: AssistEvent[] }
+  | { kind: "shadowCalendar"; name: string; events: AssistEvent[]; /** The plan calendar this card made before: its days replaced (asked again). */ calendarId?: number }
   | { kind: "todo"; text: string; due?: string }
   | { kind: "widget"; widget: string; config: Record<string, string | number | boolean> }
   | { kind: "text"; markdown: string }

@@ -19,6 +19,12 @@ export type AssistCheck = {
   widgets: Map<string, { label: string; settings: string[] }>;
   busy: Busy[];
   can: { calendar: boolean; todos: boolean };
+  /** The plan calendars this card made (asked again: those it may update — never another). */
+  calendars?: Set<number>;
+  /** The widgets on the page already, "widget:personId" — not added twice. */
+  onPage?: Set<string>;
+  /** The person the text is about (the first it names): a person widget without one takes them. */
+  defaultPerson?: { id: number; name: string };
 };
 
 const two = (n: number) => String(n).padStart(2, "0");
@@ -128,7 +134,8 @@ function cleanAction(raw: unknown, check: AssistCheck): AssistActionBody | null 
     if (!check.can.calendar) return null;
     const events = (Array.isArray(o.events) ? o.events : []).slice(0, 31).map((e) => cleanEvent(e, check.busy)).filter((e): e is AssistEvent => !!e);
     const name = str(o.name, 80) || label;
-    return events.length && name ? { kind, label: label || name, name, events } : null;
+    const own = Number(o.calendarId);
+    return events.length && name ? { kind, label: label || name, name, events, ...(check.calendars?.has(own) ? { calendarId: own } : {}) } : null;
   }
   if (kind === "todo") {
     if (!check.can.todos) return null;
@@ -150,6 +157,10 @@ function cleanAction(raw: unknown, check: AssistCheck): AssistActionBody | null 
     }
     const name = w.settings.includes("person") && Number.isInteger(o.person) ? check.person(Number(o.person)) : null;
     if (name) Object.assign(config, { person: name, personId: Number(o.person) });
+    // No person given: the one the text is about (a person widget without one shows nothing).
+    else if (w.settings.includes("person") && check.defaultPerson) Object.assign(config, { person: check.defaultPerson.name, personId: check.defaultPerson.id });
+    // On the page already (asked again): not twice.
+    if (check.onPage?.has(`${String(o.widget)}:${config.personId ?? ""}`)) return null;
     return { kind, label: label || w.label, widget: String(o.widget), config };
   }
   const markdown = String(o.markdown ?? "").trim().slice(0, 4000);
@@ -197,6 +208,7 @@ const SCHEMA = {
           label: { type: "string" },
           name: { type: "string" },
           events: { type: "array", items: { type: "object", required: ["title", "start", "end"], properties: { title: { type: "string" }, start: { type: "string" }, end: { type: "string" }, allDay: { type: "boolean" } } } },
+          calendarId: { type: "integer" },
           text: { type: "string" },
           due: { type: "string" },
           widget: { type: "string" },
@@ -210,7 +222,7 @@ const SCHEMA = {
 };
 
 /** What Zeff can do here: the installed plugins, the widgets (their settings), the people that exist. */
-async function assistCheck(busy: Busy[]): Promise<AssistCheck> {
+async function assistCheck(busy: Busy[], ctx: { created?: AssistCreated[]; page?: DocNode | null; defaultPerson?: { id: number; name: string } } = {}): Promise<AssistCheck> {
   const { widgetCatalog } = await import("./widgets");
   const people = isInstalled("people") ? await import("@/plugins/people/store") : null;
   return {
@@ -218,12 +230,47 @@ async function assistCheck(busy: Busy[]): Promise<AssistCheck> {
     widgets: new Map(widgetCatalog().map((w) => [w.id, { label: w.label, settings: w.settings.map((s) => s.key) }])),
     busy,
     can: { calendar: isInstalled("calendar"), todos: isInstalled("todos") },
+    calendars: new Set((ctx.created ?? []).filter((c) => c.kind === "calendar").map((c) => Number(c.id))),
+    onPage: widgetsOn(ctx.page ?? null),
+    ...(ctx.defaultPerson ? { defaultPerson: ctx.defaultPerson } : {}),
   };
+}
+
+/** The widgets a page holds, "widget:personId" (a person widget by its person; others by their id alone). */
+function widgetsOn(doc: DocNode | null): Set<string> {
+  const out = new Set<string>();
+  const walk = (n: DocNode) => {
+    if (n.type === "zeffWidget") {
+      let config: Record<string, unknown> = {};
+      try {
+        config = JSON.parse(String(n.attrs?.config ?? "{}"));
+      } catch {
+        // no settings
+      }
+      out.add(`${String(n.attrs?.widget ?? "")}:${config.personId ?? ""}`);
+    }
+    (n.content ?? []).forEach(walk);
+  };
+  if (doc) walk(doc);
+  return out;
+}
+
+/** What this card set up before (asked again): its plan calendars with their days, its todos — to update, not to make twice. */
+async function madeBefore(created: AssistCreated[]): Promise<string[]> {
+  const out: string[] = [];
+  for (const c of created) {
+    if (c.kind === "calendar" && isInstalled("calendar")) {
+      const ir = await import("@/lib/calendar/ir");
+      const days = ir.eventsBetween("1970-01-01T00:00", "2999-01-01T00:00").filter((e) => e.calendarId === Number(c.id)).map((e) => `${e.title} ${e.start}–${e.end}`);
+      out.push(`- Planungskalender calendarId ${c.id} "${c.label}": ${days.join("; ") || "(leer)"}`);
+    } else if (c.kind === "todo") out.push(`- Todo: ${c.label}`);
+  }
+  return out;
 }
 
 const answerText = (v: string | string[] | undefined) => (Array.isArray(v) ? v.join(", ") : String(v ?? "")).trim() || "(keine Antwort)";
 
-function assistPrompt(v: { title: string; block: string; page: string; people: string[]; today: Date; period: { from: Date; to: Date }; busy: Busy[]; state: AssistState; history: { q: string; a: string }[]; check: AssistCheck }): string {
+function assistPrompt(v: { title: string; block: string; page: string; people: string[]; today: Date; period: { from: Date; to: Date }; busy: Busy[]; state: AssistState; history: { q: string; a: string }[]; check: AssistCheck; before?: string[] }): string {
   const lastRound = v.state.round >= MAX_ASSIST_ROUNDS;
   const widgets = [...v.check.widgets].map(([id, w]) => `${id} (${w.label}${w.settings.length ? `; config: ${w.settings.join(", ")}` : ""})`).join("; ");
   const kinds = [
@@ -249,6 +296,9 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
     ...(v.busy.length ? v.busy.map((b) => `- ${stampOf(b.start)}–${stampOf(b.end).slice(11)} ${b.title}`) : ["(keine)"]),
     ...(v.history.length ? ["", "# Deine Fragen und die Antworten", ...v.history.map((h) => `- ${h.q} → ${h.a}`)] : []),
     ...(v.state.summary ? ["", `Bisher verstanden: ${v.state.summary}`] : []),
+    ...(v.before?.length
+      ? ["", "# Schon angelegt (du wirst erneut gefragt: aktualisiere, statt doppelt anzulegen)", ...v.before, "Einen dieser Planungskalender änderst du mit shadowCalendar + seiner calendarId (seine Tage werden ersetzt). Was passt, lässt du weg."]
+      : []),
     "",
     "# Antwort (JSON)",
     "- intent: worum es geht, in wenigen Worten (z. B. \"Hamburg-Reise\").",
@@ -289,8 +339,10 @@ export async function runAssist(pageId: number, blockJson: string | null, state:
   }
   const period = periodOf([block, state.summary, ...history.map((h) => h.a)].join("\n"), today);
   const busy = isInstalled("calendar") ? (await import("@/lib/calendar/ir")).busyBetween(period.from, period.to).slice(0, 60) : [];
-  const check = await assistCheck(busy);
-  const prompt = assistPrompt({ title: page.title, block, page: pageText, people, today, period, busy, state, history, check });
+  const firstPerson = /^- \[\[person:(\d+)\|([^\]]*)\]\]/.exec(people[0] ?? "");
+  const check = await assistCheck(busy, { created: state.created, page: page.content, ...(firstPerson ? { defaultPerson: { id: Number(firstPerson[1]), name: firstPerson[2] } } : {}) });
+  const before = await madeBefore(state.created);
+  const prompt = assistPrompt({ title: page.title, block, page: pageText, people, today, period, busy, state, history, check, before });
   const { runAi } = await import("@/lib/ai");
   const r = await runAi<unknown>(prompt, SCHEMA, { task: "page-assist", timeoutMs: 3 * 60000, maxBudgetUsd: 0.4 });
   const next = { ...readAssistAnswer(r.output, state, check), history };
@@ -305,9 +357,17 @@ export async function runAssist(pageId: number, blockJson: string | null, state:
 type Made = { nodes: DocNode[]; created: AssistCreated[] };
 
 const EXECUTORS: { [K in AssistActionKind]: (a: Extract<AssistAction, { kind: K }>) => Promise<Made> } = {
-  // A plan calendar (a shadow one: suggestions, nothing blocked) with its appointments, shown in the page.
+  // A plan calendar (a shadow one: suggestions, nothing blocked) with its appointments, shown in the page — or, asked again, the
+  // one it made before with its days replaced (its block is in the page already).
   shadowCalendar: async (a) => {
     const ir = await import("@/lib/calendar/ir");
+    if (a.calendarId && ir.listCalendars().some((c) => c.id === a.calendarId && c.shadow)) {
+      ir.replaceEvents(
+        a.calendarId,
+        a.events.map((e, i) => ({ key: `assist-${Date.now().toString(36)}-${i}`, title: e.title, start: e.start, end: e.end, allDay: !!e.allDay })),
+      );
+      return { nodes: [], created: [] };
+    }
     const cal = ir.createShadowCalendar(a.name);
     for (const e of a.events) ir.addEvent(cal.id, { title: e.title, start: e.start, end: e.end, allDay: !!e.allDay });
     const first = a.events.map((e) => e.start.slice(0, 10)).sort()[0];
@@ -330,7 +390,7 @@ const EXECUTORS: { [K in AssistActionKind]: (a: Extract<AssistAction, { kind: K 
 /** The chosen actions of a proposal run (checked again — the card's state comes from the page): the blocks to insert after the card, what was made elsewhere. */
 export async function applyAssist(pageId: number, state: AssistState, ids: string[]): Promise<Made & { summary: string }> {
   if (!store.getPage(pageId)) throw new ValidationError(t("This page is gone."));
-  const check = await assistCheck([]);
+  const check = await assistCheck([], { created: state.created });
   const chosen = state.actions.filter((a) => ids.includes(a.id)).map((a) => cleanAction(a, check)).filter((a): a is AssistActionBody => !!a);
   if (!chosen.length) throw new ValidationError(t("Choose at least one thing to set up."));
   const out: Made = { nodes: [], created: [] };

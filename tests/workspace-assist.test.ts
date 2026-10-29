@@ -211,3 +211,37 @@ test("the card's server actions: a step (its state back), apply (the blocks), un
   const undone = await a.undoAssistAction([]);
   assert.deepEqual(undone, { ok: true, undone: 0 });
 });
+
+test("asked again: the plan calendar it made is updated (its days replaced, no second calendar or block), widgets already on the page aren't added twice, a widget without a person takes the one the text names", async () => {
+  const { cleanActions, applyAssist } = await import("@/plugins/workspace/assist");
+  const ir = await import("@/lib/calendar/ir");
+  const made = ir.createShadowCalendar("Hamburg-Reise");
+  ir.addEvent(made.id, { title: "Option A", start: "2027-01-02", end: "2027-01-04", allDay: true });
+  const other = ir.createShadowCalendar("Fremd");
+  const c = check({ calendars: new Set([made.id]), onPage: new Set(["people.coming:12"]), defaultPerson: { id: 12, name: "Nadine" } });
+  const actions = cleanActions(
+    [
+      { kind: "shadowCalendar", name: "Hamburg-Reise", calendarId: made.id, events: [{ title: "Hamburg", start: "2027-01-09", end: "2027-01-11", allDay: true }] },
+      { kind: "shadowCalendar", name: "Fremd", calendarId: other.id, events: [{ title: "x", start: "2027-01-09", end: "2027-01-10", allDay: true }] },
+      { kind: "widget", widget: "people.coming", person: 12 },
+      { kind: "widget", widget: "people.coming" },
+    ],
+    c,
+  );
+  const [update, fresh] = actions as Extract<(typeof actions)[number], { kind: "shadowCalendar" }>[];
+  assert.equal(update.calendarId, made.id, "its own plan calendar: updated");
+  assert.equal(fresh.calendarId, undefined, "a calendar it didn't make: never touched (a new one instead)");
+  assert.equal(actions.filter((a) => a.kind === "widget").length, 0, "Nadine's widget is on the page already (also the one without a person: it takes Nadine)");
+  const lone = cleanActions([{ kind: "widget", widget: "people.coming" }], check({ defaultPerson: { id: 12, name: "Nadine" } }))[0];
+  assert.deepEqual(lone.kind === "widget" && lone.config, { person: "Nadine", personId: 12 }, "no person given: the one the text names");
+
+  const w = await import("@/plugins/workspace/store");
+  const { newAssistState } = await import("@/plugins/workspace/assist-shared");
+  const pageId = w.createPage({ title: "Plan" });
+  const state = { ...newAssistState(), status: "proposing" as const, created: [{ kind: "calendar" as const, id: made.id, label: "Hamburg-Reise" }], actions: [{ ...update, id: "a1" }] };
+  const r = await applyAssist(pageId, state, ["a1"]);
+  assert.deepEqual(r.nodes, [], "its block is on the page already");
+  assert.deepEqual(r.created, [], "nothing new made");
+  assert.equal(ir.listCalendars().filter((x) => x.name === "Hamburg-Reise").length, 1);
+  assert.deepEqual(ir.eventsBetween("2027-01-01T00:00", "2027-01-31T00:00").filter((e) => e.calendarId === made.id).map((e) => [e.title, e.start]), [["Hamburg", "2027-01-09"]], "its days replaced");
+});

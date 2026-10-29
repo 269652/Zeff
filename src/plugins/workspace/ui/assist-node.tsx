@@ -20,9 +20,33 @@ const startNow = new Set<string>();
 
 /** A card put in at `at` that starts thinking at once: about the block before it, or the whole page. */
 export function startAssist(editor: Editor, at: number, scope: AssistState["scope"]): void {
+  // Asked again (the button pressed twice): the card that is there thinks again — with what it understood, was told and set up
+  // before, so it updates that instead of making it twice.
+  const there = cardFor(editor, at, scope);
+  if (there) {
+    const prev = readAssistState(there.node.attrs.state);
+    const again: AssistState = { ...newAssistState(scope), intent: prev.intent, summary: prev.summary, history: prev.history, created: prev.created };
+    startNow.add(String(there.node.attrs.id));
+    editor.view.dispatch(editor.state.tr.setNodeMarkup(there.pos, undefined, { ...there.node.attrs, state: JSON.stringify(again) }));
+    return;
+  }
   const id = Math.random().toString(36).slice(2, 12);
   startNow.add(id);
   editor.chain().insertContentAt(at, { type: "assistCard", attrs: { id, state: JSON.stringify(newAssistState(scope)) } }).run();
+}
+
+/** The card already there for this: right after the block (a block's), anywhere (the page's). */
+function cardFor(editor: Editor, at: number, scope: AssistState["scope"]): { pos: number; node: PmNode } | null {
+  if (scope === "block") {
+    const n = editor.state.doc.nodeAt(at);
+    return n?.type.name === "assistCard" && readAssistState(n.attrs.state).scope === "block" && n.attrs.id ? { pos: at, node: n } : null;
+  }
+  let found: { pos: number; node: PmNode } | null = null;
+  editor.state.doc.descendants((n, pos) => {
+    if (!found && n.type.name === "assistCard" && n.attrs.id && readAssistState(n.attrs.state).scope === "page") found = { pos, node: n };
+    return !found;
+  });
+  return found;
 }
 
 function findCard(editor: Editor, id: string): { pos: number; node: PmNode } | null {
@@ -170,8 +194,8 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
       // (Next tick: the call's "thinking" state is set outside the effect.)
       queueMicrotask(() => void step(s));
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when the card appears
-  }, [id]);
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- when the card appears, or the button asks it again
+  }, [id, node.attrs.state]);
 
   // Its questions or its proposal came: focus on the first of them.
   useEffect(() => {
@@ -207,7 +231,8 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
     } catch {
       toast(t("Some of it couldn't be put into the page."), { tone: "error" });
     }
-    const next: AssistState = { ...s, status: "applied", summary: r.summary, created: r.created };
+    // (Asked again: what it made before stays its own — Undo takes back all of it.)
+    const next: AssistState = { ...s, status: "applied", summary: r.summary, created: [...s.created, ...r.created.filter((c) => !s.created.some((x) => x.kind === c.kind && x.id === c.id))] };
     // One step: the blocks after the card and the card's summary — Ctrl+Z takes both back.
     const tr = state.tr.setNodeMarkup(c.pos, undefined, { ...c.node.attrs, state: JSON.stringify(next) }).insert(c.pos + c.node.nodeSize, Fragment.from(nodes));
     // The caret after what went in — nothing left selected (a selection over the new blocks brought up the text toolbar).
