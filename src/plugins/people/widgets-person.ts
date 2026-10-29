@@ -223,7 +223,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
         href: personHref(c.personId),
         actions: [{ id: "done", label: t("Kept"), icon: "✓" }],
       }));
-      return { kind: "list", title: p?.name, items, count: all.length || undefined, empty: p ? t("Nothing open with {name}.", { name: p.name }) : t("Nothing open.") };
+      return { kind: "list", title: p?.name, items, count: all.length || undefined, empty: p ? t("No open promises with {name}.", { name: p.name }) : t("No open promises.") };
     },
     act: (action, payload) => {
       if (action !== "done") throw new Error("unknown action");

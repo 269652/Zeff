@@ -366,11 +366,11 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
       {!id ? (
         <Picker defs={defs} pick={(w) => updateAttributes({ widget: w, config: "{}" })} />
       ) : (
-        <section className={`group/widget relative ${bare ? "" : "rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"}`} data-widget={id}>
+        <section className={`group/widget relative ${bare ? "" : "rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"} ${!showHeader && !bare ? "transition-[border-radius] group-hover/widget:rounded-tl-none" : ""}`} data-widget={id}>
           {/* Without its header: its name shows over the card on hover (it takes no room in the page), the controls top right. */}
           {!showHeader && (
-            // (a tab of the card: its colour and border, rounded on top, no border below — it sits on the card's edge, over it by a pixel)
-            <span className="pointer-events-none absolute bottom-full left-4 z-10 -mb-px flex items-center gap-1.5 rounded-t-lg border border-b-0 border-zinc-200/80 bg-white px-2.5 pt-1 pb-[5px] text-xs font-medium whitespace-nowrap text-zinc-700 opacity-0 shadow-[0_-2px_4px_-2px_rgb(0_0_0/0.08)] transition group-hover/widget:opacity-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200" aria-hidden>
+            // (a tab of the card: its colour and border, rounded on top, no border below — on the card's left edge, over it by a pixel)
+            <span className="pointer-events-none absolute bottom-full -left-px z-10 -mb-px flex items-center gap-1.5 rounded-t-lg border border-b-0 border-zinc-200/80 bg-white px-2.5 pt-1 pb-[5px] text-xs font-medium whitespace-nowrap text-zinc-700 opacity-0 shadow-[0_-2px_4px_-2px_rgb(0_0_0/0.08)] transition group-hover/widget:opacity-100 dark:border-zinc-800 dark:bg-zinc-900 dark:text-zinc-200" aria-hidden>
               {def?.icon} {label}
               {count !== undefined && count > 0 && <span className="rounded-full bg-indigo-50 px-1.5 text-[10px] font-semibold text-indigo-700 tabular-nums dark:bg-indigo-950 dark:text-indigo-300">{count}</span>}
             </span>

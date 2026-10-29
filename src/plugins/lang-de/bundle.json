@@ -7721,5 +7721,7 @@
   "you start {n} %": "du beginnst {n} %",
   "Drifting apart — longer quiet than usual": "Ihr driftet auseinander – länger still als sonst",
   "next {day}": "nächste am {day}",
-  "Case": "Vorgang"
+  "Case": "Vorgang",
+  "No open promises with {name}.": "Keine offenen Versprechen mit {name}.",
+  "No open promises.": "Keine offenen Versprechen."
 }
