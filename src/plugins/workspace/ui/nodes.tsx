@@ -213,10 +213,16 @@ function RefView({ node, editor, getPos }: NodeViewProps) {
       contentEditable={false}
     >
       <span aria-hidden>{icon}</span>
-      {text}
+      {/* A Kennzahl: its name, its value now under it. */}
+      {kind === "metric" ? (
+        <span className="inline-flex flex-col py-0.5 leading-tight">
+          <span className="text-[0.75em] opacity-75">{text}</span>
+          <strong className="font-semibold tabular-nums">{state.value ?? "…"}</strong>
+        </span>
+      ) : (
+        text
+      )}
       {state.status && kind === "todo" && !state.done ? <span className="opacity-60">· {state.status}</span> : null}
-      {/* A Kennzahl: its value now. */}
-      {kind === "metric" ? <strong className="font-semibold tabular-nums">{state.value ?? "…"}</strong> : null}
     </a>
   );
   return (
