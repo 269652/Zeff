@@ -41,3 +41,24 @@ test("a shadow calendar: blocks no time, its appointments are suggestions in the
   assert.match(JSON.stringify(doc), new RegExp(`"type":"calendarEmbed","attrs":\\{"calendarId":${shadow.id},"view":"month"`));
   assert.match(docToMarkdown(doc), new RegExp(`:::calendar ${shadow.id} month`));
 });
+
+test("the main calendar shows only the shadow calendars a page still embeds (a plan whose block is gone stays out — kept for Ctrl+Z)", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("calendar", true);
+  setInstalled("workspace", true);
+  const ir = await import("@/lib/calendar/ir");
+  const used = ir.createShadowCalendar("Embedded plan");
+  const orphan = ir.createShadowCalendar("Left over");
+  ir.addEvent(used.id, { title: "Plan A", start: "2027-02-03", end: "2027-02-04", allDay: true });
+  ir.addEvent(orphan.id, { title: "Plan B", start: "2027-02-03", end: "2027-02-04", allDay: true });
+  const w = await import("@/plugins/workspace/store");
+  w.createPage({ title: "Plan", content: { type: "doc", content: [{ type: "calendarEmbed", attrs: { calendarId: used.id, view: "week", day: "", also: "" } }] } });
+  const { calendarViewData } = await import("@/plugins/calendar/view-data");
+  const d = await calendarViewData("week", "2027-02-03");
+  assert.equal(d.calendars.some((c) => c.id === used.id), true);
+  assert.equal(d.calendars.some((c) => c.id === orphan.id), false, "not embedded anywhere: out of the main calendar");
+  assert.deepEqual(d.events.filter((e) => e.title.startsWith("Plan")).map((e) => e.title), ["Plan A"]);
+  const kept = await calendarViewData("week", "2027-02-03", [orphan.id]);
+  assert.equal(kept.calendars.some((c) => c.id === orphan.id), true, "the block showing it (just made, not saved yet) still gets it");
+  assert.equal(ir.listCalendars().some((c) => c.id === orphan.id), true, "not deleted (Ctrl+Z brings its block back)");
+});

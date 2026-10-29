@@ -1,3 +1,4 @@
+import { getSqlite } from "@/db";
 import { listTodos } from "@/lib/boards/store";
 import { eventsBetween, listCalendars } from "@/lib/calendar/ir";
 import { dayOf, plusMinutes, stampOf, type CalendarEventView, type CalendarView, type ProposedEvent } from "@/lib/calendar/ir-shared";
@@ -9,7 +10,23 @@ import { isView, viewRange, type ViewKind } from "./view-shared";
 /** What the calendar app shows for a view around a day: the calendars, the appointments in range, those todos propose. Server only. */
 export type CalendarData = { view: ViewKind; day: string; calendars: CalendarView[]; events: CalendarEventView[]; proposed: ProposedEvent[]; now: string; canSync: boolean };
 
-export async function calendarViewData(viewIn: string | undefined, dayIn: string | undefined): Promise<CalendarData> {
+/**
+ * The shadow calendars a page (not in the trash) still embeds: those the main calendar shows — a plan whose block is gone stays
+ * out (it isn't deleted: Ctrl+Z brings its block back).
+ */
+function shadowsInUse(): Set<number> {
+  const out = new Set<number>();
+  try {
+    const rows = getSqlite().prepare("select content from ws_pages where archived_at is null and content like '%calendarEmbed%'").all() as { content: string }[];
+    for (const r of rows) for (const m of r.content.matchAll(/"calendarId":(\d+)/g)) out.add(Number(m[1]));
+  } catch {
+    // no Workspace: none
+  }
+  return out;
+}
+
+/** `keep`: shadow calendars shown all the same (the block showing them — just made, its page not saved yet). */
+export async function calendarViewData(viewIn: string | undefined, dayIn: string | undefined, keep: number[] = []): Promise<CalendarData> {
   const view: ViewKind = isView(viewIn) ? viewIn : "week";
   const day = dayIn && /^\d{4}-\d{2}-\d{2}$/.test(dayIn) ? dayIn : dayOf(new Date());
   const { from, to } = viewRange(view, day);
@@ -20,8 +37,14 @@ export async function calendarViewData(viewIn: string | undefined, dayIn: string
   const gcal = googleGrants().includes("gcal-write") ? await import("@/plugins/google-calendar/sync") : null;
   if (gcal) await gcal.learnWritableGoogleCalendars();
   const writable = new Set(gcal?.writableGoogleCalendars() ?? []);
-  const calendars = listCalendars().map((c) => (c.source === "google" && writable.has(c.key.replace(/^google:/, "")) ? { ...c, writable: true } : c));
-  const events = eventsBetween(from, to).map(({ calendar: _c, ...e }) => e);
+  const used = shadowsInUse();
+  const calendars = listCalendars()
+    .filter((c) => !c.shadow || used.has(c.id) || keep.includes(c.id))
+    .map((c) => (c.source === "google" && writable.has(c.key.replace(/^google:/, "")) ? { ...c, writable: true } : c));
+  const shown = new Set(calendars.map((c) => c.id));
+  const events = eventsBetween(from, to)
+    .filter((e) => shown.has(e.calendarId))
+    .map(({ calendar: _c, ...e }) => e);
   // The appointments todos propose (their actions — not entered yet).
   const proposed: ProposedEvent[] = listTodos({ status: "open" })
     .flatMap((todo) =>

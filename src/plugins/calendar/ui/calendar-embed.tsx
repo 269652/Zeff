@@ -32,9 +32,11 @@ function CalendarEmbedView(p: NodeViewProps) {
   const [data, setData] = useState<CalendarData | null>(null);
   const [error, setError] = useState("");
   const [name, setName] = useState("");
+  // (Its own calendar and those beside it asked for by id: a plan just made, its page not saved yet, is still there.)
+  const alsoIds = String(p.node.attrs.also ?? "");
   const load = useCallback(() => {
-    void calendarDataAction(view, day).then((r) => (r.ok ? (setData(r.data), setError("")) : setError(r.error)));
-  }, [view, day]);
+    void calendarDataAction(view, day, [calendarId, ...alsoIds.split(",").map(Number)]).then((r) => (r.ok ? (setData(r.data), setError("")) : setError(r.error)));
+  }, [view, day, calendarId, alsoIds]);
   useEffect(load, [load]);
   const calendar = data?.calendars.find((c) => c.id === calendarId);
   // Other calendars shown beside it (kept in the block): whether what is planned here overlaps what is there.

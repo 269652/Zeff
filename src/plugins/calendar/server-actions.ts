@@ -257,11 +257,11 @@ export async function acceptProposedEventAction(todoId: number, index: number, t
 }
 
 /** What the calendar app shows around a day (the Workspace's calendar view asks for it as it moves). */
-export async function calendarDataAction(view: string, day: string): Promise<{ ok: true; data: import("./view-data").CalendarData } | { ok: false; error: string }> {
+export async function calendarDataAction(view: string, day: string, keep: number[] = []): Promise<{ ok: true; data: import("./view-data").CalendarData } | { ok: false; error: string }> {
   try {
     const { isInstalled } = await import("@/plugins/state");
     if (!isInstalled("calendar")) return { ok: false, error: t("The Calendar plugin is not installed (Menu → Plugins).") };
-    return { ok: true, data: await (await import("./view-data")).calendarViewData(view, day) };
+    return { ok: true, data: await (await import("./view-data")).calendarViewData(view, day, (Array.isArray(keep) ? keep : []).map(Number).filter((n) => n > 0)) };
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
   }

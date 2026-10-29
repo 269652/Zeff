@@ -146,7 +146,7 @@ export function MonthGrid({
                       onClick={(e) => e.detail === 0 && onOpen(it, e.currentTarget.getBoundingClientRect())}
                       onKeyDown={(e) => onItemKey(e, it)}
                       aria-label={itemLabel(it, t)}
-                      className={`flex min-w-0 items-center gap-1 truncate rounded px-1 text-left text-xs leading-5 ${from ? "-ml-[5px] rounded-l-none border-l-0 pl-[9px]" : ""} ${on ? "-mr-[5px] rounded-r-none border-r-0" : ""} ${from && on ? "w-[calc(100%+10px)]" : from || on ? "w-[calc(100%+5px)]" : "w-full"} ${it.allDay ? "font-medium" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"} ${it.editable ? "cursor-grab" : "cursor-pointer"} ${drag?.moved && drag.item.id === it.id ? "opacity-60" : ""} ${it.proposed || it.shadow ? "border border-dashed" : ""}`}
+                      className={`flex min-w-0 shrink-0 items-center gap-1 truncate rounded px-1 text-left text-xs leading-5 ${from ? "-ml-[5px] rounded-l-none border-l-0 pl-[9px]" : ""} ${on ? "-mr-[5px] rounded-r-none border-r-0" : ""} ${from && on ? "w-[calc(100%+10px)]" : from || on ? "w-[calc(100%+5px)]" : "w-full"} ${it.allDay ? "font-medium" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"} ${it.editable ? "cursor-grab" : "cursor-pointer"} ${drag?.moved && drag.item.id === it.id ? "opacity-60" : ""} ${it.proposed || it.shadow ? "border border-dashed" : ""}`}
                       style={it.allDay && !it.shadow ? { background: it.color, color: textOn(it.color) } : it.proposed || it.shadow ? { borderColor: it.color } : undefined}
                       title={`${it.allDay ? "" : `${timeText(it.start)} `}${it.title}${it.merged ? ` ✓ ${it.merged.title}` : ""}`}
                     >
@@ -158,7 +158,7 @@ export function MonthGrid({
                     );
                   })}
                   {list.length > MAX && (
-                    <button type="button" onClick={() => onPickDay(d)} className="self-start rounded px-1 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                    <button type="button" onClick={() => onPickDay(d)} className="shrink-0 self-start rounded px-1 text-xs font-medium text-zinc-600 hover:bg-zinc-100 dark:hover:bg-zinc-800">
                       {t("+{n} more", { n: list.length - MAX })}
                     </button>
                   )}
