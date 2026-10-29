@@ -276,6 +276,11 @@ function openBlockTodos(): { todoId: number; itemId: string; pageId: number | nu
   });
 }
 
+/** The refs ("bt:<item id>") of the todos a page holds as checklist items that feed the engine — shown and ticked there. */
+export function engineRefsOfPage(pageId: number): Set<string> {
+  return new Set(listsOfPage(pageId).filter((l) => l.engine).flatMap((l) => l.items.filter((i) => i.itemId).map((i) => `bt:${i.itemId}`)));
+}
+
 /** The scheduler's turn: every list that feeds the engine (also takes in a todo closed or opened again there), and every todo whose item is gone. */
 export function syncTaskListsEngine(): number {
   const pages = new Set(allTaskLists().filter((l) => l.engine).map((l) => l.pageId));

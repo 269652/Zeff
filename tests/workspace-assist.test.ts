@@ -274,3 +274,12 @@ test("the questions: several answers allowed where several can be true (dates, o
   const [one] = cleanQuestions([{ id: "q2", text: "Wie reist du?", kind: "choice", options: ["Zug", "Auto"] }]);
   assert.equal(one.kind, "choice", "one way of travel: one answer");
 });
+
+test("a text with checklist lines: those lines are todos (the page's one checklist that feeds the engine), the rest stays text", async () => {
+  const { cleanActions } = await import("@/plugins/workspace/assist");
+  const actions = cleanActions([{ kind: "text", markdown: "Freitag bis Sonntag = 2 Nächte.\n\n- [ ] Karla fragen\n- [ ] Zug buchen" }, { kind: "text", markdown: "- [ ] Nur ein Todo" }], check());
+  assert.deepEqual(
+    actions.map((a) => (a.kind === "todo" ? `todo:${a.text}` : a.kind === "text" ? `text:${a.markdown}` : a.kind)),
+    ["text:Freitag bis Sonntag = 2 Nächte.", "todo:Karla fragen", "todo:Zug buchen", "todo:Nur ein Todo"],
+  );
+});

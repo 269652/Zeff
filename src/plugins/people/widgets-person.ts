@@ -68,7 +68,9 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       if (!isInstalled("todos")) return { kind: "list", items: [], empty: t("Needs the Todos plugin.") };
       const { listTodos } = await import("@/lib/boards/store");
       const today = new Date().toISOString().slice(0, 10);
-      const all = listTodos({ status: "open" }).filter((x) => aboutThem(p, `${x.text} ${x.note ?? ""}`));
+      // Those that are a checklist on this very page are left out: shown (and ticked) there already — once, not twice.
+      const here = Number(config.__page) > 0 ? (await import("@/plugins/workspace/task-lists")).engineRefsOfPage(Number(config.__page)) : new Set<string>();
+      const all = listTodos({ status: "open" }).filter((x) => aboutThem(p, `${x.text} ${x.note ?? ""}`) && !x.refs.some((r) => here.has(r)));
       const items: WidgetItem[] = all.slice(0, Number(config.limit ?? 8)).map((x) => ({
         id: String(x.id),
         icon: x.owner === "other" ? "⏳" : "☐",

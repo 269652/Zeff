@@ -185,6 +185,16 @@ function cleanAction(raw: unknown, check: AssistCheck): AssistActionBody | null 
 /** The actions the AI proposed, as Zeff can run them (at most six), numbered a1, a2 … */
 export function cleanActions(raw: unknown, check: AssistCheck): AssistAction[] {
   return (Array.isArray(raw) ? raw : [])
+    // A text's checklist lines are todos (the page's one checklist that feeds the engine) — not a second list beside it.
+    .flatMap((a): unknown[] => {
+      const o = a && typeof a === "object" ? (a as Record<string, unknown>) : null;
+      if (o?.kind !== "text" || typeof o.markdown !== "string") return [a];
+      const lines = o.markdown.split("\n");
+      const todos = lines.map((l) => /^\s*[-*+]\s+\[ \]\s+(.+)$/.exec(l)?.[1]).filter((x): x is string => !!x);
+      if (!todos.length) return [a];
+      const rest = lines.filter((l) => !/^\s*[-*+]\s+\[[ xX]\]\s+/.test(l)).join("\n").trim();
+      return [...(rest ? [{ ...o, markdown: rest }] : []), ...todos.map((text) => ({ kind: "todo", text }))];
+    })
     .slice(0, 12)
     .map((a) => cleanAction(a, check))
     .filter((a): a is AssistActionBody => !!a)
