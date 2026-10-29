@@ -89,3 +89,15 @@ test("a page's checklist goes into its todos widget: the item shows once (in the
     const shown = await editor(page).getByText(SEED.mergeItem).evaluateAll((els) => els.filter((el) => el.checkVisibility()).length);
     assert.equal(shown, 1, "the todo's text once on the screen");
   }));
+
+test("a new person's page starts with the default layout: their todos, coming up, facts and rhythm", (t) =>
+  withPage(t, async (page) => {
+    await open(page, `/workspace/${SEED.newPersonRow}`);
+    const ids = ["people.todos", "people.coming", "people.facts", "people.rhythm"];
+    for (const id of ids)
+      await editor(page).locator(`[data-widget="${id}"]`).first().waitFor({ timeout: 15_000 }).catch(async () => {
+        throw new Error(`The new person's page has no "${id}" widget (it shows: ${await editor(page).innerText()}).`);
+      });
+    const order = await editor(page).locator("[data-widget]").evaluateAll((els) => els.map((el) => el.getAttribute("data-widget")));
+    assert.deepEqual(order, ids, "the default widgets, in their order, nothing else");
+  }));

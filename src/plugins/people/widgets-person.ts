@@ -4,6 +4,7 @@ import type { WidgetConfig, WidgetItem, WorkspaceWidget, WidgetSetting } from "@
 import { openCommitments, reviewClaim } from "./graph";
 import { circleLabels, dateKindLabels, type Person } from "./shared";
 import { getPerson, listPeople, namesThem, upcoming } from "./store";
+import type { DocNode } from "@/plugins/workspace/doc";
 
 /**
  * Widgets about one person, for a page — on a person's own page (a row of the People database) they take that person by
@@ -29,6 +30,33 @@ export async function personFor(config: WidgetConfig): Promise<Person | null> {
   const { getPage } = await import("@/plugins/workspace/store");
   const m = /^person:(\d+)$/.exec(String(getPage(page)?.props?.srcref ?? ""));
   return m ? getPerson(Number(m[1])) : null;
+}
+
+/**
+ * The detail widgets about this person on the page a widget stands on (one in a column too) — "All about a person" leaves out
+ * what they show already: one form per thing.
+ */
+async function detailWidgetsOn(config: WidgetConfig, p: Person | null): Promise<Set<string>> {
+  const page = Number(config.__page);
+  const out = new Set<string>();
+  if (!page || !p) return out;
+  const { getPage } = await import("@/plugins/workspace/store");
+  const nodes: DocNode[] = [];
+  const walk = (n: DocNode) => {
+    if (n.type === "zeffWidget" && n.attrs?.widget !== "people.overview") nodes.push(n);
+    (n.content ?? []).forEach(walk);
+  };
+  (getPage(page)?.content.content ?? []).forEach(walk);
+  for (const n of nodes) {
+    let own: WidgetConfig = {};
+    try {
+      own = JSON.parse(String(n.attrs?.config ?? "{}"));
+    } catch {
+      // no settings: the page's person
+    }
+    if ((await personFor({ ...own, __page: page }))?.id === p.id) out.add(String(n.attrs?.widget));
+  }
+  return out;
 }
 
 export const personSetting = (): WidgetSetting => ({ key: "person", label: t("Person (a name; empty: the person whose page this is)"), kind: "person", default: "" });
@@ -107,6 +135,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       return [personSetting()];
     },
     ttl: 60,
+    cacheKey: async (config) => [...(await detailWidgetsOn(config, await personFor(config)))].sort().join(","),
     data: async (config) => {
       const p = await personFor(config);
       if (!p) return nobody();
@@ -115,6 +144,9 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       const { personHref } = await import("@/plugins/workspace/people-database");
       const { detailLabels } = await import("./row-data");
       const href = personHref(p.id);
+      // What the detail widgets on the same page show already stays there.
+      const on = await detailWidgetsOn(config, p);
+      const shows = (id: string) => on.has(id);
       const items: WidgetItem[] = [];
       const add = (icon: string, text: string, detail?: string, extra: Partial<WidgetItem> = {}) => text && items.push({ id: `${items.length}`, icon, text, detail, wrap: true, ...extra });
       const now = Date.now();
@@ -123,38 +155,39 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       // Who they are to you.
       add("🧑", b.compiled?.connection || p.name, [circle, b.aliases.length ? t("also: {names}", { names: b.aliases.join(", ") }) : ""].filter(Boolean).join(" · "), { href });
       if (b.note) add("📝", b.note, t("Note"));
-      for (const f of (b.compiled?.keyFacts ?? []).slice(0, 8)) add("•", f, t("Key fact"));
-      for (const f of (b.compiled?.funFacts ?? []).slice(0, 4)) add("🎈", f, t("Fun fact"));
-      for (const c of b.claims.filter((c) => c.status !== "rejected" && !c.done && c.kind !== "commitment").slice(0, 10)) add("💡", c.text, c.status === "confirmed" ? t("Known") : t("Read from your messages — to check"));
+      if (!shows("people.facts")) for (const f of (b.compiled?.keyFacts ?? []).slice(0, 8)) add("•", f, t("Key fact"));
+      if (!shows("people.funfacts")) for (const f of (b.compiled?.funFacts ?? []).slice(0, 4)) add("🎈", f, t("Fun fact"));
+      if (!shows("people.facts")) for (const c of b.claims.filter((c) => c.status !== "rejected" && !c.done && c.kind !== "commitment").slice(0, 10)) add("💡", c.text, c.status === "confirmed" ? t("Known") : t("Read from your messages — to check"));
       const rel = b.relations;
       if (rel.out.length || rel.in.length) add("🔗", [...rel.out.map((r) => `${r.rel}${r.otherName ? ` ${r.otherName}` : ""}`), ...rel.in.map((r) => `${r.personName}: ${r.rel}`)].slice(0, 8).join(" · "), t("Relations"));
       // The rhythm: how often, who starts, how fast.
-      const pulse = b.pulse;
+      const pulse = shows("people.rhythm") ? undefined : b.pulse;
       if (pulse?.contactDays) {
         const parts = [t("{n} days in touch in 12 months", { n: pulse.contactDays }), pulse.typicalGap ? t("usually every {n} days", { n: pulse.typicalGap }) : "", pulse.initiative.share !== null ? t("you start {n} %", { n: Math.round(pulse.initiative.share * 100) }) : ""].filter(Boolean);
         add("📈", parts.join(" · "), pulse.drifting ? t("Drifting apart — longer quiet than usual") : t("Rhythm"), pulse.drifting ? { tone: "warn" } : {});
       }
       try {
-        const last = (await (await import("./pulse")).lastContactsAll([p])).get(p.id);
+        const last = shows("people.rhythm") ? undefined : (await (await import("./pulse")).lastContactsAll([p])).get(p.id);
         if (last) add("🕑", t("Last contact: {ago}", { ago: (await import("./view-data")).agoText(t, last.at, now) }), day(last.at));
       } catch {
         // the pulse is a bonus
       }
       // Their latest messages.
-      for (const m of b.contacts.slice(0, 4)) add("💬", m.text.slice(0, 220), `${m.who} · ${m.folder} · ${day(m.at)}`);
+      if (!shows("people.news")) for (const m of b.contacts.slice(0, 4)) add("💬", m.text.slice(0, 220), `${m.who} · ${m.folder} · ${day(m.at)}`);
       // Appointments and dates.
-      for (const e of (b.events?.upcoming ?? []).slice(0, 3)) add("📆", e.title, `${e.start.slice(0, 16).replace("T", " ")}${e.location ? ` · ${e.location}` : ""}`, { href: e.href });
-      const next = upcoming({ days: 366 }).filter((u) => u.person.id === p.id).sort((a, b2) => a.on.localeCompare(b2.on))[0];
+      const coming = !shows("people.coming");
+      if (coming) for (const e of (b.events?.upcoming ?? []).slice(0, 3)) add("📆", e.title, `${e.start.slice(0, 16).replace("T", " ")}${e.location ? ` · ${e.location}` : ""}`, { href: e.href });
+      const next = coming && upcoming({ days: 366 }).filter((u) => u.person.id === p.id).sort((a, b2) => a.on.localeCompare(b2.on))[0];
       if (next) add("🎂", t("Next: {what} on {day}", { what: next.date.kind === "other" ? next.date.label || dateKindLabels(t).other : dateKindLabels(t)[next.date.kind], day: next.on }));
-      const dates = b.dates.filter((d) => d.confirmed);
+      const dates = coming ? b.dates.filter((d) => d.confirmed) : [];
       if (dates.length) add("📅", dates.map((d) => `${d.label || dateKindLabels(t)[d.kind]}: ${d.text}`).join(" · "), t("Dates"));
       // What is open between you.
-      const promises = openCommitments().filter((c) => c.personId === p.id);
+      const promises = shows("people.promises") ? [] : openCommitments().filter((c) => c.personId === p.id);
       const mine = promises.filter((c) => c.direction === "mine");
       const theirs = promises.filter((c) => c.direction === "theirs");
       if (mine.length) add("🤝", mine.map((c) => c.text).slice(0, 3).join(" · "), t("You promised ({n})", { n: mine.length }));
       if (theirs.length) add("🤝", theirs.map((c) => c.text).slice(0, 3).join(" · "), t("They promised ({n})", { n: theirs.length }));
-      if (isInstalled("todos")) {
+      if (isInstalled("todos") && !shows("people.todos")) {
         const { listTodos } = await import("@/lib/boards/store");
         const todos = listTodos({ status: "open" }).filter((x) => aboutThem(p, `${x.text} ${x.note ?? ""}`));
         if (todos.length) add("☐", todos.slice(0, 4).map((x) => x.text).join(" · "), t("Open todos ({n})", { n: todos.length }));

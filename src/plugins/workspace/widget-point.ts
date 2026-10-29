@@ -59,6 +59,8 @@ export type WorkspaceWidget = {
   size?: "third" | "half" | "full";
   /** Seconds its data is kept (default 30). */
   ttl?: number;
+  /** What else its data depends on, cheap to read (kept data is for the same answer only) — the widgets beside it on its page. */
+  cacheKey?: (config: WidgetConfig) => string | Promise<string>;
   data: (config: WidgetConfig) => WidgetData | Promise<WidgetData>;
   /** A button of the widget pressed: what the plugin does, and the data after it. Without it the widget has no actions. */
   act?: (action: string, payload: Record<string, string>, config: WidgetConfig) => WidgetData | void | Promise<WidgetData | void>;

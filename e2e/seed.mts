@@ -40,6 +40,11 @@ if (!fs.existsSync(out)) {
     },
   });
   (await import("@/plugins/workspace/task-lists")).syncPageLists(mergePage);
-  fs.writeFileSync(out, JSON.stringify({ personId, personName, dbId, dbTitle, rows, rowTitles: ["Alpha", "Beta"], props: { dose: dose.id, taken: taken.id }, todos, mergePage, mergeItem }, null, 2));
+  // A new person's page (a row of a people database, never opened): it starts with the default layout when first opened.
+  const newPerson = createPerson({ name: "Nina Neumann" });
+  const peopleDb = createPage({ kind: "database", title: "E2E People", schema: { titleName: "Name", properties: [], views: [newView("Table", "table")], dataType: "people" } });
+  const newPersonRow = addRow(peopleDb, { title: "Nina Neumann" });
+  (await import("@/db")).getSqlite().prepare("update ws_pages set props = ? where id = ?").run(JSON.stringify({ srcref: `person:${newPerson}` }), newPersonRow);
+  fs.writeFileSync(out, JSON.stringify({ personId, personName, dbId, dbTitle, rows, rowTitles: ["Alpha", "Beta"], props: { dose: dose.id, taken: taken.id }, todos, mergePage, mergeItem, newPersonRow }, null, 2));
 }
 console.log(`e2e seed: ${out}`);

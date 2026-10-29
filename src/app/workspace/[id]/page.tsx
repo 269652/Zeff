@@ -25,7 +25,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   touchOpened(page.id);
   const isRow = page.dbId !== null;
   // A row whose database has a custom view (a person's page): its page starts with that view's block — written once, here.
-  if (isRow) (await import("@/plugins/workspace/row-views")).ensureRowView(page.id);
+  const rowViews = isRow ? await import("@/plugins/workspace/row-views") : null;
+  rowViews?.ensureRowView(page.id);
   const fresh = getPage(page.id) ?? page;
   // What a person's page shows comes with the page — nothing to fetch after it.
   let person: unknown = null;
@@ -54,6 +55,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
         locked: page.locked,
         template: page.template,
         isRow,
+        layoutFits: !!rowViews?.rowLayoutFits(page.id),
         updatedAt: page.updatedAt,
         crumbs: breadcrumbs(page.id),
         backlinks: backlinks(page.id).map((b) => ({ id: b.id, title: b.title, icon: b.icon })),
