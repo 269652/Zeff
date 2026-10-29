@@ -4,11 +4,11 @@ import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type R
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
 import { addFormFieldAction, databasesAction, saveFormAction } from "../actions";
-import { COND_OPS, defaultAnswer, fieldItem, fieldLabel, fieldsIn, formItemId, newStep, type CondOp, type FieldItem, type FlexItem, type FormDef, type FormItem, type FormStep } from "../form-spec";
+import { COND_OPS, defaultAnswer, fieldItem, fieldLabel, fieldsIn, formItemId, newRowsItem, newStep, ROWS_COL_TYPES, ROWS_MAX_COLS, rowsCols, type CondOp, type FieldItem, type FlexItem, type FormDef, type FormItem, type FormStep, type RowsItem } from "../form-spec";
 import { canPlace, findPart, freshIds, newBox, partsOf, patchPart, placePart, removePart, spotOf } from "../form-tree";
 import type { FormRun } from "../forms";
 import { PROP_LABELS, TITLE, type Property, type PropType } from "../model";
-import { FieldControl, flexChildClass, flexClass, StaticItem, StepProgress } from "./form-runner";
+import { FieldControl, flexChildClass, flexClass, RowsField, StaticItem, StepProgress } from "./form-runner";
 
 /**
  * The form designer (WYSIWYG): the palette on the left (the database's fields not on the form yet, a heading, a text, a divider, a
@@ -68,8 +68,8 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
       if (!r.ok) return setStatus("error");
       setStatus("saved");
       // The database's fields as the server has them (another database chosen); what was typed meanwhile stays.
-      setForm((cur) => ({ ...cur, db: r.form.db }));
-      onChange?.({ ...form, def: latest.current, db: r.form.db });
+      setForm((cur) => ({ ...cur, db: r.form.db, rows: r.form.rows }));
+      onChange?.({ ...form, def: latest.current, db: r.form.db, rows: r.form.rows });
     }, 700);
   };
 
@@ -77,7 +77,18 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
   const free = props.filter((p) => !used.has(p.id));
   const propOf = (id: string): Property | undefined => props.find((p) => p.id === id);
   const boxName = (b: Pick<FlexItem, "dir">) => (b.dir === "row" ? t("Row") : t("Column"));
-  const nameOf = (i: FormItem): string => (i.kind === "field" ? fieldLabel(i, propOf(i.prop)) : i.kind === "heading" ? i.text || t("Heading") : i.kind === "text" ? t("Text") : i.kind === "flex" ? boxName(i) : t("Divider"));
+  const nameOf = (i: FormItem): string => (i.kind === "field" ? fieldLabel(i, propOf(i.prop)) : i.kind === "heading" ? i.text || t("Heading") : i.kind === "text" ? t("Text") : i.kind === "flex" ? boxName(i) : i.kind === "rows" ? i.label || t("Rows of the database") : t("Divider"));
+  /**
+   * A rows item put on a form whose only field is the title it started with (untouched): that field goes — such a form changes rows,
+   * it makes none, and an empty title would stop it. Said in the live region.
+   */
+  const withoutBareTitle = (next: FormDef, item: FormItem): FormDef => {
+    const fields = next.steps.flatMap((x) => fieldsIn(x.items));
+    const only = fields.length === 1 ? fields[0] : undefined;
+    if (item.kind !== "rows" || !only || only.prop !== TITLE || only.label || only.help || only.placeholder || only.hidden || only.default || only.when) return next;
+    setTimeout(() => setSaid(t("The title field was taken off: this form changes the rows, it makes no new one.")), 600);
+    return removePart(next, only.id);
+  };
   const focusItem = (id: string) => requestAnimationFrame(() => canvas.current?.querySelector<HTMLElement>(`[data-item="${id}"]`)?.focus());
   // A box selected: what is added goes into it; else to the end of the step.
   const selBox = sel.kind === "item" ? findPart(def, sel.id) : undefined;
@@ -85,7 +96,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
 
   const add = (item: FormItem) => {
     const owner = canPlace(def, item, target) ? target : step.id;
-    change(placePart(def, item, owner, partsOf(def, owner)?.length ?? 0));
+    change(withoutBareTitle(placePart(def, item, owner, partsOf(def, owner)?.length ?? 0), item));
     setSel({ kind: "item", id: item.id });
     setSaid(owner === step.id ? t("{name} added to the form.", { name: nameOf(item) }) : t("{name} added to the {box}.", { name: nameOf(item), box: nameOf(findPart(def, owner)!) }));
     focusItem(item.id);
@@ -162,7 +173,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
     const item = d.kind === "new" ? freshIds(d.item, formItemId) : findPart(def, d.id);
     if (!item || (item.kind === "field" && d.kind === "new" && used.has(item.prop))) return;
     if (!canPlace(def, item, owner)) return setSaid(t("It can't go there (boxes nest {n} deep at most).", { n: 3 }));
-    change(placePart(def, item, owner, index));
+    change(d.kind === "new" ? withoutBareTitle(placePart(def, item, owner, index), item) : placePart(def, item, owner, index));
     if (d.kind === "new") setSel({ kind: "item", id: item.id });
     setSaid(d.kind === "new" ? t("{name} added to the form.", { name: nameOf(item) }) : t("{name} moved.", { name: nameOf(item) }));
   };
@@ -250,7 +261,9 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
           </span>
         )}
         <div inert className="pointer-events-none">
-          {item.kind !== "field" ? <StaticItem item={item} /> : prop ? <FieldControl item={item} prop={prop} value={defaultAnswer(prop, item.default)} onChange={() => undefined} uid={`fd${form.id}`} /> : <p className="text-sm text-zinc-500">{item.prop}</p>}
+          {item.kind === "rows" ? (
+            form.db ? <RowsField item={item} db={form.db} rows={form.rows ?? []} edits={{}} onEdit={() => undefined} uid={`fd${form.id}`} /> : <p className="text-sm text-zinc-500">{t("Rows of the database")}</p>
+          ) : item.kind !== "field" ? <StaticItem item={item} /> : prop ? <FieldControl item={item} prop={prop} value={defaultAnswer(prop, item.default)} onChange={() => undefined} uid={`fd${form.id}`} /> : <p className="text-sm text-zinc-500">{item.prop}</p>}
         </div>
       </div>
     );
@@ -397,6 +410,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
                 ["divider", "—", t("Divider"), (): FormItem => ({ id: formItemId(), kind: "divider" })],
                 ["row", "⇢", t("Row (two columns side by side)"), (): FormItem => newBox("row", formItemId)],
                 ["col", "⇣", t("Column (parts one under the other)"), (): FormItem => newBox("col", formItemId)],
+                ...(form.db ? ([["rows", "☑", t("Rows of the database"), (): FormItem => newRowsItem(props)]] as const) : []),
               ] as const
             ).map(([k, icon, label, make]) => (
               <li key={k} className={`${pal} cursor-grab`} draggable onDragStart={drag({ kind: "new", item: make() })}>
@@ -591,7 +605,7 @@ function Text({ label, value, onChange, placeholder, area = false }: { label: st
 const asDefault = (v: unknown): string => (Array.isArray(v) ? v.join(",") : v === true ? "true" : v === false ? "" : String(v ?? ""));
 
 /** The settings of one part of the form: a field's words, required / not asked (with its value), width, condition, step. */
-function ItemInspector({ item, def, props, stepIndex, nested, onPatch, onRemove, onMove, onShift, onStep }: { item: FormItem; def: FormDef; props: Property[]; stepIndex: number; /** It sits in a box (a row, a column). */ nested: boolean; onPatch: (p: Partial<FieldItem> | Partial<FlexItem> | Partial<FormItem>) => void; onRemove: () => void; onMove: (by: number) => void; onShift: (into: boolean) => void; onStep: (s: number) => void }) {
+function ItemInspector({ item, def, props, stepIndex, nested, onPatch, onRemove, onMove, onShift, onStep }: { item: FormItem; def: FormDef; props: Property[]; stepIndex: number; /** It sits in a box (a row, a column). */ nested: boolean; onPatch: (p: Partial<FieldItem> | Partial<FlexItem> | Partial<RowsItem> | Partial<FormItem>) => void; onRemove: () => void; onMove: (by: number) => void; onShift: (into: boolean) => void; onStep: (s: number) => void }) {
   const t = useT();
   const prop = item.kind === "field" ? props.find((p) => p.id === item.prop) : undefined;
   const others = def.steps.flatMap((s) => fieldsIn(s.items)).filter((i) => i.id !== item.id);
@@ -599,6 +613,7 @@ function ItemInspector({ item, def, props, stepIndex, nested, onPatch, onRemove,
   return (
     <>
       <h2 className="font-semibold">{item.kind === "field" ? (prop?.name ?? item.prop) : item.kind === "heading" ? t("Heading") : item.kind === "text" ? t("Text") : item.kind === "flex" ? (item.dir === "row" ? t("Row") : t("Column")) : t("Divider")}</h2>
+      {item.kind === "rows" && <RowsInspector item={item} props={props} onPatch={onPatch} />}
       {item.kind === "flex" && (
         <>
           <fieldset className="space-y-1">
@@ -744,5 +759,88 @@ function Condition({ item, others, props, opNames, onPatch }: { item: FieldItem;
         <input className="input" value={w.value ?? ""} aria-label={t("Value")} onChange={(e) => onPatch({ when: { ...w, value: e.target.value } })} />
       ) : null}
     </div>
+  );
+}
+
+/** A rows item's settings: its words, its columns (which, in what order), and the stamp ("when [checkbox] is ticked, set [date] to now"). */
+function RowsInspector({ item, props, onPatch }: { item: RowsItem; props: Property[]; onPatch: (p: Partial<RowsItem>) => void }) {
+  const t = useT();
+  const can = props.filter((p) => p.id !== TITLE && ROWS_COL_TYPES.includes(p.type));
+  const cols = item.cols.map((c) => can.find((p) => p.id === c)).filter((p): p is Property => !!p);
+  const setCols = (next: string[], stamp = item.stamp) => onPatch({ stamp: undefined, ...rowsCols(next, stamp, props) });
+  const move = (i: number, by: number) => {
+    const next = [...item.cols];
+    const [c] = next.splice(i, 1);
+    next.splice(i + by, 0, c);
+    setCols(next);
+  };
+  const checks = cols.filter((p) => p.type === "checkbox");
+  const dates = cols.filter((p) => p.type === "date");
+  return (
+    <>
+      <Text label={t("Label")} value={item.label ?? ""} placeholder={t("Rows of the database")} onChange={(v) => onPatch({ label: v || undefined })} />
+      <Text label={t("Help text")} value={item.help ?? ""} onChange={(v) => onPatch({ help: v || undefined })} />
+      <fieldset className="space-y-1">
+        <legend className="text-sm font-medium">{t("Columns")}</legend>
+        <ul className="space-y-1">
+          {cols.map((p, i) => (
+            <li key={p.id} className="flex items-center gap-1">
+              <label className="flex flex-1 items-center gap-1.5">
+                <input type="checkbox" className="size-4 accent-indigo-600" checked onChange={() => setCols(item.cols.filter((c) => c !== p.id))} />
+                {p.name}
+              </label>
+              <button type="button" className="icon-btn" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t("Move {name} up", { name: p.name })} title={t("Move up")}>
+                ↑
+              </button>
+              <button type="button" className="icon-btn" disabled={i === cols.length - 1} onClick={() => move(i, 1)} aria-label={t("Move {name} down", { name: p.name })} title={t("Move down")}>
+                ↓
+              </button>
+            </li>
+          ))}
+          {can
+            .filter((p) => !item.cols.includes(p.id))
+            .map((p) => (
+              <li key={p.id}>
+                <label className="flex items-center gap-1.5 text-zinc-500">
+                  <input type="checkbox" className="size-4 accent-indigo-600" checked={false} disabled={item.cols.length >= ROWS_MAX_COLS} onChange={() => setCols([...item.cols, p.id])} />
+                  {p.name}
+                </label>
+              </li>
+            ))}
+        </ul>
+      </fieldset>
+      <fieldset className="space-y-1.5">
+        <legend className="text-sm font-medium">{t("Time stamp")}</legend>
+        {checks.length && dates.length ? (
+          <div className="flex flex-wrap items-center gap-1.5">
+            <span>{t("When")}</span>
+            <select className="input w-auto py-1" aria-label={t("Checkbox that stamps")} value={item.stamp?.check ?? ""} onChange={(e) => setCols(item.cols, e.target.value ? { check: e.target.value, time: item.stamp?.time ?? dates[0].id } : undefined)}>
+              <option value="">{t("— no stamp —")}</option>
+              {checks.map((p) => (
+                <option key={p.id} value={p.id}>
+                  {p.name}
+                </option>
+              ))}
+            </select>
+            {item.stamp && (
+              <>
+                <span>{t("is ticked, set")}</span>
+                <select className="input w-auto py-1" aria-label={t("Date set to now")} value={item.stamp.time} onChange={(e) => setCols(item.cols, { check: item.stamp!.check, time: e.target.value })}>
+                  {dates.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      {p.name}
+                    </option>
+                  ))}
+                </select>
+                <span>{t("to now")}</span>
+              </>
+            )}
+          </div>
+        ) : (
+          <p className="text-xs text-zinc-500">{t("A checkbox and a date among the columns can stamp the time a row is ticked.")}</p>
+        )}
+      </fieldset>
+      <p className="text-xs text-zinc-500">{t("Sent, the rows are changed in place — no new row is made for them.")}</p>
+    </>
   );
 }

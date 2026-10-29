@@ -1049,10 +1049,12 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         <EntryDialog
           formId={schema.entryForm}
           onClose={() => setEntryOpen(false)}
-          onDone={(id) => {
+          onDone={(id, updated) => {
             setEntryOpen(false);
             void api.reload();
-            toast(t("Added ✓"), { action: { label: t("Open it"), run: () => openRow(id) } });
+            // (A form that only changes rows makes none: what it changed is said.)
+            if (id !== null) toast(t("Added ✓"), { action: { label: t("Open it"), run: () => openRow(id) } });
+            else toast(updated === 1 ? t("1 entry updated.") : t("{n} entries updated.", { n: updated }));
           }}
         />
       )}

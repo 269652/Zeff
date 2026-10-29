@@ -7931,5 +7931,21 @@
   "Add the field": "Feld hinzufügen",
   "Give the field a name.": "Gib dem Feld einen Namen.",
   "A form can't make a field of that type.": "Ein Formular kann kein Feld dieses Typs anlegen.",
-  "The database already has a field “{name}”.": "Die Datenbank hat schon ein Feld „{name}“."
+  "The database already has a field “{name}”.": "Die Datenbank hat schon ein Feld „{name}“.",
+  "1 entry updated.": "1 Eintrag aktualisiert.",
+  "{n} entries updated.": "{n} Einträge aktualisiert.",
+  "Rows of the database": "Zeilen der Datenbank",
+  "The title field was taken off: this form changes the rows, it makes no new one.": "Das Titelfeld wurde entfernt: Dieses Formular ändert die Zeilen, es legt keine neue an.",
+  "Move {name} up": "{name} nach oben",
+  "Move {name} down": "{name} nach unten",
+  "Time stamp": "Zeitstempel",
+  "Checkbox that stamps": "Checkbox, die stempelt",
+  "— no stamp —": "— kein Stempel —",
+  "is ticked, set": "angehakt wird, setze",
+  "Date set to now": "Datum, das auf jetzt gesetzt wird",
+  "to now": "auf jetzt",
+  "A checkbox and a date among the columns can stamp the time a row is ticked.": "Eine Checkbox und ein Datum unter den Spalten können die Zeit stempeln, zu der eine Zeile angehakt wird.",
+  "Sent, the rows are changed in place — no new row is made for them.": "Beim Senden werden die Zeilen direkt geändert — dafür wird keine neue Zeile angelegt.",
+  "No entries yet.": "Noch keine Einträge.",
+  "Back to the form": "Zurück zum Formular"
 }

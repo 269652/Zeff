@@ -1,7 +1,7 @@
 import { getSqlite } from "@/db";
 import { t } from "@/lib/i18n/server";
-import { addRow, createPage, getDatabase, getPage, rawRows, setPageProps, updateSchema } from "./store";
-import { blockFormDef, coerceAnswers, formCells, formErrors, formFields, formProps, legacyFormDef, newFormDef, normalizeForm, type Answers, type FormDef } from "./form-spec";
+import { addRow, createPage, getDatabase, getPage, rawRows, setCell, setPageProps, updateSchema } from "./store";
+import { blockFormDef, coerceAnswers, formCells, formErrors, formFields, formProps, formRowsItems, legacyFormDef, newFormDef, normalizeForm, stampNow, type Answers, type FormDef } from "./form-spec";
 import { newId, newProperty, type Property, type PropType } from "./model";
 
 /**
@@ -15,9 +15,18 @@ import { newId, newProperty, type Property, type PropType } from "./model";
 /** The database a form fills, as the form needs it: what it can ask (the title first). */
 export type FormDb = { id: number; title: string; titleName: string; props: Property[] };
 /** A form as it is drawn: its page, what it asks, and its database (null: none chosen, or gone). */
-export type FormRun = { id: number; title: string; icon: string; def: FormDef; db: FormDb | null };
-/** What sending a form came to: the row it made, or what is wrong by field (item id) — nothing made then. */
-export type FormSent = { id: number | null; errors: Record<string, string> };
+export type FormRun = { id: number; title: string; icon: string; def: FormDef; db: FormDb | null; /** Its database's rows, as a rows item shows them (only with one). */ rows?: FormRow[] };
+/** A row of the form's database as a rows item shows it (its cells as stored). */
+export type FormRow = { id: number; title: string; cells: Record<string, unknown> };
+/**
+ * What sending a form came to: the row it made (null: none — what is wrong by field (item id), or a form that only changes rows),
+ * and how many rows its rows items changed.
+ */
+export type FormSent = { id: number | null; errors: Record<string, string>; updated: number };
+/** The changes a rows item sends: by item id, row id and property id, the new value (only what was changed). */
+export type RowChanges = Record<string, Record<string, Record<string, unknown>>>;
+/** How many rows a rows item shows at most. */
+const ROWS_SHOWN = 200;
 
 function formDb(dbId: number | null): FormDb | null {
   const d = dbId ? getDatabase(dbId) : null;
@@ -31,7 +40,10 @@ export function getForm(id: number): FormRun | null {
   if (!p || p.kind !== "form") return null;
   const raw = normalizeForm(p.props.form);
   const db = formDb(raw.dbId);
-  return { id: p.id, title: p.title, icon: p.icon, def: db ? normalizeForm(raw, db.props) : raw, db };
+  const def = db ? normalizeForm(raw, db.props) : raw;
+  // (A rows item shows the database's rows: they come with the form, in the database's order.)
+  const rows = db && formRowsItems(def).length ? rawRows(db.id).slice(0, ROWS_SHOWN).map((r) => ({ id: r.id, title: r.title, cells: r.cells })) : undefined;
+  return { id: p.id, title: p.title, icon: p.icon, def, db, ...(rows ? { rows } : {}) };
 }
 
 /** The types a field made from the designer can have (a relation needs its other database — that is made in the database). */
@@ -94,6 +106,7 @@ function cleanAnswers(raw: unknown): Answers {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
   const out: Answers = {};
   for (const [k, v] of Object.entries(raw as Record<string, unknown>).slice(0, 300)) {
+    if (k === "rows" && v && typeof v === "object" && !Array.isArray(v)) continue; // (a rows item's changes: rowChanges)
     if (typeof v === "string") out[k] = v.slice(0, 20000);
     else if (typeof v === "number" || typeof v === "boolean") out[k] = v;
     else if (Array.isArray(v)) out[k] = v.filter((x) => typeof x === "string" || typeof x === "number").slice(0, 200);
@@ -101,8 +114,40 @@ function cleanAnswers(raw: unknown): Answers {
   return out;
 }
 
+/**
+ * What a form's rows items change, made to fit: rows of its database only, columns of the item only, each value as its cell takes
+ * it; a stamp's checkbox ticked (it wasn't) sets its date to now unless a time was sent. A list of [row, property, value].
+ */
+function rowChanges(def: FormDef, db: FormDb, raw: unknown): [number, string, unknown][] {
+  const items = formRowsItems(def);
+  if (!items.length || !raw || typeof raw !== "object") return [];
+  const rows = new Map(rawRows(db.id).map((r) => [r.id, r]));
+  const out: [number, string, unknown][] = [];
+  for (const item of items) {
+    const byRow = (raw as RowChanges)[item.id];
+    if (!byRow || typeof byRow !== "object") continue;
+    for (const [rid, vals] of Object.entries(byRow).slice(0, ROWS_SHOWN)) {
+      const row = rows.get(Number(rid));
+      if (!row || !vals || typeof vals !== "object") continue;
+      const sent = cleanAnswers(Object.fromEntries(Object.entries(vals).filter(([k]) => item.cols.includes(k))));
+      const given = coerceAnswers(sent, db.props);
+      for (const [k, v] of Object.entries(given)) {
+        const p = db.props.find((x) => x.id === k);
+        if (!p) continue;
+        const value = v === "" ? null : p.type === "number" ? (Number.isFinite(Number(String(v).replace(",", "."))) ? Number(String(v).replace(",", ".")) : null) : v;
+        out.push([row.id, k, value]);
+      }
+      if (item.stamp && given[item.stamp.check] === true && row.cells[item.stamp.check] !== true && !(item.stamp.time in sent)) out.push([row.id, item.stamp.time, stampNow()]);
+    }
+  }
+  return out;
+}
+
 /** A form's answers checked and made a row of `db` — or what is wrong. Related rows must be rows of the database the relation points to. */
 function submitDef(def: FormDef, db: FormDb, raw: unknown): FormSent {
+  const changes = rowChanges(def, db, raw && typeof raw === "object" ? (raw as { rows?: unknown }).rows : undefined);
+  // A form with no fields of its own only changes rows: no row is made.
+  const makes = formFields(def).length > 0;
   const answers = coerceAnswers(cleanAnswers(raw), db.props);
   const errors = formErrors(def, answers, db.props, t);
   for (const f of formFields(def)) {
@@ -112,9 +157,13 @@ function submitDef(def: FormDef, db: FormDb, raw: unknown): FormSent {
     const there = new Set(p.relationDb ? rawRows(p.relationDb).map((r) => r.id) : []);
     if (v.some((x) => !there.has(Number(x)))) errors[f.id] = t("Please pick from the list for “{field}”.", { field: f.label || p.name });
   }
-  if (Object.keys(errors).length) return { id: null, errors };
-  const { title, cells } = formCells(def, answers, db.props);
-  return { id: addRow(db.id, { title, cells }), errors: {} };
+  if (Object.keys(errors).length) return { id: null, errors, updated: 0 };
+  // The rows changed and the new row made together: all of it, or (a locked row, a protected field) none of it.
+  return getSqlite().transaction((): FormSent => {
+    for (const [row, prop, value] of changes) setCell(row, prop, value);
+    const id = makes ? addRow(db.id, formCells(def, answers, db.props)) : null;
+    return { id, errors: {}, updated: new Set(changes.map((c) => c[0])).size };
+  })();
 }
 
 /** A form page filled in: the row it makes (the routines on "row added" go on from there), or what is wrong by field. */

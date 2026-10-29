@@ -260,3 +260,47 @@ test("the designer's tree: into a box, out of it, no box into itself or too deep
   def = tr.placePart(def, tr.findPart(def, "f")!, "s", 0);
   assert.deepEqual(tr.spotOf(def, "f"), { owner: "s", index: 0, step: 0 });
 });
+
+test("rows of the database: kept to columns a line can change, ticked rows are changed in place (time stamped), nothing else is touched, a form of rows only makes no row", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("workspace", true);
+  const w = await import("@/plugins/workspace/store");
+  const { normalizeForm, formProps, newRowsItem, stampNow } = await import("@/plugins/workspace/form-spec");
+  const { createForm, getForm, submitForm } = await import("@/plugins/workspace/forms");
+  const medis = w.createPage({ kind: "database", title: "Medis" });
+  w.updateSchema(medis, { ...w.getDatabase(medis)!.schema, properties: [{ id: "dosis", name: "Dosis", type: "number", format: "unit", unit: "mg" }, { id: "ok", name: "Genommen", type: "checkbox" }, { id: "um", name: "Genommen um", type: "date", includeTime: true }, { id: "tags", name: "Tags", type: "multi_select", options: [] }, { id: "notiz", name: "Notiz", type: "text" }] });
+  const venla = w.addRow(medis, { title: "Venlafaxin", cells: { dosis: 225 } });
+  const biso = w.addRow(medis, { title: "Bisoprolol", cells: { dosis: 5, ok: true, um: "2026-10-29T07:00" } });
+  const doxe = w.addRow(medis, { title: "Doxepin", cells: { dosis: 25 } });
+  const other = w.createPage({ kind: "database", title: "Andere" });
+  const stranger = w.addRow(other, { title: "Fremd" });
+  const props = formProps(w.getDatabase(medis)!.schema);
+
+  const item = newRowsItem(props);
+  assert.deepEqual([item.cols, item.stamp], [["dosis", "ok", "um", "notiz"], { check: "ok", time: "um" }], "no tags (a list) in a line; one checkbox and one date: stamped");
+  const kept = normalizeForm({ steps: [{ items: [{ kind: "rows", cols: ["ok", "ok", "title", "tags", "nope", "um"], stamp: { check: "um", time: "ok" } }] }] }, props).steps[0].items[0];
+  assert.deepEqual(kept, { id: (kept as { id: string }).id, kind: "rows", cols: ["ok", "um"] }, "each once, no title, no list, no stranger; a stamp the wrong way round goes");
+
+  const only = createForm({ dbId: medis, def: normalizeForm({ dbId: medis, steps: [{ items: [{ id: "r", kind: "rows", cols: ["ok", "dosis", "um"], stamp: { check: "ok", time: "um" } }] }] }, props) });
+  assert.deepEqual(getForm(only)!.rows!.map((r) => r.title), ["Venlafaxin", "Bisoprolol", "Doxepin"], "its rows come with the form");
+  const before = w.rawRows(medis).length;
+  const sent = submitForm(only, { rows: { r: { [venla]: { ok: true, dosis: "150" }, [biso]: { ok: true }, [doxe]: { ok: true, um: "2026-10-29T22:00", notiz: "nicht in den Spalten" }, [stranger]: { ok: true } } } });
+  assert.deepEqual([sent.id, sent.errors, sent.updated], [null, {}, 3]);
+  assert.equal(w.rawRows(medis).length, before, "no row made");
+  const cells = (id: number) => w.rawRows(medis).find((r) => r.id === id)!.cells;
+  assert.equal(cells(venla).ok, true);
+  assert.equal(cells(venla).dosis, 150);
+  assert.match(String(cells(venla).um), /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/, "ticked now: stamped by the server");
+  assert.equal(String(cells(venla).um).slice(0, 10), stampNow().slice(0, 10));
+  assert.equal(cells(biso).um, "2026-10-29T07:00", "ticked before: its time stays");
+  assert.equal(cells(doxe).um, "2026-10-29T22:00", "a time sent wins over the stamp");
+  assert.equal(cells(doxe).notiz, undefined, "a column not in the item is not touched");
+  assert.equal(w.rawRows(other).find((r) => r.id === stranger)!.cells.ok, undefined, "a row of another database is not touched");
+
+  const mixed = createForm({ dbId: medis, def: normalizeForm({ dbId: medis, steps: [{ items: [{ id: "t", kind: "field", prop: "title", required: true }, { id: "r", kind: "rows", cols: ["ok"] }] }] }, props) });
+  assert.deepEqual(Object.keys(submitForm(mixed, { rows: { r: { [doxe]: { ok: false } } } }).errors), ["t"], "its own fields still checked");
+  assert.equal(cells(doxe).ok, true, "nothing changed then");
+  const both = submitForm(mixed, { title: "Ibuprofen", rows: { r: { [doxe]: { ok: false } } } });
+  assert.equal(w.rawRows(medis).find((r) => r.id === both.id)!.title, "Ibuprofen");
+  assert.deepEqual([both.updated, cells(doxe).ok], [1, false]);
+});

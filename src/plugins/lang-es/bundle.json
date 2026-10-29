@@ -7931,5 +7931,21 @@
   "Add the field": "Añadir el campo",
   "Give the field a name.": "Ponle un nombre al campo.",
   "A form can't make a field of that type.": "Un formulario no puede crear un campo de ese tipo.",
-  "The database already has a field “{name}”.": "La base de datos ya tiene un campo «{name}»."
+  "The database already has a field “{name}”.": "La base de datos ya tiene un campo «{name}».",
+  "1 entry updated.": "1 entrada actualizada.",
+  "{n} entries updated.": "{n} entradas actualizadas.",
+  "Rows of the database": "Filas de la base de datos",
+  "The title field was taken off: this form changes the rows, it makes no new one.": "Se quitó el campo de título: este formulario cambia las filas, no crea ninguna nueva.",
+  "Move {name} up": "Subir {name}",
+  "Move {name} down": "Bajar {name}",
+  "Time stamp": "Marca de tiempo",
+  "Checkbox that stamps": "Casilla que marca la hora",
+  "— no stamp —": "— sin marca —",
+  "is ticked, set": "se marque, poner",
+  "Date set to now": "Fecha que se pone a ahora",
+  "to now": "a ahora",
+  "A checkbox and a date among the columns can stamp the time a row is ticked.": "Una casilla y una fecha entre las columnas pueden marcar la hora en que se marca una fila.",
+  "Sent, the rows are changed in place — no new row is made for them.": "Al enviar, las filas se cambian en su sitio — no se crea ninguna fila nueva para ellas.",
+  "No entries yet.": "Aún no hay entradas.",
+  "Back to the form": "Volver al formulario"
 }

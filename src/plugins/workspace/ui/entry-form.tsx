@@ -82,8 +82,8 @@ export function EntryFormSettings({ dbId, current, onClose, onSaved }: { dbId: n
   );
 }
 
-/** The entry form in a dialog: `onDone` hears of the row it made (the dialog is closed then). */
-export function EntryDialog({ formId, onClose, onDone }: { formId: number; onClose: () => void; onDone: (rowId: number) => void }) {
+/** The entry form in a dialog: `onDone` hears of the row it made (null: none) and the rows it changed (the dialog is closed then). */
+export function EntryDialog({ formId, onClose, onDone }: { formId: number; onClose: () => void; onDone: (rowId: number | null, updated: number) => void }) {
   const t = useT();
   const [form, setForm] = useState<FormRun | null>(null);
   useEffect(() => {

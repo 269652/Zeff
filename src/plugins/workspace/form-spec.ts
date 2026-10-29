@@ -27,12 +27,22 @@ export type DividerItem = { id: string; kind: "divider" };
  * the other. Boxes nest (a row of two columns, each with fields) — FLEX_DEPTH deep at most. Layout only: nothing of it is asked.
  */
 export type FlexItem = { id: string; kind: "flex"; dir: "row" | "col"; gap?: "sm" | "md" | "lg"; items: FormItem[] };
-export type FormItem = FieldItem | HeadingItem | TextItem | DividerItem | FlexItem;
+/**
+ * The database's own rows, each a line to change in place (a medicine to tick: "☑ Venlafaxin — 225 mg — 10:10"): the columns `cols`
+ * of every row, prefilled with what it holds. Sent, the rows are changed — no row is made for it. `stamp`: when the checkbox `check`
+ * is ticked (it wasn't), the date `time` is set to now.
+ */
+export type RowsItem = { id: string; kind: "rows"; cols: string[]; stamp?: { check: string; time: string }; label?: string; help?: string };
+export type FormItem = FieldItem | HeadingItem | TextItem | DividerItem | FlexItem | RowsItem;
 export type FormStep = { id: string; title: string; items: FormItem[] };
 /** A form: the database it fills (null: not chosen yet), its words, and its steps (one: a plain form; several: a wizard). */
 export type FormDef = { dbId: number | null; title: string; intro: string; submitLabel: string; thanks: string; steps: FormStep[] };
 /** The answers as the form holds them, by property id (TITLE for the title): texts, a choice's option id, ids of people and rows. */
 export type Answers = Record<string, unknown>;
+
+/** The kinds of column a rows item can show and change (a line each: no lists of tags, people or rows in it). */
+export const ROWS_COL_TYPES: PropType[] = ["checkbox", "number", "date", "select", "status", "text", "markdown", "url", "email", "phone"];
+export const ROWS_MAX_COLS = 8;
 
 /** How deep boxes (rows, columns) may nest in a form. */
 export const FLEX_DEPTH = 3;
@@ -56,6 +66,32 @@ export const flexItem = (dir: "row" | "col", items: FormItem[] = []): FlexItem =
 
 /** Every part of these, boxes and what is in them (depth first, in the order they show). */
 export const flatItems = (items: FormItem[]): FormItem[] => items.flatMap((i) => (i.kind === "flex" ? [i, ...flatItems(i.items)] : [i]));
+/** The rows items among these parts, those in boxes too. */
+export const rowsIn = (items: FormItem[]): RowsItem[] => flatItems(items).filter((i): i is RowsItem => i.kind === "rows");
+export const formRowsItems = (def: FormDef): RowsItem[] => def.steps.flatMap((s) => rowsIn(s.items));
+
+/**
+ * A rows item's columns for a database: those it can change (`props`: formProps), each once, at most ROWS_MAX_COLS; the stamp kept
+ * when its checkbox and its date are among them.
+ */
+export function rowsCols(cols: string[], stamp: RowsItem["stamp"], props?: Property[]): Pick<RowsItem, "cols" | "stamp"> {
+  const ok = [...new Set(cols)].filter((c) => c !== TITLE && (!props || props.some((p) => p.id === c && ROWS_COL_TYPES.includes(p.type)))).slice(0, ROWS_MAX_COLS);
+  const type = (id: string) => props?.find((p) => p.id === id)?.type;
+  const keep = !!stamp && ok.includes(stamp.check) && ok.includes(stamp.time) && stamp.check !== stamp.time && (!props || (type(stamp.check) === "checkbox" && type(stamp.time) === "date"));
+  return { cols: ok, ...(keep ? { stamp: { check: stamp!.check, time: stamp!.time } } : {}) };
+}
+
+/** A new rows item: the columns a line can change (as many as fit), stamped when there is one checkbox and one date among them. */
+export function newRowsItem(props: Property[]): RowsItem {
+  const cols = props.filter((p) => p.id !== TITLE && ROWS_COL_TYPES.includes(p.type)).slice(0, ROWS_MAX_COLS);
+  const checks = cols.filter((p) => p.type === "checkbox");
+  const dates = cols.filter((p) => p.type === "date");
+  return { id: formItemId(), kind: "rows", cols: cols.map((p) => p.id), ...(checks.length === 1 && dates.length === 1 ? { stamp: { check: checks[0].id, time: dates[0].id } } : {}) };
+}
+
+/** Now as a date with its time ("2026-10-29T10:10", local) — what a stamp sets. */
+export const stampNow = (d = new Date()): string => `${d.toLocaleDateString("sv-SE")}T${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+
 /** The fields among these parts, those in boxes too. */
 export const fieldsIn = (items: FormItem[]): FieldItem[] => flatItems(items).filter((i): i is FieldItem => i.kind === "field");
 
@@ -99,6 +135,12 @@ export function normalizeForm(raw: unknown, props?: Property[]): FormDef {
     const list = (raw: unknown, depth: number): FormItem[] => (Array.isArray(raw) ? raw : []).flatMap((it): FormItem[] => {
       if (!it || typeof it !== "object" || ++count > FORM_LIMITS.items) return [];
       const i = it as Record<string, unknown>;
+      if (i.kind === "rows") {
+        const st = (i.stamp && typeof i.stamp === "object" ? i.stamp : null) as Record<string, unknown> | null;
+        const stamp = st && typeof st.check === "string" && typeof st.time === "string" ? { check: st.check, time: st.time } : undefined;
+        const { cols, stamp: kept } = rowsCols((Array.isArray(i.cols) ? i.cols : []).filter((c): c is string => typeof c === "string").map((c) => c.slice(0, 60)), stamp, props);
+        return [{ id: uid(i.id, formItemId), kind: "rows", cols, ...(kept ? { stamp: kept } : {}), ...(str(i.label, FORM_LIMITS.label) ? { label: str(i.label, FORM_LIMITS.label) } : {}), ...(str(i.help, FORM_LIMITS.help) ? { help: str(i.help, FORM_LIMITS.help) } : {}) }];
+      }
       if (i.kind === "flex") {
         // (A box deeper than allowed is left out with what is in it.)
         if (depth >= FLEX_DEPTH) return [];
