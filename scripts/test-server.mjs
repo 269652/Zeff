@@ -2,7 +2,7 @@
 /**
  * One disposable Zeff dev server for tests — never the user's live one (9333), never a real database.
  *
- *   npm run test:server [-- --port 9450] [--ttl 30] [--seed e2e/seed.ts] [--force]
+ *   npm run test:server [-- --port 9450] [--ttl 30] [--seed e2e/seed.ts] [--fake-ai] [--force]
  *       starts `next dev` from this checkout on a fresh data folder in the temp folder (its own database, set up and
  *       with Workspace + People installed — scripts/test-server-seed.mts), prints {pid, port, url, dataDir} as JSON once
  *       it answers, and returns; the server keeps running until --stop or its TTL (minutes), after which a watchdog
@@ -15,6 +15,9 @@
  * Safety: no automation Chrome (every *_CDP_ENDPOINT points at an unroutable address), no syncs (ZEFF_TEAMS_SYNC=off),
  * no AI CLI (CLAUDE_CLI/CODEX_CLI/COPILOT_CLI point at nothing), no sync host; a 3 GB heap; its own dist dir (.next-e2e).
  * Refuses to start with less than 4 GB of free RAM (--force to override).
+ * --fake-ai: CLAUDE_CLI is the fake Claude (tests/fake-claude-json.mjs) — it answers with the JSON a test writes to
+ * <dataDir>/fake-claude-output.json and leaves each prompt in <dataDir>/fake-claude-prompt.txt (the seed must choose the
+ * claude provider and install llm + claude-cli for the app to use it).
  *
  * As a module: startTestServer(opts) / stopTestServer(pidOrPort) — the e2e runner (e2e/run.mjs) uses them.
  */
@@ -86,7 +89,7 @@ async function removeDir(dir) {
 }
 
 /** The environment of a test server: its data, and nothing that reaches out (Chrome, syncs, AI CLIs, the sync host). */
-export function testEnv(dataDir, distDir) {
+export function testEnv(dataDir, distDir, { fakeAi = false } = {}) {
   const env = { ...process.env };
   for (const k of ["ZEFF_ROLE", "ZEFF_SYNC_HOST", "ZEFF_SYNC_TOKEN", "ZEFF_CDP_BASE", "ZEFF_BRIDGE_TOKEN", "ZEFF_DEV_ORIGINS", "ZEFF_TURBOPACK_ROOT", "PORT"]) delete env[k];
   const nothing = path.join(dataDir, "no-ai-cli-in-test-servers.exe");
@@ -105,6 +108,12 @@ export function testEnv(dataDir, distDir) {
     ZEFF_TEST_SERVER: "1",
   });
   for (const k of CDP_VARS) env[k] = UNROUTABLE;
+  if (fakeAi)
+    Object.assign(env, {
+      CLAUDE_CLI: path.join(REPO, "tests", "fake-claude-json.mjs"),
+      FAKE_CLAUDE_OUTPUT_FILE: path.join(dataDir, "fake-claude-output.json"),
+      FAKE_CLAUDE_PROMPT_FILE: path.join(dataDir, "fake-claude-prompt.txt"),
+    });
   return env;
 }
 
@@ -119,9 +128,9 @@ const ownDistTaken = (dist) => readRegistry().some((e) => alive(e.pid) && e.repo
 
 /**
  * Start one. Resolves with its registry entry once it answers HTTP (the first page compile is the caller's).
- * opts: { port?, ttlMs?, seeds?: string[], force?, log? }
+ * opts: { port?, ttlMs?, seeds?: string[], fakeAi?, force?, log? }
  */
-export async function startTestServer({ port, ttlMs = DEFAULT_TTL_MS, seeds = [], force = false, log = (s) => console.error(s), readyTimeoutMs = 5 * 60_000 } = {}) {
+export async function startTestServer({ port, ttlMs = DEFAULT_TTL_MS, seeds = [], fakeAi = false, force = false, log = (s) => console.error(s), readyTimeoutMs = 5 * 60_000 } = {}) {
   if (!force && os.freemem() < MIN_FREE_BYTES) throw new Error(`Only ${(os.freemem() / 1024 ** 3).toFixed(1)} GB of RAM free (< 4 GB): no test server started (--force to start anyway).`);
   if (!fs.existsSync(NEXT_BIN)) throw new Error(`No Next.js at ${NEXT_BIN} (node_modules missing?).`);
   port = port ? Number(port) : await freePort();
@@ -129,8 +138,8 @@ export async function startTestServer({ port, ttlMs = DEFAULT_TTL_MS, seeds = []
   if (!(await portFree(port))) throw new Error(`Port ${port} is taken.`);
   const dataDir = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-test-server-"));
   const distDir = ownDistTaken(".next-e2e") ? `.next-e2e-${port}` : ".next-e2e";
-  const env = testEnv(dataDir, distDir);
-  log(`▶ test server: data ${dataDir}, port ${port}, dist ${distDir}`);
+  const env = testEnv(dataDir, distDir, { fakeAi });
+  log(`▶ test server: data ${dataDir}, port ${port}, dist ${distDir}${fakeAi ? ", fake AI" : ""}`);
   // (What `npm run dev` does first: the generated list of mounted integrations — the seed imports the app too.)
   spawnSync(process.execPath, [path.join(REPO, "scripts", "integrations.mjs")], { cwd: REPO, stdio: "ignore", windowsHide: true });
   for (const s of ["scripts/test-server-seed.mts", ...seeds]) {
@@ -150,7 +159,7 @@ export async function startTestServer({ port, ttlMs = DEFAULT_TTL_MS, seeds = []
   child.unref();
   fs.closeSync(out);
   const startedAt = Date.now();
-  const entry = { pid: child.pid, port, url: `http://localhost:${port}`, dataDir, distDir, repo: REPO, log: logFile, startedAt, ttlMs, expires: new Date(startedAt + ttlMs).toISOString() };
+  const entry = { pid: child.pid, port, url: `http://localhost:${port}`, dataDir, distDir, repo: REPO, log: logFile, startedAt, ttlMs, fakeAi, expires: new Date(startedAt + ttlMs).toISOString() };
   addEntry(REGISTRY_FILE, entry);
   const dog = spawn(process.execPath, [path.join(REPO, "scripts", "test-server.mjs"), "--watchdog", String(child.pid)], { cwd: REPO, detached: true, stdio: "ignore", windowsHide: true });
   dog.unref();
@@ -279,7 +288,7 @@ async function main(argv) {
     return console.log(`Stopped the test server on port ${e.port} (pid ${e.pid}).`);
   }
   const seeds = argv.flatMap((a, i) => (argv[i - 1] === "--seed" ? [a] : []));
-  const e = await startTestServer({ port: val("--port"), ttlMs: val("--ttl") ? Number(val("--ttl")) * 60_000 : DEFAULT_TTL_MS, seeds, force: has("--force") });
+  const e = await startTestServer({ port: val("--port"), ttlMs: val("--ttl") ? Number(val("--ttl")) * 60_000 : DEFAULT_TTL_MS, seeds, fakeAi: has("--fake-ai"), force: has("--force") });
   console.log(JSON.stringify({ pid: e.pid, port: e.port, url: e.url, dataDir: e.dataDir, expires: e.expires }));
 }
 

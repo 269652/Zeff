@@ -2,9 +2,10 @@
 /**
  * The e2e smoke suite (e2e/*.e2e.mjs — node:test + playwright-core, headless Chrome): the core UI flows of the Workspace
  * (a page that keeps its text, the slash menu, inline formulas, page tables, forms over a database's rows, a person widget's
- * suggestions).
+ * suggestions, Think along with a fake model, an embedded calendar, the form designer, absences, Kennzahlen).
  *
- *   npm run e2e                         starts a disposable test server (scripts/test-server.mjs), seeds it (e2e/seed.mts),
+ *   npm run e2e                         starts a disposable test server (scripts/test-server.mjs --fake-ai: its Claude is
+ *                                       tests/fake-claude-json.mjs, answering what a test writes), seeds it (e2e/seed.mts),
  *                                       runs the suite, stops the server
  *   npm run e2e -- --url http://localhost:9450   against a running test server (seeded first if it isn't yet)
  *   npm run e2e -- --keep               leave the started server running (its URL is printed; it stops at its TTL)
@@ -39,15 +40,17 @@ async function main() {
   let server = null;
   let url = val("--url")?.replace(/\/+$/, "");
   let seedFile;
+  let fakeAi = true;
   if (url) {
     const port = Number(new URL(url).port);
     if (port === 9333) throw new Error("9333 is the live Zeff — the suite writes pages and rows: run it against a test server.");
     const e = readRegistry().find((x) => x.port === port);
     if (!e) throw new Error(`No registered test server on port ${port} (start one with npm run test:server).`);
     seedFile = path.join(e.dataDir, "e2e-seed.json");
-    if (!fs.existsSync(seedFile)) console.error(runSeed(SEED, testEnv(e.dataDir, e.distDir)));
+    fakeAi = !!e.fakeAi;
+    if (!fs.existsSync(seedFile)) console.error(runSeed(SEED, testEnv(e.dataDir, e.distDir, { fakeAi })));
   } else {
-    server = await startTestServer({ seeds: [SEED], ttlMs: Number(val("--ttl") ?? 30) * 60_000 });
+    server = await startTestServer({ seeds: [SEED], fakeAi: true, ttlMs: Number(val("--ttl") ?? 30) * 60_000 });
     url = server.url;
     seedFile = path.join(server.dataDir, "e2e-seed.json");
   }
@@ -65,7 +68,7 @@ async function main() {
     code = await new Promise((resolve) => {
       const child = spawn(process.execPath, ["--test", "--test-concurrency=1", "--test-reporter=spec", ...files], {
         stdio: "inherit",
-        env: { ...process.env, ZEFF_E2E_URL: url, ZEFF_E2E_SEED: seedFile },
+        env: { ...process.env, ZEFF_E2E_URL: url, ZEFF_E2E_SEED: seedFile, ...(fakeAi ? { ZEFF_E2E_FAKE_AI: "1" } : {}) },
       });
       child.on("exit", (c) => resolve(c ?? 1));
     });

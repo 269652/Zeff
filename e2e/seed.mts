@@ -42,4 +42,35 @@ if (!fs.existsSync(out)) {
   (await import("@/plugins/workspace/task-lists")).syncPageLists(mergePage);
   fs.writeFileSync(out, JSON.stringify({ personId, personName, dbId, dbTitle, rows, rowTitles: ["Alpha", "Beta"], props: { dose: dose.id, taken: taken.id }, todos, mergePage, mergeItem }, null, 2));
 }
+
+// Think along, the embedded calendar, Kennzahlen (added to a seed made before, too).
+const seed = JSON.parse(fs.readFileSync(out, "utf8"));
+if (!seed.assistPage) {
+  const { createPage } = await import("@/plugins/workspace/store");
+  const { setInstalled } = await import("@/plugins/state");
+  // The AI: Claude (the test server's --fake-ai makes its CLI the fake one, answering what the test writes).
+  for (const id of ["llm", "claude-cli", "calendar", "todos"]) setInstalled(id, true);
+  (await import("@/lib/ai")).updateAppSettings({ aiProvider: "claude" });
+  const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
+  const assistText = "Besuch in Hamburg im März 2027 planen.";
+  const assistPage = createPage({ title: "E2E Mitdenken", content: { type: "doc", content: [paragraph(assistText), paragraph("Ende")] } });
+  // A plan calendar with an all-day event, shown in a page (its week).
+  const ir = await import("@/lib/calendar/ir");
+  const cal = ir.createShadowCalendar("E2E Plan");
+  const calEvent = "E2E Ausflug";
+  ir.addEvent(cal.id, { title: calEvent, start: "2027-03-03", end: "2027-03-04", allDay: true });
+  const calendarPage = createPage({
+    title: "E2E Kalender",
+    content: { type: "doc", content: [{ type: "calendarEmbed", attrs: { calendarId: cal.id, view: "week", day: "2027-03-01", also: "" } }, paragraph("Ende")] },
+  });
+  // Two Kennzahlen from formulas.
+  const { defineFormulaMetric } = await import("@/plugins/workspace/metrics");
+  const metrics = [
+    { label: "E2E Puffer", formula: "40+2", shown: "42" },
+    { label: "E2E Quote", formula: "3*5", shown: "15" },
+  ];
+  for (const m of metrics) defineFormulaMetric({ label: m.label, formula: m.formula });
+  Object.assign(seed, { assistPage, assistText, calendarPage, calendarId: cal.id, calEvent, calEventDay: "2027-03-03", metrics });
+  fs.writeFileSync(out, JSON.stringify(seed, null, 2));
+}
 console.log(`e2e seed: ${out}`);

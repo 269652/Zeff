@@ -17,6 +17,29 @@ export const SEED = JSON.parse(fs.readFileSync(process.env.ZEFF_E2E_SEED ?? "", 
 const CHROME = process.env.CHROME_PATH ?? (process.platform === "win32" ? "C:/Program Files/Google/Chrome/Application/chrome.exe" : undefined);
 const ARTIFACTS = path.join(import.meta.dirname, "artifacts");
 
+/** The test server's data folder (beside the seed file): its database, the fake AI's files. */
+const DATA_DIR = path.dirname(process.env.ZEFF_E2E_SEED ?? "");
+
+/**
+ * The fake Claude's next answer (a test server started with --fake-ai: tests/fake-claude-json.mjs reads it at each call) — written
+ * before the click that asks the AI.
+ */
+export function fakeAnswer(output) {
+  if (!process.env.ZEFF_E2E_FAKE_AI) throw new Error("This test needs a test server started with --fake-ai (npm run e2e starts one; with --url, start it with npm run test:server -- --fake-ai).");
+  fs.writeFileSync(path.join(DATA_DIR, "fake-claude-output.json"), JSON.stringify(output));
+}
+
+/** A read-only query of the test server's database (what the UI saved, checked where it is kept). */
+export function dbAll(sql, ...params) {
+  const Database = require("better-sqlite3");
+  const db = new Database(path.join(DATA_DIR, "zeff.db"), { readonly: true, fileMustExist: true });
+  try {
+    return db.prepare(sql).all(...params);
+  } finally {
+    db.close();
+  }
+}
+
 /** A regex for a text in either language: rx("Saved", "Gespeichert"). */
 export const rx = (...words) => new RegExp(`(${words.map((w) => w.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")).join("|")})`, "i");
 
