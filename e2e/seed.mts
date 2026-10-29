@@ -48,6 +48,7 @@ if (!fs.existsSync(out)) {
   fs.writeFileSync(out, JSON.stringify({ personId, personName, dbId, dbTitle, rows, rowTitles: ["Alpha", "Beta"], props: { dose: dose.id, taken: taken.id }, todos, mergePage, mergeItem, newPersonRow }, null, 2));
 }
 // Today (e2e/heute.e2e.mjs): two of your todos due today — one to tick, one to dismiss (added to a seed made before, once).
+{
 const seed = JSON.parse(fs.readFileSync(out, "utf8"));
 if (!seed.heuteTodos) {
   (await import("@/plugins/state")).setInstalled("todos", true);
@@ -61,8 +62,10 @@ if (!seed.heuteTodos) {
   });
   fs.writeFileSync(out, JSON.stringify(seed, null, 2));
 }
+}
 
 // Think along, the embedded calendar, Kennzahlen (added to a seed made before, too).
+{
 const seed = JSON.parse(fs.readFileSync(out, "utf8"));
 if (!seed.assistPage) {
   const { createPage } = await import("@/plugins/workspace/store");
@@ -92,7 +95,7 @@ if (!seed.assistPage) {
   Object.assign(seed, { assistPage, assistText, calendarPage, calendarId: cal.id, calEvent, calEventDay: "2027-03-03", metrics });
   fs.writeFileSync(out, JSON.stringify(seed, null, 2));
 }
-console.log(`e2e seed: ${out}`);
+}
 
 // Forms from a table: a board (by its status) with a date and a person, no entry form yet — and a form of it whose person field
 // has the seeded person as its default (the designer shows the name).
@@ -112,3 +115,4 @@ console.log(`e2e seed: ${out}`);
     fs.writeFileSync(out, JSON.stringify({ ...seed, boardDb, boardTitle, boardProps: { status: status.id, due: due.id, who: who.id }, personForm }, null, 2));
   }
 }
+console.log(`e2e seed: ${out}`);
