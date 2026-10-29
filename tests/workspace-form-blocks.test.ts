@@ -24,10 +24,11 @@ async function world() {
   return { w, db };
 }
 
-test("submitForm: a row from what was typed — only the fields the form has, a choice only from its options, a title needed", async () => {
+test("an old form block (a database and its fields): a row from what was typed — only the fields it has, a choice only from its options, a title needed", async () => {
   const { w, db } = await world();
-  const { submitForm } = await import("@/plugins/workspace/app-blocks");
-  const id = submitForm(db, ["kunde", "prio", "menge", "eilig"], { title: "Neue Anfrage", kunde: "Anna", prio: "Hoch", menge: "3", eilig: "true", intern: "darf nicht rein" });
+  const { submitLegacyBlock } = await import("@/plugins/workspace/forms");
+  const send = (fields: string[], values: Record<string, unknown>) => submitLegacyBlock(db, fields, "", values);
+  const id = send(["kunde", "prio", "menge", "eilig"], { title: "Neue Anfrage", kunde: "Anna", prio: "Hoch", menge: "3", eilig: "true", intern: "darf nicht rein" }).id!;
   const row = w.rawRows(db).find((r) => r.id === id)!;
   assert.equal(row.title, "Neue Anfrage");
   assert.equal(row.cells.kunde, "Anna");
@@ -35,20 +36,20 @@ test("submitForm: a row from what was typed — only the fields the form has, a 
   assert.equal(row.cells.menge, 3);
   assert.equal(row.cells.eilig, true);
   assert.equal(row.cells.intern, undefined, "a field the form does not have is not set");
-  assert.throws(() => submitForm(db, ["kunde"], { title: "  ", kunde: "x" }), /title|Betreff/i);
-  assert.throws(() => submitForm(db, ["prio"], { title: "x", prio: "Dringlichst" }), /choice|option|Dringlichst/i);
-  assert.throws(() => submitForm(424242, [], { title: "x" }), /database/i);
-  const again = submitForm(db, ["kunde"], { title: "Ohne Rest", kunde: "" });
+  assert.match(Object.values(send(["kunde"], { title: "  ", kunde: "x" }).errors).join(), /Betreff/);
+  assert.match(Object.values(send(["prio"], { title: "x", prio: "Dringlichst" }).errors).join(), /choices|Priorität/i);
+  assert.throws(() => submitLegacyBlock(424242, [], "", { title: "x" }), /database/i);
+  const again = send(["kunde"], { title: "Ohne Rest", kunde: "" }).id!;
   assert.equal(w.rawRows(db).find((r) => r.id === again)!.cells.kunde, undefined, "an empty field is no value");
 });
 
 test("a form's row starts the routines that listen to new rows", async () => {
   const { w, db } = await world();
   const r = await import("@/plugins/workspace/routines");
-  const { submitForm } = await import("@/plugins/workspace/app-blocks");
+  const { createForm, submitForm } = await import("@/plugins/workspace/forms");
   const page = w.createPage({ title: "Anfrage-Eingang" });
   r.createRoutine(page, "automation", { enabled: true, triggers: [{ kind: "event", event: "row.added", db }], steps: [{ id: "n", kind: "notify", text: "Neu: {{row.title}}" }] });
-  submitForm(db, [], { title: "Per Formular" });
+  submitForm(createForm({ dbId: db }), { title: "Per Formular" });
   const t0 = Date.now();
   while (!r.routineRuns(page).length && Date.now() - t0 < 3000) await new Promise((res) => setTimeout(res, 30));
   assert.equal(r.routineRuns(page)[0]?.log[0]?.note, "Neu: Per Formular");
@@ -67,8 +68,9 @@ test("the blocks in a page: form and condition — their attributes kept to what
       { type: "zeffIf", attrs: { field: "Status", op: "teleport", value: "x" }, content: [p("unbekannte Bedingung")] },
     ],
   }) as { content: { type: string; attrs?: Record<string, unknown>; content?: unknown[] }[] };
-  assert.deepEqual(doc.content.map((n) => n.type), ["zeffForm", "zeffIf", "zeffIf", "zeffIf"], "a form needs its database");
+  assert.deepEqual(doc.content.map((n) => n.type), ["zeffForm", "zeffForm", "zeffIf", "zeffIf", "zeffIf"], "a block without a database is one without a form yet");
   assert.deepEqual(doc.content[0].attrs, { dbId: 5, fields: '["kunde","prio"]', label: "Senden" }, "fields are texts");
-  assert.deepEqual(doc.content[1].attrs, { field: "Status", op: "is", value: "Offen" });
-  assert.equal(doc.content[3].attrs!.op, "is", "an unknown condition is the default one");
+  assert.deepEqual(doc.content[1].attrs, { formId: null }, "the block offers to make a form");
+  assert.deepEqual(doc.content[2].attrs, { field: "Status", op: "is", value: "Offen" });
+  assert.equal(doc.content[4].attrs!.op, "is", "an unknown condition is the default one");
 });

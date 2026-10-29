@@ -10,6 +10,7 @@ import { personPulse, type PulseInsight } from "./pulse-insights";
 import { compilePerson } from "./compile";
 import { dateKindLabels, dateText, daysBetween, inDaysText, isDateKind, isoDay, nextOccurrence, parseDayMonth, type DateKind, type PersonSummary } from "./shared";
 import { addDate, addRelation, contactsOf, datesOf, deleteDate, deletePerson, deleteRelation, getPerson, listPeople, mergePeople, namesThem, relationsOf, updateDate, updatePerson, type Contact, type PersonRelation } from "./store";
+import { kindIcon } from "@/plugins/workspace/model";
 
 /**
  * What the blocks of a person's page show and do — the detail view of a row of the people database (profile, dates, summary,
@@ -103,7 +104,7 @@ export async function personBundle(personId: number, today = new Date()): Promis
       .slice(0, 15)
       .map((todo) => ({ id: todo.id, ref: todo.ref, text: todo.text, due: todo.due }));
   }
-  const pages = isInstalled("workspace") ? (await import("@/plugins/workspace/store")).pagesMentioning("person", personId, 20).map((x) => ({ id: x.id, title: x.title || t("Untitled"), icon: x.icon || (x.kind === "database" ? "🗂️" : "📄") })) : [];
+  const pages = isInstalled("workspace") ? (await import("@/plugins/workspace/store")).pagesMentioning("person", personId, 20).map((x) => ({ id: x.id, title: x.title || t("Untitled"), icon: x.icon || kindIcon(x.kind) })) : [];
   return {
     id: p.id,
     name: p.name,

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { pagesMentioning } from "./store";
+import { kindIcon } from "./model";
 
 /** The Workspace pages that @-mention a person (their page shows it); nothing while the plugin is off or none do. */
 export function PersonPages({ personId }: { personId: number }) {
@@ -15,7 +16,7 @@ export function PersonPages({ personId }: { personId: number }) {
         {pages.map((p) => (
           <li key={p.id}>
             <Link href={`/workspace/${p.id}`} className="rounded-md border border-zinc-200 px-2 py-0.5 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">
-              {p.icon || (p.kind === "database" ? "🗂️" : "📄")} {p.title || t("Untitled")}
+              {p.icon || kindIcon(p.kind)} {p.title || t("Untitled")}
             </Link>
           </li>
         ))}

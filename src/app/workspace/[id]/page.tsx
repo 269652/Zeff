@@ -14,7 +14,7 @@ export async function generateMetadata({ params }: { params: Promise<{ id: strin
   return { title: page?.title || t("Workspace") };
 }
 
-/** One page of the Workspace: a document, a database, or a row of one (its properties above its text). */
+/** One page of the Workspace: a document, a database, a form, or a row of a database (its properties above its text). */
 export default async function WorkspacePage({ params }: { params: Promise<{ id: string }> }) {
   await connection();
   if (!isInstalled("workspace")) return null;
@@ -36,6 +36,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   }
   const row = isRow ? await loadDatabaseAction(page.dbId!) : null;
   const database = page.kind === "database" ? await loadDatabaseAction(page.id) : null;
+  const form = page.kind === "form" ? (await import("@/plugins/workspace/forms")).getForm(page.id) : null;
   return (
     <PageView
       key={page.id}
@@ -63,6 +64,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
       row={row?.ok ? { initial: row.data, dbId: page.dbId! } : null}
       person={person as never}
       database={database?.ok ? database.data : null}
+      form={form}
     />
   );
 }

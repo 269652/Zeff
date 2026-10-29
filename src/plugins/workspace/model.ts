@@ -185,8 +185,12 @@ export type DbSchema = {
   jobs?: boolean;
   /** A daily list (day-log.ts): a log of each day, unticked at 4:00, "Close the day". Unset: on when a checkbox records the time. */
   dayList?: boolean;
-  /** A form that adds rows (workspace/form/<id>): which fields it asks, which are required, what is prefilled. */
+  /** The old way a database had its form (in its schema): read once by the migration to a form page (forms.ts), kept for that only. */
   form?: FormSpec;
+  /** The form page the old `form` became (forms.ts migrateLegacyForms) — marks it done, and old /form/<database id> links go there. */
+  formPage?: number;
+  /** Its entry form: a form page whose answers make its rows — "New" opens it (a dialog) instead of an empty row. Unset: an empty row. */
+  entryForm?: number;
   /** A todo list: which checkbox says done and which date says due (ids), and whether its open rows are todos of the Todo engine too (todo-engine.ts). */
   todoList?: TodoListSpec;
   /** What may be done to its rows (the store holds to it, for you and the AI alike; a source writing its own records is let through). */
@@ -429,6 +433,14 @@ const isDetailModule = (v: unknown): v is DetailModule => (DETAIL_MODULES as rea
 /** A row as the views get it: the page, and its cells by property id (stored values, and the computed ones filled in). */
 export type Row = { id: number; title: string; icon: string; cells: Record<string, unknown>; createdAt: string; updatedAt: string };
 
+/** What a page of the Workspace is: a document, a database (its rows are pages too), or a form that makes rows of a database (forms.ts). */
+export const PAGE_KINDS = ["page", "database", "form"] as const;
+export type PageKind = (typeof PAGE_KINDS)[number];
+/** A kind as stored (any text) made one of the kinds — what isn't known is a page. */
+export const pageKind = (v: unknown): PageKind => ((PAGE_KINDS as readonly unknown[]).includes(v) ? (v as PageKind) : "page");
+/** The sign of a page without an icon of its own, by its kind. */
+export const kindIcon = (kind: string): string => (kind === "database" ? "🗂️" : kind === "form" ? "📝" : "📄");
+
 /** The pseudo-properties every database has. */
 export const TITLE = "title";
 /** The property a ticket row keeps its key in (collections.ts: KEY_PROP). */
@@ -561,7 +573,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [], card: typeof v.card === "string" && v.card.trim() ? v.card.slice(0, 8000) : undefined, nav: (v.nav === "workspace" || v.nav === "off") && v.app ? v.nav : undefined, navHidden: Array.isArray(v.navHidden) && v.navHidden.length ? v.navHidden.filter((x): x is string => typeof x === "string").slice(0, 100) : undefined }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}), ...(shareOf(o.share) ? { share: shareOf(o.share)! } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(Number.isInteger(o.formPage) && o.formPage! > 0 ? { formPage: o.formPage } : {}), ...(Number.isInteger(o.entryForm) && o.entryForm! > 0 ? { entryForm: o.entryForm } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}), ...(shareOf(o.share) ? { share: shareOf(o.share)! } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

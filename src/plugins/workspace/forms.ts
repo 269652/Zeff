@@ -1,0 +1,166 @@
+import { getSqlite } from "@/db";
+import { t } from "@/lib/i18n/server";
+import { addRow, createPage, getDatabase, getPage, rawRows, setPageProps, updateSchema } from "./store";
+import { blockFormDef, coerceAnswers, formCells, formErrors, formFields, formProps, legacyFormDef, newFormDef, normalizeForm, type Answers, type FormDef } from "./form-spec";
+import type { Property } from "./model";
+
+/**
+ * Forms as pages of their own (kind "form"): what one asks is kept in the page's `props.form` (form-spec.ts says what it may be), the
+ * database it fills is named there (`dbId`). Filled in — on its page, at /form/<id>, as a database's entry form or as a block in a
+ * page — the answers are checked here again (required among the fields that show, the conditions worked out, choices among the
+ * options, related rows of the right database) and make a row. Databases' forms of the old kind (in their schema) become form pages
+ * once (migrateLegacyForms). Server only.
+ */
+
+/** The database a form fills, as the form needs it: what it can ask (the title first). */
+export type FormDb = { id: number; title: string; titleName: string; props: Property[] };
+/** A form as it is drawn: its page, what it asks, and its database (null: none chosen, or gone). */
+export type FormRun = { id: number; title: string; icon: string; def: FormDef; db: FormDb | null };
+/** What sending a form came to: the row it made, or what is wrong by field (item id) — nothing made then. */
+export type FormSent = { id: number | null; errors: Record<string, string> };
+
+function formDb(dbId: number | null): FormDb | null {
+  const d = dbId ? getDatabase(dbId) : null;
+  if (!d || d.page.archivedAt) return null;
+  return { id: d.page.id, title: d.page.title || t("Untitled"), titleName: d.schema.titleName, props: formProps(d.schema) };
+}
+
+/** A form page as it is drawn — null: no form page. A form whose database is gone keeps all its fields (restored, it is as it was). */
+export function getForm(id: number): FormRun | null {
+  const p = getPage(id);
+  if (!p || p.kind !== "form") return null;
+  const raw = normalizeForm(p.props.form);
+  const db = formDb(raw.dbId);
+  return { id: p.id, title: p.title, icon: p.icon, def: db ? normalizeForm(raw, db.props) : raw, db };
+}
+
+/** What a form asks, saved (made to fit: form-spec.ts normalizeForm; fields its database can't take are dropped). */
+export function saveForm(id: number, raw: unknown): FormRun {
+  const p = getPage(id);
+  if (!p || p.kind !== "form") throw new Error(t("This form is not there."));
+  let def = normalizeForm(raw);
+  if (def.dbId) {
+    const db = formDb(def.dbId);
+    if (!db) throw new Error(t("No such database."));
+    def = normalizeForm(def, db.props);
+  }
+  setPageProps(id, { ...p.props, form: def });
+  return getForm(id)!;
+}
+
+/** A new form page (below `parentId`) for a database — asking its title, unless `def` says what else. Returns its id. */
+export function createForm(v: { parentId?: number | null; dbId?: number | null; title?: string; def?: FormDef }): number {
+  const db = v.dbId ? formDb(v.dbId) : null;
+  if (v.dbId && !db) throw new Error(t("No such database."));
+  const def = normalizeForm(v.def ?? newFormDef(db?.id ?? null), db?.props);
+  return createPage({ kind: "form", parentId: v.parentId ?? null, title: v.title ?? (db ? `${db.title} – ${t("Form")}` : ""), props: { form: def } });
+}
+
+/** The forms that fill a database (for its entry form), by title. */
+export function formsOfDb(dbId: number): { id: number; title: string }[] {
+  migrateLegacyForms();
+  return (getSqlite().prepare("select id, title from ws_pages where kind = 'form' and archived_at is null and template = 0 and json_extract(props, '$.form.dbId') = ? order by title, id").all(dbId) as { id: number; title: string }[]).map((r) => ({ id: r.id, title: r.title || t("Untitled") }));
+}
+
+/** Every form (to embed one in a page), with the database it fills. */
+export function allForms(): { id: number; title: string; dbTitle: string }[] {
+  return (getSqlite().prepare("select id, title, json_extract(props, '$.form.dbId') db from ws_pages where kind = 'form' and archived_at is null and template = 0 order by title, id").all() as { id: number; title: string; db: number | null }[]).map((r) => ({ id: r.id, title: r.title || t("Untitled"), dbTitle: formDb(r.db)?.title ?? "" }));
+}
+
+/** Answers as they may come from the browser: a plain object, values plain (words, yes/no, numbers, lists of them). */
+function cleanAnswers(raw: unknown): Answers {
+  if (!raw || typeof raw !== "object" || Array.isArray(raw)) return {};
+  const out: Answers = {};
+  for (const [k, v] of Object.entries(raw as Record<string, unknown>).slice(0, 300)) {
+    if (typeof v === "string") out[k] = v.slice(0, 20000);
+    else if (typeof v === "number" || typeof v === "boolean") out[k] = v;
+    else if (Array.isArray(v)) out[k] = v.filter((x) => typeof x === "string" || typeof x === "number").slice(0, 200);
+  }
+  return out;
+}
+
+/** A form's answers checked and made a row of `db` — or what is wrong. Related rows must be rows of the database the relation points to. */
+function submitDef(def: FormDef, db: FormDb, raw: unknown): FormSent {
+  const answers = coerceAnswers(cleanAnswers(raw), db.props);
+  const errors = formErrors(def, answers, db.props, t);
+  for (const f of formFields(def)) {
+    const p = db.props.find((x) => x.id === f.prop);
+    const v = answers[f.prop];
+    if (errors[f.id] || p?.type !== "relation" || !Array.isArray(v) || !v.length) continue;
+    const there = new Set(p.relationDb ? rawRows(p.relationDb).map((r) => r.id) : []);
+    if (v.some((x) => !there.has(Number(x)))) errors[f.id] = t("Please pick from the list for “{field}”.", { field: f.label || p.name });
+  }
+  if (Object.keys(errors).length) return { id: null, errors };
+  const { title, cells } = formCells(def, answers, db.props);
+  return { id: addRow(db.id, { title, cells }), errors: {} };
+}
+
+/** A form page filled in: the row it makes (the routines on "row added" go on from there), or what is wrong by field. */
+export function submitForm(formId: number, raw: unknown): FormSent {
+  const p = getPage(formId);
+  const form = getForm(formId);
+  if (!form || p?.archivedAt) throw new Error(t("This form is not there."));
+  if (!form.db) throw new Error(t("This form has no database to fill yet."));
+  return submitDef(form.def, form.db, raw);
+}
+
+/** An old form block (a database and its fields, not yet a form page): drawn as a form of its own — what it would be as a page. */
+export function legacyBlockForm(dbId: number, fields: string[], label: string): FormRun | null {
+  const db = formDb(dbId);
+  return db ? { id: 0, title: "", icon: "", def: normalizeForm(blockFormDef(dbId, fields, label), db.props), db } : null;
+}
+
+/** An old form block sent (in a page that is read, so it couldn't become a form page yet): checked like a form page's. */
+export function submitLegacyBlock(dbId: number, fields: string[], label: string, raw: unknown): FormSent {
+  const form = legacyBlockForm(dbId, fields, label);
+  if (!form?.db) throw new Error(t("No such database."));
+  return submitDef(form.def, form.db, raw);
+}
+
+/** An old form block made a form page (below the page it is in, `pageId`): its id — the block names it from then on. */
+export function convertLegacyBlock(pageId: number, dbId: number, fields: string[], label: string): number {
+  const db = formDb(dbId);
+  if (!db) throw new Error(t("No such database."));
+  return createForm({ parentId: getPage(pageId) ? pageId : null, dbId, def: blockFormDef(dbId, fields, label) });
+}
+
+/** Rows a relation field can point to (the database it relates to), by what their title starts with or contains. */
+export function relationChoices(dbId: number, propId: string, q: string): { id: number; label: string }[] {
+  const p = getDatabase(dbId)?.schema.properties.find((x) => x.id === propId);
+  if (!p || p.type !== "relation" || !p.relationDb) return [];
+  const w = q.trim().toLowerCase();
+  return rawRows(p.relationDb)
+    .filter((r) => !w || r.title.toLowerCase().includes(w))
+    .sort((a, b) => Number(b.title.toLowerCase().startsWith(w)) - Number(a.title.toLowerCase().startsWith(w)))
+    .slice(0, 10)
+    .map((r) => ({ id: r.id, label: r.title || t("Untitled") }));
+}
+
+/**
+ * Databases' forms of the old kind (kept in their schema, switched on or set up) become form pages, once: below the database's
+ * parent, titled as the form was (else "<database> – Form"), asking the same. The schema keeps its old form and names the page
+ * (`formPage`): done, and old /form/<database id> links go there. The database's "New" stays as it was.
+ */
+export function migrateLegacyForms(): number {
+  let made = 0;
+  const rows = getSqlite().prepare("select id from ws_pages where kind = 'database' and archived_at is null and schema like '%\"form\":%'").all() as { id: number }[];
+  for (const { id } of rows) {
+    const d = getDatabase(id);
+    const spec = d?.schema.form;
+    if (!d || !spec || d.schema.formPage || (!spec.enabled && !spec.fields.length)) continue;
+    const formId = createForm({ parentId: d.page.parentId, dbId: id, title: spec.title || `${d.page.title || t("Untitled")} – ${t("Form")}`, def: legacyFormDef(id, spec) });
+    updateSchema(id, { ...d.schema, formPage: formId });
+    made++;
+  }
+  return made;
+}
+
+/** The form an address /form/<id> means: a form page, or (an old link) the form page a database's old form became. */
+export function formAt(id: number): FormRun | null {
+  const own = getForm(id);
+  if (own) return own;
+  if (!getDatabase(id)) return null;
+  migrateLegacyForms();
+  const page = getDatabase(id)?.schema.formPage;
+  return page ? getForm(page) : null;
+}

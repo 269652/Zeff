@@ -12,7 +12,7 @@ import { listCollections, setCollection } from "@/lib/items";
 import { ticketExtras } from "@/lib/items/tickets";
 import type { TicketExtras } from "@/lib/items/shared";
 import { rowKey } from "./collections";
-import { rowsToCsv, subtaskCounts, type DbSchema, type Row } from "./model";
+import { kindIcon, rowsToCsv, subtaskCounts, type DbSchema, type Row } from "./model";
 import * as store from "./store";
 import "./metrics"; // (kennzahl() in the databases' formulas reads the Kennzahlen)
 
@@ -76,7 +76,7 @@ export async function runJobDeliveryAction(rowId: number, only?: number[]) {
   });
 }
 
-export async function createPageAction(v: { parentId?: number | null; kind?: "page" | "database"; title?: string; templateKey?: string }) {
+export async function createPageAction(v: { parentId?: number | null; kind?: "page" | "database" | "form"; title?: string; templateKey?: string }) {
   return run(async () => {
     if (v.templateKey) {
       const { fromTemplate } = await import("./templates");
@@ -207,7 +207,7 @@ export async function mentionSearchAction(q: string): Promise<MentionItem[]> {
       for (const m of listMetrics().filter((x) => x.label.toLowerCase().includes(lw)).slice(0, 4))
         items.push({ kind: "metric", ref: m.key, label: m.label, hint: `${t("Metric")} · ${formatMetric(m.value, m.unit)}`, icon: "📊", href: `/workspace/metrics#${m.key}` });
     }
-    for (const p of store.suggestPages(w, 6)) items.push({ kind: "page", ref: String(p.id), label: p.title || t("Untitled"), hint: p.kind === "database" ? t("Database") : t("Page"), icon: p.icon || (p.kind === "database" ? "🗂️" : "📄"), href: `/workspace/${p.id}` });
+    for (const p of store.suggestPages(w, 6)) items.push({ kind: "page", ref: String(p.id), label: p.title || t("Untitled"), hint: p.kind === "database" ? t("Database") : p.kind === "form" ? t("Form") : t("Page"), icon: p.icon || kindIcon(p.kind), href: `/workspace/${p.id}` });
     if (isInstalled("people")) {
       // The circles (Familie, Freunde, Arbeit, Behörden & Gläubiger, Dienste): a whole group at once — Schulden(@Freunde).
       for (const c of (await import("@/plugins/people/formulas")).circlesFor(w)) items.push({ kind: "circle", ref: c.key, label: c.label, hint: c.count === 1 ? t("Circle · 1 person") : t("Circle · {n} people", { n: c.count }), icon: "👥", href: "" });
@@ -253,7 +253,7 @@ export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: stri
         out[key] = m ? { label: m.label, value: m.error ? "⚠" : formatMetric(m.value, m.unit), href: `/workspace/metrics#${m.key}` } : { missing: true };
       } else if (r.kind === "page") {
         const p = store.getPage(Number(r.ref));
-        out[key] = p && !p.archivedAt ? { label: p.title || t("Untitled"), icon: p.icon || (p.kind === "database" ? "🗂️" : "📄") } : { missing: true };
+        out[key] = p && !p.archivedAt ? { label: p.title || t("Untitled"), icon: p.icon || kindIcon(p.kind) } : { missing: true };
       } else if (r.kind === "todo" && isInstalled("todos")) {
         const { getTodo } = await import("@/lib/boards/store");
         const x = getTodo(Number(r.ref));
@@ -848,14 +848,6 @@ export async function removeRecurrenceAction(id: string) {
 /** The {{placeholders}} a row template asks for (to be filled in when a row is made from it). */
 export async function templateParamsAction(templateId: number) {
   return run(() => ({ params: store.templateParams(Number(templateId)) }));
-}
-
-/** An answered form: the row it makes (a form is asked at workspace/form/<database id>). */
-export async function submitFormAction(dbId: number, title: string, answers: Record<string, unknown>) {
-  return run(async () => {
-    const id = (await import("./form")).submitForm(Number(dbId), String(title ?? ""), answers && typeof answers === "object" ? answers : {});
-    return { id };
-  });
 }
 
 /** One field set for several rows at once - what could not be set (a computed field, a value that does not fit) is told. */
@@ -1497,25 +1489,84 @@ export async function widgetActAction(id: string, action: string, payload: Recor
 // Forms
 // ---------------------------------------------------------------------------
 
-/** What a form block can ask for in a database: its title's name and its fields (with the options of a choice). */
-export async function formChoicesAction(dbId: number) {
-  return run(() => {
-    const d = store.getDatabase(Number(dbId));
-    if (!d) throw new Error(t("No such database."));
-    return {
-      choices: {
-        titleName: d.schema.titleName,
-        properties: d.schema.properties
-          .filter((p) => ["text", "number", "date", "select", "status", "checkbox", "url", "email", "phone"].includes(p.type) && !["srcref", "srcedited", "srcurl", "ticketkey", "noteref"].includes(p.id))
-          .map((p) => ({ id: p.id, name: p.name, type: p.type, options: (p.options ?? []).map((o) => o.name) })),
-      },
-    };
+/** A form page as it is drawn (what it asks, its database's fields). */
+export async function formAction(id: number) {
+  return run(async () => {
+    const form = (await import("./forms")).getForm(Number(id));
+    if (!form) throw new Error(t("This form is not there."));
+    return { form };
   });
 }
 
-/** A form sent: a row from what was typed (values by property id, "title" for the title). */
-export async function submitFormBlockAction(dbId: number, fields: string[], values: Record<string, string>) {
-  return run(async () => ({ id: (await import("./app-blocks")).submitForm(Number(dbId), Array.isArray(fields) ? fields.map(String) : [], values && typeof values === "object" ? values : {}) }));
+/** What a form asks, saved (the designer's autosave) — the form as it is now kept. */
+export async function saveFormAction(id: number, def: unknown) {
+  return run(async () => ({ form: (await import("./forms")).saveForm(Number(id), def) }));
+}
+
+/** A new form page for a database (below `parentId`). */
+export async function createFormAction(v: { parentId?: number | null; dbId?: number | null; title?: string }) {
+  return run(async () => ({ id: (await import("./forms")).createForm({ parentId: v.parentId ?? null, dbId: v.dbId ? Number(v.dbId) : null, title: v.title }) }));
+}
+
+/** A form filled in: the row it made — or, by field (item id), what is wrong (nothing made then). */
+export async function submitFormAction(formId: number, answers: Record<string, unknown>) {
+  return run(async () => (await import("./forms")).submitForm(Number(formId), answers));
+}
+
+/** The forms there are (to embed one), or those that fill one database (its entry form). */
+export async function formsAction(dbId?: number) {
+  return run(async () => {
+    const f = await import("./forms");
+    return { forms: dbId ? f.formsOfDb(Number(dbId)).map((x) => ({ ...x, dbTitle: "" })) : f.allForms() };
+  });
+}
+
+/** A database's entry form: "New" opens it instead of making an empty row (null: back to an empty row). */
+export async function setEntryFormAction(dbId: number, formId: number | null) {
+  return run(async () => {
+    const d = store.getDatabase(Number(dbId));
+    if (!d) throw new Error(t("No such database."));
+    const form = formId ? (await import("./forms")).getForm(Number(formId)) : null;
+    if (formId && form?.def.dbId !== d.page.id) throw new Error(t("That form doesn't fill this database."));
+    const { entryForm: _was, ...rest } = d.schema;
+    store.updateSchema(d.page.id, form ? { ...rest, entryForm: form.id } : rest);
+    return {};
+  });
+}
+
+/** A new form for a database, set as its entry form at once (beside the database in the tree): its id, to open it. */
+export async function createEntryFormAction(dbId: number) {
+  return run(async () => {
+    const d = store.getDatabase(Number(dbId));
+    if (!d) throw new Error(t("No such database."));
+    const id = (await import("./forms")).createForm({ parentId: d.page.parentId, dbId: d.page.id });
+    store.updateSchema(d.page.id, { ...d.schema, entryForm: id });
+    return { id };
+  });
+}
+
+/** Rows a relation field of a form can point to (of the database the relation goes to), by their title. */
+export async function formRelationChoicesAction(dbId: number, propId: string, q: string) {
+  return run(async () => ({ items: (await import("./forms")).relationChoices(Number(dbId), String(propId), String(q ?? "")) }));
+}
+
+/** An old form block (a database and its fields) drawn as a form, until it becomes a form page. */
+export async function legacyFormAction(dbId: number, fields: string[], label: string) {
+  return run(async () => {
+    const form = (await import("./forms")).legacyBlockForm(Number(dbId), Array.isArray(fields) ? fields.map(String) : [], String(label ?? ""));
+    if (!form) throw new Error(t("No such database."));
+    return { form };
+  });
+}
+
+/** An old form block sent from a page that is only read: a row, checked like a form page's. */
+export async function submitLegacyFormAction(dbId: number, fields: string[], label: string, answers: Record<string, unknown>) {
+  return run(async () => (await import("./forms")).submitLegacyBlock(Number(dbId), Array.isArray(fields) ? fields.map(String) : [], String(label ?? ""), answers));
+}
+
+/** An old form block made a form page (below its page): the block names the new form from then on. */
+export async function convertFormBlockAction(pageId: number, dbId: number, fields: string[], label: string) {
+  return run(async () => ({ id: (await import("./forms")).convertLegacyBlock(Number(pageId), Number(dbId), Array.isArray(fields) ? fields.map(String) : [], String(label ?? "")) }));
 }
 
 // ---------------------------------------------------------------------------

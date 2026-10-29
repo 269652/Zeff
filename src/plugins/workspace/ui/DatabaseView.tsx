@@ -13,7 +13,7 @@ import { useProgressive } from "./progressive";
 import { RowPeek } from "./RowPeek";
 import { GalleryView } from "./gallery";
 import { BulkBar } from "./bulk";
-import { FormDesigner } from "./form-designer";
+import { EntryDialog, EntryFormSettings } from "./entry-form";
 import { RecurringDialog } from "./recurring";
 import { ProtectDialog } from "./protect";
 import { TimelineView } from "./timeline";
@@ -310,6 +310,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [pipelineOpen, setPipelineOpen] = useState(() => search.get("steps") === "1");
   const [justAdded, setJustAdded] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
+  // The entry form (schema.entryForm) open in its dialog — "New" with one set.
+  const [entryOpen, setEntryOpen] = useState(false);
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [protectOpen, setProtectOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -787,7 +789,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                 </MenuItem>
               )}
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
-              <MenuItem onClick={() => (close(), setFormOpen(true))}>📝 {t("Form …")}</MenuItem>
+              <MenuItem checked={!!schema.entryForm} onClick={() => (close(), setFormOpen(true))}>📝 {t("Entry form …")}</MenuItem>
               <MenuItem onClick={() => (close(), setRepeatOpen(true))}>🔁 {t("Repeating rows …")}</MenuItem>
               <MenuItem onClick={() => (close(), setProtectOpen(true))}>🛡 {t("Protection …")}</MenuItem>
               <MenuItem checked={!!schema.share} onClick={() => (close(), setShareOpen(true))}>
@@ -917,7 +919,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           )}
         </Dropdown>
         <div className={`flex shrink-0 ${data.locked || data.noNewRows ? "hidden" : ""}`}>
-          <button type="button" className="btn btn-primary btn-sm rounded-r-none" title={t("New")} aria-label={t("New")} onClick={() => (view.type === "app" && appNew.current ? appNew.current() : void newRow({}, undefined, !inPlace))}>
+          <button type="button" className="btn btn-primary btn-sm rounded-r-none" title={t("New")} aria-label={t("New")} onClick={() => (view.type === "app" && appNew.current ? appNew.current() : schema.entryForm ? setEntryOpen(true) : void newRow({}, undefined, !inPlace))}>
             {narrow ? "+" : t("New")}
           </button>
           <Dropdown label="▾" align="right" title={t("New from a template")} wrapClassName="relative flex" className="btn btn-primary btn-sm h-auto rounded-l-none border-l border-indigo-400 px-1.5">
@@ -1042,7 +1044,18 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {protectOpen && <ProtectDialog schema={schema} onSave={api.saveSchema} onClose={() => setProtectOpen(false)} />}
       {shareOpen && <ShareDialog dbId={dbId} schema={schema} title={data.title} onDone={() => void api.reload()} onClose={() => setShareOpen(false)} />}
       {repeatOpen && <RecurringDialog dbId={dbId} schema={schema} templates={data.templates} onClose={() => setRepeatOpen(false)} />}
-      {formOpen && <FormDesigner schema={schema} dbId={dbId} onSave={api.saveSchema} onClose={() => setFormOpen(false)} />}
+      {formOpen && <EntryFormSettings dbId={dbId} current={schema.entryForm ?? null} onSaved={() => void api.reload()} onClose={() => setFormOpen(false)} />}
+      {entryOpen && schema.entryForm && (
+        <EntryDialog
+          formId={schema.entryForm}
+          onClose={() => setEntryOpen(false)}
+          onDone={(id) => {
+            setEntryOpen(false);
+            void api.reload();
+            toast(t("Added ✓"), { action: { label: t("Open it"), run: () => openRow(id) } });
+          }}
+        />
+      )}
       {cardOpen && <CardEditor view={view} schema={schema} rows={rows} data={data} keys={data.extras?.keys ?? {}} onSave={(card) => setView({ ...view, card })} onClose={() => setCardOpen(false)} />}
       {schemaOpen && <SchemaModal schema={schema} data={data} dbId={dbId} databases={databases} onSave={api.saveSchema} onClose={() => setSchemaOpen(false)} />}
       {agentsOpen && <AgentsModal schema={schema} dbId={dbId} onSaved={() => api.reload()} onClose={() => setAgentsOpen(false)} />}

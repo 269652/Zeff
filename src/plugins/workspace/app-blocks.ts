@@ -69,28 +69,6 @@ export function addRelatedRow(rowId: number, dbId: number, prop: string, title: 
   return addRow(dbId, { title: title.trim(), cells: { [prop]: [rowId] } });
 }
 
-/**
- * A row from what was typed in a form block: only the fields the form has (by property id), a choice only among the options there
- * are, a title needed. The new row is told to the routines that listen (the store does).
- */
-export function submitForm(dbId: number, fieldIds: string[], values: Record<string, string>): number {
-  const d = getDatabase(dbId);
-  if (!d) throw new Error(t("No such database."));
-  const title = String(values.title ?? "").trim();
-  if (!title) throw new Error(t("A {name}, please.", { name: d.schema.titleName }));
-  const fields: Record<string, string> = {};
-  for (const id of fieldIds) {
-    const p = d.schema.properties.find((x) => x.id === id);
-    const v = String(values[id] ?? "").trim();
-    if (!p || !v) continue;
-    if ((p.type === "select" || p.type === "status") && !p.options?.some((o) => o.name.toLowerCase() === v.toLowerCase())) throw new Error(t("“{value}” is not one of the choices of {field}.", { value: v, field: p.name }));
-    fields[p.name] = v;
-  }
-  const id = addRow(dbId, { title });
-  setFields(dbId, id, fields);
-  return id;
-}
-
 /** What a button does: set a field of the row, move it to the trash, or read the database's sources again. */
 export const BUTTON_KINDS = ["set", "trash", "refresh"] as const;
 export type ButtonSpec = { action: (typeof BUTTON_KINDS)[number]; prop?: string; value?: string };

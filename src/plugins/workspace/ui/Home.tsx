@@ -10,6 +10,7 @@ import { askWorkspaceAction, createPageAction, importCsvAction, importMarkdownAc
 import type { PageRef } from "../store";
 import type { TemplateMeta } from "../templates";
 import { TemplateGallery } from "./TemplateGallery";
+import { kindIcon } from "../model";
 
 /** The Workspace's start page: recent pages, a question to your pages, templates, imports. */
 export function Home({ recent, templates, llm }: { recent: PageRef[]; templates: TemplateMeta[]; llm: boolean }) {
@@ -129,7 +130,7 @@ export function Home({ recent, templates, llm }: { recent: PageRef[]; templates:
               <li key={p.id}>
                 <Link href={`/workspace/${p.id}`} className="flex items-center gap-2.5 rounded-xl border border-zinc-200/80 bg-white px-3 py-2 text-sm shadow-sm transition hover:-translate-y-px hover:border-indigo-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900 dark:hover:border-indigo-700">
                   <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-zinc-100 text-base dark:bg-zinc-800" aria-hidden>
-                    {p.icon || (p.kind === "database" ? "🗂️" : "📄")}
+                    {p.icon || kindIcon(p.kind)}
                   </span>
                   <span className="min-w-0">
                     <span className="block truncate font-medium">{p.title || t("Untitled")}</span>

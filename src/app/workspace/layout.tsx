@@ -28,6 +28,12 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     await (await import("@/plugins/workspace/news-database")).ensureNewsDatabase().catch((e) => console.error("[workspace] the news database failed", e));
     // The search knows what the cells of the rows say (once: pages made before it are read in again).
     (await import("@/plugins/workspace/store")).reindexOnce();
+    // Databases' forms of the old kind (in their schema) as form pages (once each).
+    try {
+      (await import("@/plugins/workspace/forms")).migrateLegacyForms();
+    } catch (e) {
+      console.error("[workspace] moving the old forms failed", e);
+    }
     // Your calendar as a database (once; Calendar installed).
     await (await import("@/plugins/workspace/calendar-database")).ensureCalendarDatabase().catch((e) => console.error("[workspace] the calendar database failed", e));
     // Your unread documents as an inbox (once; Documents installed).
