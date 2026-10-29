@@ -51,7 +51,8 @@ function CalendarEmbedView(p: NodeViewProps) {
   const go = useCallback(
     (v: ViewKind, d: string) => {
       setDay(d);
-      if (v !== view && EMBED_VIEWS.includes(v)) p.updateAttributes({ view: v });
+      // The day it stands on is kept in the block: a page plans a certain month (a week, a day) — it opens there again.
+      p.updateAttributes({ day: d, ...(v !== view && EMBED_VIEWS.includes(v) ? { view: v } : {}) });
     },
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateAttributes is the node view's, the same while it lives
     [view],
