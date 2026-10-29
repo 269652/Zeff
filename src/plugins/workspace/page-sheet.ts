@@ -74,8 +74,12 @@ export function formatCellValue(v: CellResult["value"], locale?: string, unit?: 
   if (v === null) return "";
   if (typeof v === "number") return `${v.toLocaleString(locale, { maximumFractionDigits: Math.abs(v) >= 100 ? 2 : 6 })}${unit ? ` ${unit}` : ""}`;
   if (typeof v === "boolean") return v ? "✓" : "✗";
-  // A date: as it is said (1. Juni 2037), with its time when it has one.
-  if (v instanceof Date) return v.getHours() || v.getMinutes() ? v.toLocaleString(locale, { dateStyle: "long", timeStyle: "short" }) : v.toLocaleDateString(locale, { dateStyle: "long" });
+  // A date (a formula's result comes as 2037-06-01, or with its time): as it is said in the language (1. Juni 2037).
+  const d = typeof v === "string" ? /^(\d{4})-(\d{2})-(\d{2})(?:T(\d{2}):(\d{2}))?$/.exec(v) : null;
+  if (d) {
+    const at = new Date(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Number(d[4] ?? 0), Number(d[5] ?? 0));
+    return d[4] ? at.toLocaleString(locale, { dateStyle: "long", timeStyle: "short" }) : at.toLocaleDateString(locale, { dateStyle: "long" });
+  }
   return String(v);
 }
 
