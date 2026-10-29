@@ -1330,3 +1330,80 @@
 .ws-formula-cell.has-warning .ws-formula-value {
   color: rgb(217 119 6);
 }
+
+/* "✨ Think along": its card (assist-node.tsx) — in the page's style, violet like the AI block */
+.ws-assist {
+  margin: 0.5rem 0;
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-violet-200, #ddd6fe);
+  background: color-mix(in oklab, var(--color-violet-50, #f5f3ff) 60%, transparent);
+  padding: 0.75rem;
+}
+.ws-assist-done {
+  padding: 0.35rem 0.6rem;
+}
+.ws-assist-q {
+  border: 0;
+  margin: 0;
+  padding: 0;
+  min-width: 0;
+}
+/* A chip: a real radio or checkbox inside (hidden), so arrows, Space and the screen reader work as usual */
+.ws-assist-chip {
+  display: inline-flex;
+  align-items: center;
+  min-height: 1.75rem;
+  padding: 0 0.7rem;
+  border-radius: 999px;
+  border: 1px solid var(--color-zinc-300, #d4d4d8);
+  background: var(--color-white, #ffffff);
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+.ws-assist-chip:has(input:checked) {
+  border-color: var(--color-violet-600, #7c3aed);
+  background: var(--color-violet-600, #7c3aed);
+  color: #ffffff;
+}
+.ws-assist-chip:has(input:focus-visible) {
+  outline: 2px solid var(--color-violet-600, #7c3aed);
+  outline-offset: 2px;
+}
+.ws-assist-other {
+  min-height: 1.75rem;
+  width: 9rem;
+  border-radius: 999px;
+  border: 1px dashed var(--color-zinc-400, #a1a1aa);
+  background: transparent;
+  padding: 0 0.7rem;
+  font-size: 0.85rem;
+}
+.ws-assist-shimmer {
+  color: transparent;
+  background: linear-gradient(90deg, var(--color-violet-700, #6d28d9) 0%, var(--color-violet-300, #c4b5fd) 50%, var(--color-violet-700, #6d28d9) 100%);
+  background-size: 200% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: ws-assist-shimmer 1.6s linear infinite;
+}
+@keyframes ws-assist-shimmer {
+  to {
+    background-position: -200% 0;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .ws-assist-shimmer {
+    animation: none;
+    color: var(--color-violet-700, #6d28d9);
+  }
+}
+@media (prefers-color-scheme: dark) {
+  .ws-assist {
+    border-color: var(--color-violet-900, #4c1d95);
+    background: color-mix(in oklab, var(--color-violet-950, #2e1065) 30%, transparent);
+  }
+  .ws-assist-chip {
+    border-color: var(--color-zinc-600, #52525b);
+    background: var(--color-zinc-900, #18181b);
+  }
+}

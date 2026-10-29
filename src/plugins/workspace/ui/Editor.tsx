@@ -37,6 +37,7 @@ import { PageEmbedNode } from "./page-embed";
 import { SlashCommand, type SlashContext } from "./slash";
 import { SheetTable, TableFormulas, tableFormulasKey } from "./table-formulas";
 import { InlineFormula } from "./inline-formula";
+import { AssistCardNode, startAssist } from "./assist-node";
 import { TableTools } from "./table-tools";
 import type { FormulaData } from "../page-sheet";
 import "./workspace.css";
@@ -356,6 +357,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       CalendarEmbedNode,
       PageEmbedNode.configure({ pageId }),
       AiBlockNode.configure({ pageId }),
+      AssistCardNode.configure({ pageId }),
       // eslint-disable-next-line react-hooks/refs -- read when a command runs, not while rendering
       SlashCommand.configure({ getContext: () => ctxRef.current! }),
       MentionCommand.configure({ getLang: () => lang }),
@@ -410,9 +412,16 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
   useEffect(() => {
     const todosEv = () => ctxRef.current?.todosFromPage();
     const focus = () => void editorRef.current?.commands.focus("start");
+    // The page's "✨ Think along": a card at the top, about the whole page.
+    const assist = () => {
+      const ed = editorRef.current;
+      if (ed?.isEditable) startAssist(ed, 0, "page");
+    };
+    window.addEventListener("ws:assist", assist);
     window.addEventListener("ws:todos", todosEv);
     window.addEventListener("ws:focus-editor", focus);
     return () => {
+      window.removeEventListener("ws:assist", assist);
       window.removeEventListener("ws:todos", todosEv);
       window.removeEventListener("ws:focus-editor", focus);
     };
@@ -516,6 +525,17 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
               }}
             >
               +
+            </button>
+            <button
+              type="button"
+              title={t("Think along about this block (Ctrl+Shift+Space)")}
+              aria-label={t("Think along about this block")}
+              onClick={() => {
+                const h = handleNode.current;
+                if (h) startAssist(editor, h.pos + h.size, "block");
+              }}
+            >
+              ✨
             </button>
             <span className="ws-grip" title={t("Drag to move")} aria-hidden>
               ⠿

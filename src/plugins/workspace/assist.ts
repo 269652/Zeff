@@ -169,8 +169,8 @@ export function cleanActions(raw: unknown, check: AssistCheck): AssistAction[] {
 /** The card's next state from the AI's answer: a round of questions (while rounds are left), else its proposal. */
 export function readAssistAnswer(raw: unknown, state: AssistState, check: AssistCheck): AssistState {
   const o = raw && typeof raw === "object" ? (raw as Record<string, unknown>) : {};
-  const { error: _gone, ...rest } = state;
-  const base = { ...rest, intent: str(o.intent, 120) || state.intent, summary: str(o.summary, 240) || state.summary };
+  const base: AssistState = { ...state, intent: str(o.intent, 120) || state.intent, summary: str(o.summary, 240) || state.summary };
+  delete base.error; // (an earlier step's failure is over)
   const questions = state.round < MAX_ASSIST_ROUNDS ? cleanQuestions(o.questions) : [];
   if (questions.length) return { ...base, status: "asking", questions, answers: {}, round: state.round + 1, actions: [] };
   return { ...base, status: "proposing", questions: [], actions: cleanActions(o.actions, check) };

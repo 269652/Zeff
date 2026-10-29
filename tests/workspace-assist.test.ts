@@ -37,8 +37,9 @@ test("the page-assist task is one of the LLM's tasks (its own backend and model)
 test("the card is kept by the document (its state whole, also long), never written as Markdown", async () => {
   const d = await import("@/plugins/workspace/doc");
   const state = JSON.stringify({ status: "asking", intent: "x".repeat(3000) });
-  const doc = d.sanitizeDoc({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Reise" }] }, { type: "assistCard", attrs: { state, evil: 1 } }] });
-  assert.deepEqual(doc.content[1], { type: "assistCard", attrs: { state } });
+  const doc = d.sanitizeDoc({ type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Reise" }] }, { type: "assistCard", attrs: { id: "k3x9", state, evil: 1 } }] });
+  assert.deepEqual(doc.content[1], { type: "assistCard", attrs: { id: "k3x9", state } });
+  assert.equal(d.sanitizeDoc({ type: "doc", content: [{ type: "assistCard", attrs: { id: "<b>", state: "{}" } }] }).content[0].attrs?.id, "", "an id is a short word");
   assert.equal(d.sanitizeDoc({ type: "doc", content: [{ type: "assistCard", attrs: { state: "nope{" } }] }).content[0].type, "paragraph", "a card without a readable state is dropped");
   assert.equal(d.docToMarkdown(doc).trim(), "Reise", "an agent's Markdown neither shows nor makes one");
 });

@@ -607,7 +607,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffModule: ["module", "key"],
   rowView: [],
   aiBlock: ["prompt", "text", "at", "auto"],
-  assistCard: ["state"],
+  assistCard: ["id", "state"],
 };
 
 /** At most this much of a "✨ Think along" card's state (its questions, answers, proposal) is kept. */
@@ -713,6 +713,7 @@ export function sanitizeDoc(input: unknown): Doc {
           return null;
         }
         attrs.state = raw;
+        attrs.id = /^[\w-]{1,24}$/.test(String(attrs.id ?? "")) ? String(attrs.id) : "";
       }
       if (o.type === "zeffRelated") {
         const id = Math.floor(Number(attrs.dbId));
