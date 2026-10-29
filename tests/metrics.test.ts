@@ -119,3 +119,43 @@ test("agents: metric_list, metric_get (with history), metric_define", async () =
   assert.match(text(await tools.metric_define({ name: "Puffer", formula: 'kennzahl("Einkommen") - kennzahl("Ausgaben")', unit: "€" })), /Kennzahl "Puffer" made: 700 €/);
   assert.equal((await tools.metric_get({ name: "Nichts" })).isError, true);
 });
+
+test("what the numbers count: a meeting is set up by someone else (not a todo, not a day block), spending leaves money only moved out, a table's unit comes from its columns", async () => {
+  const { isMeeting } = await import("@/plugins/workspace/metrics-core");
+  const cal = (name: string, todos = false) => ({ name, todos });
+  const at = (h: number, len: number) => ({ start: `2026-10-27T${String(h).padStart(2, "0")}:00:00Z`, end: new Date(Date.parse(`2026-10-27T${String(h).padStart(2, "0")}:00:00Z`) + len * 36e5).toISOString() });
+  const me = ["max mustermann"];
+  assert.equal(isMeeting({ ...at(9, 0.5), organizer: "Sarah Klein", calendar: cal("Outlook") }, me), true, "set up by someone else");
+  assert.equal(isMeeting({ ...at(9, 8), organizer: "Sarah Klein", calendar: cal("Outlook") }, me), false, "a day block");
+  assert.equal(isMeeting({ ...at(9, 8), organizer: "max@example.com", calendar: cal("max@example.com") }, me), false, "your own Google entry (Arbeit)");
+  assert.equal(isMeeting({ ...at(22, 2), organizer: "max@example.com", calendar: cal("max@example.com") }, me), false, "your own evening (Tatort)");
+  assert.equal(isMeeting({ ...at(23, 3), organizer: "Sleep as Android", calendar: cal("Sleep as Android") }, me), false, "an app's own calendar");
+  assert.equal(isMeeting({ ...at(12, 1), organizer: "", calendar: cal("Outlook") }, me), false, "a reminder of your own");
+  assert.equal(isMeeting({ ...at(12, 1), organizer: "Sarah Klein", todoId: 4, calendar: cal("Outlook") }, me), false, "a todo planned in");
+  assert.equal(isMeeting({ ...at(12, 1), organizer: "Laura", calendar: cal("Privat", true) }, me), false, "Zeff's todo calendar");
+  assert.equal(isMeeting({ ...at(14, 1), organizer: "Max Mustermann", online: true, calendar: cal("Outlook") }, me), true, "your own online meeting");
+  assert.equal(isMeeting({ ...at(14, 1), organizer: "Max Mustermann", calendar: cal("Outlook") }, me), false, "your own entry");
+
+  const { getSqlite } = await import("@/db");
+  getSqlite().exec("create table if not exists bank_transactions (id text primary key, account text not null, date text not null, amount real not null, currency text not null default 'EUR', text text not null default '', counterparty text not null default '', iban text not null default '', reference text not null default '', imported_at text not null, case_id integer, todo_id integer, matched_at text)");
+  const ins = getSqlite().prepare("insert into bank_transactions (id, account, date, amount, text, counterparty, imported_at) values (?, 'Bank', ?, ?, ?, ?, '2026-10-01')");
+  let n = 0;
+  for (const month of ["2026-07", "2026-08", "2026-09"]) {
+    ins.run(String(n++), `${month}-03`, -600, "Miete", "Vermieter");
+    ins.run(String(n++), `${month}-05`, -300, "Um EUR Essen von EUR einzustecken", "");
+    ins.run(String(n++), `${month}-20`, 250, "Um EUR Essen von EUR einzustecken", "");
+    ins.run(String(n++), `${month}-10`, -500, "To Max Mustermann", "Max Mustermann");
+    ins.run(String(n++), `${month}-28`, 3000, "Gehalt", "Firma");
+  }
+  const { monthlySpending } = await import("@/plugins/finances/metrics");
+  assert.equal(monthlySpending("2026-10-15", ["Max Mustermann"]), 600, "the rent only: the pocket and your own account are money moved");
+  assert.equal(monthlySpending("2026-10-15", []), 1100, "without your name the transfer to yourself counts");
+
+  const { db } = await setup();
+  const { valueUnit } = await import("@/plugins/workspace/values");
+  assert.equal(valueUnit("Einkommen"), "", "a plain number column: no unit");
+  const { getDatabase, updateSchema } = await import("@/plugins/workspace/store");
+  const d = getDatabase(db)!;
+  updateSchema(db, { ...d.schema, properties: d.schema.properties.map((p) => ({ ...p, format: "euro" as const })) });
+  assert.equal(valueUnit("Einkommen"), "€", "euro columns: €");
+});

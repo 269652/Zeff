@@ -1,8 +1,11 @@
 import { getSqlite } from "@/db";
+import { myNames } from "@/plugins/people/pulse";
 import type { MetricProvider } from "@/plugins/workspace/metric-point";
 import { debtPlans, debtsDbId } from "./debts";
 import { fixedCosts } from "./fixed";
 import { monthlyIncome } from "./income";
+import { movedOnly, type InBooking } from "./insights";
+import { recipientKey } from "./recurring";
 
 /**
  * The Finances plugin's Kennzahlen (metric-point.ts): what its overview shows, by name — kennzahl("Tilgungsrate") in a
@@ -15,16 +18,34 @@ const href = () => {
   return db ? `/workspace/${db}` : undefined;
 };
 
-/** What went out a month — the bank statements' outgoing amounts over the last three whole months, on average. Null: none read. */
-export function monthlySpending(day = today()): number | null {
+/**
+ * What was spent a month — the bank statements' outgoing amounts over the last three whole months, on average. Money only
+ * moved is no spending: to a pocket or savings account and back (movedOnly: the bank lists both legs), to an account of your
+ * own (a transfer to your own name). Null: none read.
+ */
+export function monthlySpending(day = today(), me: string[] = ownNames()): number | null {
   const d = new Date(`${day}T00:00:00Z`);
   const to = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10);
   const from = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 3, 1)).toISOString().slice(0, 10);
+  let rows: InBooking[];
   try {
-    const r = getSqlite().prepare("select count(*) n, coalesce(-sum(case when amount < 0 then amount end), 0) out from bank_transactions where date >= ? and date < ?").get(from, to) as { n: number; out: number };
-    return r.n ? Math.round((r.out / 3) * 100) / 100 : null;
+    rows = getSqlite().prepare("select date, amount, text, counterparty from bank_transactions where date >= ? and date < ?").all(from, to) as InBooking[];
   } catch {
     return null; // no statements read
+  }
+  if (!rows.length) return null;
+  const moved = movedOnly(rows);
+  const mine = new Set(me.map((n) => recipientKey({ text: n, counterparty: "" })).filter((k) => k.length >= 5));
+  const out = rows.filter((b) => b.amount < 0 && !moved.has(recipientKey(b)) && !mine.has(recipientKey(b))).reduce((s, b) => s - b.amount, 0);
+  return Math.round((out / 3) * 100) / 100;
+}
+
+/** Your own names (People: the one you set, your Jira name, the name your mails go out under) — a transfer to them is yours still. */
+function ownNames(): string[] {
+  try {
+    return myNames();
+  } catch {
+    return [];
   }
 }
 
@@ -45,7 +66,7 @@ export const FINANCES_METRICS: MetricProvider[] = [
   { label: "Schuldenfrei in", unit: "Monate", what: "Months until the last debt with a plan is paid off", read: () => monthsUntil(debtPlans(today(), "owe").summary.debtFree), href },
   { label: "Forderungen", unit: "€", what: "What others owe you, still open", read: () => open("owed"), href },
   { label: "Nettoeinkommen", unit: "€/Monat", what: "Your net income a month (set by hand, or read off your statements)", read: income, href },
-  { label: "Ausgaben", unit: "€/Monat", what: "What went out a month — the last three whole months of your bank statements, on average", read: () => monthlySpending(), href },
+  { label: "Ausgaben", unit: "€/Monat", what: "What was spent a month — the last three whole months of your bank statements, on average; money only moved (pockets, savings, your own accounts) left out", read: () => monthlySpending(), href },
   {
     label: "Frei im Monat",
     unit: "€/Monat",

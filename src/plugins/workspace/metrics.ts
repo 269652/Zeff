@@ -5,7 +5,7 @@ import { ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { checkFormula, evalFormula, setMetricReader } from "./formula";
 import { workspaceMetrics, type MetricProvider } from "./metric-point";
-import { listNamedValues, namedValue, unpublishValue, valueKey, type NamedValue } from "./values";
+import { listNamedValues, namedValue, unpublishValue, valueKey, valueUnit, type NamedValue } from "./values";
 
 /**
  * Kennzahlen (the Workspace plugin): numbers every part of Zeff reads by their name — kennzahl("Sparrate") in a formula (a
@@ -138,7 +138,7 @@ export function listMetrics(): Metric[] {
   }
   for (const nv of listNamedValues()) {
     const meta = m[nv.key];
-    out.set(nv.key, { key: nv.key, label: nv.label, kind: "aggregate", unit: meta?.unit ?? "", what: meta?.what ?? "", value: nv.value, sources: nv.sources, agg: nv.agg, goal: meta?.goal, alert: meta?.alert });
+    out.set(nv.key, { key: nv.key, label: nv.label, kind: "aggregate", unit: meta?.unit || valueUnit(nv.key), what: meta?.what ?? "", value: nv.value, sources: nv.sources, agg: nv.agg, goal: meta?.goal, alert: meta?.alert });
   }
   for (const [key, meta] of Object.entries(m)) {
     if (!meta.formula) continue;

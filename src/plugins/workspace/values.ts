@@ -123,6 +123,21 @@ export function unpublishValue(keyOrLabel: string): void {
   save(types);
 }
 
+const FORMAT_UNIT: Partial<Record<string, string>> = { euro: "€", dollar: "$", hours: "h" };
+
+/** The unit its columns say (all of them the same: euro → €, hours → h, a unit of their own) — "" when they don't, or it counts rows. */
+export function valueUnit(keyOrLabel: string): string {
+  const ty = stored()[valueKey(keyOrLabel)];
+  if (!ty || ty.agg === "count" || ty.agg === "count_values") return "";
+  const units = new Set(
+    ty.sources.map((s) => {
+      const p = rowsOf(s.dbId)?.schema.properties.find((x) => x.id === s.propId);
+      return p?.format === "unit" ? (p.unit?.trim() ?? "") : (FORMAT_UNIT[p?.format ?? ""] ?? "");
+    }),
+  );
+  return units.size === 1 ? [...units][0] : "";
+}
+
 /** Where a type's values come from — only the references; whoever reads it reads the rows there (refRows). */
 export const valueSources = (keyOrLabel: string): ValueRef[] => stored()[valueKey(keyOrLabel)]?.sources ?? [];
 

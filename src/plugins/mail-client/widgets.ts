@@ -1,5 +1,6 @@
 import { getSqlite } from "@/db";
 import { formatSmart } from "@/lib/format";
+import { CHAT_FOLDERS } from "@/lib/mail/shared";
 import { t } from "@/lib/i18n/server";
 import type { WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
 import { clip, initials } from "@/plugins/workspace/widget-shared";
@@ -55,7 +56,8 @@ export const MAIL_WIDGETS: WorkspaceWidget[] = [
         return { kind: "list", items, empty: t("Nothing unread.") };
       }
       const db = getSqlite();
-      const where = "unread = 1 and resolved_at is null and folder not like '%Archive%' and folder not like '%Archiv%' and folder not like '%Sent%' and folder not like '%Gesendet%'";
+      // (the chats, WhatsApp and Signal, are kept with the mails: not mails)
+      const where = `unread = 1 and resolved_at is null and folder not like '%Archive%' and folder not like '%Archiv%' and folder not like '%Sent%' and folder not like '%Gesendet%' and folder not in (${CHAT_FOLDERS.map((f) => `'${f}'`).join(", ")})`;
       const total = (db.prepare(`select count(*) as n from emails where ${where}`).get() as { n: number }).n;
       const mails = db.prepare(`select key, from_name, from_email, subject, preview, received_at, folder from emails where ${where} order by received_at desc limit ?`).all(Number(config.limit)) as Mail[];
       return {
