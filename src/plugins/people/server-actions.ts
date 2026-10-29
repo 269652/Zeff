@@ -38,6 +38,14 @@ export async function remindedFormAction(fd: FormData): Promise<void> {
   redirect(str(fd, "to") || "/heute");
 }
 
+/** A promise kept (Today): closed — off the list. */
+export async function promiseKeptFormAction(fd: FormData): Promise<void> {
+  guard();
+  (await import("./graph")).reviewClaim(Number(str(fd, "claimId")), "done");
+  revalidatePath("/heute");
+  redirect(str(fd, "to") || "/heute");
+}
+
 /** What a person's hover card shows (a name in a todo): who they are, their next dates, facts, latest messages, open todos. */
 export type PersonCardData = {
   id: number;

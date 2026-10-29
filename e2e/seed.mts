@@ -42,4 +42,18 @@ if (!fs.existsSync(out)) {
   (await import("@/plugins/workspace/task-lists")).syncPageLists(mergePage);
   fs.writeFileSync(out, JSON.stringify({ personId, personName, dbId, dbTitle, rows, rowTitles: ["Alpha", "Beta"], props: { dose: dose.id, taken: taken.id }, todos, mergePage, mergeItem }, null, 2));
 }
+// Today (e2e/heute.e2e.mjs): two of your todos due today — one to tick, one to dismiss (added to a seed made before, once).
+const seed = JSON.parse(fs.readFileSync(out, "utf8"));
+if (!seed.heuteTodos) {
+  (await import("@/plugins/state")).setInstalled("todos", true);
+  const { addManualTodo, setTodoDue } = await import("@/lib/boards/store");
+  const d = new Date();
+  const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  seed.heuteTodos = ["E2E Heute: Steuer abgeben", "E2E Heute: Keller aufräumen"].map((text) => {
+    const todo = addManualTodo({ ticket: "", text });
+    setTodoDue(todo.id, today);
+    return todo.text;
+  });
+  fs.writeFileSync(out, JSON.stringify(seed, null, 2));
+}
 console.log(`e2e seed: ${out}`);

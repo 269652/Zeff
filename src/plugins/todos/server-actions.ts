@@ -648,3 +648,27 @@ export async function undoLageRunAction(runId: number): Promise<{ ok: true; dism
     return { ok: false, error: errorMessage(err) };
   }
 }
+
+/** Today → "Plan my day": the AI's proposal of time blocks for today's todos (lib/heute-plan.ts) — nothing is written yet. */
+export async function planDayAction(): Promise<{ ok: true; plan: import("@/lib/heute-plan").DayPlan } | { ok: false; error: string }> {
+  try {
+    return { ok: true, plan: await (await import("@/lib/heute-plan")).planDay() };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** Today → the day's plan applied: its blocks the suggestions of the day's "Tagesplan" shadow calendar (replaced when applied again). */
+export async function applyDayPlanAction(day: string, blocks: import("@/lib/heute-plan").PlanBlock[]): Promise<ActionState & { calendarId?: number }> {
+  try {
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Array.isArray(blocks)) return { ok: false, error: t("Nothing to apply.") };
+    const clean = blocks
+      .filter((b) => typeof b?.title === "string" && typeof b.start === "string" && typeof b.end === "string" && b.start.startsWith(day) && b.end.startsWith(day))
+      .map((b) => ({ title: b.title.slice(0, 200), start: b.start.slice(0, 16), end: b.end.slice(0, 16), todoId: Number.isInteger(b.todoId) ? b.todoId : null }));
+    const r = (await import("@/lib/heute-plan")).applyDayPlan(day, clean);
+    revalidateAll();
+    return { ok: true, calendarId: r.calendarId, message: r.count === 1 ? t("1 block in the calendar, as a suggestion.") : t("{n} blocks in the calendar, as suggestions.", { n: r.count }) };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}

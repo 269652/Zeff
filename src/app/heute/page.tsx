@@ -5,14 +5,18 @@ import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { getPref } from "@/lib/prefs";
 import { connection } from "next/server";
-import { daysUntil, dueText, dueTone } from "@/lib/boards/due-shared";
+import { dueText } from "@/lib/boards/due-shared";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
-import { formatHours, formatLongDay, formatTime, roundQuarter } from "@/lib/format";
+import { formatHours, formatLongDay, roundQuarter } from "@/lib/format";
 import { dayFrame, dayProgress, freeWindows, phaseOf, workSpan, type DayPhase } from "@/lib/heute-day";
 import { DayTimeline } from "./DayTimeline";
+import { DayPlan } from "./DayPlan";
+import { TodayTodo } from "./TodayTodo";
+import { dayOf } from "@/lib/calendar/ir-shared";
+import type { TodayAppointment } from "@/lib/heute-today";
 import { MeetingSoon } from "@/plugins/know/ui/MeetingSoon";
 import type { TodoView } from "@/lib/boards/shared";
-import { remindedFormAction } from "@/plugins/people/server-actions";
+import { promiseKeptFormAction, remindedFormAction } from "@/plugins/people/server-actions";
 import { loopFormAction } from "@/plugins/loops/server-actions";
 import { peopleHome, personHref } from "@/plugins/workspace/people-database";
 import { inDaysText, upcomingTitle } from "@/plugins/people/shared";
@@ -37,22 +41,29 @@ async function heuteData() {
   const asking = open.filter((x) => x.needsInput);
   // Workers and agents report these done: yours to look at and close.
   const reportedDone = open.filter((x) => x.workerDone && !x.needsInput);
-  const due = mine.filter((x) => x.due && daysUntil(x.due) <= 3).sort((a, b) => a.due!.localeCompare(b.due!));
-  const flagged = mine.filter((x) => x.flaggedAt && !(x.due && daysUntil(x.due) <= 3));
   // Waiting on others for three days or more: time to ask again.
   const waiting = open.filter((x) => x.owner === "other" && now - new Date(x.createdAt).getTime() >= 3 * 864e5).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
-  // Today's meetings (Outlook's calendar).
+  // What matters today: appointments (with whom to prepare), what is due, promises, what is new (lib/heute-today.ts).
+  const { todayData } = await import("@/lib/heute-today");
+  const day = await todayData(new Date(now));
+
+  // Today's meetings for the timeline: the Calendar's (Outlook's synced into it), else Outlook's calendar inbox.
   const today = new Date();
   const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   let meetings: { subject: string; start: string; end: string; online: boolean }[] = [];
-  if (isInstalled("outlook-calendar")) {
+  if (isInstalled("calendar")) {
+    meetings = day.appointments.filter((a) => !a.tomorrow && !a.allDay).map((a) => ({ subject: a.title || t("(no title)"), start: a.start, end: a.end, online: a.online }));
+  } else if (isInstalled("outlook-calendar")) {
     const { readInbox } = await import("@/lib/calendar/inbox");
     meetings = readInbox()
       .filter((e) => !e.isCancelled && !e.isAllDay && e.start.dateTime.slice(0, 10) === iso && e.showAs !== "free")
       .map((e) => ({ subject: e.subject ?? t("(no title)"), start: e.start.dateTime, end: e.end.dateTime, online: !!e.isOnlineMeeting }))
       .sort((a, b) => a.start.localeCompare(b.start));
   }
+  const appointments: TodayAppointment[] = isInstalled("calendar")
+    ? day.appointments
+    : meetings.filter((m) => Date.parse(m.end) > now).map((m, i) => ({ id: -i - 1, title: m.subject, start: m.start.slice(0, 16), end: m.end.slice(0, 16), allDay: false, location: "", online: m.online, tomorrow: false, people: [], href: "/calendar" }));
 
   // Messages waiting for your answer: a chat whose last message (this week) isn't yours.
   const unanswered: { key: string; who: string; text: string; at: string; since: string; count: number; href: string; source: string }[] = [];
@@ -123,18 +134,6 @@ async function heuteData() {
     }
   }
 
-  // What was promised, by them or by you, and is due (or has no date): read from the messages (Personen plugin) — the Open loops
-  // plugin's nudges take its place while it is installed.
-  let commitments: { id: number; personId: number; personName: string; text: string; due: string; mine: boolean }[] = [];
-  if (isInstalled("people") && !loopNudges) {
-    const { openCommitments } = await import("@/plugins/people/graph");
-    const day = iso;
-    commitments = openCommitments()
-      .filter((c) => c.due && c.due <= day)
-      .slice(0, 8)
-      .map((c) => ({ id: c.id, personId: c.personId, personName: c.personName, text: c.text, due: c.due, mine: c.direction === "mine" }));
-  }
-
   // Weeks to close: this one on its last working day, last week until Wednesday — while steps are left.
   const weeks: { key: string; title: string; open: number; href: string }[] = [];
   if (isInstalled("zeiterfassung")) {
@@ -165,7 +164,7 @@ async function heuteData() {
     t,
   });
 
-  return { run, open, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, sourceIssues, reminders, commitments, loopNudges, next, today, now };
+  return { run, asking, reportedDone, waiting, meetings, appointments, day, unanswered, hours, problems, sourceIssues, reminders, loopNudges, next, today, now };
 }
 
 const NEXT_TONE: Record<import("@/lib/heute-next").NextTone, string> = {
@@ -175,7 +174,7 @@ const NEXT_TONE: Record<import("@/lib/heute-next").NextTone, string> = {
   zinc: "text-zinc-500",
 };
 
-/** The colour rail of an up-next card (and of the focus card's glow). */
+/** The colour rail of the focus ("Start here"). */
 const NEXT_RAIL: Record<import("@/lib/heute-next").NextTone, string> = {
   red: "border-l-red-500",
   amber: "border-l-amber-400",
@@ -189,17 +188,12 @@ const problemLabels = (): Record<"login" | "chrome" | "broken", string> => ({
   broken: t("failing"),
 });
 
-/** The sky of the hero: it follows the time of day. */
-const SKY: Record<DayPhase, string> = {
-  night: "from-slate-800 via-indigo-900 to-violet-900 text-white",
-  morning: "from-amber-100 via-rose-100 to-sky-100 text-zinc-900 dark:from-amber-950 dark:via-rose-950 dark:to-sky-950 dark:text-zinc-50",
-  day: "from-sky-100 via-indigo-100 to-violet-100 text-zinc-900 dark:from-sky-950 dark:via-indigo-950 dark:to-violet-950 dark:text-zinc-50",
-  evening: "from-orange-100 via-fuchsia-100 to-indigo-200 text-zinc-900 dark:from-orange-950 dark:via-fuchsia-950 dark:to-indigo-950 dark:text-zinc-50",
-};
-
 const greeting = (p: DayPhase) => (p === "morning" ? t("Good morning") : p === "day" ? t("Good day") : p === "evening" ? t("Good evening") : t("Working late?"));
 
 const hoursText = (ms: number) => `${formatHours(roundQuarter(ms / 3600e3))} h`;
+
+/** A light box, as the workspace's widgets: a border, no shadow. */
+const BOX = "rounded-xl border border-zinc-200 dark:border-zinc-800";
 
 /** Two rings: the outer one is the working day passing, the inner one the hours booked against the target. */
 function DayRing({ booked, target, progress, label }: { booked: number; target: number; progress: number; label: string }) {
@@ -210,26 +204,26 @@ function DayRing({ booked, target, progress, label }: { booked: number; target: 
   const track = (r: number) => <circle cx="60" cy="60" r={r} fill="none" strokeWidth="7" className="stroke-black/10 dark:stroke-white/15" />;
   const done = target > 0 && booked >= target - 0.01;
   return (
-    <div className="relative size-36 shrink-0 sm:size-40" role="img" aria-label={label}>
+    <div className="relative size-28 shrink-0" role="img" aria-label={label}>
       <svg viewBox="0 0 120 120" className="size-full">
         {track(54)}
-        {ring(54, progress, "stroke-zinc-500/70 dark:stroke-zinc-300/70")}
+        {ring(54, progress, "stroke-zinc-400 dark:stroke-zinc-500")}
         {track(41)}
         {ring(41, target ? booked / target : 0, done ? "stroke-emerald-500" : "stroke-indigo-500")}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center text-center">
-        <span className="text-2xl leading-none font-semibold tabular-nums">{formatHours(booked)}</span>
-        <span className="mt-0.5 text-xs opacity-70 tabular-nums">{t("of {target} h", { target: formatHours(target) })}</span>
+        <span className="text-xl leading-none font-semibold tabular-nums">{formatHours(booked)}</span>
+        <span className="mt-0.5 text-xs text-zinc-500 tabular-nums">{t("of {target} h", { target: formatHours(target) })}</span>
       </div>
     </div>
   );
 }
 
-function Card({ id, title, href, count, tone = "zinc", children }: { id?: string; title: string; href?: string; count?: number; tone?: "zinc" | "red" | "amber" | "emerald" | "indigo"; children: React.ReactNode }) {
-  const rail = { zinc: "", red: "border-t-2 border-t-red-500", amber: "border-t-2 border-t-amber-400", emerald: "border-t-2 border-t-emerald-500", indigo: "border-t-2 border-t-indigo-500" }[tone];
+/** One part of the day: a heading, its list — shown only when it has something (the caller decides). */
+function Section({ id, title, count, href, children }: { id: string; title: string; count?: number; href?: string; children: React.ReactNode }) {
   return (
-    <section id={id} className={`card flex scroll-mt-4 flex-col p-4 ${rail}`}>
-      <h2 className="mb-2 flex items-baseline justify-between gap-2 text-sm font-semibold text-zinc-500 uppercase">
+    <section id={id} aria-labelledby={`${id}-h`} className={`${BOX} scroll-mt-4 p-4`}>
+      <h2 id={`${id}-h`} className="mb-2 flex items-baseline justify-between gap-2 text-sm font-semibold text-zinc-500 uppercase">
         <span>
           {title}
           {count !== undefined && <span className="ml-1.5 rounded-full bg-zinc-100 px-1.5 py-0.5 text-xs text-zinc-500 tabular-nums dark:bg-zinc-800">{count}</span>}
@@ -245,27 +239,29 @@ function Card({ id, title, href, count, tone = "zinc", children }: { id?: string
   );
 }
 
+const SUB = "mt-3 mb-1 text-xs font-medium text-zinc-500 first:mt-0";
+const LINK_BUTTON = "text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200";
+
 /**
- * Heute: the day on one page. The hero follows the time of day — a greeting, the one thing to start
- * with, the hours against the target and the working day passing; then the rest of what's next, the
- * day as a timeline with its free windows, and the streams (agents asking, what's due, messages
- * waiting for you, who you're waiting on). Each part only with its plugin.
+ * Heute: what matters today, on one page, in this order — each part only when it has something, each line done in place:
+ * the appointments of today and tomorrow morning (whom to prepare for), the todos due and overdue (ticked or dismissed here),
+ * the promises due, who waits on you and whom you wait on, what is new since yesterday, and "✨ Plan my day" (the AI's time
+ * blocks for the todos around the appointments, applied as suggestions into the day's plan calendar). Above it the greeting with
+ * the one thing to start with; below it what else asks for you (agents, workers, reminders, open loops).
  */
 export default async function HeutePage() {
   await connection();
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
-  const { run, mine, asking, reportedDone, due, flagged, waiting, meetings, unanswered, hours, problems, sourceIssues, reminders, commitments, loopNudges, next, today, now } = await heuteData();
+  const { run, asking, reportedDone, waiting, meetings, appointments, day, unanswered, hours, problems, sourceIssues, reminders, loopNudges, next, today, now } = await heuteData();
 
   const problem = problemLabels();
   const phase = phaseOf(now);
   const work = workSpan(now);
-  const progress = dayProgress(now, work);
-  const frame = dayFrame(now, meetings);
   const windows = freeWindows(meetings, now, work);
-  const meetingsLeft = meetings.filter((m) => Date.parse(m.end) > now).length;
-  const nextFree = windows[0];
-  const [focus, ...rest] = next;
-  const dark = phase === "night";
+  const [focus] = next;
+  const todayIso = dayOf(new Date(now));
+  const planAvailable = isInstalled("llm") && isInstalled("calendar") && day.due.length > 0;
+  const nothing = !appointments.length && !day.due.length && !day.promises.length && !unanswered.length && !waiting.length && !day.learned.length && !day.news?.count;
 
   const todo = (td: TodoView, extra?: React.ReactNode) => (
     <li key={td.id} className="flex items-baseline gap-2 text-sm">
@@ -276,15 +272,57 @@ export default async function HeutePage() {
       {extra}
     </li>
   );
-
-  // The jump chips in the sidebar: what there is, with its number.
-  const chips: { href: string; label: string; n: number; tone: string }[] = [
-    { href: "#asking", label: t("Agents ask you"), n: asking.length, tone: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-200" },
-    { href: "#due", label: t("Due"), n: due.length + flagged.length, tone: "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" },
-    { href: "#day", label: t("Meetings"), n: meetingsLeft, tone: "bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200" },
-    { href: "#answer", label: t("Waiting for your answer"), n: unanswered.length, tone: "bg-sky-100 text-sky-800 dark:bg-sky-950 dark:text-sky-200" },
-    { href: "#waiting", label: t("Waiting on others"), n: waiting.length, tone: "bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-200" },
-  ].filter((c) => c.n > 0);
+  const when = (a: TodayAppointment) => (a.allDay ? t("all day") : `${a.start.slice(11, 16)}–${a.end.slice(11, 16)}`);
+  const todayAppts = appointments.filter((a) => !a.tomorrow);
+  const tomorrowAppts = appointments.filter((a) => a.tomorrow);
+  const apptList = (list: TodayAppointment[]) => (
+    <ul className="space-y-1.5">
+      {list.map((a) => (
+        <li key={`${a.id}:${a.start}`} className="text-sm">
+          <div className="flex items-baseline gap-2">
+            <span className="w-24 shrink-0 font-mono text-xs text-zinc-500 tabular-nums">{when(a)}</span>
+            <Link href={a.href} className="min-w-0 flex-1 hover:underline">
+              {a.title || t("(no title)")}
+              {a.location && <span className="ml-1.5 text-xs text-zinc-500">· {a.location}</span>}
+            </Link>
+          </div>
+          {a.people.length > 0 && (
+            <p className="ml-26 text-xs text-indigo-700 dark:text-indigo-300">
+              {t("Prepare:")}{" "}
+              {a.people.map((p, i) => (
+                <span key={p.id}>
+                  {i > 0 && ", "}
+                  <Link href={personHref(p.id)} className="hover:underline">
+                    {p.name}
+                  </Link>
+                </span>
+              ))}
+            </p>
+          )}
+        </li>
+      ))}
+    </ul>
+  );
+  const promiseList = (list: typeof day.promises) => (
+    <ul className="space-y-1.5">
+      {list.map((c) => (
+        <li key={c.id} className="flex items-baseline gap-2 text-sm">
+          <Link href={personHref(c.personId)} className="min-w-0 flex-1 hover:underline">
+            {c.personName}: {c.text}
+          </Link>
+          <span className={`shrink-0 text-xs ${c.overdue ? "text-red-600 dark:text-red-400" : "text-amber-700 dark:text-amber-400"}`}>{dueText(c.due, t)}</span>
+          <form action={promiseKeptFormAction} className="shrink-0">
+            <input type="hidden" name="claimId" value={c.id} />
+            <button className={LINK_BUTTON} aria-label={t("Kept: {text}", { text: c.text })}>
+              {t("Kept")}
+            </button>
+          </form>
+        </li>
+      ))}
+    </ul>
+  );
+  const myPromises = day.promises.filter((c) => c.mine);
+  const theirPromises = day.promises.filter((c) => !c.mine);
 
   return (
     <div className="page">
@@ -297,18 +335,6 @@ export default async function HeutePage() {
             <span className="font-medium">✨ {t("Your first look")}</span>
             <span className="block text-zinc-600 dark:text-zinc-300">{t("What Zeff found in your last 30 days — forgotten promises, what falls due, unbooked time.")}</span>
           </Link>
-        )}
-        {chips.length > 0 && (
-          <ul className="flex flex-wrap gap-1.5">
-            {chips.map((c) => (
-              <li key={c.href}>
-                <a href={c.href} className={`inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition hover:brightness-95 ${c.tone}`}>
-                  <span className="tabular-nums">{c.n}</span>
-                  {c.label}
-                </a>
-              </li>
-            ))}
-          </ul>
         )}
         {hours && (
           <Link href="/feierabend" className="block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
@@ -351,207 +377,95 @@ export default async function HeutePage() {
 
       <SourceHealthLine issues={sourceIssues} />
 
-      {/* The hero: the sky of the hour, the one thing to start with, the day as two rings. */}
-      <section className={`relative overflow-hidden rounded-2xl bg-gradient-to-br p-5 shadow-sm sm:p-7 ${SKY[phase]}`}>
-        <div aria-hidden className="pointer-events-none absolute -top-16 -right-10 size-56 rounded-full bg-white/30 blur-3xl dark:bg-white/10" />
-        <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center sm:justify-between">
-          <div className="min-w-0 space-y-3">
-            <p className="text-3xl font-semibold tracking-tight sm:text-4xl">{greeting(phase)}</p>
-            {focus ? (
-              <a
-                href={focus.href || undefined}
-                {...(focus.href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}
-                className={`group block max-w-xl rounded-xl border-l-4 p-3 backdrop-blur transition hover:translate-x-0.5 ${NEXT_RAIL[focus.tone]} ${dark ? "bg-white/10 hover:bg-white/15" : "bg-white/60 hover:bg-white/80 dark:bg-black/25 dark:hover:bg-black/35"}`}
-              >
-                <span className="text-xs font-semibold tracking-wider uppercase opacity-60">{t("Start here")}</span>
-                <span className="mt-0.5 block text-lg leading-snug font-medium group-hover:underline">{focus.title}</span>
-                <span className={`text-xs ${dark ? "text-white/70" : NEXT_TONE[focus.tone]}`}>{focus.detail}</span>
-              </a>
-            ) : (
-              <p className="max-w-xl text-lg opacity-80">{t("Nothing pressing. A clear day — use it.")}</p>
-            )}
-            {run?.result?.lede && (
-              <p className="max-w-xl text-sm leading-relaxed opacity-80">
-                <span aria-hidden className="mr-1 text-lg leading-none opacity-50">“</span>
-                {run.result.lede}
-                <Link href="/todos" className="ml-2 text-xs whitespace-nowrap underline-offset-2 hover:underline">
-                  {t("To the briefing →")}
-                </Link>
-              </p>
-            )}
-          </div>
-          {hours && (
-            <div className="flex shrink-0 flex-col items-center gap-1.5 self-center">
-              <DayRing booked={hours.booked} target={hours.target} progress={progress} label={t("Hours today")} />
-              <p className="text-center text-xs opacity-70">
-                {t("inner: hours booked · outer: the working day")}
-              </p>
-            </div>
+      {/* The greeting: the one thing to start with, the briefing's lede, the hours against the target and the working day passing. */}
+      <section aria-label={greeting(phase)} className={`${BOX} flex flex-col gap-4 p-4 sm:flex-row sm:items-center sm:justify-between`}>
+        <div className="min-w-0 space-y-2">
+          <p className="text-2xl font-semibold tracking-tight">{greeting(phase)}</p>
+          {focus ? (
+            <a href={focus.href || undefined} {...(focus.href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})} className={`group block max-w-xl border-l-4 pl-3 ${NEXT_RAIL[focus.tone]}`}>
+              <span className="text-xs font-semibold tracking-wider text-zinc-500 uppercase">{t("Start here")}</span>
+              <span className="block font-medium group-hover:underline">{focus.title}</span>
+              <span className={`text-xs ${NEXT_TONE[focus.tone]}`}>{focus.detail}</span>
+            </a>
+          ) : (
+            <p className="max-w-xl text-zinc-500">{t("Nothing pressing. A clear day — use it.")}</p>
+          )}
+          {run?.result?.lede && (
+            <p className="max-w-xl text-sm leading-relaxed text-zinc-600 dark:text-zinc-300">
+              {run.result.lede}
+              <Link href="/todos" className="ml-2 text-xs whitespace-nowrap text-indigo-600 hover:underline dark:text-indigo-400">
+                {t("To the briefing →")}
+              </Link>
+            </p>
           )}
         </div>
+        {hours && <DayRing booked={hours.booked} target={hours.target} progress={dayProgress(now, work)} label={t("Hours today")} />}
       </section>
 
       {/* A meeting about to start: what you should know before it (the know plugin). */}
       <MeetingSoon now={now} />
 
-      {rest.length > 0 && (
-        <section aria-label={t("Up next")}>
-          <h2 className="mb-2 text-sm font-semibold text-zinc-500 uppercase">{t("Then")}</h2>
-          <ol className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
-            {rest.map((n, i) => {
-              const body = (
-                <>
-                  <span className="flex size-6 shrink-0 items-center justify-center rounded-full bg-zinc-100 text-xs font-semibold text-zinc-500 tabular-nums dark:bg-zinc-800">{i + 2}</span>
-                  <span className="min-w-0 flex-1">
-                    <span className="block truncate text-sm font-medium">{n.title}</span>
-                    <span className={`block truncate text-xs ${NEXT_TONE[n.tone]}`}>{n.detail}</span>
-                  </span>
-                </>
-              );
-              const cls = `card flex items-center gap-2.5 border-l-4 p-2.5 ${NEXT_RAIL[n.tone]}`;
-              return (
-                <li key={n.key}>
-                  {n.href ? (
-                    <a href={n.href} className={`${cls} transition hover:-translate-y-0.5 hover:shadow-md`} {...(n.href.startsWith("http") ? { target: "_blank", rel: "noreferrer" } : {})}>
-                      {body}
-                    </a>
-                  ) : (
-                    <div className={cls}>{body}</div>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      )}
+      {nothing && <EmptyState faint>{t("Nothing due, promised or waiting today.")}</EmptyState>}
 
-      {isInstalled("outlook-calendar") && (
-        <section id="day" className="card scroll-mt-4 space-y-3 p-4">
-          <h2 className="flex flex-wrap items-baseline justify-between gap-2 text-sm font-semibold text-zinc-500 uppercase">
-            <span>{t("Your day")}</span>
-            <span className="text-xs font-normal tracking-normal normal-case">
-              {meetingsLeft === 0 ? t("No meetings left") : meetingsLeft === 1 ? t("1 meeting left") : t("{n} meetings left", { n: meetingsLeft })}
-              {nextFree && <span className="ml-2 text-emerald-600 dark:text-emerald-400">{t("Free {from}–{to}", { from: formatTime(Math.max(nextFree.from, now)), to: formatTime(nextFree.to) })}</span>}
-            </span>
-          </h2>
-          <DayTimeline
-            frame={frame}
-            meetings={meetings.map((m) => ({ subject: m.subject, start: Date.parse(m.start), end: Date.parse(m.end), online: m.online }))}
-            windows={windows.map((w) => ({ ...w, text: hoursText(w.to - w.from) }))}
-            initialNow={now}
-            labels={{ now: t("now"), online: t("online") }}
-          />
-          {meetings.length === 0 && <EmptyState faint>{t("No meetings today.")}</EmptyState>}
-          <Link href="/calendar" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("all →")}
-          </Link>
-        </section>
-      )}
-
-      <div className="grid gap-4 xl:grid-cols-2">
-        {reportedDone.length > 0 && (
-          <Card id="done" title={t("Reported done by workers")} count={reportedDone.length} href="/todos" tone="emerald">
-            <ul className="space-y-1.5">{reportedDone.map((x) => todo(x, <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">✓</span>))}</ul>
-          </Card>
-        )}
-        {asking.length > 0 && (
-          <Card id="asking" title={t("Agents ask you")} count={asking.length} tone="red">
-            <ul className="space-y-1.5">{asking.map((x) => todo(x, <span className="shrink-0 text-xs text-amber-600 dark:text-amber-400">❗</span>))}</ul>
-          </Card>
-        )}
-
-        {commitments.length > 0 && (
-          <Card id="commitments" title={t("Commitments due")} count={commitments.length} href={peopleHome()} tone="indigo">
-            <ul className="space-y-1.5">
-              {commitments.map((c) => (
-                <li key={c.id} className="flex items-baseline gap-2 text-sm">
-                  <span className={`shrink-0 text-xs font-medium ${c.mine ? "text-amber-700 dark:text-amber-400" : "text-sky-700 dark:text-sky-400"}`}>{c.mine ? t("I owe") : t("They owe")}</span>
-                  <Link href={personHref(c.personId)} className="min-w-0 flex-1 hover:underline">
-                    {c.personName}: {c.text}
-                  </Link>
-                  <span className="shrink-0 text-xs text-zinc-500">{c.due}</span>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-
-        {loopNudges && loopNudges.loops.length > 0 && (
-          <Card id="loops" title={t("Open loops overdue")} count={loopNudges.total} href="/loops?view=overdue" tone="indigo">
-            <ul className="space-y-1.5">
-              {loopNudges.loops.map((l) => (
-                <li key={l.ref} className="flex items-baseline gap-2 text-sm">
-                  <span className={`shrink-0 text-xs font-medium ${l.mine ? "text-amber-700 dark:text-amber-400" : "text-sky-700 dark:text-sky-400"}`}>{l.mine ? t("I owe") : t("They owe")}</span>
-                  <Link href={l.personId ? personHref(l.personId) : "/loops?view=overdue"} className="min-w-0 flex-1 hover:underline">
-                    {l.who}: {l.text}
-                  </Link>
-                  <span className="shrink-0 text-xs text-zinc-500">{l.due || l.at.slice(0, 10)}</span>
-                  <form action={loopFormAction} className="shrink-0">
-                    <input type="hidden" name="ref" value={l.ref} />
-                    <input type="hidden" name="op" value="later" />
-                    <button className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" title={t("Not on the Today page for a few days")}>
-                      {t("later")}
-                    </button>
-                  </form>
-                  <form action={loopFormAction} className="shrink-0">
-                    <input type="hidden" name="ref" value={l.ref} />
-                    <input type="hidden" name="op" value="close" />
-                    <button className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" title={t("Kept or answered — closed")}>
-                      {t("done")}
-                    </button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-            {loopNudges.total > loopNudges.loops.length && (
-              <Link href="/loops?view=overdue" className="mt-1 block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-                {t("{n} more →", { n: loopNudges.total - loopNudges.loops.length })}
-              </Link>
-            )}
-          </Card>
-        )}
-
-        {reminders.length > 0 && (
-          <Card id="reminders" title={t("Reminders")} count={reminders.length} href={peopleHome()} tone="indigo">
-            <ul className="space-y-1.5">
-              {reminders.map((r) => (
-                <li key={`${r.date.id}:${r.on}`} className="flex items-baseline gap-2 text-sm">
-                  <span className="shrink-0">{r.date.kind === "birthday" ? "🎂" : "📅"}</span>
-                  <Link href={personHref(r.person.id)} className="min-w-0 flex-1 hover:underline">
-                    {upcomingTitle(r, t)}
-                  </Link>
-                  <span className={`shrink-0 text-xs ${r.inDays === 0 ? "font-medium text-amber-700 dark:text-amber-400" : "text-zinc-500"}`}>{inDaysText(r.inDays, r.on, t)}</span>
-                  <form action={remindedFormAction} className="shrink-0">
-                    <input type="hidden" name="dateId" value={r.date.id} />
-                    <input type="hidden" name="on" value={r.on} />
-                    <button className="text-xs text-zinc-400 hover:text-zinc-700 hover:underline dark:hover:text-zinc-200" title={t("Done — don't show again until next time")}>
-                      {t("done")}
-                    </button>
-                  </form>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        )}
-
-        <Card id="due" title={t("Due")} count={due.length + flagged.length} href="/todos" tone="amber">
-          {due.length || flagged.length ? (
-            <ul className="space-y-1.5">
-              {due.map((x) => todo(x, <span className={`shrink-0 text-xs ${dueTone(x.due!)}`}>{dueText(x.due!, t)}</span>))}
-              {flagged.map((x) => todo(x, <span className="shrink-0 text-xs text-red-600 dark:text-red-400">{t("important")}</span>))}
-            </ul>
-          ) : (
-            <EmptyState faint>
-              {mine.length === 1
-                ? t("Nothing due in the next three days. 1 todo open.")
-                : t("Nothing due in the next three days. {n} todos open.", { n: mine.length })}
-            </EmptyState>
+      {/* 1. Appointments today and tomorrow morning — with whom (prepare). */}
+      {appointments.length > 0 && (
+        <Section id="appointments" title={t("Appointments")} count={appointments.length} href={isInstalled("calendar") ? `/kalender?v=day&d=${todayIso}` : "/calendar"}>
+          {todayAppts.length > 0 && apptList(todayAppts)}
+          {tomorrowAppts.length > 0 && (
+            <>
+              <h3 className={SUB}>{t("Tomorrow morning")}</h3>
+              {apptList(tomorrowAppts)}
+            </>
           )}
-        </Card>
+          {meetings.length > 0 && (
+            <div className="mt-3">
+              <DayTimeline
+                frame={dayFrame(now, meetings)}
+                meetings={meetings.map((m) => ({ subject: m.subject, start: Date.parse(m.start), end: Date.parse(m.end), online: m.online }))}
+                windows={windows.map((w) => ({ ...w, text: hoursText(w.to - w.from) }))}
+                initialNow={now}
+                labels={{ now: t("now"), online: t("online") }}
+              />
+            </div>
+          )}
+        </Section>
+      )}
 
-        {(isInstalled("whatsapp") || isInstalled("signal") || isInstalled("teams")) && (
-          <Card id="answer" title={t("Waiting for your answer")} count={unanswered.length} href="/mail" tone="indigo">
-            {unanswered.length ? (
+      {/* 2. Due and overdue: yours, ticked or dismissed here. */}
+      {day.due.length > 0 && (
+        <Section id="due" title={t("Due and overdue")} count={day.due.length} href="/todos">
+          <ul className="space-y-1.5">
+            {day.due.map((x) => (
+              <TodayTodo key={x.id} id={x.id} todoRef={x.ref} text={x.text} when={dueText(x.due!, t)} overdue={x.due!.slice(0, 10) < todayIso} />
+            ))}
+          </ul>
+        </Section>
+      )}
+
+      {/* 3. Promises: what you promised (due), what was promised to you (overdue). */}
+      {day.promises.length > 0 && (
+        <Section id="promises" title={t("Promises")} count={day.promises.length} href={peopleHome()}>
+          {myPromises.length > 0 && (
+            <>
+              <h3 className={SUB}>{t("You promised")}</h3>
+              {promiseList(myPromises)}
+            </>
+          )}
+          {theirPromises.length > 0 && (
+            <>
+              <h3 className={SUB}>{t("Promised to you, overdue")}</h3>
+              {promiseList(theirPromises)}
+            </>
+          )}
+        </Section>
+      )}
+
+      {/* 4. Who waits on you (chats whose last word isn't yours), and whom you wait on (todos with someone else's move). */}
+      {(unanswered.length > 0 || waiting.length > 0) && (
+        <Section id="waiting" title={t("Waiting")} count={unanswered.length + waiting.length}>
+          {unanswered.length > 0 && (
+            <>
+              <h3 className={SUB}>{t("Waiting for your answer")}</h3>
               <ul className="space-y-1.5">
                 {unanswered.slice(0, 12).map((u) => (
                   <li key={u.key} className="text-sm">
@@ -566,20 +480,128 @@ export default async function HeutePage() {
                   </li>
                 ))}
               </ul>
-            ) : (
-              <EmptyState faint>{t("Nobody is waiting for you.")}</EmptyState>
-            )}
-          </Card>
-        )}
-
-        <Card id="waiting" title={t("Waiting on others")} count={waiting.length} href="/todos">
-          {waiting.length ? (
-            <ul className="space-y-1.5">{waiting.slice(0, 10).map((x) => todo(x, <span className="shrink-0 text-xs text-zinc-400">⏳ {ago(x.createdAt, now)}</span>))}</ul>
-          ) : (
-            <EmptyState faint>{t("Nothing has been waiting longer than three days.")}</EmptyState>
+            </>
           )}
-        </Card>
-      </div>
+          {waiting.length > 0 && (
+            <>
+              <h3 className={SUB}>{t("Waiting on others")}</h3>
+              <ul className="space-y-1.5">{waiting.slice(0, 10).map((x) => todo(x, <span className="shrink-0 text-xs text-zinc-400">⏳ {ago(x.createdAt, now)}</span>))}</ul>
+            </>
+          )}
+        </Section>
+      )}
+
+      {/* 5. New since yesterday: what was learned about people (to confirm), the news the AI picked. */}
+      {(day.learned.length > 0 || !!day.news?.count) && (
+        <Section id="new" title={t("New since yesterday")}>
+          <ul className="space-y-1.5 text-sm">
+            {day.learned.length > 0 && (
+              <li>
+                <Link href="/review" className="hover:underline">
+                  {day.learned.length === 1 ? t("1 thing learned about people — confirm it") : t("{n} things learned about people — confirm them", { n: day.learned.length })}
+                </Link>
+                <span className="block truncate text-xs text-zinc-500">
+                  {day.learned
+                    .slice(0, 3)
+                    .map((c) => `${c.personName}: ${c.text}`)
+                    .join(" · ")}
+                </span>
+              </li>
+            )}
+            {day.news && day.news.count > 0 && (
+              <li>
+                <Link href="/news" className="hover:underline">
+                  {day.news.count === 1 ? t("1 new news item") : t("{n} new news items", { n: day.news.count })}
+                </Link>
+                {day.news.top.map((n) => (
+                  <a key={n.id} href={n.url} target="_blank" rel="noreferrer" className="block truncate text-xs text-zinc-500 hover:underline">
+                    {n.title} <span className="text-zinc-400">· {n.source}</span>
+                  </a>
+                ))}
+              </li>
+            )}
+          </ul>
+        </Section>
+      )}
+
+      {/* 6. Plan my day: the AI's time blocks for today's todos around the appointments — a proposal, applied as suggestions. */}
+      {planAvailable && (
+        <Section id="plan" title={t("Plan")}>
+          <DayPlan />
+        </Section>
+      )}
+
+      {/* What else asks for you. */}
+      {(reportedDone.length > 0 || asking.length > 0 || reminders.length > 0 || (loopNudges && loopNudges.loops.length > 0)) && (
+        <div className="grid gap-4 xl:grid-cols-2">
+          {asking.length > 0 && (
+            <Section id="asking" title={t("Agents ask you")} count={asking.length}>
+              <ul className="space-y-1.5">{asking.map((x) => todo(x, <span className="shrink-0 text-xs text-amber-600 dark:text-amber-400">❗</span>))}</ul>
+            </Section>
+          )}
+          {reportedDone.length > 0 && (
+            <Section id="done" title={t("Reported done by workers")} count={reportedDone.length} href="/todos">
+              <ul className="space-y-1.5">{reportedDone.map((x) => todo(x, <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">✓</span>))}</ul>
+            </Section>
+          )}
+          {loopNudges && loopNudges.loops.length > 0 && (
+            <Section id="loops" title={t("Open loops overdue")} count={loopNudges.total} href="/loops?view=overdue">
+              <ul className="space-y-1.5">
+                {loopNudges.loops.map((l) => (
+                  <li key={l.ref} className="flex items-baseline gap-2 text-sm">
+                    <span className={`shrink-0 text-xs font-medium ${l.mine ? "text-amber-700 dark:text-amber-400" : "text-sky-700 dark:text-sky-400"}`}>{l.mine ? t("I owe") : t("They owe")}</span>
+                    <Link href={l.personId ? personHref(l.personId) : "/loops?view=overdue"} className="min-w-0 flex-1 hover:underline">
+                      {l.who}: {l.text}
+                    </Link>
+                    <span className="shrink-0 text-xs text-zinc-500">{l.due || l.at.slice(0, 10)}</span>
+                    <form action={loopFormAction} className="shrink-0">
+                      <input type="hidden" name="ref" value={l.ref} />
+                      <input type="hidden" name="op" value="later" />
+                      <button className={LINK_BUTTON} title={t("Not on the Today page for a few days")}>
+                        {t("later")}
+                      </button>
+                    </form>
+                    <form action={loopFormAction} className="shrink-0">
+                      <input type="hidden" name="ref" value={l.ref} />
+                      <input type="hidden" name="op" value="close" />
+                      <button className={LINK_BUTTON} title={t("Kept or answered — closed")}>
+                        {t("done")}
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+              {loopNudges.total > loopNudges.loops.length && (
+                <Link href="/loops?view=overdue" className="mt-1 block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+                  {t("{n} more →", { n: loopNudges.total - loopNudges.loops.length })}
+                </Link>
+              )}
+            </Section>
+          )}
+          {reminders.length > 0 && (
+            <Section id="reminders" title={t("Reminders")} count={reminders.length} href={peopleHome()}>
+              <ul className="space-y-1.5">
+                {reminders.map((r) => (
+                  <li key={`${r.date.id}:${r.on}`} className="flex items-baseline gap-2 text-sm">
+                    <span className="shrink-0">{r.date.kind === "birthday" ? "🎂" : "📅"}</span>
+                    <Link href={personHref(r.person.id)} className="min-w-0 flex-1 hover:underline">
+                      {upcomingTitle(r, t)}
+                    </Link>
+                    <span className={`shrink-0 text-xs ${r.inDays === 0 ? "font-medium text-amber-700 dark:text-amber-400" : "text-zinc-500"}`}>{inDaysText(r.inDays, r.on, t)}</span>
+                    <form action={remindedFormAction} className="shrink-0">
+                      <input type="hidden" name="dateId" value={r.date.id} />
+                      <input type="hidden" name="on" value={r.on} />
+                      <button className={LINK_BUTTON} title={t("Done — don't show again until next time")}>
+                        {t("done")}
+                      </button>
+                    </form>
+                  </li>
+                ))}
+              </ul>
+            </Section>
+          )}
+        </div>
+      )}
     </div>
   );
 }
