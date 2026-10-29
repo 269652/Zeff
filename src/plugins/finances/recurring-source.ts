@@ -2,6 +2,7 @@ import { getSqlite } from "@/db";
 import { t } from "@/lib/i18n/server";
 import { CONTRACT } from "@/plugins/workspace/contract-fields";
 import type { SourceRecord } from "@/plugins/workspace/pipeline";
+import { markedAccounts } from "./accounts";
 import { detectRecurring, type Rhythm } from "./recurring";
 
 /**
@@ -19,8 +20,10 @@ export function recurringRecords(today = new Date().toISOString().slice(0, 10)):
     return [];
   }
   const label: Record<Rhythm, string> = { monthly: t("Monthly"), quarterly: t("Quarterly"), yearly: t("Yearly") };
+  // An account you marked as yours (your own, a credit account) is no contract.
+  const marked = markedAccounts();
   return detectRecurring(rows, today)
-    .filter((r) => r.active)
+    .filter((r) => r.active && !marked[r.key])
     .map((r) => ({
       ref: `recurring:${r.key}`,
       title: r.name,

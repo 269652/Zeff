@@ -5,6 +5,7 @@ import { CONTRACT } from "@/plugins/workspace/contract-fields";
 import type { Property } from "@/plugins/workspace/model";
 import { addRow, getDatabase, getPage, rawRows } from "@/plugins/workspace/store";
 import { refRows, valueSources } from "@/plugins/workspace/values";
+import { markedAccounts } from "./accounts";
 import { debtPlans } from "./debts";
 import { monthlyIncome } from "./income";
 import { cashflowFlows, forecast, matchContracts, recurringFlows, type ContractRow, type Flowing, type Forecast, type InBooking, type PlannedPayment } from "./insights";
@@ -71,7 +72,9 @@ export type Missing = Flowing & { yearly: number };
 
 /** The subscriptions running now that no contracts row covers, the dearest first (by what they cost a month). */
 export function missingSubscriptions(day = today()): { items: Missing[]; running: number; rows: number } {
-  const { out } = recurringFlows(readBookings(day), day);
+  // (an account you marked as yours is no subscription)
+  const marked = markedAccounts();
+  const out = recurringFlows(readBookings(day), day).out.filter((r) => !marked[r.key]);
   const rows = contractRows();
   const matched = matchContracts(out, rows);
   const items = out

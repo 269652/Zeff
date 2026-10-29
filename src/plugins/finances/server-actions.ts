@@ -98,3 +98,18 @@ export async function setIncomeAction(income: number | null): Promise<Result> {
     return {};
   });
 }
+
+/** Settings → Finances: a recipient marked as an account of yours (own, credit) — or not any more. Back to the page. */
+export async function markAccountFormAction(fd: FormData): Promise<void> {
+  const { redirect } = await import("next/navigation");
+  const { revalidatePath } = await import("next/cache");
+  const key = String(fd.get("key") ?? "");
+  const kind = String(fd.get("kind") ?? "");
+  const r = await run(async () => {
+    (await import("./accounts")).markAccount(key, kind === "own" || kind === "credit" ? kind : null);
+    (await import("@/plugins/workspace/metrics")).forgetMetricValues();
+    return {};
+  });
+  revalidatePath("/settings/finances");
+  redirect(`/settings/finances?${new URLSearchParams(r.ok ? { ok: t("Saved.") } : { error: r.error })}#accounts`);
+}

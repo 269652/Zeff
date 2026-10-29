@@ -9,4 +9,6 @@ export default definePlugin({
   category: "app",
   defaultInstalled: true,
   dependsOn: ["workspace", "cases"],
+  settings: { href: "/settings/finances", what: "Your own accounts: transfers there are no spending" },
+  routes: ["/settings/finances"],
 });

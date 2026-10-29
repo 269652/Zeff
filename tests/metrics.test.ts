@@ -148,8 +148,18 @@ test("what the numbers count: a meeting is set up by someone else (not a todo, n
     ins.run(String(n++), `${month}-28`, 3000, "Gehalt", "Firma");
   }
   const { monthlySpending } = await import("@/plugins/finances/metrics");
-  assert.equal(monthlySpending("2026-10-15", ["Max Mustermann"]), 600, "the rent only: the pocket and your own account are money moved");
-  assert.equal(monthlySpending("2026-10-15", []), 1100, "without your name the transfer to yourself counts");
+  assert.equal(monthlySpending("2026-10-15", {}), 1100, "the pocket is money moved; the transfer to your name counts until you mark it");
+  const acc = await import("@/plugins/finances/accounts");
+  const mine = acc.recipients("2026-10-15").find((r) => r.name === "Max Mustermann")!;
+  assert.deepEqual([mine.count, mine.out, mine.kind], [3, 1500, null]);
+  assert.ok(!acc.recipients("2026-10-15").some((r) => /einzustecken/.test(r.name)), "card and pocket bookings without a named counterparty aren't accounts");
+  acc.markAccount(mine.key, "credit");
+  assert.equal(monthlySpending("2026-10-15"), 600, "marked as a credit account: the rent only");
+  assert.equal(acc.creditPayments("2026-10-15"), 500, "what went to credit accounts a month");
+  assert.equal(acc.recipients("2026-10-15")[0].kind, "credit", "the marked first");
+  acc.markAccount(mine.key, null);
+  assert.equal(monthlySpending("2026-10-15"), 1100, "unmarked: spending again");
+  assert.equal(acc.creditPayments("2026-10-15"), null);
 
   const { db } = await setup();
   const { valueUnit } = await import("@/plugins/workspace/values");

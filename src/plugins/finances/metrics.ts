@@ -1,10 +1,9 @@
-import { getSqlite } from "@/db";
-import { myNames } from "@/plugins/people/pulse";
 import type { MetricProvider } from "@/plugins/workspace/metric-point";
 import { debtPlans, debtsDbId } from "./debts";
 import { fixedCosts } from "./fixed";
 import { monthlyIncome } from "./income";
-import { movedOnly, type InBooking } from "./insights";
+import { bookingsBetween, creditPayments, lastThreeMonths, markedAccounts, type AccountKind } from "./accounts";
+import { movedOnly } from "./insights";
 import { recipientKey } from "./recurring";
 
 /**
@@ -17,36 +16,21 @@ const href = () => {
   const db = debtsDbId();
   return db ? `/workspace/${db}` : undefined;
 };
+/** Where you mark your own accounts (what spending leaves out). */
+const accountsHref = () => "/settings/finances#accounts";
 
 /**
  * What was spent a month — the bank statements' outgoing amounts over the last three whole months, on average. Money only
- * moved is no spending: to a pocket or savings account and back (movedOnly: the bank lists both legs), to an account of your
- * own (a transfer to your own name). Null: none read.
+ * moved is no spending: to a pocket or savings account and back (movedOnly: the bank lists both legs), to an account you
+ * marked as yours — your own or a credit account you pay into (Settings → Finances, accounts.ts). Null: none read.
  */
-export function monthlySpending(day = today(), me: string[] = ownNames()): number | null {
-  const d = new Date(`${day}T00:00:00Z`);
-  const to = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), 1)).toISOString().slice(0, 10);
-  const from = new Date(Date.UTC(d.getUTCFullYear(), d.getUTCMonth() - 3, 1)).toISOString().slice(0, 10);
-  let rows: InBooking[];
-  try {
-    rows = getSqlite().prepare("select date, amount, text, counterparty from bank_transactions where date >= ? and date < ?").all(from, to) as InBooking[];
-  } catch {
-    return null; // no statements read
-  }
-  if (!rows.length) return null;
+export function monthlySpending(day = today(), marked: Record<string, AccountKind> = markedAccounts()): number | null {
+  const { from, to } = lastThreeMonths(day);
+  const rows = bookingsBetween(from, to);
+  if (!rows?.length) return null;
   const moved = movedOnly(rows);
-  const mine = new Set(me.map((n) => recipientKey({ text: n, counterparty: "" })).filter((k) => k.length >= 5));
-  const out = rows.filter((b) => b.amount < 0 && !moved.has(recipientKey(b)) && !mine.has(recipientKey(b))).reduce((s, b) => s - b.amount, 0);
+  const out = rows.filter((b) => b.amount < 0 && !moved.has(recipientKey(b)) && !marked[recipientKey(b)]).reduce((s, b) => s - b.amount, 0);
   return Math.round((out / 3) * 100) / 100;
-}
-
-/** Your own names (People: the one you set, your Jira name, the name your mails go out under) — a transfer to them is yours still. */
-function ownNames(): string[] {
-  try {
-    return myNames();
-  } catch {
-    return [];
-  }
 }
 
 const open = (dir: "owe" | "owed") => debtPlans(today(), dir).debts.reduce((s, d) => s + d.open, 0);
@@ -66,7 +50,8 @@ export const FINANCES_METRICS: MetricProvider[] = [
   { label: "Schuldenfrei in", unit: "Monate", what: "Months until the last debt with a plan is paid off", read: () => monthsUntil(debtPlans(today(), "owe").summary.debtFree), href },
   { label: "Forderungen", unit: "€", what: "What others owe you, still open", read: () => open("owed"), href },
   { label: "Nettoeinkommen", unit: "€/Monat", what: "Your net income a month (set by hand, or read off your statements)", read: income, href },
-  { label: "Ausgaben", unit: "€/Monat", what: "What was spent a month — the last three whole months of your bank statements, on average; money only moved (pockets, savings, your own accounts) left out", read: () => monthlySpending(), href },
+  { label: "Ausgaben", unit: "€/Monat", what: "What was spent a month — the last three whole months of your bank statements, on average; money only moved (pockets, savings, the accounts you marked as yours) left out", read: () => monthlySpending(), href: accountsHref },
+  { label: "Auf Kreditkonten", unit: "€/Monat", what: "What went to the accounts you marked as credit accounts a month — the last three whole months on average", read: () => creditPayments(today(), markedAccounts()), href: accountsHref },
   {
     label: "Frei im Monat",
     unit: "€/Monat",
