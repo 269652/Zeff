@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { createEntryFormAction, formAction, formsAction, setEntryFormAction } from "../actions";
+import { createEntryFormAction, formAction, formsAction, setEntryFormAction, submitFormAction } from "../actions";
+import { prefillAnswers } from "../form-spec";
 import type { FormRun } from "../forms";
 import { Modal } from "./kit";
 import { FormRunner } from "./form-runner";
@@ -82,8 +83,12 @@ export function EntryFormSettings({ dbId, current, onClose, onSaved }: { dbId: n
   );
 }
 
-/** The entry form in a dialog: `onDone` hears of the row it made (null: none) and the rows it changed (the dialog is closed then). */
-export function EntryDialog({ formId, onClose, onDone }: { formId: number; onClose: () => void; onDone: (rowId: number | null, updated: number) => void }) {
+/**
+ * The entry form in a dialog: `onDone` hears of the row it made (null: none) and the rows it changed (the dialog is closed then).
+ * `prefill`: the cells of where the row is made (a board column, a calendar day, a group) — the form's first answers, and sent along
+ * for what it doesn't ask.
+ */
+export function EntryDialog({ formId, prefill = {}, onClose, onDone }: { formId: number; prefill?: Record<string, unknown>; onClose: () => void; onDone: (rowId: number | null, updated: number) => void }) {
   const t = useT();
   const [form, setForm] = useState<FormRun | null>(null);
   useEffect(() => {
@@ -92,7 +97,7 @@ export function EntryDialog({ formId, onClose, onDone }: { formId: number; onClo
   }, [formId]);
   return (
     <Modal title={form?.def.title || form?.title || t("New entry")} onClose={onClose} wide>
-      {form ? <FormRunner form={form} heading={false} headingLevel={2} onCancel={onClose} onDone={onDone} /> : <p className="text-sm text-zinc-400">…</p>}
+      {form ? <FormRunner form={form} heading={false} headingLevel={2} onCancel={onClose} onDone={onDone} initial={prefillAnswers(form.def, form.db?.props ?? [], prefill)} submit={(a) => submitFormAction(formId, a, prefill)} /> : <p className="text-sm text-zinc-400">…</p>}
     </Modal>
   );
 }

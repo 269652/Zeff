@@ -7984,7 +7984,12 @@
   "Show the checklist here too": "Mostrar la lista también aquí",
   "{n} todos of this checklist — in the todos widget": "{n} tareas de esta lista: en el widget de tareas",
   "Fold into the widget again": "Volver a plegar en el widget",
+<<<<<<< HEAD
   "What is open with them, what is coming up, what Zeff knows — your own notes go anywhere below.": "Lo que está pendiente con esta persona, lo que viene, lo que Zeff sabe — tus propias notas van debajo.",
   "Use the default layout": "Usar el diseño predeterminado",
   "The page has content of its own already — add the widgets with / instead.": "La página ya tiene contenido propio — añade los widgets con / en su lugar."
+=======
+  "Make a form from this table": "Crear un formulario a partir de esta tabla",
+  "New with a form …": "Nuevo con un formulario …"
+>>>>>>> forms-defaults
 }

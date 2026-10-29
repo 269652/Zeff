@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useT } from "@/components/I18nProvider";
-import { cellChoicesAction, formRelationChoicesAction, submitFormAction, type Result } from "../actions";
+import { cellChoicesAction, formRelationChoicesAction, pickedLabelsAction, submitFormAction, type Result } from "../actions";
 import { fieldLabel, fieldsIn, formErrors, shownFields, stampNow, startAnswers, type Answers, type FieldItem, type FlexItem, type FormItem, type RowsItem } from "../form-spec";
 import type { FormDb, FormRow, FormRun, FormSent, RowChanges } from "../forms";
 import type { Property } from "../model";
@@ -132,6 +132,18 @@ function Picker({ kind, prop, dbId, value, onChange, labels, onLabel, inputProps
   const [hits, setHits] = useState<{ id: number; label: string }[]>([]);
   const [open, setOpen] = useState(false);
   const listId = `${String(inputProps.id)}-list`;
+  // Names of chosen ones not picked here (a default, a prefill): asked for, so a chip shows a name, not an id.
+  const [names, setNames] = useState<Record<number, string>>({});
+  const unnamed = value.filter((id) => !labels[id] && !names[id]).join(",");
+  useEffect(() => {
+    if (!unnamed || !dbId) return;
+    let live = true;
+    void pickedLabelsAction(dbId, prop.id, unnamed.split(",").map(Number)).then((r) => live && r.ok && setNames((n) => ({ ...n, ...r.labels })));
+    return () => {
+      live = false;
+    };
+  }, [unnamed, dbId, prop.id]);
+  const nameOf = (id: number) => labels[id] ?? names[id] ?? `#${id}`;
   useEffect(() => {
     if (!open || inputProps.disabled) return;
     let live = true;
@@ -150,8 +162,8 @@ function Picker({ kind, prop, dbId, value, onChange, labels, onLabel, inputProps
         <ul className="flex flex-wrap gap-1.5" aria-label={t("Chosen")}>
           {value.map((id) => (
             <li key={id} className="ws-chip flex items-center gap-1">
-              {labels[id] ?? `#${id}`}
-              <button type="button" className="icon-btn size-5 text-xs" disabled={!!inputProps.disabled} aria-label={t("Remove {name}", { name: labels[id] ?? `#${id}` })} onClick={() => onChange(value.filter((x) => x !== id))}>
+              {nameOf(id)}
+              <button type="button" className="icon-btn size-5 text-xs" disabled={!!inputProps.disabled} aria-label={t("Remove {name}", { name: nameOf(id) })} onClick={() => onChange(value.filter((x) => x !== id))}>
                 ✕
               </button>
             </li>
@@ -309,12 +321,13 @@ export function StepProgress({ at, of, title }: { at: number; of: number; title:
  * A form to fill in. `submit` sends the answers (default: the form page's own action); `onDone` hears of the row made (a dialog
  * closes then) — without it, the thanks show with "Add another" and a link to the entry. `heading`: the form's title is shown.
  */
-export function FormRunner({ form, submit, onDone, onCancel, heading = true, headingLevel = 1 }: { form: FormRun; submit?: (answers: Answers) => Promise<Result<FormSent>>; onDone?: (rowId: number | null, updated: number) => void; onCancel?: () => void; heading?: boolean; headingLevel?: 1 | 2 }) {
+export function FormRunner({ form, submit, onDone, onCancel, heading = true, headingLevel = 1, initial }: { form: FormRun; submit?: (answers: Answers) => Promise<Result<FormSent>>; onDone?: (rowId: number | null, updated: number) => void; onCancel?: () => void; heading?: boolean; headingLevel?: 1 | 2; /** First answers over the defaults (a view's context: form-spec.ts prefillAnswers). */ initial?: Answers }) {
   const t = useT();
   const uid = useId().replace(/:/g, "");
   const { def, db } = form;
   const props = useMemo(() => db?.props ?? [], [db]);
-  const [answers, setAnswers] = useState<Answers>(() => startAnswers(def, props));
+  const first = () => ({ ...startAnswers(def, props), ...initial });
+  const [answers, setAnswers] = useState<Answers>(first);
   const [labels, setLabels] = useState<PickedLabels>({});
   const [step, setStep] = useState(0);
   const [errors, setErrors] = useState<Record<string, string>>({});
@@ -405,7 +418,7 @@ export function FormRunner({ form, submit, onDone, onCancel, heading = true, hea
     setDone({ id: r.id, updated: r.updated });
   };
   const again = () => {
-    setAnswers(startAnswers(def, props));
+    setAnswers(first());
     setLabels({});
     setStep(0);
     setDone(null);

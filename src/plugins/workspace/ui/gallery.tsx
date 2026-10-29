@@ -24,9 +24,9 @@ const PINNED = "pinned";
 const IMAGE = "newsimage";
 const COLOR = "color";
 
-type Props = { rows: Row[]; visible: Property[]; ctx: CellCtx; openRow: (id: number) => void; add: (cells: Record<string, unknown>, title: string) => Promise<number | null>; locked: boolean; /** The view's card template. */ template?: string };
+type Props = { rows: Row[]; visible: Property[]; ctx: CellCtx; openRow: (id: number) => void; add: (cells: Record<string, unknown>, title: string) => Promise<number | null>; locked: boolean; /** The view's card template. */ template?: string; /** The entry form, opened with these cells (instead of the note composer). */ onForm?: (cells: Record<string, unknown>) => void };
 
-export function GalleryView({ rows, visible, ctx, openRow, add, locked, template }: Props) {
+export function GalleryView({ rows, visible, ctx, openRow, add, locked, template, onForm }: Props) {
   const t = useT();
   const schema = ctx.data.schema;
   const pinnable = schema.properties.some((p) => p.id === PINNED);
@@ -51,7 +51,13 @@ export function GalleryView({ rows, visible, ctx, openRow, add, locked, template
   return (
     <div className="space-y-3">
       {/* Not on a database whose rows come from a source (people, mails …): a note there would be a new person or mail. */}
-      {!locked && !schema.dataType && <NoteComposer add={add} />}
+      {!locked && !schema.dataType && !onForm && <NoteComposer add={add} />}
+      {/* With an entry form: it opens instead — the labels filtered by as its first answers. */}
+      {!locked && onForm && (
+        <button type="button" className="ws-card w-full max-w-xl text-left text-sm text-zinc-500" onClick={() => onForm(tags && picked.size ? { [tags.id]: [...picked] } : {})}>
+          + {t("New")}
+        </button>
+      )}
       {used.length > 0 && (
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("Filter by label")}>
           {used.map((o) => {

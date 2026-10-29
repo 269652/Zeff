@@ -263,7 +263,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
         <div inert className="pointer-events-none">
           {item.kind === "rows" ? (
             form.db ? <RowsField item={item} db={form.db} rows={form.rows ?? []} edits={{}} onEdit={() => undefined} uid={`fd${form.id}`} /> : <p className="text-sm text-zinc-500">{t("Rows of the database")}</p>
-          ) : item.kind !== "field" ? <StaticItem item={item} /> : prop ? <FieldControl item={item} prop={prop} value={defaultAnswer(prop, item.default)} onChange={() => undefined} uid={`fd${form.id}`} /> : <p className="text-sm text-zinc-500">{item.prop}</p>}
+          ) : item.kind !== "field" ? <StaticItem item={item} /> : prop ? <FieldControl item={item} prop={prop} value={defaultAnswer(prop, item.default)} onChange={() => undefined} uid={`fd${form.id}`} dbId={def.dbId ?? undefined} /> : <p className="text-sm text-zinc-500">{item.prop}</p>}
         </div>
       </div>
     );

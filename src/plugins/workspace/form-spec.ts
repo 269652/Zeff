@@ -100,6 +100,42 @@ export function newFormDef(dbId: number | null): FormDef {
   return { dbId, title: "", intro: "", submitLabel: "", thanks: "", steps: [{ ...newStep(), items: dbId ? [fieldItem(TITLE, { required: true })] : [] }] };
 }
 
+/** The kinds of field that sit half wide in a form made from a table (a short answer: two side by side). */
+const HALF_TYPES: PropType[] = ["number", "date", "checkbox", "select", "status", "url", "email", "phone", "person"];
+
+/** A form made from a table: one step asking every column it can (`props`: formProps) — the title first and required, short ones half wide. */
+export function tableFormDef(dbId: number, props: Property[]): FormDef {
+  const items = props.map((p) => fieldItem(p.id, { ...(p.id === TITLE ? { required: true as const } : {}), width: HALF_TYPES.includes(p.type) && p.id !== TITLE ? "half" : "full" }));
+  return { dbId, title: "", intro: "", submitLabel: "", thanks: "", steps: [{ ...newStep(), items }] };
+}
+
+/** Whether a database's "New" offers "New with a form …": no entry form yet, and 3 or more columns a form can ask (the title too). */
+export const offersEntryForm = (schema: { titleName: string; properties: Property[]; entryForm?: number }): boolean => !schema.entryForm && formProps(schema).length >= 3;
+
+/**
+ * A view's context (the cells a new row gets there: a board column's value, a calendar day, a group's) as the first answers of a
+ * form — only for the fields it asks (shows), each as its control holds it (a day for a date, a number as words, lists as lists).
+ */
+export function prefillAnswers(def: FormDef, props: Property[], cells: Record<string, unknown>): Answers {
+  const out: Answers = {};
+  for (const f of formFields(def)) {
+    const p = props.find((x) => x.id === f.prop);
+    const raw = cells[f.prop];
+    if (f.hidden || !p || raw === undefined || raw === null) continue;
+    const v = typeof raw === "object" && !Array.isArray(raw) && "start" in raw ? (raw as { start: unknown }).start : raw;
+    if (p.type === "multi_select" || p.type === "person" || p.type === "relation") {
+      const list = (Array.isArray(v) ? v : [v]).filter((x) => (p.type === "multi_select" ? typeof x === "string" && !!p.options?.some((o) => o.id === x) : Number.isInteger(x) && (x as number) > 0));
+      if (list.length) out[f.prop] = list;
+    } else if (p.type === "checkbox") out[f.prop] = v === true;
+    else if (p.type === "select" || p.type === "status") {
+      if (p.options?.some((o) => o.id === v)) out[f.prop] = v;
+    } else if (p.type === "date") {
+      if (typeof v === "string" && /^\d{4}-\d{2}-\d{2}/.test(v)) out[f.prop] = v.slice(0, 10);
+    } else if ((typeof v === "string" || typeof v === "number") && String(v).trim()) out[f.prop] = String(v);
+  }
+  return out;
+}
+
 /** A database's form of the old kind (its schema's `form`) as a form page's: the title field, then its fields in order. */
 export function legacyFormDef(dbId: number, spec: FormSpec): FormDef {
   const title = fieldItem(TITLE, { ...(spec.titleLabel ? { label: spec.titleLabel } : {}), ...(spec.titleRequired ? { required: true as const } : {}) });
