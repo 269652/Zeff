@@ -43,3 +43,22 @@ if (!fs.existsSync(out)) {
   fs.writeFileSync(out, JSON.stringify({ personId, personName, dbId, dbTitle, rows, rowTitles: ["Alpha", "Beta"], props: { dose: dose.id, taken: taken.id }, todos, mergePage, mergeItem }, null, 2));
 }
 console.log(`e2e seed: ${out}`);
+
+// Forms from a table: a board (by its status) with a date and a person, no entry form yet — and a form of it whose person field
+// has the seeded person as its default (the designer shows the name).
+{
+  const seed = JSON.parse(fs.readFileSync(out, "utf8"));
+  if (!seed.boardDb) {
+    const { createPage } = await import("@/plugins/workspace/store");
+    const { newProperty, newView } = await import("@/plugins/workspace/model");
+    const { createForm } = await import("@/plugins/workspace/forms");
+    const { fieldItem, newStep } = await import("@/plugins/workspace/form-spec");
+    const status = { ...newProperty("Status", "status"), options: [{ id: "e2eOpen", name: "Offen", color: "gray" }, { id: "e2eDone", name: "Erledigt", color: "green" }] };
+    const due = newProperty("Fällig", "date");
+    const who = newProperty("Wer", "person");
+    const boardTitle = "E2E Aufgabenboard";
+    const boardDb = createPage({ kind: "database", title: boardTitle, schema: { titleName: "Aufgabe", properties: [status, due, who], views: [{ ...newView("Board", "board"), groupBy: status.id }] } });
+    const personForm = createForm({ dbId: boardDb, title: "E2E Personenformular", def: { dbId: boardDb, title: "", intro: "", submitLabel: "", thanks: "", steps: [{ ...newStep(), items: [fieldItem("title", { required: true }), fieldItem(who.id, { default: String(seed.personId) })] }] } });
+    fs.writeFileSync(out, JSON.stringify({ ...seed, boardDb, boardTitle, boardProps: { status: status.id, due: due.id, who: who.id }, personForm }, null, 2));
+  }
+}

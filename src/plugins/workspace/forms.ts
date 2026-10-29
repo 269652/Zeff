@@ -1,8 +1,9 @@
 import { getSqlite } from "@/db";
 import { t } from "@/lib/i18n/server";
 import { addRow, createPage, getDatabase, getPage, rawRows, setCell, setPageProps, updateSchema } from "./store";
-import { blockFormDef, coerceAnswers, formCells, formErrors, formFields, formProps, formRowsItems, legacyFormDef, newFormDef, normalizeForm, stampNow, type Answers, type FormDef } from "./form-spec";
-import { newId, newProperty, type Property, type PropType } from "./model";
+import { getPerson } from "@/plugins/people/store";
+import { blockFormDef, coerceAnswers, formCells, formErrors, formFields, formProps, formRowsItems, legacyFormDef, newFormDef, normalizeForm, shownFields, stampNow, tableFormDef, withHiddenDefaults, type Answers, type FormDef } from "./form-spec";
+import { newId, newProperty, TITLE, type Property, type PropType } from "./model";
 
 /**
  * Forms as pages of their own (kind "form"): what one asks is kept in the page's `props.form` (form-spec.ts says what it may be), the
@@ -90,6 +91,19 @@ export function createForm(v: { parentId?: number | null; dbId?: number | null; 
   return createPage({ kind: "form", parentId: v.parentId ?? null, title: v.title ?? (db ? `${db.title} – ${t("Form")}` : ""), props: { form: def } });
 }
 
+/**
+ * "Make a form from this table": a form page beside the database asking every column it can (form-spec.ts tableFormDef) — and its
+ * entry form, when it had none (one set stays). Returns its id.
+ */
+export function formFromTable(dbId: number): number {
+  const d = getDatabase(dbId);
+  const db = formDb(dbId);
+  if (!d || !db) throw new Error(t("No such database."));
+  const id = createForm({ parentId: d.page.parentId, dbId, def: tableFormDef(dbId, db.props) });
+  if (!d.schema.entryForm) updateSchema(dbId, { ...d.schema, entryForm: id });
+  return id;
+}
+
 /** The forms that fill a database (for its entry form), by title. */
 export function formsOfDb(dbId: number): { id: number; title: string }[] {
   migrateLegacyForms();
@@ -143,8 +157,12 @@ function rowChanges(def: FormDef, db: FormDb, raw: unknown): [number, string, un
   return out;
 }
 
-/** A form's answers checked and made a row of `db` — or what is wrong. Related rows must be rows of the database the relation points to. */
-function submitDef(def: FormDef, db: FormDb, raw: unknown): FormSent {
+/**
+ * A form's answers checked and made a row of `db` — or what is wrong. Related rows must be rows of the database the relation points to.
+ * `context`: the cells the view the row is made in gives it (a board column's value, a calendar day) — for the columns the form
+ * doesn't show (over a hidden field's default); what it shows is answered.
+ */
+function submitDef(def: FormDef, db: FormDb, raw: unknown, context: Record<string, unknown> = {}): FormSent {
   const changes = rowChanges(def, db, raw && typeof raw === "object" ? (raw as { rows?: unknown }).rows : undefined);
   // A form with no fields of its own only changes rows: no row is made.
   const makes = formFields(def).length > 0;
@@ -161,18 +179,25 @@ function submitDef(def: FormDef, db: FormDb, raw: unknown): FormSent {
   // The rows changed and the new row made together: all of it, or (a locked row, a protected field) none of it.
   return getSqlite().transaction((): FormSent => {
     for (const [row, prop, value] of changes) setCell(row, prop, value);
-    const id = makes ? addRow(db.id, formCells(def, answers, db.props)) : null;
+    const made = formCells(def, answers, db.props);
+    const showing = shownFields(def, withHiddenDefaults(def, answers, db.props), db.props);
+    const shown = new Set(formFields(def).filter((f) => showing.has(f.id)).map((f) => f.prop));
+    const given = Object.fromEntries(Object.entries(context).filter(([k]) => k !== TITLE && !shown.has(k)));
+    const id = makes ? addRow(db.id, { ...made, cells: { ...made.cells, ...given } }) : null;
     return { id, errors: {}, updated: new Set(changes.map((c) => c[0])).size };
   })();
 }
 
-/** A form page filled in: the row it makes (the routines on "row added" go on from there), or what is wrong by field. */
-export function submitForm(formId: number, raw: unknown): FormSent {
+/**
+ * A form page filled in: the row it makes (the routines on "row added" go on from there), or what is wrong by field. `context`: the
+ * cells of the view it was opened from (submitDef).
+ */
+export function submitForm(formId: number, raw: unknown, context?: Record<string, unknown>): FormSent {
   const p = getPage(formId);
   const form = getForm(formId);
   if (!form || p?.archivedAt) throw new Error(t("This form is not there."));
   if (!form.db) throw new Error(t("This form has no database to fill yet."));
-  return submitDef(form.def, form.db, raw);
+  return submitDef(form.def, form.db, raw, context && typeof context === "object" && !Array.isArray(context) ? context : {});
 }
 
 /** An old form block (a database and its fields, not yet a form page): drawn as a form of its own — what it would be as a page. */
@@ -205,6 +230,18 @@ export function relationChoices(dbId: number, propId: string, q: string): { id: 
     .sort((a, b) => Number(b.title.toLowerCase().startsWith(w)) - Number(a.title.toLowerCase().startsWith(w)))
     .slice(0, 10)
     .map((r) => ({ id: r.id, label: r.title || t("Untitled") }));
+}
+
+/** The names of chosen people or rows of a person or relation field (by id; who is gone has none) — a default's or a prefill's chips. */
+export function pickedLabels(dbId: number, propId: string, ids: number[]): Record<number, string> {
+  const p = getDatabase(dbId)?.schema.properties.find((x) => x.id === propId);
+  const out: Record<number, string> = {};
+  for (const id of ids.filter((x) => Number.isInteger(x) && x > 0).slice(0, 50)) {
+    const row = p?.type === "relation" ? getPage(id) : null;
+    const name = p?.type === "person" ? getPerson(id)?.name : row && row.dbId === p?.relationDb && !row.archivedAt ? row.title || t("Untitled") : undefined;
+    if (name) out[id] = name;
+  }
+  return out;
 }
 
 /**

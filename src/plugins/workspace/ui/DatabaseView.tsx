@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { templateParamsAction, tryRulesAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { templateParamsAction, tryRulesAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, formFromTableAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, withCell, dropBetween, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -14,6 +14,7 @@ import { RowPeek } from "./RowPeek";
 import { GalleryView } from "./gallery";
 import { BulkBar } from "./bulk";
 import { EntryDialog, EntryFormSettings } from "./entry-form";
+import { offersEntryForm } from "../form-spec";
 import { RecurringDialog } from "./recurring";
 import { ProtectDialog } from "./protect";
 import { TimelineView } from "./timeline";
@@ -310,8 +311,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [pipelineOpen, setPipelineOpen] = useState(() => search.get("steps") === "1");
   const [justAdded, setJustAdded] = useState<number | null>(null);
   const [formOpen, setFormOpen] = useState(false);
-  // The entry form (schema.entryForm) open in its dialog — "New" with one set.
-  const [entryOpen, setEntryOpen] = useState(false);
+  // The entry form open in its dialog — "New" with one set (schema.entryForm), with the cells of where the row is made (a board
+  // column, a calendar day, a group): its first answers.
+  const [entry, setEntry] = useState<{ formId: number; cells: Record<string, unknown> } | null>(null);
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [protectOpen, setProtectOpen] = useState(false);
   const [shareOpen, setShareOpen] = useState(false);
@@ -452,7 +454,10 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
 
   // Where a new row can be named in place: a table (an app's view without its app is one) — anywhere else it opens.
   const inPlace = !!view && !!data && (view.type === "table" || (view.type === "app" && !appAvailable(data, view)));
+  // A new row where the entry form is set: the form opens, prefilled with these cells (none set: undefined).
+  const onForm = schema.entryForm ? (cells: Record<string, unknown> = {}) => setEntry({ formId: schema.entryForm!, cells }) : undefined;
   const newRow = async (cells: Record<string, unknown> = {}, templateId?: number, open = false, params?: Record<string, string>) => {
+    if (onForm && !templateId) return onForm(cells);
     const id = await api.addRow(cells, "", templateId, params);
     if (!id) return;
     // A row from a template opens as a page; a plain one is named in place.
@@ -790,6 +795,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
               )}
               <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
               <MenuItem checked={!!schema.entryForm} onClick={() => (close(), setFormOpen(true))}>📝 {t("Entry form …")}</MenuItem>
+              <MenuItem onClick={() => (close(), void formFromTableAction(dbId).then((r) => (r.ok ? router.push(`/workspace/${r.id}`) : toast(r.error, { tone: "error" }))))}>📝 {t("Make a form from this table")}</MenuItem>
               <MenuItem onClick={() => (close(), setRepeatOpen(true))}>🔁 {t("Repeating rows …")}</MenuItem>
               <MenuItem onClick={() => (close(), setProtectOpen(true))}>🛡 {t("Protection …")}</MenuItem>
               <MenuItem checked={!!schema.share} onClick={() => (close(), setShareOpen(true))}>
@@ -919,7 +925,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           )}
         </Dropdown>
         <div className={`flex shrink-0 ${data.locked || data.noNewRows ? "hidden" : ""}`}>
-          <button type="button" className="btn btn-primary btn-sm rounded-r-none" title={t("New")} aria-label={t("New")} onClick={() => (view.type === "app" && appNew.current ? appNew.current() : schema.entryForm ? setEntryOpen(true) : void newRow({}, undefined, !inPlace))}>
+          <button type="button" className="btn btn-primary btn-sm rounded-r-none" title={t("New")} aria-label={t("New")} onClick={() => (view.type === "app" && appNew.current ? appNew.current() : void newRow({}, undefined, !inPlace))}>
             {narrow ? "+" : t("New")}
           </button>
           <Dropdown label="▾" align="right" title={t("New from a template")} wrapClassName="relative flex" className="btn btn-primary btn-sm h-auto rounded-l-none border-l border-indigo-400 px-1.5">
@@ -939,6 +945,20 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
                     📋 {tp.title}
                   </MenuItem>
                 ))}
+                {offersEntryForm(schema) && (
+                  <MenuItem
+                    onClick={async () => {
+                      close();
+                      // A form asking every column, made now and set as the entry form — and opened to fill in.
+                      const r = await formFromTableAction(dbId);
+                      if (!r.ok) return void toast(r.error, { tone: "error" });
+                      await api.reload();
+                      setEntry({ formId: r.id, cells: {} });
+                    }}
+                  >
+                    📝 {t("New with a form …")}
+                  </MenuItem>
+                )}
                 {!data.templates.length && <p className="max-w-56 px-2 py-1.5 text-xs text-zinc-500">{t("No templates yet — open a row and choose “Use as a template” in its menu.")}</p>}
               </>
             )}
@@ -992,10 +1012,10 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       )}
       {view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} onNew={setAppNew} ctx={ctx} rowOps={rowOps} src={code?.viewId === view.id ? code.draft : undefined} onErrors={code?.viewId === view.id ? setCodeErrors : undefined} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
       {view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} onHide={(hide) => (api.changeSchema((s) => hideRows(s, [...picked], hide)), setPicked(new Set()))} />}
-      {view.type === "table" && <TableView fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
-      {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} />}
+      {view.type === "table" && <TableView onForm={onForm} fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
+      {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} onForm={onForm} />}
       {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
-      {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} locked={!!data.locked || !!data.noNewRows} template={view.card} />}
+      {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} onForm={onForm} locked={!!data.locked || !!data.noNewRows} template={view.card} />}
       {view.type === "timeline" && <TimelineView view={view} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} />}
       {view.type === "todo" && <TodoView dbId={dbId} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} canAdd={!data.noNewRows} />}
       {view.type === "chart" && <ChartView view={view} rows={rows} schema={schema} />}
@@ -1045,12 +1065,13 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {shareOpen && <ShareDialog dbId={dbId} schema={schema} title={data.title} onDone={() => void api.reload()} onClose={() => setShareOpen(false)} />}
       {repeatOpen && <RecurringDialog dbId={dbId} schema={schema} templates={data.templates} onClose={() => setRepeatOpen(false)} />}
       {formOpen && <EntryFormSettings dbId={dbId} current={schema.entryForm ?? null} onSaved={() => void api.reload()} onClose={() => setFormOpen(false)} />}
-      {entryOpen && schema.entryForm && (
+      {entry && (
         <EntryDialog
-          formId={schema.entryForm}
-          onClose={() => setEntryOpen(false)}
+          formId={entry.formId}
+          prefill={entry.cells}
+          onClose={() => setEntry(null)}
           onDone={(id, updated) => {
-            setEntryOpen(false);
+            setEntry(null);
             void api.reload();
             // (A form that only changes rows makes none: what it changed is said.)
             if (id !== null) toast(t("Added ✓"), { action: { label: t("Open it"), run: () => openRow(id) } });
@@ -1231,7 +1252,7 @@ function TitleCell({ row, ctx, openRow, autoEdit = false, onEdited }: { row: Row
   );
 }
 
-function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, setView, onSchema, justAdded, onEdited, sel, fill = false }: ViewProps & { setView: (v: View) => void; onSchema: () => void; justAdded: number | null; onEdited: () => void; sel?: Selection; /** A database page of its own: the table as high as the window has room for. */ fill?: boolean }) {
+function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, setView, onSchema, justAdded, onEdited, sel, fill = false, onForm }: ViewProps & { /** The entry form opened with these cells (none set: a row is made). */ onForm?: (cells: Record<string, unknown>) => void; setView: (v: View) => void; onSchema: () => void; justAdded: number | null; onEdited: () => void; sel?: Selection; /** A database page of its own: the table as high as the window has room for. */ fill?: boolean }) {
   const t = useT();
   // As high as the window has room for (the line under it counted): the head on top, the sum row at the bottom, + New
   // right after the last row — an empty row between takes up the rest; more rows than room: it scrolls in itself.
@@ -1511,7 +1532,9 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                       aria-label={t("New row in “{group}”", { group: g.key ? g.label : t("No value") })}
                       onClick={() => {
                         const gp = schema.properties.find((p) => p.id === view.groupBy);
-                        void api.addRow(gp && g.key ? { [gp.id]: gp.type === "multi_select" || gp.type === "person" || gp.type === "relation" ? [gp.type === "multi_select" ? g.key : Number(g.key)] : gp.type === "checkbox" ? g.key === "true" : g.key } : {});
+                        const cells = gp && g.key ? { [gp.id]: gp.type === "multi_select" || gp.type === "person" || gp.type === "relation" ? [gp.type === "multi_select" ? g.key : Number(g.key)] : gp.type === "checkbox" ? g.key === "true" : g.key } : {};
+                        if (onForm) onForm(cells);
+                        else void api.addRow(cells);
                       }}
                     >
                       +
@@ -1587,7 +1610,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
   );
 }
 
-function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, newRow }: ViewProps & { newRow: (cells?: Record<string, unknown>, templateId?: number, open?: boolean) => Promise<void> }) {
+function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, newRow, onForm }: ViewProps & { newRow: (cells?: Record<string, unknown>, templateId?: number, open?: boolean) => Promise<void>; onForm?: (cells: Record<string, unknown>) => void }) {
   // A subtask (its parent named): no subtasks of its own.
   const parentProp = schema.properties.find((p) => p.type === "relation" && p.relationDb === ctx.data.id && !p.backOf);
   const isSubtask = (r: Row) => !!parentProp && (Array.isArray(r.cells[parentProp.id]) ? (r.cells[parentProp.id] as unknown[]).length > 0 : !!r.cells[parentProp.id]);
@@ -1675,7 +1698,7 @@ function BoardView({ view, rows, visible, schema, ctx, api, labels, openRow, new
             </div>
           ))}
           {over?.key === g.key && over.before === null && <div className="ws-drop-line" aria-hidden />}
-          {!ctx.data.locked && !ctx.data.noNewRows && <NewCard cells={{ [gp.id]: valueFor(g.key) }} add={(cells, title) => api.addRow(cells, title)} />}
+          {!ctx.data.locked && !ctx.data.noNewRows && <NewCard cells={{ [gp.id]: valueFor(g.key) }} add={(cells, title) => api.addRow(cells, title)} onForm={onForm} />}
         </div>
       ))}
       {!ctx.data.locked && (gp.type === "status" || gp.type === "select" || gp.type === "multi_select") && <AddColumn add={(name) => void api.addOption(gp.id, name)} />}
@@ -1931,7 +1954,7 @@ function SubtaskGhost({ parentId, after }: { parentId: number; after: () => void
   );
 }
 
-function NewCard({ cells, add }: { cells: Record<string, unknown>; add: (cells: Record<string, unknown>, title: string) => Promise<number | null> }) {
+function NewCard({ cells, add, onForm }: { cells: Record<string, unknown>; add: (cells: Record<string, unknown>, title: string) => Promise<number | null>; /** The entry form, opened with the column's value (instead of a title typed here). */ onForm?: (cells: Record<string, unknown>) => void }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState("");
@@ -1939,7 +1962,7 @@ function NewCard({ cells, add }: { cells: Record<string, unknown>; add: (cells: 
   const field = useRef<HTMLTextAreaElement>(null);
   if (!open)
     return (
-      <button type="button" className="w-full rounded-md px-2 py-1 text-left text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setOpen(true)}>
+      <button type="button" className="w-full rounded-md px-2 py-1 text-left text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => (onForm ? onForm(cells) : setOpen(true))}>
         + {t("New")}
       </button>
     );

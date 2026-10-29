@@ -1537,9 +1537,22 @@ export async function createFormAction(v: { parentId?: number | null; dbId?: num
   return run(async () => ({ id: (await import("./forms")).createForm({ parentId: v.parentId ?? null, dbId: v.dbId ? Number(v.dbId) : null, title: v.title }) }));
 }
 
-/** A form filled in: the row it made — or, by field (item id), what is wrong (nothing made then). */
-export async function submitFormAction(formId: number, answers: Record<string, unknown>) {
-  return run(async () => (await import("./forms")).submitForm(Number(formId), answers));
+/**
+ * A form filled in: the row it made — or, by field (item id), what is wrong (nothing made then). `context`: the cells of the view
+ * it was opened from (a board column's value, a calendar day) for what the form doesn't ask.
+ */
+export async function submitFormAction(formId: number, answers: Record<string, unknown>, context?: Record<string, unknown>) {
+  return run(async () => (await import("./forms")).submitForm(Number(formId), answers, context));
+}
+
+/** "Make a form from this table": a form asking every column, beside the database (its entry form when it had none). */
+export async function formFromTableAction(dbId: number) {
+  return run(async () => ({ id: (await import("./forms")).formFromTable(Number(dbId)) }));
+}
+
+/** The names of chosen people or rows of a field (a default's or a prefill's chips). */
+export async function pickedLabelsAction(dbId: number, propId: string, ids: number[]) {
+  return run(async () => ({ labels: (await import("./forms")).pickedLabels(Number(dbId), String(propId), Array.isArray(ids) ? ids.map(Number) : []) }));
 }
 
 /** The forms there are (to embed one), or those that fill one database (its entry form). */
