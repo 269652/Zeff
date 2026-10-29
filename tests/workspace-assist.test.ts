@@ -169,7 +169,7 @@ test("applying: only the chosen actions — a plan calendar with its days (embed
     ],
   } as import("@/plugins/workspace/assist-shared").AssistState;
   const r = await applyAssist(pageId, state, ["a1", "a2", "a3", "a4"]);
-  assert.deepEqual(r.nodes.map((n) => n.type), ["calendarEmbed", "paragraph", "zeffWidget", "heading", "taskList"]);
+  assert.deepEqual(r.nodes.map((n) => n.type), ["calendarEmbed", "taskList", "zeffWidget", "heading", "taskList"]);
 
   const ir = await import("@/lib/calendar/ir");
   const embed = r.nodes[0].attrs!;
@@ -178,19 +178,20 @@ test("applying: only the chosen actions — a plan calendar with its days (embed
   assert.deepEqual([embed.view, embed.day, embed.also], ["week", "2027-01-15", ""]);
   assert.deepEqual(ir.eventsBetween("2027-01-15T00:00", "2027-01-18T00:00").filter((e) => e.calendarId === cal.id).map((e) => e.title).sort(), ["Hamburg", "Zug"]);
 
-  const { getTodo } = await import("@/lib/boards/store");
-  const todoRef = r.nodes[1].content![0];
-  assert.equal(todoRef.type, "zeffRef");
-  const todo = getTodo(Number(todoRef.attrs!.ref))!;
-  assert.deepEqual([todo.text, todo.due, todoRef.attrs!.kind, todoRef.attrs!.href], ["Karla fragen, ob sie mitkommt", "2026-12-01", "todo", `/t/${todo.id}`]);
+  // Its todos: one checklist of the page that feeds the Todo engine (ticked there, the todo is done) — not chips of their own.
+  const list = r.nodes[1];
+  assert.equal(list.attrs!.engine, true);
+  assert.match(String(list.attrs!.listId), /\w+/);
+  const item = list.content![0];
+  assert.deepEqual([item.type, item.attrs!.checked, item.attrs!.due, item.content![0].content![0].text], ["taskItem", false, "2026-12-01", "Karla fragen, ob sie mitkommt"]);
   assert.deepEqual(r.nodes[2].attrs, { widget: "people.coming", config: "{}", title: "", header: "" });
-  assert.deepEqual(r.created.map((c) => c.kind), ["calendar", "todo"]);
+  assert.deepEqual(r.created.map((c) => c.kind), ["calendar", "list"]);
+  assert.equal(r.created[1].ref, list.attrs!.listId, "the list is known by its id (Undo takes it out of the page)");
   assert.match(r.summary, /4/, "how many were set up");
 
-  // Undo on the card: what it made outside the page goes again.
-  assert.equal(await undoAssist(r.created), 2);
+  // Undo on the card: what it made outside the page goes again (the list's todos go with the list leaving the page).
+  assert.equal(await undoAssist(r.created), 1);
   assert.equal(ir.listCalendars().some((c) => c.id === cal.id), false);
-  assert.equal(getTodo(todo.id)!.status, "dismissed");
   assert.equal(await undoAssist([{ kind: "calendar", id: ir.zeffCalendar().id, label: "x" }]), 0, "never a calendar that isn't a shadow one");
 });
 

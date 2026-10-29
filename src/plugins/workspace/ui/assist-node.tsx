@@ -248,10 +248,11 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
     if (!r.ok) return toast(r.error, { tone: "error" });
     const cals = new Set(s.created.filter((c) => c.kind === "calendar").map((c) => c.id));
     const todos = new Set(s.created.filter((c) => c.kind === "todo").map((c) => String(c.id)));
+    const lists = new Set(s.created.filter((c) => c.kind === "list" && c.ref).map((c) => String(c.ref)));
     const ranges: [number, number][] = [];
     editor.state.doc.descendants((n, pos) => {
       const ref = n.type.name === "paragraph" && n.childCount === 1 ? n.firstChild : null;
-      if ((n.type.name === "calendarEmbed" && cals.has(Number(n.attrs.calendarId))) || (ref?.type.name === "zeffRef" && ref.attrs.kind === "todo" && todos.has(String(ref.attrs.ref))) || (n.type.name === "assistCard" && n.attrs.id === id)) {
+      if ((n.type.name === "calendarEmbed" && cals.has(Number(n.attrs.calendarId))) || (ref?.type.name === "zeffRef" && ref.attrs.kind === "todo" && todos.has(String(ref.attrs.ref))) || (n.type.name === "taskList" && lists.has(String(n.attrs.listId))) || (n.type.name === "assistCard" && n.attrs.id === id)) {
         ranges.push([pos, pos + n.nodeSize]);
         return false;
       }

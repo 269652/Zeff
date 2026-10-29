@@ -3,6 +3,7 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { docRefs, docText, docToMarkdown, markdownToDoc, sanitizeDoc, type DocNode } from "./doc";
 import { ASSIST_ACTION_KINDS, MAX_ASSIST_ACTIONS, MAX_ASSIST_QUESTIONS, MAX_ASSIST_ROUNDS, type AssistAction, type AssistActionBody, type AssistActionKind, type AssistCreated, type AssistEvent, type AssistQuestion, type AssistQuestionKind, type AssistState } from "./assist-shared";
+import { newId } from "./model";
 import * as store from "./store";
 
 /**
@@ -263,7 +264,7 @@ async function madeBefore(created: AssistCreated[]): Promise<string[]> {
       const ir = await import("@/lib/calendar/ir");
       const days = ir.eventsBetween("1970-01-01T00:00", "2999-01-01T00:00").filter((e) => e.calendarId === Number(c.id)).map((e) => `${e.title} ${e.start}–${e.end}`);
       out.push(`- Planungskalender calendarId ${c.id} "${c.label}": ${days.join("; ") || "(leer)"}`);
-    } else if (c.kind === "todo") out.push(`- Todo: ${c.label}`);
+    } else if (c.kind === "todo" || c.kind === "list") out.push(`- Todo${c.kind === "list" ? "s (Checkliste der Seite)" : ""}: ${c.label}`);
   }
   return out;
 }
@@ -375,14 +376,9 @@ const EXECUTORS: { [K in AssistActionKind]: (a: Extract<AssistAction, { kind: K 
     const span = (new Date(`${last}T00:00`).getTime() - new Date(`${first}T00:00`).getTime()) / 86400000;
     return { nodes: [{ type: "calendarEmbed", attrs: { calendarId: cal.id, view: span > 7 ? "month" : "week", day: first, also: "" } }], created: [{ kind: "calendar", id: cal.id, label: cal.name }] };
   },
-  // A todo of yours, linked from the page (one already open with the same text: that one, not made again).
-  todo: async (a) => {
-    const { addManualTodo, setTodoDue } = await import("@/lib/boards/store");
-    const todo = addManualTodo({ ticket: "", text: a.text });
-    if (a.due && !todo.outcome) setTodoDue(todo.id, a.due);
-    const ref = { type: "zeffRef", attrs: { kind: "todo", ref: String(todo.id), label: `${todo.ref} ${todo.text}`.slice(0, 80), href: `/t/${todo.id}` } };
-    return { nodes: [{ type: "paragraph", content: [ref] }], created: todo.outcome ? [] : [{ kind: "todo", id: todo.id, label: todo.text, href: `/t/${todo.id}` }] };
-  },
+  // A todo: an item of the page's checklist that feeds the Todo engine (applyAssist gathers them into one list) — ticked there,
+  // the todo is done; the list taken out of the page, its todos go.
+  todo: async (a) => ({ nodes: [{ type: "taskItem", attrs: { checked: false, itemId: newId("i"), ...(a.due ? { due: a.due } : {}) }, content: [{ type: "paragraph", content: [{ type: "text", text: a.text }] }] }], created: [] }),
   widget: async (a) => ({ nodes: [{ type: "zeffWidget", attrs: { widget: a.widget, config: JSON.stringify(a.config), title: "", header: "" } }], created: [] }),
   text: async (a) => ({ nodes: markdownToDoc(a.markdown).content ?? [], created: [] }),
 };
@@ -394,12 +390,23 @@ export async function applyAssist(pageId: number, state: AssistState, ids: strin
   const chosen = state.actions.filter((a) => ids.includes(a.id)).map((a) => cleanAction(a, check)).filter((a): a is AssistActionBody => !!a);
   if (!chosen.length) throw new ValidationError(t("Choose at least one thing to set up."));
   const out: Made = { nodes: [], created: [] };
+  // The todos: one checklist, where the first of them stands.
+  let list: DocNode | null = null;
   try {
     for (const a of chosen) {
       const made = await (EXECUTORS[a.kind] as (x: typeof a) => Promise<Made>)(a);
+      if (a.kind === "todo") {
+        if (!list) {
+          list = { type: "taskList", attrs: { listId: newId("t"), title: "", engine: true }, content: [] };
+          out.nodes.push(list);
+        }
+        list.content!.push(...made.nodes);
+        continue;
+      }
       out.nodes.push(...made.nodes);
       out.created.push(...made.created);
     }
+    if (list) out.created.push({ kind: "list", id: 0, label: (list.content ?? []).map((i) => i.content?.[0]?.content?.[0]?.text ?? "").join(" · ").slice(0, 300), ref: String(list.attrs!.listId) });
   } catch (e) {
     await undoAssist(out.created); // half done: nothing left behind
     throw e;

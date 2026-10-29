@@ -8,6 +8,7 @@ import { aiBlockAction, mentionStateAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { PersonHover } from "@/plugins/people/PersonMention";
+import { setTodoStatusAction } from "@/plugins/todos/server-actions";
 import { DatabaseBlock } from "./DatabaseView";
 import { embedPage } from "./page-embed";
 import { RowViewHost } from "./row-view";
@@ -212,6 +213,17 @@ function RefView({ node, editor, getPos }: NodeViewProps) {
   const icon = kind === "todo" ? (state.done ? "✅" : "☐") : state.icon ?? (kind === "person" ? "👤" : kind === "ticket" ? "🎫" : kind === "metric" ? "📊" : kind === "circle" ? "👥" : "📄");
   const text = kind === "todo" || kind === "ticket" ? label : (state.label ?? label);
   const external = /^https?:\/\//.test(href ?? "");
+  const toggleTodo = async () => {
+    const done = !state.done;
+    setState((s) => ({ ...s, done }));
+    const r = await setTodoStatusAction(Number(ref), done ? "done" : "open");
+    if (r && "error" in r && r.error) {
+      setState((s) => ({ ...s, done: !done }));
+      toast(String(r.error), { tone: "error" });
+      return;
+    }
+    stateCache.delete(`todo:${ref}`);
+  };
   // A page's chip: shown inline instead (its content in place) — a click on ⤢.
   const pageId = kind === "page" ? Number(/^\/workspace\/(\d+)/.exec(href ?? "")?.[1] ?? ref) : 0;
   const inline = editor.isEditable && pageId > 0 && !state.missing;
@@ -234,7 +246,31 @@ function RefView({ node, editor, getPos }: NodeViewProps) {
       }}
       contentEditable={false}
     >
-      <span aria-hidden>{icon}</span>
+      {kind === "todo" && /^\d+$/.test(ref) ? (
+        // A todo: its box ticks it (done, or open again) — like a checklist in the page.
+        <span
+          role="checkbox"
+          aria-checked={!!state.done}
+          aria-label={text}
+          tabIndex={0}
+          className="cursor-pointer"
+          onClick={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            void toggleTodo();
+          }}
+          onKeyDown={(e) => {
+            if (e.key !== " " && e.key !== "Enter") return;
+            e.preventDefault();
+            e.stopPropagation();
+            void toggleTodo();
+          }}
+        >
+          {icon}
+        </span>
+      ) : (
+        <span aria-hidden>{icon}</span>
+      )}
       {/* A Kennzahl: its name, its value now under it. */}
       {kind === "metric" ? (
         <span className="inline-flex flex-col py-0.5 leading-tight">

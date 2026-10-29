@@ -97,10 +97,17 @@ function MiniBars({ mini }: { mini: NonNullable<WidgetItem["mini"]> }) {
 
 function ItemRow({ item, busy, act }: { item: WidgetItem; busy: boolean; act: (action: string, id: string) => void }) {
   const tone: Tone = item.tone ?? "none";
-  const big = !!item.icon;
+  // A row that can be ticked (done set, a "toggle" action): a real checkbox leads it — like a checklist in the page.
+  const tick = item.done !== undefined && !!item.actions?.some((a) => a.id === "toggle");
+  const actions = tick ? item.actions!.filter((a) => a.id !== "toggle") : item.actions;
+  const big = !!item.icon && !tick;
   return (
     <li className={`group/item relative flex items-start gap-3 rounded-xl px-2 ${big ? "py-1.5" : "py-1"} transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50`}>
-      <Lead icon={item.icon} tone={tone} />
+      {tick ? (
+        <input type="checkbox" className="mt-0.5 size-4 shrink-0 cursor-pointer accent-indigo-600" checked={!!item.done} disabled={busy} aria-label={item.text} onChange={() => act("toggle", item.id)} />
+      ) : (
+        <Lead icon={item.icon} tone={tone} />
+      )}
       <Go href={item.href} className="min-w-0 flex-1 text-inherit no-underline" title={item.text}>
         <span className={`block ${item.wrap ? "" : "truncate"} text-sm ${item.done ? "text-zinc-400 line-through" : "font-medium text-zinc-800 dark:text-zinc-100"}`}>{item.text}</span>
         {item.detail && <span className={`block ${item.wrap ? "" : "truncate"} text-xs text-zinc-500 dark:text-zinc-400`}>{item.detail}</span>}
@@ -109,9 +116,9 @@ function ItemRow({ item, busy, act }: { item: WidgetItem; busy: boolean; act: (a
       <span className="flex shrink-0 items-center gap-1.5 self-center">
         {item.badge && <span className={`max-w-32 truncate rounded-full px-2 py-0.5 text-[11px] font-medium ${TONE_BADGE[tone]}`}>{item.badge}</span>}
         {item.meta && <span className="text-xs whitespace-nowrap text-zinc-400 tabular-nums group-hover/item:hidden group-focus-within/item:hidden">{item.meta}</span>}
-        {!!item.actions?.length && (
+        {!!actions?.length && (
           <span className="hidden items-center gap-0.5 group-hover/item:flex group-focus-within/item:flex [@media(hover:none)]:flex">
-            {item.actions.map((a) => (
+            {actions.map((a) => (
               <button
                 key={a.id}
                 type="button"

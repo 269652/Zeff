@@ -23,7 +23,7 @@ export type AssistActionBody = AssistAction extends infer A ? (A extends AssistA
 export const ASSIST_ACTION_KINDS: readonly AssistActionKind[] = ["shadowCalendar", "todo", "widget", "text"];
 
 /** What applying made outside the page (Ctrl+Z can't take those back — the card's "Undo" can). */
-export type AssistCreated = { kind: "calendar" | "todo"; id: number; label: string; href?: string };
+export type AssistCreated = { kind: "calendar" | "todo" | "list"; id: number; label: string; href?: string; /** A checklist: its list id in the page (Undo takes it out — its todos go with it). */ ref?: string };
 
 export type AssistStatus = "thinking" | "asking" | "proposing" | "applied" | "dismissed";
 
