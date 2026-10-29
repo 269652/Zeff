@@ -219,6 +219,8 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
     }
     case "aiBlock":
       return `:::ai ${n.attrs?.auto ? "auto " : ""}${String(n.attrs?.prompt ?? "").replace(/\n/g, " ")}\n${String(n.attrs?.text ?? "")}\n:::`;
+    case "assistCard":
+      return ""; // "✨ Think along" is the editor's: an agent's Markdown neither shows nor makes one
     case "zeffModule":
       return `:::zeff ${String(n.attrs?.module ?? "")}${n.attrs?.key ? ` ${String(n.attrs.key)}` : ""}`;
     case "rowView":
@@ -605,7 +607,11 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffModule: ["module", "key"],
   rowView: [],
   aiBlock: ["prompt", "text", "at", "auto"],
+  assistCard: ["state"],
 };
+
+/** At most this much of a "✨ Think along" card's state (its questions, answers, proposal) is kept. */
+const ASSIST_STATE_MAX = 20000;
 
 /** The data blocks (figure, chart, appointments, todos, document, people) and the word each has in Markdown. */
 export const DATA_BLOCK_TYPES: Record<string, string> = { zeffMetric: "metric", zeffChart: "chart", zeffEvents: "events", zeffTasks: "tasks", zeffDocument: "document", zeffPeople: "people" };
@@ -696,6 +702,17 @@ export function sanitizeDoc(input: unknown): Doc {
         }
         attrs.config = config;
         attrs.title = String(attrs.title ?? "").trim().slice(0, 80);
+      }
+      if (o.type === "assistCard") {
+        // Its state whole (longer than other attributes), as long as it is a JSON object; else the card is dropped.
+        const raw = String((o.attrs as Record<string, unknown>).state ?? "");
+        try {
+          const v = JSON.parse(raw) as unknown;
+          if (raw.length > ASSIST_STATE_MAX || !v || typeof v !== "object" || Array.isArray(v)) return null;
+        } catch {
+          return null;
+        }
+        attrs.state = raw;
       }
       if (o.type === "zeffRelated") {
         const id = Math.floor(Number(attrs.dbId));
