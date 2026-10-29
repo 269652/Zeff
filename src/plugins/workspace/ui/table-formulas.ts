@@ -4,6 +4,7 @@ import type { Node as PmNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { refToken, type RefKind } from "../formula";
+import { numberWithUnit } from "../units";
 import { evaluatePageTables, formatCellValue, PENDING, type FormulaData, type PageTable, type PendingCall } from "../page-sheet";
 
 /**
@@ -82,15 +83,18 @@ type Options = { getData: () => FormulaData | null; requestData: () => void; req
 
 function decorate(state: EditorState, opts: Options): DecorationSet {
   const tables = pageTables(state.doc);
-  const formulaCells = tables.flatMap((t) => t.rows.flat()).filter((c) => c.text.trimStart().startsWith("="));
-  if (!formulaCells.length) return DecorationSet.empty;
+  const all = tables.flatMap((t) => t.rows.flat());
+  // A number written in a cell ("12", "1.200,50 €", "5 h", "20 %") stands right, its digits aligned — as in a spreadsheet.
+  const numbers = all.filter((c) => !c.header && !c.text.trimStart().startsWith("=") && numberWithUnit(c.text)).map((c) => Decoration.node(c.pos, c.pos + c.size, { class: "ws-num-cell" }));
+  const formulaCells = all.filter((c) => c.text.trimStart().startsWith("="));
+  if (!formulaCells.length) return numbers.length ? DecorationSet.create(state.doc, numbers) : DecorationSet.empty;
   const data = opts.getData();
   if (!data) opts.requestData();
   const pending: PendingCall[] = [];
   const results = evaluatePageTables(tables, data ?? { metrics: {}, sheets: {} }, pending);
   if (data && pending.length) opts.requestCalls(pending);
   const head = state.selection.head;
-  const decos: Decoration[] = [];
+  const decos: Decoration[] = [...numbers];
   for (const cell of formulaCells) {
     const r = results.get(cell.pos) ?? { value: null };
     // (its unit after it; units that don't go together: a ⚠ after it, what didn't fit in its title)

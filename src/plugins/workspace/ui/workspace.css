@@ -1281,6 +1281,10 @@
   cursor: text;
   min-height: 1.5em;
 }
+.ws-editor .ProseMirror td.ws-num-cell > p {
+  text-align: right;
+  font-variant-numeric: tabular-nums;
+}
 .ws-formula-value.is-num {
   text-align: right;
   font-variant-numeric: tabular-nums;
