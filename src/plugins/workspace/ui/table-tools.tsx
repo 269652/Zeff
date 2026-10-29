@@ -80,6 +80,10 @@ export function TableTools({ editor }: { editor: Editor | null }) {
           </div>
         )}
       </Dropdown>
+      {/* Removed right here, like a widget (Ctrl+Z brings it back). */}
+      <button type="button" className="btn btn-sm px-2 py-0.5 text-zinc-500 hover:text-red-600" title={t("Remove the table")} aria-label={t("Remove the table")} onClick={() => run((c) => c.deleteTable())}>
+        ✕
+      </button>
     </div>,
     document.body,
   );
