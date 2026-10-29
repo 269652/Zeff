@@ -484,6 +484,8 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
             rows={1}
             value={title}
             readOnly={!editable}
+            // (being written it stays: a new page's empty title shows by itself, but the first letter would hide it again)
+            onFocus={() => setTitleOpen(true)}
             onChange={(e) => saveTitle(e.target.value.replace(/\n/g, " "))}
             onKeyDown={(e) => {
               if (e.key === "Enter") {
