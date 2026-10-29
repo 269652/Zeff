@@ -7738,5 +7738,7 @@
   "shadow": "sombra",
   "Its appointments show in your main calendar as suggestions": "Sus citas aparecen en tu calendario principal como sugerencias",
   "Calendar (day, week, month)": "Calendario (día, semana, mes)",
-  "A calendar in the page — a shadow calendar's appointments are suggestions in your main calendar": "Un calendario en la página: las citas de un calendario sombra son sugerencias en tu calendario principal"
+  "A calendar in the page — a shadow calendar's appointments are suggestions in your main calendar": "Un calendario en la página: las citas de un calendario sombra son sugerencias en tu calendario principal",
+  "Calendars": "Calendarios",
+  "Show other calendars beside it — to see what overlaps": "Mostrar otros calendarios al lado, para ver qué se solapa"
 }

@@ -224,7 +224,7 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
     case "zeffBelongs":
       return ":::block belongs";
     case "calendarEmbed":
-      return `:::calendar ${Number(n.attrs?.calendarId) || 0} ${["day", "week", "month"].includes(String(n.attrs?.view)) ? String(n.attrs?.view) : "week"}`;
+      return `:::calendar ${Number(n.attrs?.calendarId) || 0} ${["day", "week", "month"].includes(String(n.attrs?.view)) ? String(n.attrs?.view) : "week"}${/^\d+(,\d+)*$/.test(String(n.attrs?.also ?? "")) ? ` +${String(n.attrs?.also)}` : ""}`;
     case "zeffTimeline":
       return `:::block timeline ${JSON.stringify({ ...(n.attrs?.ref ? { ref: String(n.attrs.ref) } : {}), limit: Number(n.attrs?.limit) || 20 })}`;
     case "zeffTabs":
@@ -379,10 +379,10 @@ export function markdownToDoc(md: string): Doc {
         i++;
         continue;
       }
-      // :::calendar 7 week  - a calendar shown in the page (a day, a week, a month of it)
-      const cal = /^:::calendar\s+(\d+)(?:\s+(day|week|month))?\s*$/.exec(l);
+      // :::calendar 7 week +3,5  - a calendar shown in the page (a day, a week, a month of it), other calendars beside it
+      const cal = /^:::calendar\s+(\d+)(?:\s+(day|week|month))?(?:\s+\+(\d+(?:,\d+)*))?\s*$/.exec(l);
       if (cal) {
-        out.push({ type: "calendarEmbed", attrs: { calendarId: Number(cal[1]), view: cal[2] ?? "week", day: "" } });
+        out.push({ type: "calendarEmbed", attrs: { calendarId: Number(cal[1]), view: cal[2] ?? "week", day: "", also: cal[3] ?? "" } });
         i++;
         continue;
       }
@@ -560,7 +560,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffActivity: ["limit"],
   zeffBelongs: [],
   zeffTimeline: ["ref", "limit"],
-  calendarEmbed: ["calendarId", "view", "day"],
+  calendarEmbed: ["calendarId", "view", "day", "also"],
   zeffTabs: ["active"],
   zeffTab: ["title"],
   zeffPeople: ["ids", "q", "limit", "title"],

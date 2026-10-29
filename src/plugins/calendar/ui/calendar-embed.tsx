@@ -7,6 +7,7 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { dayOf } from "@/lib/calendar/ir-shared";
 import { GripBar } from "@/plugins/workspace/ui/app-nodes";
+import { Dropdown } from "@/plugins/workspace/ui/kit";
 import { useCalendarBody } from "../CalendarBody";
 import { calendarDataAction, createShadowCalendarAction } from "../server-actions";
 import type { CalendarData } from "../view-data";
@@ -36,7 +37,17 @@ function CalendarEmbedView(p: NodeViewProps) {
   }, [view, day]);
   useEffect(load, [load]);
   const calendar = data?.calendars.find((c) => c.id === calendarId);
-  const shown = useCallback((c: { id: number }) => c.id === calendarId, [calendarId]);
+  // Other calendars shown beside it (kept in the block): whether what is planned here overlaps what is there.
+  const alsoKey = String(p.node.attrs.also ?? "");
+  const also = new Set(alsoKey.split(",").map(Number).filter((n) => n > 0));
+  // eslint-disable-next-line react-hooks/exhaustive-deps -- the set is made of alsoKey
+  const shown = useCallback((c: { id: number }) => c.id === calendarId || also.has(c.id), [calendarId, alsoKey]);
+  const toggleAlso = (id: number) => {
+    const next = new Set(also);
+    if (next.has(id)) next.delete(id);
+    else next.add(id);
+    p.updateAttributes({ also: [...next].join(",") });
+  };
   const go = useCallback(
     (v: ViewKind, d: string) => {
       setDay(d);
@@ -104,6 +115,25 @@ function CalendarEmbedView(p: NodeViewProps) {
                 ›
               </button>
               <span className="min-w-0 truncate text-sm text-zinc-500">{viewTitle(view, day)}</span>
+              {/* The other calendars, on or off beside this one — to see whether the plan overlaps them. */}
+              {!!data && data.calendars.length > 1 && (
+                <Dropdown label={`${t("Calendars")}${also.size ? ` +${also.size}` : ""} ▾`} align="right" title={t("Show other calendars beside it — to see what overlaps")} className="btn btn-sm">
+                  {() => (
+                    <div className="w-64 space-y-0.5 p-1 text-sm">
+                      {data.calendars
+                        .filter((c) => c.id !== calendarId)
+                        .map((c) => (
+                          <label key={c.id} className="flex cursor-pointer items-center gap-2 rounded px-1.5 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                            <input type="checkbox" className="size-4" checked={also.has(c.id)} onChange={() => toggleAlso(c.id)} />
+                            <span className="size-2.5 shrink-0 rounded-full" style={{ background: c.color }} />
+                            <span className="min-w-0 flex-1 truncate">{c.name}</span>
+                            {c.shadow && <span className="text-[11px] text-zinc-400">{t("shadow")}</span>}
+                          </label>
+                        ))}
+                    </div>
+                  )}
+                </Dropdown>
+              )}
               <span className="inline-flex overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-700">
                 {EMBED_VIEWS.map((v) => (
                   <button key={v} type="button" className={`px-2 py-0.5 text-xs ${v === view ? "bg-zinc-100 font-semibold dark:bg-zinc-800" : "text-zinc-500"}`} aria-pressed={v === view} onClick={() => go(v, day)}>
@@ -132,7 +162,8 @@ export const CalendarEmbedNode = Node.create({
   atom: true,
   draggable: true,
   addAttributes() {
-    return { calendarId: { default: 0 }, view: { default: "week" }, day: { default: "" } };
+    // also: other calendars shown beside it, their ids ("3,7").
+    return { calendarId: { default: 0 }, view: { default: "week" }, day: { default: "" }, also: { default: "" } };
   },
   parseHTML() {
     return [{ tag: "div[data-calendar-embed]" }];
