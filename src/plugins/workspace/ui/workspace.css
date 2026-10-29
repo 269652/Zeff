@@ -1376,12 +1376,14 @@
   font-size: 0.85rem;
   cursor: pointer;
 }
-.ws-assist-chip:has(input:checked) {
+.ws-assist-chip:has(input:checked),
+.ws-assist-chip[aria-pressed="true"] {
   border-color: var(--color-violet-600, #7c3aed);
   background: var(--color-violet-600, #7c3aed);
   color: #ffffff;
 }
-.ws-assist-chip:has(input:focus-visible) {
+.ws-assist-chip:has(input:focus-visible),
+.ws-assist-chip:focus-visible {
   outline: 2px solid var(--color-violet-600, #7c3aed);
   outline-offset: 2px;
 }

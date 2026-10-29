@@ -316,6 +316,7 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
     `Heute: ${dayOf(v.today)} (${v.today.toLocaleDateString("de-DE", { weekday: "long" })})`,
     `Seite: ${v.title || "(ohne Titel)"}`,
     "",
+    ...(v.state.wish ? ["# Was der Nutzer möchte (seine Worte)", v.state.wish, ""] : []),
     v.state.scope === "page" ? "# Die Seite" : "# Der Block",
     v.block || "(leer)",
     ...(v.state.scope === "block" && v.page ? ["", "# Der Rest der Seite (Auszug)", v.page] : []),
@@ -368,7 +369,7 @@ export async function runAssist(pageId: number, blockJson: string | null, state:
       people.push(`- [[person:${p.id}|${p.name}]]${facts.length ? ` — ${facts.join("; ")}` : ""}`);
     }
   }
-  const period = periodOf([block, state.summary, ...history.map((h) => h.a)].join("\n"), today);
+  const period = periodOf([state.wish ?? "", block, state.summary, ...history.map((h) => h.a)].join("\n"), today);
   const busy = isInstalled("calendar") ? (await import("@/lib/calendar/ir")).busyBetween(period.from, period.to).slice(0, 60) : [];
   const firstPerson = /^- \[\[person:(\d+)\|([^\]]*)\]\]/.exec(people[0] ?? "");
   const check = await assistCheck(busy, { created: state.created, page: page.content, ...(firstPerson ? { defaultPerson: { id: Number(firstPerson[1]), name: firstPerson[2] } } : {}) });
