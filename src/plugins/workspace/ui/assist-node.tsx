@@ -1,6 +1,7 @@
 "use client";
 
 import { Fragment, type Node as PmNode } from "@tiptap/pm/model";
+import { TextSelection } from "@tiptap/pm/state";
 import { mergeAttributes, Node, NodeViewWrapper, ReactNodeViewRenderer, type Editor, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useRef, useState } from "react";
 import { useLang, useT } from "@/components/I18nProvider";
@@ -208,7 +209,11 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
     }
     const next: AssistState = { ...s, status: "applied", summary: r.summary, created: r.created };
     // One step: the blocks after the card and the card's summary — Ctrl+Z takes both back.
-    view.dispatch(state.tr.setNodeMarkup(c.pos, undefined, { ...c.node.attrs, state: JSON.stringify(next) }).insert(c.pos + c.node.nodeSize, Fragment.from(nodes)));
+    const tr = state.tr.setNodeMarkup(c.pos, undefined, { ...c.node.attrs, state: JSON.stringify(next) }).insert(c.pos + c.node.nodeSize, Fragment.from(nodes));
+    // The caret after what went in — nothing left selected (a selection over the new blocks brought up the text toolbar).
+    const end = c.pos + c.node.nodeSize + Fragment.from(nodes).size;
+    tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(end, tr.doc.content.size)), 1));
+    view.dispatch(tr);
     setLive(t("Set up: {summary}. Ctrl+Z takes back what went into the page.", { summary: r.summary }));
   };
 
@@ -245,26 +250,39 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
   if (s.status === "applied")
     return (
       <NodeViewWrapper className="ws-assist ws-assist-done" contentEditable={false} data-assist-ui="">
-        <div className="flex flex-wrap items-center gap-2 text-sm">
-          <span aria-hidden>✨</span>
-          <span className="min-w-0 flex-1">{head}</span>
-          {s.created.map((c) =>
-            c.href ? (
-              <a key={`${c.kind}${c.id}`} href={c.href} className="text-xs underline">
-                {c.label}
-              </a>
-            ) : null,
-          )}
-          {editable && s.created.length > 0 && (
-            <button type="button" className="btn btn-xs" title={t("Deletes the plan calendars and dismisses the todos it made (Ctrl+Z only takes back what went into the page)")} onClick={() => void undoCreated()}>
-              {t("Undo")}
-            </button>
-          )}
-          {editable && (
-            <button type="button" className="btn btn-xs" aria-label={t("Remove this note")} title={t("Remove this note")} onClick={() => deleteNode()}>
-              ×
-            </button>
-          )}
+        {/* Its summary on a line of its own, what it made under it (each a link, cut to one line), the buttons beside. */}
+        <div className="flex items-start gap-2 text-sm">
+          <span aria-hidden className="pt-0.5">
+            ✨
+          </span>
+          <div className="min-w-0 flex-1">
+            <p className="font-medium">{head}</p>
+            {s.created.some((c) => c.href) && (
+              <ul className="mt-1 space-y-0.5 text-xs">
+                {s.created.map((c) =>
+                  c.href ? (
+                    <li key={`${c.kind}${c.id}`} className="truncate">
+                      <a href={c.href} className="underline" title={c.label}>
+                        {c.label}
+                      </a>
+                    </li>
+                  ) : null,
+                )}
+              </ul>
+            )}
+          </div>
+          <div className="flex shrink-0 items-center gap-1">
+            {editable && s.created.length > 0 && (
+              <button type="button" className="btn btn-sm" title={t("Deletes the plan calendars and dismisses the todos it made (Ctrl+Z only takes back what went into the page)")} onClick={() => void undoCreated()}>
+                {t("Undo")}
+              </button>
+            )}
+            {editable && (
+              <button type="button" className="btn btn-sm" aria-label={t("Remove this note")} title={t("Remove this note")} onClick={() => deleteNode()}>
+                ×
+              </button>
+            )}
+          </div>
           <span role="status" aria-live="polite" className="sr-only">
             {live}
           </span>
