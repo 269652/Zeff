@@ -93,10 +93,11 @@ export const CORE_METRICS: MetricProvider[] = [
     unit: "%",
     what: "This week's booked hours of the week's target (your working hours, absences left out)",
     read: () => {
-      if (plansOnly()) return null;
       const w = currentWeek();
       const target = sum(getWeekTargets(w).targets);
-      return target > 0 ? (getWeeklyReport(w).total / target) * 100 : null;
+      // (An account that books no time: the plan's hours up to today — Monday a quarter of the week, Thursday all of it.)
+      const done = plansOnly() ? plannedSoFar() : getWeeklyReport(w).total;
+      return target > 0 ? (done / target) * 100 : null;
     },
     href: () => "/entries",
   },
