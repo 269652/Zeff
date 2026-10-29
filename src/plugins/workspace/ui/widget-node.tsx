@@ -169,7 +169,7 @@ function Empty({ text }: { text?: string }) {
   );
 }
 
-function WidgetBody({ data, busy, act }: { data: WidgetData; busy: boolean; act: (action: string, id: string) => void }) {
+function WidgetBody({ data, busy, act, hideTitle = false }: { data: WidgetData; busy: boolean; act: (action: string, id: string) => void; /** Without its header the list's own title goes too (a person's todos on their page). */ hideTitle?: boolean }) {
   if (data.kind === "error") return <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-300">{data.message}</p>;
   if (data.kind === "figure")
     return (
@@ -206,7 +206,7 @@ function WidgetBody({ data, busy, act }: { data: WidgetData; busy: boolean; act:
     );
   return (
     <div>
-      {data.title && <p className="px-2 pb-1 text-xs text-zinc-500">{data.title}</p>}
+      {data.title && !hideTitle && <p className="px-2 pb-1 text-xs text-zinc-500">{data.title}</p>}
       {data.items.length ? (
         <ul className="-mx-0.5 space-y-0.5">
           {data.items.map((i) => (
@@ -324,6 +324,21 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
   const count = data && (data.kind === "list" || data.kind === "cards") ? data.count : undefined;
   // Figures stand on their own: no card around the tiles.
   const bare = data?.kind === "stats";
+  // Its header line (its name): as the block says, else as the widget wants it — without it the controls float top right.
+  const head = String(node.attrs.header ?? "");
+  const showHeader = head === "show" ? true : head === "hide" ? false : def?.header !== false;
+  const controls = (
+    <span className={`flex items-center gap-0.5 transition ${showHeader ? "" : "absolute top-1.5 right-1.5 z-10 rounded-lg bg-white/90 shadow-sm dark:bg-zinc-900/90"} ${settings ? "opacity-100" : "opacity-0 group-hover/widget:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"}`}>
+      <button type="button" className="grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Read again")} aria-label={t("Read again")} onClick={() => void load()}>
+        <span className={loading ? "inline-block animate-spin" : ""}>↻</span>
+      </button>
+      {editor.isEditable && (
+        <button type="button" className="grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Settings")} aria-label={t("Settings")} aria-pressed={settings} onClick={() => setSettings(!settings)}>
+          ⚙
+        </button>
+      )}
+    </span>
+  );
   return (
     <NodeViewWrapper className="ws-widget ws-module-block my-1" contentEditable={false} data-app-block="widget">
       {editor.isEditable && (
@@ -351,7 +366,9 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
       {!id ? (
         <Picker defs={defs} pick={(w) => updateAttributes({ widget: w, config: "{}" })} />
       ) : (
-        <section className={`group/widget ${bare ? "" : "rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"}`} data-widget={id}>
+        <section className={`group/widget relative ${bare ? "" : "rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"}`} data-widget={id}>
+          {!showHeader && controls}
+          {showHeader && (
           <header className={`flex items-center gap-2 ${bare ? "mb-2 px-1" : "mb-1.5 px-1"}`}>
             {def && !bare && (
               <span className="text-base leading-none" aria-hidden>
@@ -362,22 +379,18 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
               {label}
               {count !== undefined && count > 0 && <span className="ml-2 rounded-full bg-indigo-50 px-1.5 py-0.5 align-middle text-[11px] font-semibold text-indigo-700 tabular-nums dark:bg-indigo-950 dark:text-indigo-300">{count}</span>}
             </h4>
-            <span className={`flex items-center gap-0.5 transition ${settings ? "opacity-100" : "opacity-0 group-hover/widget:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"}`}>
-              <button type="button" className="grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Read again")} aria-label={t("Read again")} onClick={() => void load()}>
-                <span className={loading ? "inline-block animate-spin" : ""}>↻</span>
-              </button>
-              {editor.isEditable && (
-                <button type="button" className="grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Settings")} aria-label={t("Settings")} aria-pressed={settings} onClick={() => setSettings(!settings)}>
-                  ⚙
-                </button>
-              )}
-            </span>
+            {controls}
           </header>
+          )}
           {settings && (
             <div className="mb-2 flex flex-wrap items-end gap-3 rounded-xl bg-zinc-50 p-3 text-xs dark:bg-zinc-800/60">
               <label className="flex flex-col gap-1">
                 <span className="text-zinc-500">{t("Title")}</span>
                 <input className="input w-44 py-1 text-xs" value={ownTitle} placeholder={def?.label} onChange={(e) => updateAttributes({ title: e.target.value })} />
+              </label>
+              <label className="flex flex-col gap-1">
+                <span className="text-zinc-500">{t("Header")}</span>
+                <input type="checkbox" className="size-4" checked={showHeader} onChange={(e) => updateAttributes({ header: e.target.checked ? "show" : "hide" })} />
               </label>
               {def?.settings.map((s) => (
                 <label key={s.key} className="flex flex-col gap-1">
@@ -402,7 +415,7 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
               </button>
             </div>
           )}
-          {data ? <WidgetBody data={data} busy={busy} act={(a, itemId) => void act(a, itemId)} /> : <Skeleton />}
+          {data ? <WidgetBody data={data} busy={busy} act={(a, itemId) => void act(a, itemId)} hideTitle={!showHeader} /> : <Skeleton />}
         </section>
       )}
     </NodeViewWrapper>
@@ -419,7 +432,8 @@ export const ZeffWidget = Node.create<{ pageId: number }>({
   atom: true,
   draggable: true,
   addAttributes() {
-    return { widget: { default: "" }, config: { default: "{}" }, title: { default: "" } };
+    // header: "" as the widget wants it, "show" / "hide" as set on this block.
+    return { widget: { default: "" }, config: { default: "{}" }, title: { default: "" }, header: { default: "" } };
   },
   parseHTML() {
     return [{ tag: "div[data-zeff-widget]" }];

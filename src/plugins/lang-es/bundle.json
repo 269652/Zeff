@@ -7711,5 +7711,15 @@
   "you promised": "prometiste",
   "they promised": "te prometieron",
   "Nothing open with {name}.": "Nada abierto con {name}.",
-  "Nothing open.": "Nada abierto."
+  "Nothing open.": "Nada abierto.",
+  "Key fact": "Dato clave",
+  "Fun fact": "Curiosidad",
+  "Known": "Confirmado",
+  "Read from your messages — to check": "Leído de tus mensajes, por revisar",
+  "{n} days in touch in 12 months": "{n} días en contacto en 12 meses",
+  "usually every {n} days": "normalmente cada {n} días",
+  "you start {n} %": "empiezas tú el {n} %",
+  "Drifting apart — longer quiet than usual": "Os estáis alejando: más silencio de lo habitual",
+  "next {day}": "próximo el {day}",
+  "Case": "Caso"
 }

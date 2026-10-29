@@ -537,7 +537,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   callout: ["icon", "tone"],
   flexBox: ["dir", "gap", "wrap", "span"],
   zeffRoutine: [],
-  zeffWidget: ["widget", "config", "title"],
+  zeffWidget: ["widget", "config", "title", "header"],
   zeffForm: ["dbId", "fields", "label"],
   zeffIf: ["field", "op", "value"],
   zeffField: ["prop", "label"],

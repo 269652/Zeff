@@ -5,11 +5,11 @@ import { currentAccountId } from "@/db/accounts";
 
 /** The widgets of the installed plugins, and their data: settings held to their definition, the data kept a moment, a failing widget an error line. */
 
-export type CatalogWidget = { id: string; plugin: string; label: string; icon: string; description: string; settings: WidgetSetting[]; actions: boolean };
+export type CatalogWidget = { id: string; plugin: string; label: string; icon: string; description: string; settings: WidgetSetting[]; actions: boolean; /** Shown with its header line (unless the block says otherwise). */ header: boolean };
 
 const all = (): (WorkspaceWidget & { plugin: string })[] => workspaceWidgets.list().flatMap((c) => c.impl.map((w) => ({ ...w, plugin: c.plugin })));
 
-export const widgetCatalog = (): CatalogWidget[] => all().map((w) => ({ id: w.id, plugin: w.plugin, label: w.label, icon: w.icon, description: w.description, settings: w.settings ?? [], actions: !!w.act }));
+export const widgetCatalog = (): CatalogWidget[] => all().map((w) => ({ id: w.id, plugin: w.plugin, label: w.label, icon: w.icon, description: w.description, settings: w.settings ?? [], actions: !!w.act, header: w.header !== false }));
 
 const find = (id: string) => {
   const w = all().find((x) => x.id === id);

@@ -1,9 +1,9 @@
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import type { WidgetConfig, WidgetItem, WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
-import { linksOf, openCommitments, reviewClaim, visibleClaims } from "./graph";
+import { openCommitments, reviewClaim } from "./graph";
 import { circleLabels, dateKindLabels, type Person } from "./shared";
-import { datesOf, getPerson, listPeople, namesThem, relationsOf, upcoming } from "./store";
+import { getPerson, listPeople, namesThem, upcoming } from "./store";
 
 /**
  * Widgets about one person, for a page — on a person's own page (a row of the People database) they take that person by
@@ -47,6 +47,8 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       return t("Todos with a person");
     },
     icon: "☑️",
+    // (on a person's page its name says nothing new: no header, the controls float top right)
+    header: false,
     get description() {
       return t("The open todos about a person — on their page by itself; tick one off right here.");
     },
@@ -96,29 +98,44 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
     data: async (config) => {
       const p = await personFor(config);
       if (!p) return nobody();
+      // What their own page shows (blocks.ts personBundle) — all of it, as rows.
+      const b = await (await import("./blocks")).personBundle(p.id);
       const { personHref } = await import("@/plugins/workspace/people-database");
+      const { detailLabels } = await import("./row-data");
       const href = personHref(p.id);
       const items: WidgetItem[] = [];
       const add = (icon: string, text: string, detail?: string, extra: Partial<WidgetItem> = {}) => text && items.push({ id: `${items.length}`, icon, text, detail, wrap: true, ...extra });
       const now = Date.now();
+      const day = (iso: string) => iso.slice(0, 10);
       const circle = p.circle ? circleLabels(t)[p.circle] : "";
       // Who they are to you.
-      add("🧑", p.compiled?.connection || p.note || p.name, [circle, p.aliases.length ? t("also: {names}", { names: p.aliases.join(", ") }) : ""].filter(Boolean).join(" · "), { href });
-      for (const f of (p.compiled?.keyFacts ?? []).slice(0, 6)) add("•", f);
-      for (const c of visibleClaims(p.id).slice(0, 8)) add("💡", c.text);
-      const rel = relationsOf(p.id);
-      if (rel.out.length || rel.in.length) add("🔗", [...rel.out.map((r) => `${r.rel}${r.otherName ? ` ${r.otherName}` : ""}`), ...rel.in.map((r) => `${r.personName}: ${r.rel}`)].slice(0, 6).join(" · "), t("Relations"));
-      // When: last contact, the next date, the dates you know.
+      add("🧑", b.compiled?.connection || p.name, [circle, b.aliases.length ? t("also: {names}", { names: b.aliases.join(", ") }) : ""].filter(Boolean).join(" · "), { href });
+      if (b.note) add("📝", b.note, t("Note"));
+      for (const f of (b.compiled?.keyFacts ?? []).slice(0, 8)) add("•", f, t("Key fact"));
+      for (const f of (b.compiled?.funFacts ?? []).slice(0, 4)) add("🎈", f, t("Fun fact"));
+      for (const c of b.claims.filter((c) => c.status !== "rejected" && !c.done && c.kind !== "commitment").slice(0, 10)) add("💡", c.text, c.status === "confirmed" ? t("Known") : t("Read from your messages — to check"));
+      const rel = b.relations;
+      if (rel.out.length || rel.in.length) add("🔗", [...rel.out.map((r) => `${r.rel}${r.otherName ? ` ${r.otherName}` : ""}`), ...rel.in.map((r) => `${r.personName}: ${r.rel}`)].slice(0, 8).join(" · "), t("Relations"));
+      // The rhythm: how often, who starts, how fast.
+      const pulse = b.pulse;
+      if (pulse?.contactDays) {
+        const parts = [t("{n} days in touch in 12 months", { n: pulse.contactDays }), pulse.typicalGap ? t("usually every {n} days", { n: pulse.typicalGap }) : "", pulse.initiative.share !== null ? t("you start {n} %", { n: Math.round(pulse.initiative.share * 100) }) : ""].filter(Boolean);
+        add("📈", parts.join(" · "), pulse.drifting ? t("Drifting apart — longer quiet than usual") : t("Rhythm"), pulse.drifting ? { tone: "warn" } : {});
+      }
       try {
         const last = (await (await import("./pulse")).lastContactsAll([p])).get(p.id);
-        if (last) add("💬", t("Last contact: {ago}", { ago: (await import("./view-data")).agoText(t, last.at, now) }), last.at.slice(0, 10));
+        if (last) add("🕑", t("Last contact: {ago}", { ago: (await import("./view-data")).agoText(t, last.at, now) }), day(last.at));
       } catch {
         // the pulse is a bonus
       }
-      const next = upcoming({ days: 366 }).filter((u) => u.person.id === p.id).sort((a, b) => a.on.localeCompare(b.on))[0];
+      // Their latest messages.
+      for (const m of b.contacts.slice(0, 4)) add("💬", m.text.slice(0, 220), `${m.who} · ${m.folder} · ${day(m.at)}`);
+      // Appointments and dates.
+      for (const e of (b.events?.upcoming ?? []).slice(0, 3)) add("📆", e.title, `${e.start.slice(0, 16).replace("T", " ")}${e.location ? ` · ${e.location}` : ""}`, { href: e.href });
+      const next = upcoming({ days: 366 }).filter((u) => u.person.id === p.id).sort((a, b2) => a.on.localeCompare(b2.on))[0];
       if (next) add("🎂", t("Next: {what} on {day}", { what: next.date.kind === "other" ? next.date.label || dateKindLabels(t).other : dateKindLabels(t)[next.date.kind], day: next.on }));
-      const dates = datesOf(p.id).filter((d) => d.confirmed);
-      if (dates.length) add("📅", dates.map((d) => `${d.label || dateKindLabels(t)[d.kind]}: ${d.day}.${d.month}.${d.year ?? ""}`).join(" · "), t("Dates"));
+      const dates = b.dates.filter((d) => d.confirmed);
+      if (dates.length) add("📅", dates.map((d) => `${d.label || dateKindLabels(t)[d.kind]}: ${d.text}`).join(" · "), t("Dates"));
       // What is open between you.
       const promises = openCommitments().filter((c) => c.personId === p.id);
       const mine = promises.filter((c) => c.direction === "mine");
@@ -128,9 +145,9 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       if (isInstalled("todos")) {
         const { listTodos } = await import("@/lib/boards/store");
         const todos = listTodos({ status: "open" }).filter((x) => aboutThem(p, `${x.text} ${x.note ?? ""}`));
-        if (todos.length) add("☑️", todos.slice(0, 3).map((x) => x.text).join(" · "), t("Open todos ({n})", { n: todos.length }));
+        if (todos.length) add("☑️", todos.slice(0, 4).map((x) => x.text).join(" · "), t("Open todos ({n})", { n: todos.length }));
       }
-      // Money: what you owe them, what they owe you (Finances).
+      // Money: what you owe them, what they owe you (Finances) — and their cases.
       if (isInstalled("finances")) {
         try {
           const { FINANCES_FORMULAS } = await import("@/plugins/finances/formulas");
@@ -144,12 +161,14 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
           // money is a bonus
         }
       }
-      const tickets = [...new Set(linksOf(p.id).filter((l) => l.targetType === "ticket").map((l) => l.targetRef))];
-      if (tickets.length) add("🎫", tickets.slice(0, 8).join(", "), t("Tickets"));
-      const { pagesMentioning } = await import("@/plugins/workspace/store");
-      const pages = pagesMentioning("person", p.id, 8);
-      if (pages.length) add("📄", pages.map((x) => x.title || t("Untitled")).join(" · "), t("Pages that mention them"));
-      const reach = [...p.emails, p.whatsapp ? `WhatsApp: ${p.whatsapp}` : "", ...p.accounts.map((a) => a.value)].filter(Boolean);
+      for (const c of b.cases.filter((c) => !c.done).slice(0, 3)) add("📁", `${c.label ? `${c.label} · ` : ""}${c.title}`, [c.open !== null ? t("open {amount}", { amount: `${c.open.toLocaleString("de-DE")} €` }) : "", c.nextDue ? t("next {day}", { day: c.nextDue }) : ""].filter(Boolean).join(" · ") || t("Case"), { href: c.href });
+      // Details: IBAN, RevTag, address, phone …
+      const labels = detailLabels(t);
+      if (b.details.length) add("🪪", b.details.map((d) => `${labels[d.key] ?? d.key}: ${d.value}`).join(" · "), t("Details"));
+      for (const d of b.documents.slice(0, 3)) add("📄", d.name, d.summary.slice(0, 160) || day(d.at));
+      if (b.tickets.length) add("🎫", b.tickets.slice(0, 8).join(", "), t("Tickets"));
+      if (b.pages.length) add("📄", b.pages.slice(0, 8).map((x) => x.title || t("Untitled")).join(" · "), t("Pages that mention them"));
+      const reach = [...b.emails, b.whatsapp ? `WhatsApp: ${b.whatsapp}` : "", ...b.jira.map((j) => `Jira: ${j}`)].filter(Boolean);
       if (reach.length) add("✉️", reach.join(" · "), t("How to reach them"));
       return { kind: "list", title: p.name, items, empty: t("Nothing known about {name} yet.", { name: p.name }) };
     },

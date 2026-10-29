@@ -53,6 +53,8 @@ export type WorkspaceWidget = {
   /** One line: what it shows — why it is worth a place on a page. */
   description: string;
   settings?: WidgetSetting[];
+  /** false: shown without its header line (its name) — the controls float top right; a block can switch it in its settings. */
+  header?: boolean;
   /** How much room it takes on a page: a figure strip is full width, a list half, a small one a third (default: half). */
   size?: "third" | "half" | "full";
   /** Seconds its data is kept (default 30). */
