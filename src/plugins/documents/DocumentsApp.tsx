@@ -115,7 +115,7 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, knowledge }: 
         <button type="button" className="btn btn-sm" onClick={() => input.current?.click()}>
           {t("Choose files …")}
         </button>
-        <input ref={input} type="file" multiple className="hidden" onChange={(e) => void take([...(e.target.files ?? [])]).then(() => (e.target.value = ""))} />
+        <input ref={input} type="file" multiple className="hidden" aria-hidden tabIndex={-1} onChange={(e) => void take([...(e.target.files ?? [])]).then(() => (e.target.value = ""))} />
       </div>
 
       {(reading.current.length > 0 || reading.waiting > 0) && (

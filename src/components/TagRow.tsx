@@ -16,7 +16,7 @@ export function TagRow({ id, name, count }: { id: number; name: string; count: n
         <form action={action} className="flex flex-wrap items-center gap-2">
           <input type="hidden" name="id" value={id} />
           <span className="text-zinc-400">#</span>
-          <input name="name" defaultValue={name} className="input w-44" />
+          <input name="name" defaultValue={name} className="input w-44" aria-label={t("Tag name")} />
           <SubmitButton className="btn btn-sm" pendingText="…">{t("Save")}</SubmitButton>
           {state?.error && <FormError className="text-xs">{state.error}</FormError>}
         </form>

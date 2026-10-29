@@ -78,7 +78,7 @@ export function SyncSplitButton({ sources }: { sources: SyncSource[] }) {
       >
         <SyncIcon className={`size-4 ${pending ? "animate-spin" : ""}`} />
         {pending ? t("{label}… Stop", { label: sources.find((s) => s.key === running)?.label ?? t("Sync") }) : t("Sync")}
-        {failed && !pending && <span className="size-1.5 rounded-full bg-amber-500" aria-label={t("A sync failed last time")} />}
+        {failed && !pending && <span role="img" className="size-1.5 rounded-full bg-amber-500" aria-label={t("A sync failed last time")} />}
       </button>
       <button type="button" className="btn rounded-l-none border-l-0 px-2" aria-haspopup="dialog" aria-expanded={open} aria-label={t("Syncs: one by one, status, interval")} onClick={() => setOpen((o) => !o)}>
         <svg viewBox="0 0 20 20" className={`size-3.5 transition ${open ? "rotate-180" : ""}`} fill="none" stroke="currentColor" strokeWidth="2" aria-hidden>

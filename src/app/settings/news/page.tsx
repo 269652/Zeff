@@ -225,8 +225,8 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
           </details>
 
           <form action={addSourceFormAction} className="grid gap-2 text-sm sm:grid-cols-[1fr_2fr_auto]">
-            <input name="name" placeholder={t("Name (optional)")} className={field} />
-            <input name="url" required placeholder="https://example.com/feed.xml" className={field} />
+            <input name="name" placeholder={t("Name (optional)")} aria-label={t("Source name")} className={field} />
+            <input name="url" required placeholder="https://example.com/feed.xml" aria-label={t("Feed address")} className={field} />
             <button className="btn btn-primary btn-sm">{t("Add source")}</button>
           </form>
           <p className="text-xs text-zinc-500">{t("Any RSS or Atom address works — most news sites, blogs, YouTube channels and subreddits (add .rss to the address) have one.")}</p>
@@ -257,7 +257,7 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
             {t("A written description of what you like to read. Zeff keeps it: every article you like (👍), save (🔖) or reject (👎) is fed to the AI with the description, which rewrites it. Discover uses it to look for new sources and to pick what matches from the unread news. You can edit it — the AI continues from your version.")}
           </p>
           <form action={saveTasteFormAction} className="space-y-2">
-            <textarea name="taste" rows={6} defaultValue={taste.text} placeholder={t("Nothing written yet — like or save a few articles, then press Update.")} className={field} />
+            <textarea name="taste" aria-label={t("What you like to read")} rows={6} defaultValue={taste.text} placeholder={t("Nothing written yet — like or save a few articles, then press Update.")} className={field} />
             <div className="flex flex-wrap items-center gap-2">
               <button className="btn btn-primary btn-sm">{t("Save my version")}</button>
               <span className="text-xs text-zinc-500">

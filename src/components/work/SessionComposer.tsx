@@ -182,7 +182,7 @@ export function SessionComposer({
           </ul>
         )}
         <div className="flex flex-wrap items-center gap-1 px-2.5 pb-2">
-          <input ref={picker} type="file" multiple hidden onChange={(e) => {
+          <input ref={picker} type="file" multiple hidden aria-hidden tabIndex={-1} onChange={(e) => {
             void attach([...(e.target.files ?? [])]);
             e.target.value = "";
           }} />

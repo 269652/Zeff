@@ -103,6 +103,7 @@ function InputPart(p: PartProps) {
 
 /** Your notes: saved while you write (a moment after the last key) and on leaving it — no Save button. */
 function NotePart(p: PartProps) {
+  const t = useT();
   const saved = String(p.app.note ?? "");
   const rowId = rowOf(p);
   const [note, setNote] = useState(saved);
@@ -115,7 +116,7 @@ function NotePart(p: PartProps) {
     return () => clearTimeout(id);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the text is what restarts the wait
   }, [note]);
-  return <textarea className="input resize-y text-sm" rows={Math.min(14, Math.max(4, note.split("\n").length + 1))} value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== saved && save(note)} placeholder={p.attrs.placeholder} />;
+  return <textarea className="input resize-y text-sm" rows={Math.min(14, Math.max(4, note.split("\n").length + 1))} value={note} onChange={(e) => setNote(e.target.value)} onBlur={() => note !== saved && save(note)} aria-label={t("Notes")} placeholder={p.attrs.placeholder} />;
 }
 
 /** "Transfer money": a dialog with the amount and purpose to fill in, and the GiroCode of the transfer to their account. */

@@ -123,7 +123,7 @@ export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, on
           ) : (
             <p className="text-xs text-zinc-500">{t("No errors — the view below shows it as it is now. Ctrl+S saves.")}</p>
           )}
-          {help && <pre className="max-h-80 overflow-auto rounded-lg bg-zinc-50 p-3 text-[11px] leading-4 whitespace-pre-wrap text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">{viewReference(meta.parts, meta.actions)}</pre>}
+          {help && <pre tabIndex={0} className="max-h-80 overflow-auto rounded-lg bg-zinc-50 p-3 text-[11px] leading-4 whitespace-pre-wrap text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">{viewReference(meta.parts, meta.actions)}</pre>}
         </div>
 
         <div className="flex min-h-48 flex-col rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">

@@ -52,7 +52,7 @@ export function AskNews() {
           });
         }}
       >
-        <input value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("e.g. What is new in quantum computing this week?")} className="min-w-[14rem] flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <input value={q} onChange={(e) => setQ(e.target.value)} aria-label={t("Ask the news")} placeholder={t("e.g. What is new in quantum computing this week?")} className="min-w-[14rem] flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
         <button className="btn btn-primary btn-sm" disabled={pending}>
           {pending ? t("Reading the news …") : t("Ask")}
         </button>

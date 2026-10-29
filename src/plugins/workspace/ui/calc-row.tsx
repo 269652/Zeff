@@ -126,7 +126,7 @@ export function CalcCell({ p, view, rows, dbId, setView, published }: { p: Prope
                 void publish(naming);
               }}
             >
-              <input className="input h-6 w-28 px-1.5 text-xs" list={`values-${dbId}`} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} placeholder={t("e.g. Fixkosten")} onKeyDown={(e) => e.key === "Escape" && setNaming(null)} />
+              <input className="input h-6 w-28 px-1.5 text-xs" list={`values-${dbId}`} autoFocus value={naming} onChange={(e) => setNaming(e.target.value)} aria-label={t("Value name")} placeholder={t("e.g. Fixkosten")} onKeyDown={(e) => e.key === "Escape" && setNaming(null)} />
               <datalist id={`values-${dbId}`}>
                 {published.names.map((n) => (
                   <option key={n.key} value={n.label}>

@@ -14,7 +14,7 @@ export function ResolvedMark({ done, title }: { done: boolean; title?: string })
       <path d="m4.75 8.25 2 2 4.5-4.75" fill="none" stroke="white" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round" />
     </svg>
   ) : (
-    <svg viewBox="0 0 16 16" className="size-3.5 shrink-0 text-zinc-400/80 dark:text-zinc-500" role="img" aria-label={label}>
+    <svg viewBox="0 0 16 16" className="size-3.5 shrink-0 text-zinc-500 dark:text-zinc-500" role="img" aria-label={label}>
       <title>{label}</title>
       <circle cx="8" cy="8" r="6.25" fill="none" stroke="currentColor" strokeWidth="1.5" strokeDasharray="2.6 2" />
     </svg>

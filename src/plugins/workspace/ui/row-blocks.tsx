@@ -79,7 +79,7 @@ function ActivityView(p: NodeViewProps) {
               const a = ACTOR[l.actor] ?? ACTOR.you;
               return (
                 <li key={l.id} className="grid grid-cols-[1.4rem_1fr_auto] items-baseline gap-1.5">
-                  <span title={t(a.label)} aria-label={t(a.label)}>
+                  <span role="img" title={t(a.label)} aria-label={t(a.label)}>
                     {a.icon}
                   </span>
                   <span className="min-w-0 break-words">

@@ -184,7 +184,7 @@ function EventCard({
           ? "border-dashed border-amber-300 bg-white dark:border-amber-800 dark:bg-zinc-950"
           : e.state === "importable"
             ? "border-zinc-200 bg-white hover:border-zinc-400 dark:border-zinc-800 dark:bg-zinc-950 dark:hover:border-zinc-600"
-            : "border-dashed border-zinc-200 bg-zinc-50 text-zinc-400 dark:border-zinc-800 dark:bg-zinc-900/50";
+            : "border-dashed border-zinc-200 bg-zinc-50 text-zinc-500 dark:border-zinc-800 dark:bg-zinc-900/50";
   const badges = [STATE_LABEL[e.state], ...e.flags.map((f) => FLAG_LABEL[f])].filter(Boolean) as string[];
   const title = [
     `${e.subject} · ${e.startTime}–${e.endTime}`,
@@ -195,26 +195,28 @@ function EventCard({
     .join(" · ");
 
   return (
+    // A click anywhere on the card ticks it; for the keyboard and screen readers the checkbox is the small box (the
+    // job's select in the card is a control of its own, not inside the checkbox).
     <div
-      role={canTick ? "checkbox" : undefined}
-      aria-checked={canTick ? on : undefined}
-      tabIndex={canTick ? 0 : undefined}
       onClick={canTick ? onToggle : undefined}
-      onKeyDown={
-        canTick
-          ? (ev) => {
-              if (ev.key === " " || ev.key === "Enter") {
-                ev.preventDefault();
-                onToggle();
-              }
-            }
-          : undefined
-      }
       title={title}
       className={`rounded-md border px-1.5 py-1 transition ${tone} ${canTick ? "cursor-pointer" : ""}`}
     >
       <div className="flex items-start gap-1.5">
         <span
+          {...(canTick
+            ? {
+                role: "checkbox",
+                "aria-checked": on,
+                "aria-label": `${e.subject} · ${e.startTime}–${e.endTime}`,
+                tabIndex: 0,
+                onKeyDown: (ev: React.KeyboardEvent) => {
+                  if (ev.key !== " " && ev.key !== "Enter") return;
+                  ev.preventDefault();
+                  onToggle();
+                },
+              }
+            : { "aria-hidden": true })}
           className={`mt-0.5 flex size-3.5 shrink-0 items-center justify-center rounded-sm border text-xs leading-none ${
             e.state === "booked"
               ? "border-emerald-500 bg-emerald-500 text-white"
@@ -222,12 +224,11 @@ function EventCard({
                 ? "border-indigo-500 bg-indigo-500 text-white"
                 : "border-zinc-300 dark:border-zinc-600"
           }`}
-          aria-hidden
         >
           {e.state === "booked" || (canTick && on) ? "✓" : ""}
         </span>
         <div className="min-w-0 flex-1">
-          <div className="flex justify-between gap-1 text-xs tabular-nums opacity-70">
+          <div className="flex justify-between gap-1 text-xs tabular-nums">
             <span>
               {e.startTime}–{e.endTime}
             </span>

@@ -18,6 +18,7 @@ export function TagsField({
   disabled = false,
   compact = false,
   id,
+  label,
 }: {
   /** Form field for the tags; "" posts nothing (e.g. when onChange saves them). */
   name?: string;
@@ -29,6 +30,8 @@ export function TagsField({
   /** Smaller, for table cells. */
   compact?: boolean;
   id?: string;
+  /** Its name where no <label for={id}> names it (default: "Tags"). */
+  label?: string;
 }) {
   const t = useT();
   const [tags, setTags] = useState(() => dedupeTags(defaultValue));
@@ -65,6 +68,7 @@ export function TagsField({
       ))}
       <input
         id={id}
+        aria-label={label ?? (id ? undefined : t("Tags"))}
         list={listId}
         value={draft}
         disabled={disabled}

@@ -84,7 +84,7 @@ export default async function AuswertenPage({ searchParams }: { searchParams: Pr
                 <ul className="mt-1 space-y-0.5 text-sm">
                   {list.map((x) => (
                     <li key={x.key}>
-                      <Link href={`/workspace/${x.pageId}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
+                      <Link href={`/workspace/${x.pageId}`} className="inline-block py-1 text-indigo-600 hover:underline dark:text-indigo-400">
                         📝 {t(x.title)}
                       </Link>
                       {x.modified && <span className="ml-1.5 rounded bg-amber-100 px-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">{t("changed")}</span>}

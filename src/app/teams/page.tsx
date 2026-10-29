@@ -63,7 +63,7 @@ export default async function TeamsPage({ searchParams }: { searchParams: Promis
               aria-current={kind === tab.kind ? "page" : undefined}
               className={`rounded px-3 py-1 ${kind === tab.kind ? "bg-zinc-200 font-medium dark:bg-zinc-700" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
             >
-              {tab.label} <span className="text-xs text-zinc-400">{tab.n}</span>
+              {tab.label} <span className="text-xs text-zinc-600 dark:text-zinc-300">{tab.n}</span>
             </Link>
           ))}
         </nav>

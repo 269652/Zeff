@@ -8,8 +8,11 @@ export function BoardJobSelect({
   boardId,
   jobs,
   current,
+  boardName,
 }: {
   boardId: number;
+  /** For its name (a select in a table row). */
+  boardName: string;
   jobs: { number: string; name: string }[];
   current: string | null;
 }) {
@@ -21,6 +24,7 @@ export function BoardJobSelect({
       <select
         name="jobNumber"
         defaultValue={current ?? ""}
+        aria-label={`${t("Default job")} – ${boardName}`}
         className="input py-1 text-xs"
         onChange={() => ref.current?.requestSubmit()}
       >

@@ -93,7 +93,7 @@ export function CapturePage() {
   return (
     <div className="mx-auto max-w-xl space-y-3 py-4">
       <h1 className="text-xl font-semibold">⚡ {t("Quick capture")}</h1>
-      <textarea className="input" rows={8} autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={t("A thought, a note, a to-do …")} />
+      <textarea className="input" rows={8} aria-label={t("Quick capture")} autoFocus value={text} onChange={(e) => setText(e.target.value)} placeholder={t("A thought, a note, a to-do …")} />
       <div className="flex flex-wrap items-center gap-2">
         <label className="btn cursor-pointer">
           📷 {t("Photo / file")}

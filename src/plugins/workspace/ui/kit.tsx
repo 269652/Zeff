@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useRef, useState, type ReactNode } from "react";
+import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/components/I18nProvider";
+import { useMenuKeys } from "@/components/useMenuKeys";
+import { useOverlayFocus } from "@/components/Overlay";
 
 /** Small building blocks of the Workspace plugin's UI: a dialog, a dropdown, an emoji picker. */
 
@@ -34,9 +36,8 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
   const t = useT();
   const box = useRef<HTMLDivElement>(null);
   useDismiss(box, true, onClose);
-  useEffect(() => {
-    box.current?.focus();
-  }, []);
+  // The focus goes in, Tab stays in it, and goes back to where it was when it closes (Escape: useDismiss).
+  useOverlayFocus(box, true);
   if (typeof document === "undefined") return null;
   return createPortal(
     <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[10vh]">
@@ -58,12 +59,14 @@ export function Modal({ title, onClose, children, wide = false }: { title: strin
  * A button with a dropdown under it (any content); closes on a click outside, Escape, a scroll or when `close` is called.
  * The menu is a portal to the body (fixed under the button): inside a sidebar or a table it would be cut off or make it scroll.
  */
-export function Dropdown({ label, children, align = "left", title, className = "btn btn-sm", wrapClassName = "relative inline-block" }: { label: ReactNode; children: (close: () => void) => ReactNode; align?: "left" | "right"; title?: string; className?: string; /** The box around the button (a split button's half: "relative flex", so it is as high as the other half). */ wrapClassName?: string }) {
+export function Dropdown({ label, children, align = "left", title, ariaLabel, className = "btn btn-sm", wrapClassName = "relative inline-block" }: { label: ReactNode; children: (close: () => void) => ReactNode; align?: "left" | "right"; title?: string; /** The button's name, when its label is only a sign (⋯, an emoji). */ ariaLabel?: string; className?: string; /** The box around the button (a split button's half: "relative flex", so it is as high as the other half). */ wrapClassName?: string }) {
   const [open, setOpen] = useState(false);
   const [at, setAt] = useState<{ top: number; left?: number; right?: number } | null>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   const close = () => setOpen(false);
+  const id = useId();
+  useMenuKeys(open && !!at, menu, button, close);
   const cb = useRef(close);
   useEffect(() => {
     cb.current = close;
@@ -100,7 +103,7 @@ export function Dropdown({ label, children, align = "left", title, className = "
   }, [open, align]);
   return (
     <div className={wrapClassName}>
-      <button ref={button} type="button" className={className} title={title} aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen(!open)}>
+      <button ref={button} type="button" className={className} title={title} aria-label={ariaLabel ?? (typeof label === "string" && !/\p{L}/u.test(label) ? title : undefined)} aria-expanded={open} aria-controls={open ? id : undefined} onClick={() => setOpen(!open)}>
         {label}
       </button>
       {open &&
@@ -108,12 +111,13 @@ export function Dropdown({ label, children, align = "left", title, className = "
         typeof document !== "undefined" &&
         createPortal(
           // (A click inside must not reach a dialog's own "click outside closes it" - the menu is outside of it in the DOM.)
+          // (No role="menu": its entries are plain buttons and fields. The keys: useMenuKeys.)
           <div
             ref={menu}
+            id={id}
             style={{ position: "fixed", top: at.top, left: at.left, right: at.right }}
             onMouseDown={(e) => e.stopPropagation()}
             className="z-[80] max-h-[70vh] min-w-48 overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
-            role="menu"
           >
             {children(close)}
           </div>,
@@ -178,11 +182,11 @@ const EMOJI = [
 ];
 
 /** Pick an emoji (a grid), or type one; "Remove" clears. */
-export function EmojiPicker({ value, onChange, children }: { value: string; onChange: (v: string) => void; children: ReactNode }) {
+export function EmojiPicker({ value, onChange, children, label }: { value: string; onChange: (v: string) => void; children: ReactNode; /** The button's name (its content is only the emoji). */ label?: string }) {
   const t = useT();
   const [text, setText] = useState("");
   return (
-    <Dropdown label={children} className="rounded-md px-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+    <Dropdown label={children} title={label} ariaLabel={label} className="rounded-md px-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
       {(close) => (
         <div className="w-72 space-y-2 p-1">
           <div className="grid max-h-52 grid-cols-8 gap-0.5 overflow-y-auto">

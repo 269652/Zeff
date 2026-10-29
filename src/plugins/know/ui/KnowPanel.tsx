@@ -177,7 +177,7 @@ export function KnowPanel({ event, occurrence, row, refs, title, compact = false
       )}
 
       {b.related.length > 0 && (
-        <div className="flex flex-wrap gap-1" aria-label={t("About")}>
+        <div role="group" className="flex flex-wrap gap-1" aria-label={t("About")}>
           {b.related.map((r) => (
             <span key={r.ref} className={`${chip} max-w-full truncate border border-zinc-200 bg-white/70 text-zinc-700 dark:border-zinc-700 dark:bg-zinc-900 dark:text-zinc-300`}>
               {link(r)}

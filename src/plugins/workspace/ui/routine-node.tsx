@@ -251,7 +251,7 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
                     </button>
                   )}
                 </header>
-                <pre className="max-h-96 overflow-auto text-xs whitespace-pre-wrap">{r.body}</pre>
+                <pre tabIndex={0} className="max-h-96 overflow-auto text-xs whitespace-pre-wrap">{r.body}</pre>
               </article>
             ))
           )}
@@ -263,7 +263,7 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
       <div className="space-y-1">
         <h4 className="flex items-center gap-2 text-xs font-semibold text-zinc-500 uppercase">
           {t("Every run")}
-          <button type="button" className="text-xs font-normal normal-case text-indigo-600 hover:underline dark:text-indigo-400" onClick={load}>
+          <button type="button" className="text-xs font-normal normal-case text-indigo-600 hover:underline dark:text-indigo-400" onClick={load} title={t("Reload")} aria-label={t("Reload")}>
             ↻
           </button>
         </h4>

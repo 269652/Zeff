@@ -51,7 +51,7 @@ export function DiagnosticsView() {
           </>
         )}
       </div>
-      {text && <textarea readOnly value={text} className="h-[60vh] w-full rounded border border-zinc-200 bg-white p-3 font-mono text-xs dark:border-zinc-800 dark:bg-zinc-900" />}
+      {text && <textarea readOnly value={text} aria-label={t("Diagnostics")} className="h-[60vh] w-full rounded border border-zinc-200 bg-white p-3 font-mono text-xs dark:border-zinc-800 dark:bg-zinc-900" />}
     </div>
   );
 }

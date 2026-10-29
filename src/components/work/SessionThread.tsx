@@ -117,7 +117,7 @@ function StepLine({ s }: { s: Step }) {
         {open && (
           <div className="mt-1 mb-2 ml-4 space-y-1">
             {s.diff?.map((d, i) => <EditDiff key={i} old={d.old} new={d.new} />)}
-            {s.detail && (s.tool === "ExitPlanMode" ? <Markdown text={s.detail} /> : <pre className="max-h-96 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-200">{s.detail}</pre>)}
+            {s.detail && (s.tool === "ExitPlanMode" ? <Markdown text={s.detail} /> : <pre tabIndex={0} className="max-h-96 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-200">{s.detail}</pre>)}
           </div>
         )}
       </div>
@@ -154,7 +154,7 @@ function StepLine({ s }: { s: Step }) {
           ⎿ {s.text}
         </div>
       )}
-      {open && s.full && <pre className="mt-1 max-h-96 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-300">{s.full}</pre>}
+      {open && s.full && <pre tabIndex={0} className="mt-1 max-h-96 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-300">{s.full}</pre>}
     </div>
   );
 }
@@ -193,7 +193,7 @@ function Raw({ text }: { text: string }) {
   const long = lines.length > 12;
   return (
     <div className="rounded-lg border border-zinc-200 bg-zinc-50 dark:border-zinc-800 dark:bg-zinc-900/60">
-      <pre className="max-h-[60vh] overflow-auto p-2.5 font-mono text-xs leading-snug whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">{long && !open ? lines.slice(-12).join("\n") : text}</pre>
+      <pre tabIndex={0} className="max-h-[60vh] overflow-auto p-2.5 font-mono text-xs leading-snug whitespace-pre-wrap text-zinc-600 dark:text-zinc-400">{long && !open ? lines.slice(-12).join("\n") : text}</pre>
       {long && (
         <button type="button" onClick={() => setOpen(!open)} className="w-full border-t border-zinc-200 px-2.5 py-1 text-left text-xs text-zinc-500 hover:text-zinc-800 dark:border-zinc-800 dark:hover:text-zinc-200">
           {open ? t("Show less") : t("Show all {n} lines", { n: lines.length })}
@@ -239,7 +239,7 @@ function Shell({ cmd, text, ok }: { cmd: string; text: string; ok: boolean }) {
   return (
     <details className="rounded-lg bg-zinc-950 px-3 py-1.5 font-mono text-xs text-zinc-200">
       <summary className={`cursor-pointer ${ok ? "text-amber-300" : "text-red-300"}`}>! {cmd}</summary>
-      <pre className="mt-1 max-h-96 overflow-auto text-xs whitespace-pre-wrap text-zinc-300">{text || t("(no output)")}</pre>
+      <pre tabIndex={0} className="mt-1 max-h-96 overflow-auto text-xs whitespace-pre-wrap text-zinc-300">{text || t("(no output)")}</pre>
     </details>
   );
 }
@@ -306,7 +306,7 @@ function Answer({ run }: { run: WorkRunView }) {
       {!active && run.gitSummary && (
         <details className="text-xs text-zinc-500">
           <summary className="cursor-pointer hover:text-zinc-800 dark:hover:text-zinc-200">{t("Changes")}</summary>
-          <pre className="mt-1 overflow-x-auto rounded-lg bg-zinc-50 p-2 dark:bg-zinc-900">{run.gitSummary}</pre>
+          <pre tabIndex={0} className="mt-1 overflow-x-auto rounded-lg bg-zinc-50 p-2 dark:bg-zinc-900">{run.gitSummary}</pre>
         </details>
       )}
       {loaded && !active && !blocks.length && !summary && !run.error && <p className="text-sm text-zinc-500">{t("No answer.")}</p>}

@@ -197,7 +197,7 @@ function Preview({ runId }: { runId: number }) {
             {p.log && (
               <details className="mt-1">
                 <summary className="cursor-pointer text-xs text-zinc-500">{t("Output")}</summary>
-                <pre className="mt-1 max-h-60 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-300">{p.log}</pre>
+                <pre tabIndex={0} className="mt-1 max-h-60 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-300">{p.log}</pre>
               </details>
             )}
           </li>

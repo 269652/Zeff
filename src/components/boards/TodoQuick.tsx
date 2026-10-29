@@ -271,7 +271,7 @@ export function TodoQuickPanel({ todoId, todoRef, panel, onClose, time }: { todo
         <span className="flex gap-1.5">
           {imagesOn && (
             <>
-              <input ref={imageInput} type="file" accept="image/*" multiple hidden onChange={(e) => { void takeImages([...(e.target.files ?? [])]); e.target.value = ""; }} />
+              <input ref={imageInput} type="file" accept="image/*" multiple hidden aria-hidden tabIndex={-1} onChange={(e) => { void takeImages([...(e.target.files ?? [])]); e.target.value = ""; }} />
               <button type="button" className="btn btn-sm" onClick={() => imageInput.current?.click()} disabled={pending || uploading > 0} title={t("Add a picture (a screenshot, a mock-up): it is attached to the todo and the AI gets it as an attachment")}>
                 🖼 {t("Picture")}
               </button>
@@ -336,6 +336,7 @@ function ReplyPanel({ todoId, onClose }: { todoId: number; onClose: () => void }
         <textarea
           rows={Math.min(10, Math.max(3, text.split("\n").length + 1))}
           className="input w-full resize-y text-sm"
+          aria-label={t("Reply")}
           placeholder={t("The reply…")}
           value={text}
           disabled={pending}

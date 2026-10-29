@@ -138,6 +138,7 @@ export function TagInput({
       <textarea
         ref={ref}
         name={name}
+        aria-label={t("Report")}
         rows={2}
         required={required}
         className="input"

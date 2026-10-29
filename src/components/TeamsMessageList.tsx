@@ -57,7 +57,7 @@ function TeamsMessageCard({ m }: { m: TeamsMessageView }) {
           </a>
         </span>
       </header>
-      {m.subject && <h3 className="mt-1.5 text-sm font-semibold">{m.subject}</h3>}
+      {m.subject && <h2 className="mt-1.5 text-sm font-semibold">{m.subject}</h2>}
       <div className="mt-1">
         <div className={`relative ${long && !open ? "max-h-48 overflow-hidden" : ""}`}>
           {markdown ? <Markdown text={markdown} className="text-zinc-700 dark:text-zinc-300" /> : <p className="text-sm text-zinc-400">{t("(no text)")}</p>}

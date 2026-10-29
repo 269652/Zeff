@@ -99,7 +99,7 @@ export function ActivityList({ events }: { events: TodoEventView[] }) {
                   </span>
                   <div className="min-w-0 flex-1">
                     <div className="flex items-baseline gap-1.5">
-                      {isNew && <span className="size-1.5 shrink-0 translate-y-[-1px] rounded-full bg-amber-500" aria-label={t("new")} />}
+                      {isNew && <span role="img" className="size-1.5 shrink-0 translate-y-[-1px] rounded-full bg-amber-500" aria-label={t("new")} />}
                       <span className={`min-w-0 ${e.event === "done" || e.event === "dismissed" ? "text-zinc-600 dark:text-zinc-300" : ""}`}>
                         <TodoRefs text={e.text} />
                       </span>

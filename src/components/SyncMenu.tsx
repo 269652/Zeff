@@ -56,12 +56,12 @@ function StepMark({ s }: { s: SyncView }) {
   const t = useT();
   if (s.running) return <Spinner tone="indigo" label={t("Syncing")} className="block size-[18px]" />;
   if (!s.everyMinutes || !s.nextAt)
-    return <span className="block size-[18px] rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600" title={t("Only by hand")} aria-label={t("Only by hand")} />;
+    return <span role="img" className="block size-[18px] rounded-full border-2 border-dashed border-zinc-300 dark:border-zinc-600" title={t("Only by hand")} aria-label={t("Only by hand")} />;
   const label = s.window
     ? t("Runs {every} ({window}) — next {next}", { every: every(t, s.everyMinutes), window: s.window, next: until(t, s.nextAt) })
     : t("Runs {every} — next {next}", { every: every(t, s.everyMinutes), next: until(t, s.nextAt) });
   return (
-    <span title={label} aria-label={label}>
+    <span role="img" title={label} aria-label={label}>
       <NextRing s={s} />
     </span>
   );
@@ -80,7 +80,7 @@ export function SyncStepRow({ s, disabled, onRun, onStop, onNavigate, running = 
           {s.label}
         </Link>
         {health && !running && (
-          <span className={`ml-1.5 inline-block size-1.5 rounded-full align-middle ${health.state === "failing" ? "bg-red-500" : "bg-amber-500"}`} title={health.reason} aria-label={health.reason} />
+          <span role="img" className={`ml-1.5 inline-block size-1.5 rounded-full align-middle ${health.state === "failing" ? "bg-red-500" : "bg-amber-500"}`} title={health.reason} aria-label={health.reason} />
         )}
         <div className="truncate text-xs text-zinc-500" title={s.lastMessage ?? undefined}>
           {running ? (

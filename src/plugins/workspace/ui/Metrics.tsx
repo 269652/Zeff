@@ -203,18 +203,19 @@ export function MetricsBoard({ initial }: { initial: MetricView[] }) {
       <section className="card space-y-2 p-4">
         <h2 className="text-sm font-semibold">{t("New metric from a formula")}</h2>
         <div className="grid gap-2 sm:grid-cols-[1fr_8rem]">
-          <input className="input" placeholder={t("Name, e.g. Puffer in Monaten")} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
-          <input className="input" placeholder={t("Unit")} value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} />
+          <input className="input" aria-label={t("Name")} placeholder={t("Name, e.g. Puffer in Monaten")} value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} />
+          <input className="input" aria-label={t("Unit")} placeholder={t("Unit")} value={draft.unit} onChange={(e) => setDraft({ ...draft, unit: e.target.value })} />
         </div>
         <textarea
           ref={formula}
           className="input w-full font-mono text-sm"
+          aria-label={t("Formula")}
           rows={2}
           placeholder={'(kennzahl("Nettoeinkommen") - kennzahl("Ausgaben")) / kennzahl("Nettoeinkommen") * 100'}
           value={draft.formula}
           onChange={(e) => setDraft({ ...draft, formula: e.target.value })}
         />
-        <input className="input w-full" placeholder={t("What it is (one line)")} value={draft.what} onChange={(e) => setDraft({ ...draft, what: e.target.value })} />
+        <input className="input w-full" aria-label={t("What it is (one line)")} placeholder={t("What it is (one line)")} value={draft.what} onChange={(e) => setDraft({ ...draft, what: e.target.value })} />
         <div className="flex items-center justify-between gap-2">
           <span className="truncate text-sm text-zinc-500">{preview ?? t("Click a metric's name below to put it into the formula.")}</span>
           <button

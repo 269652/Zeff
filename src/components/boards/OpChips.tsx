@@ -183,6 +183,7 @@ function OpChip({
           <span className="mt-1 block space-y-1">
             <textarea
               className="input min-h-20 w-full text-xs"
+              aria-label={t("Text")}
               value={text}
               onChange={(e) => setText(e.target.value)}
               rows={Math.min(10, Math.max(3, text.split("\n").length + 1))}

@@ -42,7 +42,7 @@ export function BranchNamingAdmin({ todoId }: { todoId?: number }) {
                 )}
                 <details className="text-sm">
                   <summary className="cursor-pointer text-zinc-500">{t("What the worker is told")}</summary>
-                  <pre className="mt-1 max-h-96 overflow-auto rounded-md bg-zinc-50 p-2 text-xs whitespace-pre-wrap dark:bg-zinc-900">{namingBlock(todo).trim()}</pre>
+                  <pre tabIndex={0} className="mt-1 max-h-96 overflow-auto rounded-md bg-zinc-50 p-2 text-xs whitespace-pre-wrap dark:bg-zinc-900">{namingBlock(todo).trim()}</pre>
                 </details>
               </>
             )}

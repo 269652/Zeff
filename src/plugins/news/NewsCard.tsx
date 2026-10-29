@@ -133,7 +133,7 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
     });
   };
   return (
-    <article ref={card} id={`news-card-${item.id}`} className={`card overflow-hidden ${item.gate === "top" ? "ring-2 ring-amber-400/70" : ""} ${item.fromTopic ? "border-l-4 border-l-indigo-400" : ""} ${read ? "opacity-75" : ""} ${pending ? "opacity-50" : ""}`}>
+    <article ref={card} id={`news-card-${item.id}`} className={`card overflow-hidden ${item.gate === "top" ? "ring-2 ring-amber-400/70" : ""} ${item.fromTopic ? "border-l-4 border-l-indigo-400" : ""} ${pending ? "opacity-50" : ""}`}>
       {showImage && item.image && !broken && (
         <div
           className="relative"
@@ -143,7 +143,7 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
           }}
         >
           {/* eslint-disable-next-line @next/next/no-img-element -- pictures of other sites, shown as they are (no optimiser on the way) */}
-          <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className="aspect-video w-full bg-zinc-100 object-cover select-none dark:bg-zinc-800" />
+          <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className={`aspect-video w-full bg-zinc-100 object-cover select-none dark:bg-zinc-800 ${read ? "opacity-60" : ""}`} />
           {heart > 0 && (
             <span key={heart} className="pointer-events-none absolute inset-0 flex items-center justify-center text-6xl drop-shadow-lg" style={{ animation: "news-heart 0.9s ease-out forwards" }}>
               ❤️

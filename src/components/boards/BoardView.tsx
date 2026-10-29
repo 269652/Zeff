@@ -106,7 +106,7 @@ function TicketActionButton({
     return (
       <div className="rounded-md border border-emerald-200 bg-emerald-50 px-2 py-1.5 text-xs text-emerald-900 dark:border-emerald-900 dark:bg-emerald-950/40 dark:text-emerald-100">
         <div className="font-medium">✓ {action.label}</div>
-        <div className="text-emerald-800/70 dark:text-emerald-200/70">
+        <div className="text-emerald-700 dark:text-emerald-300">
           {done.detail} ·{" "}
           {formatDateTime(done.at)}
         </div>
@@ -712,11 +712,11 @@ export function BoardView({
               <div className="space-y-5">
                 {groupTodos(mine).map((g) => (
                   <section key={g.key} aria-label={groupLabels[g.key]}>
-                    <h3 className="mb-1 flex items-center gap-2 px-3 text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
+                    <h2 className="mb-1 flex items-center gap-2 px-3 text-xs font-semibold tracking-wide text-zinc-500 dark:text-zinc-400">
                       <span className={`size-1.5 rounded-full ${GROUP_DOT[g.key]}`} aria-hidden />
                       <span className={g.key === "overdue" ? "text-red-600 dark:text-red-400" : undefined}>{groupLabels[g.key]}</span>
                       <span className="font-normal text-zinc-400 tabular-nums">{g.items.length}</span>
-                    </h3>
+                    </h2>
                     <ul className="space-y-0.5">
                       {g.items.map((t) => (
                         <TodoItem workOn={workOn} key={t.id} t={t} showTicket cards={cards} sources={sources} anchor running={runningTodos.includes(t.id)} />

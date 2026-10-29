@@ -20,7 +20,7 @@ export function ImportStatement({ onDone }: { onDone: (r: { ok: boolean; message
   };
   return (
     <>
-      <input ref={file} type="file" accept=".csv,text/csv" className="hidden" onChange={(e) => void read(e.target.files)} />
+      <input ref={file} type="file" accept=".csv,text/csv" className="hidden" aria-hidden tabIndex={-1} onChange={(e) => void read(e.target.files)} />
       <button type="button" className="btn btn-sm" disabled={busy} onClick={() => file.current?.click()}>
         {busy ? "…" : t("Import statement (CSV)")}
       </button>

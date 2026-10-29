@@ -101,7 +101,7 @@ export function AiSettingsForm({
           "claude",
           <span className="block min-w-48">
             <span className="label">{t("Model")}</span>
-            <select name="claudeModel" className="input" defaultValue={claudeModel}>
+            <select name="claudeModel" className="input" aria-label={t("Model")} defaultValue={claudeModel}>
               {claudeModels(t).map((m) => (
                 <option key={m.value} value={m.value}>
                   {m.label}
@@ -115,7 +115,7 @@ export function AiSettingsForm({
           <span className="block min-w-48">
             <span className="label">{t("Model")}</span>
             {copilotModels.length ? (
-              <select name="copilotModel" className="input" defaultValue={copilotModel} title={t("The models your Copilot CLI takes (copilot help config)")}>
+              <select name="copilotModel" className="input" aria-label={t("Model")} defaultValue={copilotModel} title={t("The models your Copilot CLI takes (copilot help config)")}>
                 <option value="">{t("Copilot's default")}</option>
                 <option value="auto">{t("Auto — Copilot picks")}</option>
                 {copilotModel && copilotModel !== "auto" && !copilotModels.includes(copilotModel) && <option value={copilotModel}>{t("{model} (not offered any more)", { model: copilotModel })}</option>}
@@ -134,7 +134,7 @@ export function AiSettingsForm({
               </select>
             ) : (
               <>
-                <input name="copilotModel" className="input font-mono text-xs" defaultValue={copilotModel} placeholder={t("empty: Copilot's default")} list="copilot-models" />
+                <input name="copilotModel" aria-label={t("Model")} className="input font-mono text-xs" defaultValue={copilotModel} placeholder={t("empty: Copilot's default")} list="copilot-models" />
                 <datalist id="copilot-models">
                   {COPILOT_MODEL_SUGGESTIONS.map((m) => (
                     <option key={m} value={m} />
@@ -149,7 +149,7 @@ export function AiSettingsForm({
           <span className="block min-w-48">
             <span className="label">{t("Model")}</span>
             {codexModels.length ? (
-              <select name="codexModel" className="input" defaultValue={codexModel} title={t("The models the Codex CLI offers your ChatGPT account")}>
+              <select name="codexModel" className="input" aria-label={t("Model")} defaultValue={codexModel} title={t("The models the Codex CLI offers your ChatGPT account")}>
                 <option value="">{t("ChatGPT's default")}</option>
                 {codexModel && !codexModels.some((m) => m.id === codexModel) && <option value={codexModel}>{t("{model} (not offered any more)", { model: codexModel })}</option>}
                 {codexModels.map((m) => (
@@ -159,7 +159,7 @@ export function AiSettingsForm({
                 ))}
               </select>
             ) : (
-              <input name="codexModel" className="input font-mono text-xs" defaultValue={codexModel} placeholder={t("empty: ChatGPT's default")} />
+              <input name="codexModel" aria-label={t("Model")} className="input font-mono text-xs" defaultValue={codexModel} placeholder={t("empty: ChatGPT's default")} />
             )}
           </span>,
         )}

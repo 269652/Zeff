@@ -26,8 +26,8 @@ const template = (t: T) => `<state name="view" value="week"/>
 <row gap=2>
   <button action="state" state="day" value="{{ app.today }}" label="${t("Today")}"/>
   <row gap=0 wrap=false>
-    <button action="state" state="day" value="{{ app.prev }}" label="‹"/>
-    <button action="state" state="day" value="{{ app.next }}" label="›"/>
+    <button action="state" state="day" value="{{ app.prev }}" label="‹" tip="${t("Previous")}"/>
+    <button action="state" state="day" value="{{ app.next }}" label="›" tip="${t("Next")}"/>
   </row>
   <heading level=2 phone="hide">{{ app.title }}</heading>
   <heading level=3 phone="only">{{ app.title }}</heading>

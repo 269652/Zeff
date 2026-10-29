@@ -187,8 +187,8 @@ function DayCell({
       }`}
     >
       <div className="flex items-baseline justify-between gap-1 text-xs">
-        <span className={isToday ? "font-semibold text-indigo-600 dark:text-indigo-400" : "opacity-70"}>{date.getDate()}</span>
-        {note && <span className="truncate opacity-80">{note}</span>}
+        <span className={isToday ? "font-semibold text-indigo-600 dark:text-indigo-400" : ""}>{date.getDate()}</span>
+        {note && <span className="truncate">{note}</span>}
       </div>
       <div className="text-right font-semibold tabular-nums">
         {hours > 0 ? (

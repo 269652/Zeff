@@ -35,7 +35,7 @@ export function CatalogBrowser({ have, lang, q }: { have: Set<string>; lang: str
       <div className="flex flex-wrap items-center gap-2 text-sm">
         <form method="get" action="/settings/news" className="flex items-center gap-2">
           {lang && <input type="hidden" name="lang" value={lang} />}
-          <input name="q" defaultValue={q} placeholder={t("Search the catalog …")} className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+          <input name="q" defaultValue={q} aria-label={t("Search the catalog")} placeholder={t("Search the catalog …")} className="rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
           <button className="btn btn-sm">{t("Search")}</button>
         </form>
         <span className="flex flex-wrap gap-1">

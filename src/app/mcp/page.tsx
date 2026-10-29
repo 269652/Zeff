@@ -74,7 +74,7 @@ export default async function McpPage() {
 
       <section className="card space-y-2 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Endpoint")}</h2>
-        <pre className="pre">{url}</pre>
+        <pre tabIndex={0} className="pre">{url}</pre>
         <p className="text-sm">
           {rich(t("Account “{name}”. Agents send its token — it opens this account only: <code>{header}</code>", { name, header: `Authorization: Bearer ${token}` }), { code: (s) => <code className="code break-all">{s}</code> })}
         </p>
@@ -90,8 +90,8 @@ export default async function McpPage() {
         <p className="text-sm">
           {rich(t("Add it for the current user (or drop the JSON below into a project's <code>.mcp.json</code>):"), { code: (s) => <code className="code">{s}</code> })}
         </p>
-        <pre className="pre">{claudeCli}</pre>
-        <pre className="pre">{mcpJson}</pre>
+        <pre tabIndex={0} className="pre">{claudeCli}</pre>
+        <pre tabIndex={0} className="pre">{mcpJson}</pre>
         <p className="text-sm">
           {rich(
             t(
@@ -112,7 +112,7 @@ export default async function McpPage() {
             { code: (s) => <code className="code">{s}</code> },
           )}
         </p>
-        <pre className="pre">{stdioJson}</pre>
+        <pre tabIndex={0} className="pre">{stdioJson}</pre>
       </section>
 
       <section className="card space-y-3 p-4">
@@ -131,7 +131,7 @@ export default async function McpPage() {
 
       <section className="card space-y-3 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Smoke test")}</h2>
-        <pre className="pre">{curl}</pre>
+        <pre tabIndex={0} className="pre">{curl}</pre>
       </section>
     </div>
   );

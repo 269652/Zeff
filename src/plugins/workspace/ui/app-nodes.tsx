@@ -74,7 +74,7 @@ export function GripBar({ editor, node, getPos, deleteNode, label }: Pick<NodeVi
   if (!editor.isEditable) return null;
   return (
     <div className="ws-grip-bar" contentEditable={false}>
-      <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
+      <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-hidden="true">
         ⠿
       </span>
       <span className="ws-grip-label">{label}</span>

@@ -42,7 +42,9 @@ export function MiniMonth({ focus, shown, today, busyDays, onPick }: { focus: st
       <table className="w-full table-fixed text-center text-xs">
         <thead>
           <tr className="text-xs text-zinc-600 dark:text-zinc-400">
-            <th scope="col" className="w-6 font-normal" aria-label={t("Week")} />
+            <th scope="col" className="w-6 font-normal">
+              <span className="sr-only">{t("Week")}</span>
+            </th>
             {weekdayHeads("narrow", locale).map((h, i) => (
               <th scope="col" key={i} className="pb-1 font-medium">
                 {h}

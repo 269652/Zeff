@@ -159,7 +159,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
                   {e.n > 0 && <span className={`ml-auto shrink-0 pl-1 text-xs tabular-nums ${e.id === "inbox" ? "font-semibold text-indigo-600 dark:text-indigo-400" : "text-zinc-400"}`}>{e.n}</span>}
                 </Link>
                 <span data-hover className="flex shrink-0 items-center">
-                  <button type="button" className="icon-btn size-5 text-xs" title={e.hidden ? t("Show again") : t("Hide")} aria-label={e.hidden ? t("Show again") : t("Hide")} onClick={() => void set(e.id, !e.hidden)}>
+                  <button type="button" className="icon-btn size-6 text-xs" title={e.hidden ? t("Show again") : t("Hide")} aria-label={e.hidden ? t("Show again") : t("Hide")} onClick={() => void set(e.id, !e.hidden)}>
                     {e.hidden ? "👁" : "🚫"}
                   </button>
                 </span>
@@ -203,7 +203,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
             void drop(item, over?.id === item.id ? over.where : "into");
           }}
         >
-          <button type="button" className="icon-btn size-5 shrink-0 text-xs" onClick={() => toggle(item.id)} aria-label={isOpen ? t("Collapse") : t("Expand")} aria-expanded={isOpen} style={{ visibility: kids.length || appNav[item.id] ? "visible" : "hidden" }}>
+          <button type="button" className="icon-btn size-6 shrink-0 text-xs" onClick={() => toggle(item.id)} aria-label={isOpen ? t("Collapse") : t("Expand")} aria-expanded={isOpen} style={{ visibility: kids.length || appNav[item.id] ? "visible" : "hidden" }}>
             {isOpen ? "▾" : "▸"}
           </button>
           <Link href={`/workspace/${item.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
@@ -217,7 +217,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
             )}
           </Link>
           <span data-hover className="flex shrink-0 items-center">
-            <Dropdown label="⋯" title={t("More")} className="icon-btn size-5 text-xs" align="left">
+            <Dropdown label="⋯" title={t("More")} className="icon-btn size-6 text-xs" align="left">
               {(close) => (
                 <>
                   <MenuItem
@@ -269,7 +269,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
                 </>
               )}
             </Dropdown>
-            <button type="button" className="icon-btn size-5 text-xs" aria-label={t("New sub-page")} title={t("New sub-page")} onClick={() => void create({ parentId: item.id })}>
+            <button type="button" className="icon-btn size-6 text-xs" aria-label={t("New sub-page")} title={t("New sub-page")} onClick={() => void create({ parentId: item.id })}>
               +
             </button>
           </span>

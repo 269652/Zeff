@@ -85,7 +85,7 @@ function History({ pageId, onClose }: { pageId: number; onClose: () => void }) {
           <div className="space-y-2">
             {preview ? (
               <>
-                <pre className="max-h-[44vh] overflow-auto rounded-md bg-zinc-50 p-2 text-sm whitespace-pre-wrap dark:bg-zinc-900">{preview.markdown || t("(empty)")}</pre>
+                <pre tabIndex={0} className="max-h-[44vh] overflow-auto rounded-md bg-zinc-50 p-2 text-sm whitespace-pre-wrap dark:bg-zinc-900">{preview.markdown || t("(empty)")}</pre>
                 <button
                   type="button"
                   className="btn btn-primary btn-sm"
@@ -466,14 +466,15 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
         <div className={`${showTitle ? "flex" : "hidden"} items-start gap-2`}>
           {editable ? (
             <EmojiPicker
+              label={t("Change the icon")}
               value={icon}
               onChange={(v) => {
                 setIcon(v);
                 void patch({ icon: v });
               }}
             >
-              <span className="text-4xl leading-none" aria-label={t("Change the icon")}>
-                {icon || <span className="text-2xl text-zinc-300">☺</span>}
+              <span className="text-4xl leading-none">
+                {icon || <span className="text-2xl text-zinc-300" aria-hidden="true">☺</span>}
               </span>
             </EmojiPicker>
           ) : (

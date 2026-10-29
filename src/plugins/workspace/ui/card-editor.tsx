@@ -107,7 +107,7 @@ export function CardEditor({ view, schema, rows, data, keys, onSave, onClose }: 
             aria-label={t("Card template")}
             onChange={(e) => setSrc(e.target.value)}
           />
-          <div className="space-y-2" aria-label={t("Preview")}>
+          <div role="group" className="space-y-2" aria-label={t("Preview")}>
             {!src.trim() ? (
               <p className="text-sm text-zinc-500">{t("The automatic card — write a template or start from one of the examples.")}</p>
             ) : parsed.errors.length ? (

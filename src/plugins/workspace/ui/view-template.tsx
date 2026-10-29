@@ -438,6 +438,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
           </div>
         );
       case "button": {
+        // A label that is only a sign (‹ ›): its tip is the button's name, and it is wide enough to hit (24 px).
+        const sign = !!a.label && !/\p{L}/u.test(a.label);
         const variant = a.variant === "link" ? "truncate text-left font-medium hover:underline" : a.variant === "primary" ? "btn btn-primary btn-sm" : a.variant === "danger" ? "btn btn-sm btn-danger" : a.variant === "quiet" ? "rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800" : "btn btn-sm";
         return (
           <button
@@ -446,7 +448,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
             disabled={a.disabled === "true"}
             title={a.tip || (a.keys ? `${a.label ?? a.action} (${a.keys})` : undefined)}
             aria-keyshortcuts={a.keys || undefined}
-            className={`${variant} ${a.wide === "true" ? "w-full justify-center" : ""} ${a.print === "true" ? "" : "print:hidden"} ${a.action === "print" ? "max-sm:hidden" : ""}`}
+            aria-label={sign && a.tip ? a.tip : undefined}
+            className={`${variant} ${sign ? "min-w-7 justify-center" : ""} ${a.wide === "true" ? "w-full justify-center" : ""} ${a.print === "true" ? "" : "print:hidden"} ${a.action === "print" ? "max-sm:hidden" : ""}`}
             onClick={(e) => (e.stopPropagation(), void run(a))}
           >
             {a.label ?? a.action}

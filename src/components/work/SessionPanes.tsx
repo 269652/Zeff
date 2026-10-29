@@ -97,7 +97,7 @@ export function SessionPane({ run, options }: { run: WorkRunView; options: Optio
             {cost > 0 && <span>${cost.toFixed(2)}</span>}
           </div>
           {side.length > 0 && (
-            <div className="mt-1 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Todos in Arbeit">
+            <div role="group" className="mt-1 flex flex-wrap items-center gap-1.5 text-xs" aria-label="Todos in Arbeit">
               {side.map((s) => {
                 const t = getTodo(s.todoId);
                 return (

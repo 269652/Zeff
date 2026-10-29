@@ -41,20 +41,23 @@ export default async function KnowledgePage() {
           {typeof status === "string" ? (
             <p role="alert" className="alert-error text-sm">{status}</p>
           ) : (
-            <dl className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
-              {(
-                [
-                  [t("Pages"), status.counts.pages],
-                  [t("Spaces"), status.counts.spaces],
-                  [t("Entities"), status.counts.entities],
-                  [t("Relations"), status.counts.relations],
-                ] as const
-              ).map(([label, n]) => (
-                <div key={label}>
-                  <dt className="text-xs text-zinc-500">{label}</dt>
-                  <dd className="text-lg font-semibold tabular-nums">{n}</dd>
-                </div>
-              ))}
+            // (The notes under the counts are no terms: beside the list, in the same grid.)
+            <div className="grid grid-cols-2 gap-x-3 gap-y-2 text-sm">
+              <dl className="contents">
+                {(
+                  [
+                    [t("Pages"), status.counts.pages],
+                    [t("Spaces"), status.counts.spaces],
+                    [t("Entities"), status.counts.entities],
+                    [t("Relations"), status.counts.relations],
+                  ] as const
+                ).map(([label, n]) => (
+                  <div key={label}>
+                    <dt className="text-xs text-zinc-500">{label}</dt>
+                    <dd className="text-lg font-semibold tabular-nums">{n}</dd>
+                  </div>
+                ))}
+              </dl>
               {status.counts.compiled < status.counts.pages && (
                 <p className="col-span-2 text-xs text-amber-700 dark:text-amber-400">{t("{n} not compiled yet", { n: status.counts.pages - status.counts.compiled })}</p>
               )}
@@ -66,7 +69,7 @@ export default async function KnowledgePage() {
                   {busy && ` · ${t("running now")}`}
                 </p>
               )}
-            </dl>
+            </div>
           )}
           <div className="flex flex-wrap gap-2">
             {typeof status !== "string" && <KnowledgeSyncButton busy={busy} />}

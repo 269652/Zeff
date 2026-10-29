@@ -70,9 +70,20 @@ function Line({
       <div
         className={`flex items-start justify-between gap-3 px-3 py-1.5 ${expandable ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-800/40" : ""}`}
         onClick={expandable ? toggle : undefined}
+        // Opens by keyboard too (WCAG 2.1.1), and says whether it is open.
+        {...(expandable && {
+          role: "button",
+          tabIndex: 0,
+          "aria-expanded": open,
+          onKeyDown: (e: React.KeyboardEvent) => {
+            if (e.key !== "Enter" && e.key !== " ") return;
+            e.preventDefault();
+            toggle();
+          },
+        })}
       >
         <div className="min-w-0">
-          {expandable && <span className="mr-1 inline-block w-3 text-zinc-400">{open ? "▾" : "▸"}</span>}
+          {expandable && <span className="mr-1 inline-block w-3 text-zinc-400" aria-hidden="true">{open ? "▾" : "▸"}</span>}
           {line.label}
           {line.count > 1 && <span className="ml-1 text-xs text-zinc-400">×{line.count}</span>}
         </div>

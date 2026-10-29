@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { createPortal } from "react-dom";
 import { useEffect, useRef, useState, useSyncExternalStore, type ReactNode } from "react";
+import { useMenuKeys } from "@/components/useMenuKeys";
 import { tabMenuAction } from "@/app/actions";
 import type { TabMenuItem } from "@/plugins/tab-menus-shared";
 import type { HeaderTab } from "./SiteHeader";
@@ -37,6 +38,8 @@ export function TabSplit({ tab, current, pathname, className, active, children }
   const [items, setItems] = useState<TabMenuItem[] | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const menu = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  useMenuKeys(open, menu, button, () => setOpen(false));
   const [pos, setPos] = useState({ top: 0, left: 0 });
   const [shownFor, setShownFor] = useState(pathname);
   if (shownFor !== pathname) {
@@ -77,6 +80,7 @@ export function TabSplit({ tab, current, pathname, className, active, children }
         {children}
       </Link>
       <button
+        ref={button}
         type="button"
         aria-haspopup="menu"
         aria-expanded={open}

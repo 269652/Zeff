@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
+import { useOverlayFocus } from "@/components/Overlay";
 import { useGrant } from "@/components/PluginFlags";
 import { SOURCE_LABELS, type SeriesScope } from "@/lib/calendar/ir-shared";
 import { describeRecurrence } from "@/lib/calendar/recurrence";
@@ -35,6 +36,8 @@ const showAsText = (t: T, v: string): string =>
 export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: Item; anchor: DOMRect | null; onClose: () => void; onEdit: () => void; onDone: (r: Result, undo?: () => unknown) => void }) {
   const t = useT();
   const box = useRef<HTMLDivElement>(null);
+  // Opened by a click on its event: the focus goes in (Tab stays in it) and back to the event when it closes.
+  useOverlayFocus(box, true);
   const [asking, setAsking] = useState(false);
   const [pending, start] = useTransition();
   const e = item.event;

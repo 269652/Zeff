@@ -47,7 +47,7 @@ const TONE: Record<SourceHealth["state"], string> = {
 function PerDay({ days }: { days: number[] }) {
   const max = Math.max(1, ...days);
   return (
-    <span className="inline-flex h-4 items-end gap-px" title={days.join(" · ")} aria-label={t("Items a day, the last 14 days: {list}", { list: days.join(", ") })}>
+    <span role="img" className="inline-flex h-4 items-end gap-px" title={days.join(" · ")} aria-label={t("Items a day, the last 14 days: {list}", { list: days.join(", ") })}>
       {days.map((n, i) => (
         <span key={i} className={`w-1 rounded-sm ${n ? "bg-indigo-400 dark:bg-indigo-500" : "bg-zinc-200 dark:bg-zinc-800"}`} style={{ height: `${Math.max(2, Math.round((n / max) * 16))}px` }} />
       ))}

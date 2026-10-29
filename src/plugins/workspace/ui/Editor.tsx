@@ -624,7 +624,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       {proposal && (
         <div className="card mt-3 space-y-2 border-violet-300 p-3 dark:border-violet-800">
           <p className="text-xs font-semibold text-violet-700 uppercase dark:text-violet-300">✨ {t("AI suggestion")}</p>
-          <pre className="max-h-64 overflow-auto text-sm whitespace-pre-wrap">{proposal.markdown}</pre>
+          <pre tabIndex={0} className="max-h-64 overflow-auto text-sm whitespace-pre-wrap">{proposal.markdown}</pre>
           <div className="flex flex-wrap gap-2">
             {proposal.replace && (
               <button type="button" className="btn btn-primary btn-sm" onClick={() => accept(true)}>
@@ -653,7 +653,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
               void runAi("custom", v);
             }}
           >
-            <textarea name="q" autoFocus rows={3} className="input w-full" placeholder={t("What should it write? (e.g. “An agenda for a 30-minute kickoff”)")} />
+            <textarea name="q" autoFocus rows={3} aria-label={t("What should it write?")} className="input w-full" placeholder={t("What should it write? (e.g. “An agenda for a 30-minute kickoff”)")} />
             <p className="text-xs text-zinc-500">{t("It sees the text before the cursor, or the selection — and looks through what Zeff knows: mails, tickets, Teams messages, notes, the knowledge base, your pages.")}</p>
             <div className="flex justify-end gap-2">
               <button type="button" className="btn btn-sm" onClick={() => setAskAi(false)}>
@@ -765,7 +765,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
                 {todos.map((x, i) => (
                   <li key={i} className="flex items-start gap-2">
                     <input type="checkbox" className="mt-2" checked={x.on} onChange={(e) => setTodos(todos.map((y, j) => (j === i ? { ...y, on: e.target.checked } : y)))} aria-label={t("Make this todo")} />
-                    <input className="input flex-1 text-sm" value={x.text} onChange={(e) => setTodos(todos.map((y, j) => (j === i ? { ...y, text: e.target.value } : y)))} />
+                    <input className="input flex-1 text-sm" value={x.text} aria-label={t("Todo text")} onChange={(e) => setTodos(todos.map((y, j) => (j === i ? { ...y, text: e.target.value } : y)))} />
                     {x.ticket && <span className="mt-1.5 shrink-0 font-mono text-xs text-zinc-500">{x.ticket}</span>}
                   </li>
                 ))}

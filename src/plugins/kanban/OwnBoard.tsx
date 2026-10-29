@@ -466,7 +466,7 @@ function ColumnHead({ col, first, last, run }: { col: ColumnView; first: boolean
             }
           }}
         >
-          <input className="input py-0.5 text-sm font-semibold" value={name} autoFocus onChange={(e) => setName(e.target.value)}
+          <input className="input py-0.5 text-sm font-semibold" value={name} aria-label={t("Column name")} autoFocus onChange={(e) => setName(e.target.value)}
             onKeyDown={(e) => {
               if (e.key !== "Escape") return;
               e.preventDefault();
@@ -707,7 +707,7 @@ export function OwnBoard({ board, lage = {}, todosOn = false, otherBoards = [], 
                     }
                   }}
                 >
-                  <input name="name" className="input text-lg font-semibold" defaultValue={board.name}
+                  <input name="name" className="input text-lg font-semibold" defaultValue={board.name} aria-label={t("Board name")}
                     autoFocus
                     onKeyDown={(e) => {
                       if (e.key !== "Escape") return;
@@ -719,8 +719,11 @@ export function OwnBoard({ board, lage = {}, todosOn = false, otherBoards = [], 
                   />
                 </form>
               ) : (
-                <h1 className="cursor-text text-lg font-semibold" onClick={() => setEditingName(true)} title={t("Rename")}>
-                  {board.name}
+                <h1 className="text-lg font-semibold">
+                  {/* A button in the heading: renaming by keyboard too. */}
+                  <button type="button" className="cursor-text text-left" onClick={() => setEditingName(true)} title={t("Rename")}>
+                    {board.name}
+                  </button>
                 </h1>
               )}
               {board.description && <p className="mt-1 text-sm text-zinc-500">{board.description}</p>}

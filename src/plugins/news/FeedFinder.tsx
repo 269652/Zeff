@@ -42,7 +42,7 @@ export function FeedFinder() {
           search();
         }}
       >
-        <input value={topic} onChange={(e) => setTopic(e.target.value)} placeholder={t("A topic, e.g. quantum computing — or empty for my interests")} className="min-w-[16rem] flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
+        <input value={topic} aria-label={t("Feed topic")} onChange={(e) => setTopic(e.target.value)} placeholder={t("A topic, e.g. quantum computing — or empty for my interests")} className="min-w-[16rem] flex-1 rounded border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
         <button className="btn btn-primary btn-sm" disabled={pending}>
           {pending ? t("Searching the internet …") : t("Find feeds")}
         </button>

@@ -17,7 +17,7 @@ type Result = { ok: boolean; error?: string; message?: string; id?: number };
 function Colors({ value, onPick }: { value: string; onPick: (c: string) => void }) {
   const t = useT();
   return (
-    <span className="flex items-center gap-1" role="radiogroup" aria-label={t("Colour")}>
+    <span className="flex items-center" role="radiogroup" aria-label={t("Colour")}>
       {BOARD_COLORS.map((c) => (
         <button
           key={c}
@@ -26,8 +26,11 @@ function Colors({ value, onPick }: { value: string; onPick: (c: string) => void 
           aria-checked={value === c}
           aria-label={c}
           onClick={() => c !== value && onPick(c)}
-          className={`size-4 rounded-full ${boardDot(c)} ring-offset-2 dark:ring-offset-zinc-900 ${value === c ? "ring-2 ring-zinc-500" : "opacity-50 hover:opacity-100"}`}
-        />
+          // 24 px to hit (WCAG 2.5.8), the dot in it 16 px.
+          className="group grid size-6 place-items-center rounded-full"
+        >
+          <span className={`size-4 rounded-full ${boardDot(c)} ring-offset-2 dark:ring-offset-zinc-900 ${value === c ? "ring-2 ring-zinc-500" : "opacity-50 group-hover:opacity-100"}`} />
+        </button>
       ))}
     </span>
   );

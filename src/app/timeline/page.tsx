@@ -43,7 +43,7 @@ export default async function TimelinePage({ searchParams }: { searchParams: Pro
       {since.ok &&
         since.groups.map((g) => (
           <li key={g.ref} className="flex items-baseline gap-2">
-            <a href={`/timeline?ref=${encodeURIComponent(g.ref)}`} className="min-w-0 flex-1 truncate hover:underline">
+            <a href={`/timeline?ref=${encodeURIComponent(g.ref)}`} className="min-w-0 flex-1 truncate py-0.5 hover:underline">
               {g.label}
             </a>
             <span className="text-xs text-zinc-400 tabular-nums">{g.count}</span>

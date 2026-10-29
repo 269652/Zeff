@@ -96,7 +96,7 @@ function Line({ l, v }: { l: WorkLogLine; v: Variant }) {
       if (l.detail)
         return (
           <Fold className={s.tool} summary={head}>
-            {l.tool === "ExitPlanMode" && v === "chat" ? <Markdown text={l.detail} /> : <pre className="max-h-96 overflow-auto font-mono text-xs whitespace-pre-wrap">{l.detail}</pre>}
+            {l.tool === "ExitPlanMode" && v === "chat" ? <Markdown text={l.detail} /> : <pre tabIndex={0} className="max-h-96 overflow-auto font-mono text-xs whitespace-pre-wrap">{l.detail}</pre>}
           </Fold>
         );
       return <div className={s.tool}>{head}</div>;
@@ -110,7 +110,7 @@ function Line({ l, v }: { l: WorkLogLine; v: Variant }) {
       );
       return l.full ? (
         <Fold className={`pl-4 ${l.error ? s.err : s.out}`} summary={head}>
-          <pre className="max-h-96 overflow-auto rounded bg-zinc-950 p-2 text-xs whitespace-pre-wrap text-zinc-300">{l.full}</pre>
+          <pre tabIndex={0} className="max-h-96 overflow-auto rounded bg-zinc-950 p-2 text-xs whitespace-pre-wrap text-zinc-300">{l.full}</pre>
         </Fold>
       ) : (
         <div className={`pl-4 ${l.error ? s.err : s.out}`}>{head}</div>
@@ -126,7 +126,7 @@ function Line({ l, v }: { l: WorkLogLine; v: Variant }) {
     case "shell":
       return (
         <Fold className={s.shell} summary={<span className={l.ok ? "text-amber-300" : "text-red-300"}>! {l.cmd}</span>}>
-          <pre className="max-h-96 overflow-auto text-xs whitespace-pre-wrap text-zinc-300">{l.text || t("(no output)")}</pre>
+          <pre tabIndex={0} className="max-h-96 overflow-auto text-xs whitespace-pre-wrap text-zinc-300">{l.text || t("(no output)")}</pre>
         </Fold>
       );
     case "note":

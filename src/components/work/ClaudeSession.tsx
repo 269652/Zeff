@@ -435,6 +435,7 @@ function AskCard({ ask, more, act, pending, allowBypass }: { ask: ClaudeAsk; mor
           rows={2}
           autoFocus
           className="input w-full text-sm"
+          aria-label={t("What should it do instead?")}
           placeholder={t("What should it do instead? (it reads this)")}
           value={note}
           onChange={(e) => setNote(e.target.value)}
@@ -486,11 +487,11 @@ function AskCard({ ask, more, act, pending, allowBypass }: { ask: ClaudeAsk; mor
             ))}
           </div>
         ) : s("command") ? (
-          <pre className="max-h-60 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-100">{s("command")}</pre>
+          <pre tabIndex={0} className="max-h-60 overflow-auto rounded bg-zinc-950 p-2 font-mono text-xs whitespace-pre-wrap text-zinc-100">{s("command")}</pre>
         ) : s("url") ? (
           <p className="font-mono text-xs break-all">{s("url")}</p>
         ) : (
-          <pre className="max-h-60 overflow-auto rounded bg-white/70 p-1.5 font-mono text-xs whitespace-pre-wrap dark:bg-zinc-900/70">{JSON.stringify(i, null, 2)}</pre>
+          <pre tabIndex={0} className="max-h-60 overflow-auto rounded bg-white/70 p-1.5 font-mono text-xs whitespace-pre-wrap dark:bg-zinc-900/70">{JSON.stringify(i, null, 2)}</pre>
         )}
         {ask.reason && ask.reason !== "This command requires approval" && <p className="text-xs text-zinc-500">{ask.reason}</p>}
       </div>
@@ -581,7 +582,7 @@ function Questions({ ask, more, answer, pending }: { ask: ClaudeAsk; more: numbe
               );
             })}
           </div>
-          <input className="input w-full py-1 text-xs" placeholder={t("Or your own answer …")} value={other[q.question] ?? ""} onChange={(e) => setOther((o) => ({ ...o, [q.question]: e.target.value }))} />
+          <input className="input w-full py-1 text-xs" placeholder={t("Or your own answer …")} aria-label={t("Your own answer")} value={other[q.question] ?? ""} onChange={(e) => setOther((o) => ({ ...o, [q.question]: e.target.value }))} />
         </fieldset>
       ))}
       <div className="flex flex-wrap items-center gap-1.5">

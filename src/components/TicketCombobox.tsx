@@ -1,6 +1,6 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useId, useRef, useState } from "react";
 import type { TicketSuggestionLite } from "./EntryForm";
 import { useT } from "@/components/I18nProvider";
 
@@ -29,6 +29,7 @@ export function TicketCombobox({
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
+  const list = useId();
   const [active, setActive] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
@@ -56,7 +57,9 @@ export function TicketCombobox({
         name={name}
         type="text"
         role="combobox"
-        aria-expanded={open}
+        aria-expanded={open && shown.length > 0}
+        aria-controls={list}
+        aria-activedescendant={open && active >= 0 && shown[active] ? `${list}-${active}` : undefined}
         aria-autocomplete="list"
         autoComplete="off"
         className="input"
@@ -90,6 +93,7 @@ export function TicketCombobox({
       />
       {open && shown.length > 0 && (
         <ul
+          id={list}
           role="listbox"
           className="absolute z-30 mt-1 max-h-64 w-full min-w-64 overflow-auto rounded-md border border-zinc-200 bg-white py-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900"
           onMouseDown={(e) => {
@@ -101,6 +105,7 @@ export function TicketCombobox({
           {shown.map((s, i) => (
             <li
               key={s.ticket}
+              id={`${list}-${i}`}
               role="option"
               aria-selected={i === active}
               className={`cursor-pointer px-3 py-1.5 text-sm ${

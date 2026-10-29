@@ -67,7 +67,7 @@ export function LiveControls({ run }: { run: WorkRunView }) {
       {live.permission && (
         <div className="space-y-1.5 rounded-md border border-amber-300 bg-amber-50 p-2 dark:border-amber-800 dark:bg-amber-950/40">
           <p className="font-medium text-amber-950 dark:text-amber-100">{t("Copilot wants to: {action}", { action: live.permission.title })}</p>
-          {live.permission.detail && <pre className="max-h-40 overflow-auto rounded bg-white/70 p-1.5 font-mono text-xs whitespace-pre-wrap dark:bg-zinc-900/70">{live.permission.detail}</pre>}
+          {live.permission.detail && <pre tabIndex={0} className="max-h-40 overflow-auto rounded bg-white/70 p-1.5 font-mono text-xs whitespace-pre-wrap dark:bg-zinc-900/70">{live.permission.detail}</pre>}
           <div className="flex flex-wrap gap-1.5">
             {live.permission.options.map((o) => (
               <button

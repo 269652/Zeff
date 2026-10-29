@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
+import { useOverlayFocus } from "@/components/Overlay";
 import type { CalendarView, SeriesScope } from "@/lib/calendar/ir-shared";
 import { addDays, describeRecurrence, monthlyChoices, presets, weekdayOf, weekdayShort, type Frequency, type Recurrence } from "@/lib/calendar/recurrence";
 import type { T } from "@/lib/i18n/shared";
@@ -101,6 +102,9 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
     window.addEventListener("keydown", key);
     return () => window.removeEventListener("keydown", key);
   }, [onClose]);
+  // (After the title took the focus: Tab stays in the dialog, the focus goes back when it closes.)
+  const dialog = useRef<HTMLDivElement>(null);
+  useOverlayFocus(dialog, true);
 
   // From–to as the fields show it: dates and times apart; all day: the last day (inclusive).
   const startDay = v.start.slice(0, 10);
@@ -162,7 +166,7 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
 
   return (
     <div className="fixed inset-0 z-50 flex items-end justify-center bg-zinc-950/40 p-0 sm:items-center sm:p-4" onPointerDown={(e) => e.target === e.currentTarget && onClose()}>
-      <div role="dialog" aria-modal="true" aria-label={v.id ? t("Edit event") : t("New event")} className="card max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-b-none p-4 shadow-2xl sm:rounded-xl">
+      <div ref={dialog} role="dialog" aria-modal="true" aria-label={v.id ? t("Edit event") : t("New event")} className="card max-h-[92dvh] w-full max-w-lg overflow-y-auto rounded-b-none p-4 shadow-2xl sm:rounded-xl">
         {asking ? (
           <ScopeChoice title={asking === "save" ? t("Edit recurring event") : t("Delete recurring event")} pending={pending} onCancel={() => setAsking(null)} onPick={(s) => (asking === "save" ? save(s) : remove(s))} />
         ) : (
@@ -177,7 +181,7 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
           >
             <div className="flex items-center gap-2">
               <span className="size-3 shrink-0 rounded-full" style={{ background: calendar?.color ?? "#7A869A" }} />
-              <input ref={title} className="w-full border-0 border-b border-zinc-200 bg-transparent py-1 text-lg font-semibold outline-none focus:border-indigo-500 dark:border-zinc-700" placeholder={t("Add title")} value={v.title} onChange={(e) => set({ title: e.target.value })} required />
+              <input ref={title} className="w-full border-0 border-b border-zinc-200 bg-transparent py-1 text-lg font-semibold outline-none focus:border-indigo-500 dark:border-zinc-700" aria-label={t("Title")} placeholder={t("Add title")} value={v.title} onChange={(e) => set({ title: e.target.value })} required />
             </div>
 
             <label className="flex w-fit cursor-pointer items-center gap-2 text-sm">
@@ -186,11 +190,11 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
             </label>
             <div className="grid grid-cols-[3rem_1fr_auto] items-center gap-2 text-sm">
               <span className="text-zinc-600 dark:text-zinc-400">{t("From")}</span>
-              <input type="date" className="input" value={startDay} onChange={(e) => e.target.value && setStart(e.target.value, startTime)} required />
-              {!v.allDay ? <input type="time" step={300} className="input w-28" value={startTime} onChange={(e) => e.target.value && setStart(startDay, e.target.value)} required /> : <span />}
+              <input type="date" className="input" value={startDay} aria-label={t("Start date")} onChange={(e) => e.target.value && setStart(e.target.value, startTime)} required />
+              {!v.allDay ? <input type="time" step={300} className="input w-28" value={startTime} aria-label={t("Start time")} onChange={(e) => e.target.value && setStart(startDay, e.target.value)} required /> : <span />}
               <span className="text-zinc-500">{t("To")}</span>
-              <input type="date" className="input" value={endDay} min={startDay} onChange={(e) => e.target.value && setEnd(e.target.value, endTime)} required />
-              {!v.allDay ? <input type="time" step={300} className="input w-28" value={endTime} onChange={(e) => e.target.value && setEnd(endDay, e.target.value)} required /> : <span />}
+              <input type="date" className="input" value={endDay} aria-label={t("End date")} min={startDay} onChange={(e) => e.target.value && setEnd(e.target.value, endTime)} required />
+              {!v.allDay ? <input type="time" step={300} className="input w-28" value={endTime} aria-label={t("End time")} onChange={(e) => e.target.value && setEnd(endDay, e.target.value)} required /> : <span />}
             </div>
             {!v.allDay && minutes > 0 && <p className="-mt-1 pl-14 text-xs text-zinc-500">{durationText(minutes, t)}</p>}
 
@@ -242,8 +246,8 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
                   <>
                     <div className="flex flex-wrap items-center gap-2">
                       <span className="text-zinc-500">{t("Every")}</span>
-                      <input type="number" min={1} max={99} className="input w-16" value={rule.interval} onChange={(e) => setRule({ interval: Math.max(1, Math.min(99, Number(e.target.value) || 1)) })} />
-                      <select className="input w-auto" value={rule.freq} onChange={(e) => setRule({ freq: e.target.value as Frequency, byDay: e.target.value === "weekly" ? [weekdayOf(local(startDay))] : undefined, monthlyBy: undefined })}>
+                      <input type="number" min={1} max={99} className="input w-16" aria-label={t("Repeat every")} value={rule.interval} onChange={(e) => setRule({ interval: Math.max(1, Math.min(99, Number(e.target.value) || 1)) })} />
+                      <select className="input w-auto" value={rule.freq} aria-label={t("Frequency")} onChange={(e) => setRule({ freq: e.target.value as Frequency, byDay: e.target.value === "weekly" ? [weekdayOf(local(startDay))] : undefined, monthlyBy: undefined })}>
                         {FREQUENCIES.map((f) => (
                           <option key={f} value={f}>
                             {units(t)[f][rule.interval === 1 ? 0 : 1]}
@@ -274,7 +278,7 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
                       </div>
                     )}
                     {rule.freq === "monthly" && (
-                      <select className="input w-auto" value={rule.monthlyBy ?? "day"} onChange={(e) => setRule({ monthlyBy: e.target.value === "weekday" ? "weekday" : "day" })}>
+                      <select className="input w-auto" value={rule.monthlyBy ?? "day"} aria-label={t("Repeats monthly on")} onChange={(e) => setRule({ monthlyBy: e.target.value === "weekday" ? "weekday" : "day" })}>
                         {monthlyChoices(v.start, t).map((o) => (
                           <option key={o.by} value={o.by}>
                             {o.label}
@@ -288,6 +292,7 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
                   <span className="text-zinc-500">{t("Ends")}</span>
                   <select
                     className="input w-auto"
+                    aria-label={t("Ends")}
                     value={ends}
                     onChange={(e) => {
                       const { until: _u, count: _c, ...rest } = rule;
@@ -298,10 +303,10 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
                     <option value="on">{t("On")}</option>
                     <option value="after">{t("After")}</option>
                   </select>
-                  {ends === "on" && <input type="date" className="input w-auto" min={startDay} value={rule.until} onChange={(e) => e.target.value && setRule({ until: e.target.value })} />}
+                  {ends === "on" && <input type="date" className="input w-auto" min={startDay} value={rule.until} aria-label={t("Ends on")} onChange={(e) => e.target.value && setRule({ until: e.target.value })} />}
                   {ends === "after" && (
                     <>
-                      <input type="number" min={1} max={999} className="input w-20" value={rule.count} onChange={(e) => setRule({ count: Math.max(1, Math.min(999, Number(e.target.value) || 1)) })} />
+                      <input type="number" min={1} max={999} className="input w-20" aria-label={t("Number of times")} value={rule.count} onChange={(e) => setRule({ count: Math.max(1, Math.min(999, Number(e.target.value) || 1)) })} />
                       <span className="text-zinc-500">{t("times")}</span>
                     </>
                   )}
@@ -313,8 +318,8 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
             {google && !v.id && (
               <input className="input" placeholder={t("Invite guests (mail addresses)")} aria-label={t("Invite guests (mail addresses)")} value={v.guests ?? ""} onChange={(e) => set({ guests: e.target.value })} />
             )}
-            <input className="input" placeholder={t("Add location")} value={v.location} onChange={(e) => set({ location: e.target.value })} />
-            <textarea className="input min-h-20 resize-y" placeholder={t("Add description")} value={v.description} onChange={(e) => set({ description: e.target.value })} />
+            <input className="input" aria-label={t("Location")} placeholder={t("Add location")} value={v.location} onChange={(e) => set({ location: e.target.value })} />
+            <textarea className="input min-h-20 resize-y" aria-label={t("Description")} placeholder={t("Add description")} value={v.description} onChange={(e) => set({ description: e.target.value })} />
 
             <span role="status" className="sr-only">
               {pending ? t("Saving…") : ""}

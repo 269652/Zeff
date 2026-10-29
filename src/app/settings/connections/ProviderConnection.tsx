@@ -27,7 +27,8 @@ export type ProviderView = {
   services: { service: string; label: string; driver: "cdp" | "api"; installed: boolean }[];
 };
 
-const link = "text-indigo-600 hover:underline dark:text-indigo-400";
+// Links in the steps' text: underlined (not told apart by colour alone).
+const link = "text-indigo-600 underline underline-offset-2 dark:text-indigo-400";
 
 function Pill({ tone, children }: { tone: "ok" | "warn" | "idle"; children: ReactNode }) {
   const c = tone === "ok" ? "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" : tone === "warn" ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300";

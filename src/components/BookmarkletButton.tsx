@@ -22,6 +22,7 @@ export function BookmarkletButton({
     if (ref.current) ref.current.setAttribute("href", href);
   }, [href]);
   return (
+    // eslint-disable-next-line jsx-a11y/anchor-is-valid -- a link to drag into the bookmarks bar; its href is set after mount
     <a
       ref={ref}
       className={className}

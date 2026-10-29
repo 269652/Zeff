@@ -273,7 +273,7 @@ export function TodoItem({
             </span>
           )}
           {asking && (
-            <span className="mr-1 font-bold text-amber-600 not-italic dark:text-amber-400" title={t("The agent is waiting for you: {question}", { question: asking })} aria-label={t("Waiting for you")}>
+            <span role="img" className="mr-1 font-bold text-amber-600 not-italic dark:text-amber-400" title={t("The agent is waiting for you: {question}", { question: asking })} aria-label={t("Waiting for you")}>
               ❗
             </span>
           )}

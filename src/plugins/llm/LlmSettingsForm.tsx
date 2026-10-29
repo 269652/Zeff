@@ -102,7 +102,7 @@ export function LlmSettingsForm({
                     <span className="block text-xs text-zinc-500">{task.what}</span>
                   </td>
                   <td>
-                    <select className="input py-1 text-sm" value={tasks[task.id]?.provider ?? ""} onChange={(e) => set(task.id, { provider: e.target.value as LlmTaskSetting["provider"] })}>
+                    <select className="input py-1 text-sm" aria-label={`${task.label} – ${t("Backend")}`} value={tasks[task.id]?.provider ?? ""} onChange={(e) => set(task.id, { provider: e.target.value as LlmTaskSetting["provider"] })}>
                       <option value="">{t("Default")}</option>
                       {providers.map((p) => (
                         <option key={p.id} value={p.id}>
@@ -114,6 +114,7 @@ export function LlmSettingsForm({
                   <td>
                     <input
                       className="input w-40 py-1 font-mono text-xs"
+                      aria-label={`${task.label} – ${t("Model")}`}
                       value={tasks[task.id]?.model ?? ""}
                       onChange={(e) => set(task.id, { model: e.target.value })}
                       placeholder={tasks[task.id]?.provider ? t("the backend's") : "—"}

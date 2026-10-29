@@ -19,7 +19,7 @@ function BoardRow({ b, first, last, run }: { b: Row; first: boolean; last: boole
   const [name, setName] = useState(b.name);
   const [description, setDescription] = useState(b.description);
   return (
-    <li className={`card space-y-3 p-4 ${b.archived ? "opacity-70" : ""}`}>
+    <li className={`card space-y-3 p-4 ${b.archived ? "border-dashed" : ""}`}>
       <div className="flex flex-wrap items-center gap-2">
         <span className="flex flex-col">
           <button type="button" className="icon-btn h-4 text-xs" disabled={first} onClick={() => run(() => moveBoardAction(b.id, -1))} aria-label={t("Move up")} title={t("Move up")}>

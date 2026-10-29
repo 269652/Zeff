@@ -14,6 +14,7 @@ export function PasteEventsForm() {
     <form action={action} className="space-y-2">
       <textarea
         name="json"
+        aria-label={t("Pasted meetings (JSON)")}
         rows={4}
         className="input font-mono text-xs"
         placeholder={t('Paste the JSON from the "copy" bookmarklet here, e.g. {"events":[…]}')}

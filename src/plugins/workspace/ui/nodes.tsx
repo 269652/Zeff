@@ -84,7 +84,7 @@ function FlexView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
     <NodeViewWrapper className="ws-flex" data-dir={dir} data-gap={gap} data-span={span > 1 ? span : undefined} data-wrap={wrap ? "true" : undefined}>
       {editor.isEditable && (
         <div className="ws-flex-bar" contentEditable={false}>
-          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
+          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-hidden="true">
             ⠿
           </span>
           <span className="ws-grip-label">{dir === "row" ? "row" : "column"}</span>
@@ -338,7 +338,7 @@ function ModuleBlockView({ node, updateAttributes, editor, extension, getPos, de
       {editor.isEditable && (
         // Where a module can be taken by: dragged into another box or place, a line added after it, or removed.
         <div className="ws-grip-bar" contentEditable={false}>
-          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
+          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-hidden="true">
             ⠿
           </span>
           <span className="ws-grip-label">{String(node.attrs.module).replace(/-/g, " ")}</span>
@@ -403,7 +403,7 @@ function RowViewBlockView({ editor, extension, deleteNode }: NodeViewProps) {
     <NodeViewWrapper className="ws-module-block my-2" contentEditable={false}>
       {editor.isEditable && (
         <div className="ws-grip-bar" contentEditable={false}>
-          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
+          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-hidden="true">
             ⠿
           </span>
           <button type="button" title="Remove this view" aria-label="Remove this view" onClick={() => deleteNode()}>

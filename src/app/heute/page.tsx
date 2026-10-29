@@ -334,12 +334,12 @@ export default async function HeutePage() {
                     {p.label}
                   </Link>
                   <span className="min-w-0 flex-1 text-red-700 dark:text-red-300">{problem[p.kind]}</span>
-                  <span className="shrink-0 text-xs text-red-700/70 dark:text-red-300/70">
+                  <span className="shrink-0 text-xs text-red-700 dark:text-red-300">
                     {p.failures}× · {ago(p.since, now)}
                   </span>
                 </div>
                 {p.message && (
-                  <p className="truncate text-xs text-red-700/80 dark:text-red-300/70" title={p.message}>
+                  <p className="truncate text-xs text-red-700 dark:text-red-300" title={p.message}>
                     {p.message}
                   </p>
                 )}

@@ -115,7 +115,7 @@ export function FeierabendForm({ date, target, booked, group, rows: initial, job
       {rows.length ? (
         <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
           {rows.map((r) => (
-            <li key={r.id} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 ${r.include ? "" : "opacity-60"}`}>
+            <li key={r.id} className={`flex flex-wrap items-center gap-x-3 gap-y-2 px-4 py-2.5 ${r.include ? "" : "bg-zinc-50 dark:bg-zinc-900/50"}`}>
               <input type="checkbox" className="size-4" checked={r.include} onChange={(e) => set(r.id, { include: e.target.checked })} aria-label={t("Book {description}", { description: r.description })} />
               <span className="w-20 shrink-0 text-xs text-zinc-500">{kindLabels(t)[r.kind]}</span>
               <input

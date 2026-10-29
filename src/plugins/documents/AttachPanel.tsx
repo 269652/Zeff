@@ -76,11 +76,11 @@ export function AttachPanel({ todoId, onClose }: { todoId: number; onClose: () =
       }}
     >
       <div className="flex flex-wrap items-center gap-2">
-        <input autoFocus className="input min-w-0 flex-1 basis-48 text-sm" placeholder={t("Search the documents …")} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Escape" && onClose()} />
+        <input autoFocus className="input min-w-0 flex-1 basis-48 text-sm" aria-label={t("Search documents")} placeholder={t("Search the documents …")} value={q} onChange={(e) => setQ(e.target.value)} onKeyDown={(e) => e.key === "Escape" && onClose()} />
         <button type="button" className="btn btn-sm" disabled={busy} onClick={() => input.current?.click()}>
           {busy ? t("Uploading …") : t("Upload new …")}
         </button>
-        <input ref={input} type="file" multiple className="hidden" onChange={(e) => void take([...(e.target.files ?? [])])} />
+        <input ref={input} type="file" multiple className="hidden" aria-hidden tabIndex={-1} onChange={(e) => void take([...(e.target.files ?? [])])} />
         <button type="button" className="btn btn-sm" onClick={onClose}>
           {t("Close")}
         </button>

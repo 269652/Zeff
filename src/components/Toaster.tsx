@@ -62,6 +62,8 @@ export function Toaster() {
         // (On a phone only the newest three; the others come when those go.)
         <div
           key={item.id}
+          // An error is said at once (it interrupts); the others wait their turn (the polite region around).
+          role={item.tone === "error" ? "alert" : undefined}
           onMouseEnter={() => hold(item.id)}
           onMouseLeave={() => item.tone === "ok" && arm(item.id, 4000)}
           onFocus={() => hold(item.id)}
@@ -76,7 +78,7 @@ export function Toaster() {
           {item.action && (
             <button
               type="button"
-              className="shrink-0 rounded px-2 py-0.5 font-semibold text-indigo-300 hover:bg-white/10 dark:text-indigo-700 dark:hover:bg-black/10"
+              className={`shrink-0 rounded px-2 py-0.5 font-semibold ${item.tone === "error" ? "text-white underline hover:bg-white/10" : "text-indigo-300 hover:bg-white/10 dark:text-indigo-700 dark:hover:bg-black/10"}`}
               onClick={() => {
                 dismiss(item.id);
                 item.action!.run();
@@ -85,7 +87,7 @@ export function Toaster() {
               {item.action.label}
             </button>
           )}
-          <button type="button" className="shrink-0 rounded px-2 py-0.5 text-zinc-300 hover:text-white dark:text-zinc-600 dark:hover:text-zinc-900" onClick={() => dismiss(item.id)} aria-label={t("Close")}>
+          <button type="button" className={`shrink-0 rounded px-2 py-0.5 ${item.tone === "error" ? "text-red-50 hover:text-white" : "text-zinc-300 hover:text-white dark:text-zinc-600 dark:hover:text-zinc-900"}`} onClick={() => dismiss(item.id)} aria-label={t("Close")}>
             ×
           </button>
         </div>

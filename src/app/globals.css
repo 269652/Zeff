@@ -160,7 +160,8 @@ body {
   .badge-type {
     border-color: color-mix(in oklab, var(--type-color) 35%, transparent);
     background-color: color-mix(in oklab, var(--type-color) 12%, transparent);
-    color: color-mix(in oklab, var(--type-color) 75%, black);
+    /* 55% (not more): a light type colour (amber, lime) still reaches 4.5:1 on its tint. */
+    color: color-mix(in oklab, var(--type-color) 55%, black);
   }
   @media (prefers-color-scheme: dark) {
     .badge-type {
@@ -208,10 +209,13 @@ body {
  * Accessibility foundations (WCAG 2.2 AA) — unlayered, so they apply on top of every component class.
  */
 
-/* Muted greys: the usual small grey texts must reach 4.5:1. In light mode text-zinc-400 (2.5:1 on
-   white) takes zinc-500's value; in dark mode text-zinc-500 (3.7:1 on zinc-900) takes zinc-400's. */
+/* Muted greys: the usual small grey texts must reach 4.5:1 — on white and on the light tints of badges and
+   rows (zinc-100, red-50, indigo-50 …). In light mode text-zinc-400 (2.5:1 on white) is #6b6b74 (≥ 4.7:1 there),
+   text-zinc-500 a little darker than Tailwind's (#5f5f68, ≥ 5.6:1), zinc-600 stays darker still. In dark mode
+   text-zinc-500 (3.7:1 on zinc-900) takes zinc-400's. */
 :root {
-  --color-zinc-400: #71717a;
+  --color-zinc-400: #6b6b74;
+  --color-zinc-500: #5f5f68;
   --focus: #4f46e5;
 }
 @media (prefers-color-scheme: dark) {
@@ -220,6 +224,28 @@ body {
     --color-zinc-500: #a1a1aa;
     --focus: #a5b4fc;
   }
+}
+
+/* The coloured texts of light mode: amber, orange, emerald and sky 600 are 3.2–4.1:1 on white — they take the 700's value
+   (≥ 4.5:1; their backgrounds and borders get a little darker with them). Dark mode uses the 400s, which are fine. */
+@media not (prefers-color-scheme: dark) {
+  :root {
+    --color-amber-600: oklch(55.5% 0.163 48.998);
+    --color-emerald-600: oklch(50.8% 0.118 165.612);
+    --color-sky-600: oklch(50% 0.134 242.749);
+    --color-orange-600: oklch(55.3% 0.195 38.402);
+    /* red-600 is 4.3:1 on red-50 (an over-booked cell): a shade darker, ≥ 4.8:1. */
+    --color-red-600: #d1000a;
+  }
+}
+
+/* A link in running text is underlined: told apart from the text around it not by its colour alone (WCAG 1.4.1) —
+   every link in a paragraph, and the text links (hover:underline) in a line of text: "· change", a step's ↗. */
+p a:not([class*="btn"]):not([role]),
+:is(span, li, dd, label, small) > a[class*="hover:underline"]:not([class*="btn"]) {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
 }
 
 /* One focus indicator for everything that takes the keyboard: 2px, 3:1 against its surroundings. */

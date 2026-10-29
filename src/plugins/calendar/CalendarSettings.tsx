@@ -127,7 +127,7 @@ export function CalendarSettings({
                   });
                 }}
               >
-                <input className="input min-w-0 flex-1 basis-40" placeholder={t("New calendar, e.g. Personal")} value={fresh.name} onChange={(e) => setFresh({ ...fresh, name: e.target.value })} />
+                <input className="input min-w-0 flex-1 basis-40" aria-label={t("New calendar name")} placeholder={t("New calendar, e.g. Personal")} value={fresh.name} onChange={(e) => setFresh({ ...fresh, name: e.target.value })} />
                 <Colors value={fresh.color} onChange={(color) => setFresh({ ...fresh, color })} />
                 <button type="submit" className="btn btn-primary btn-sm" disabled={pending || !fresh.name.trim()}>
                   {t("Create")}

@@ -116,7 +116,7 @@ function CellValue({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx }) {
         const n = Math.round(Number(v)) || 0;
         const max = ft.max ?? 5;
         return (
-          <span className="whitespace-nowrap text-amber-500" aria-label={`${n}/${max}`} title={`${n}/${max}`}>
+          <span role="img" className="whitespace-nowrap text-amber-500" aria-label={`${n}/${max}`} title={`${n}/${max}`}>
             {"★".repeat(Math.min(n, max))}
             <span className="text-zinc-300 dark:text-zinc-600">{"★".repeat(Math.max(0, max - n))}</span>
           </span>

@@ -30,7 +30,8 @@ export type DriveView = {
 };
 
 const when = (iso: string) => formatDayTime(iso, { year: true });
-const link = "text-indigo-600 hover:underline dark:text-indigo-400";
+// Links in the steps' text: underlined (not told apart by colour alone).
+const link = "text-indigo-600 underline underline-offset-2 dark:text-indigo-400";
 
 /** The Google Drive page: the few steps to get an OAuth client, signing in, what syncs, and the syncs now. */
 export function GoogleDriveSettings({ s, steps, error, justConnected, redirectUri }: { s: DriveView; steps: DriveStepView[]; error: string | null; justConnected: boolean; /** What Google sends you back to (to register with the client). */ redirectUri: string }) {

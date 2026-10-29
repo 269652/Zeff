@@ -40,7 +40,7 @@ function block(b: MdBlock, img: (target: string) => string | null, t: T) {
       return b.ordered ? <ol className="ml-5 list-decimal space-y-0.5">{items}</ol> : <ul className="ml-5 list-disc space-y-0.5 [&_ul]:list-[circle] [&_ul_ul]:list-[square]">{items}</ul>;
     }
     case "code":
-      return <pre className="overflow-x-auto rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-zinc-900">{b.v}</pre>;
+      return <pre tabIndex={0} className="overflow-x-auto rounded bg-zinc-100 p-2 font-mono text-xs dark:bg-zinc-900">{b.v}</pre>;
     case "table":
       return (
         <div className="overflow-x-auto">

@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
+import { useOverlayFocus } from "@/components/Overlay";
 import { toast } from "@/components/Toaster";
 import { reportSeen } from "./NewsCard";
 import { newsStateAction, newsVoteAction } from "./server-actions";
@@ -35,21 +36,24 @@ export function NewsStories({ groups, ago, showImages }: { groups: StoryGroup[];
           const fresh = g.items.some((i) => !seen.has(i.id));
           const pic = showImages ? g.items.find((i) => i.image)?.image : "";
           return (
-            <button key={g.key} type="button" role="listitem" onClick={() => setOpen(k)} className="group flex w-20 shrink-0 flex-col items-center gap-1 text-center" title={`${label(g)} · ${t("{n} reports", { n: g.items.length })}`}>
-              <span className={`rounded-full p-[3px] ${fresh ? (g.kind === "top" ? "bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600" : "bg-gradient-to-tr from-sky-400 via-indigo-500 to-fuchsia-500") : "bg-zinc-300 dark:bg-zinc-700"}`}>
-                <span className="block rounded-full bg-white p-[2px] dark:bg-zinc-950">
-                  {pic ? (
-                    // eslint-disable-next-line @next/next/no-img-element -- pictures of other sites, shown as they are
-                    <img src={pic} alt="" referrerPolicy="no-referrer" className="h-16 w-16 rounded-full object-cover transition-transform group-hover:scale-105" />
-                  ) : (
-                    <span className="flex h-16 w-16 items-center justify-center rounded-full text-2xl text-white" style={{ background: tint(g.label) }}>
-                      {g.kind === "top" ? "★" : g.kind === "best" ? "✦" : "🧵"}
-                    </span>
-                  )}
+            // (The list item around the button: the role on the button itself would hide that it is a button.)
+            <div key={g.key} role="listitem" className="contents">
+              <button type="button" onClick={() => setOpen(k)} className="group flex w-20 shrink-0 flex-col items-center gap-1 text-center" title={`${label(g)} · ${t("{n} reports", { n: g.items.length })}`}>
+                <span className={`rounded-full p-[3px] ${fresh ? (g.kind === "top" ? "bg-gradient-to-tr from-amber-400 via-rose-500 to-fuchsia-600" : "bg-gradient-to-tr from-sky-400 via-indigo-500 to-fuchsia-500") : "bg-zinc-300 dark:bg-zinc-700"}`}>
+                  <span className="block rounded-full bg-white p-[2px] dark:bg-zinc-950">
+                    {pic ? (
+                      // eslint-disable-next-line @next/next/no-img-element -- pictures of other sites, shown as they are
+                      <img src={pic} alt="" referrerPolicy="no-referrer" className="h-16 w-16 rounded-full object-cover transition-transform group-hover:scale-105" />
+                    ) : (
+                      <span className="flex h-16 w-16 items-center justify-center rounded-full text-2xl text-white" style={{ background: tint(g.label) }}>
+                        {g.kind === "top" ? "★" : g.kind === "best" ? "✦" : "🧵"}
+                      </span>
+                    )}
+                  </span>
                 </span>
-              </span>
-              <span className={`line-clamp-2 w-full text-[11px] leading-tight ${fresh ? "font-medium" : "text-zinc-500"}`}>{label(g)}</span>
-            </button>
+                <span className={`line-clamp-2 w-full text-[11px] leading-tight ${fresh ? "font-medium" : "text-zinc-500"}`}>{label(g)}</span>
+              </button>
+            </div>
           );
         })}
       </div>
@@ -81,6 +85,8 @@ function StoryViewer({ groups, start, ago, showImages, label, onSeen, onClose }:
   const [votes, setVotes] = useState<Record<number, Partial<NewsItem>>>({});
   const [heart, setHeart] = useState(0);
   const downAt = useRef(0);
+  const dialog = useRef<HTMLDivElement>(null);
+  useOverlayFocus(dialog, true);
   const group = groups[pos.g];
   const base = group.items[pos.i];
   const item = { ...base, ...votes[base.id] };
@@ -156,7 +162,7 @@ function StoryViewer({ groups, start, ago, showImages, label, onSeen, onClose }:
 
   const pic = showImages && item.image ? item.image : "";
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-0 backdrop-blur sm:p-4" role="dialog" aria-modal aria-label={label(group)} onClick={(e) => e.target === e.currentTarget && onClose()}>
+    <div ref={dialog} className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 p-0 backdrop-blur sm:p-4" role="dialog" aria-modal aria-label={label(group)} onClick={(e) => e.target === e.currentTarget && onClose()}>
       <div
         className="relative h-full w-full max-w-md overflow-hidden bg-zinc-900 text-white shadow-2xl select-none sm:h-[min(92vh,860px)] sm:rounded-2xl"
         style={pic ? undefined : { background: tint(item.sourceName) }}
@@ -225,10 +231,10 @@ function StoryViewer({ groups, start, ago, showImages, label, onSeen, onClose }:
               {t("Open article")} ↗
             </button>
             <span className="flex-1" />
-            <button type="button" className={`rounded-full px-3 py-2 text-lg ${item.vote === 1 ? "bg-rose-500" : "bg-white/15 hover:bg-white/25"}`} onClick={like} title={`${t("More like this")} (L)`} aria-pressed={item.vote === 1}>
+            <button type="button" className={`rounded-full px-3 py-2 text-lg ${item.vote === 1 ? "bg-rose-500" : "bg-white/15 hover:bg-white/25"}`} onClick={like} title={`${t("More like this")} (L)`} aria-label={t("More like this")} aria-pressed={item.vote === 1}>
               {item.vote === 1 ? "❤️" : "🤍"}
             </button>
-            <button type="button" className={`rounded-full px-3 py-2 text-lg ${item.state === "saved" ? "bg-indigo-500" : "bg-white/15 hover:bg-white/25"}`} onClick={save} title={`${t("Save for later")} (S)`} aria-pressed={item.state === "saved"}>
+            <button type="button" className={`rounded-full px-3 py-2 text-lg ${item.state === "saved" ? "bg-indigo-500" : "bg-white/15 hover:bg-white/25"}`} onClick={save} title={`${t("Save for later")} (S)`} aria-label={t("Save for later")} aria-pressed={item.state === "saved"}>
               🔖
             </button>
           </div>

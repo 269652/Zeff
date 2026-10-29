@@ -67,6 +67,17 @@ export function useOverlayFocus(ref: RefObject<HTMLElement | null>, active: bool
   }, [ref, active]);
 }
 
+/** A modal dialog's box where no Overlay fits (a question over a view): role="dialog", the focus in it, trapped, given back. */
+export function FocusDialog({ label, className, children }: { label: string; className?: string; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  useOverlayFocus(box, true);
+  return (
+    <div ref={box} role="dialog" aria-modal="true" aria-label={label} className={className}>
+      {children}
+    </div>
+  );
+}
+
 /**
  * A modal dialog: backdrop + panel in a portal, role="dialog" aria-modal, focus moved in, trapped,
  * restored on close; Escape and a click on the backdrop close it. While `dirty`, those two ask first

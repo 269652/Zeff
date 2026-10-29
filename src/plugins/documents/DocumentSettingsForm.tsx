@@ -32,7 +32,7 @@ export function DocumentSettingsForm({ settings }: { settings: { transcriber: st
         </span>
       </label>
       <div className="flex flex-wrap gap-2">
-        <input className="input min-w-0 flex-1 basis-80 font-mono text-xs" value={command} onChange={(e) => setCommand(e.target.value)} placeholder={t("(none — audio isn't read)")} />
+        <input className="input min-w-0 flex-1 basis-80 font-mono text-xs" aria-label={t("Audio transcriber")} value={command} onChange={(e) => setCommand(e.target.value)} placeholder={t("(none — audio isn't read)")} />
         <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => done(await saveDocumentSettingsAction({ transcriber: command, autoInstall })))}>
           {t("Save")}
         </button>

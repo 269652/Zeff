@@ -594,12 +594,15 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     <div className="space-y-2">
       <div ref={setBar} className={`flex items-center gap-1 ${narrow ? "flex-nowrap" : "flex-wrap"}`}>
         {/* Narrow (a phone): one row — the views scroll sideways instead of wrapping into rows of their own. */}
-        <div className={`flex min-w-0 items-center gap-0.5 ${narrow ? "flex-1 flex-nowrap overflow-x-auto [scrollbar-width:none]" : "flex-wrap"}`} role="tablist" aria-label={t("Views")}>
-          {schema.views.map((v) => (
-            <button key={v.id} type="button" role="tab" aria-selected={v.id === view.id} onClick={() => pick(v.id)} className={`shrink-0 rounded-md px-2 py-1 text-sm whitespace-nowrap ${v.id === view.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
-              {v.type === "app" ? (data.extras?.appViews?.find((a) => a.id === v.app)?.icon ?? VIEW_ICON.app) : VIEW_ICON[v.type]} {v.name}
-            </button>
-          ))}
+        <div className={`flex min-w-0 items-center gap-0.5 ${narrow ? "flex-1 flex-nowrap overflow-x-auto [scrollbar-width:none]" : "flex-wrap"}`}>
+          {/* The views are the tabs; "+" beside them is no tab. */}
+          <div role="tablist" aria-label={t("Views")} className="contents">
+            {schema.views.map((v) => (
+              <button key={v.id} type="button" role="tab" aria-selected={v.id === view.id} onClick={() => pick(v.id)} className={`shrink-0 rounded-md px-2 py-1 text-sm whitespace-nowrap ${v.id === view.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
+                {v.type === "app" ? (data.extras?.appViews?.find((a) => a.id === v.app)?.icon ?? VIEW_ICON.app) : VIEW_ICON[v.type]} {v.name}
+              </button>
+            ))}
+          </div>
           <Dropdown label="+" title={t("Add a view")} className="rounded-md px-2 py-1 text-sm text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800">
             {(close) =>
               [...PLAIN_VIEWS.map((vt) => (
@@ -1703,7 +1706,7 @@ function PeopleBar({ chips, picked, onPick, onAll, mine, onMine }: { chips: { ke
         <details className="relative shrink-0">
           <summary className={`${chip(false)} cursor-pointer list-none`}>+{rest.length}</summary>
           <div className="absolute left-0 z-30 mt-1 w-64 rounded-lg border border-zinc-200 bg-white p-1.5 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-            <input className="input mb-1 h-7 w-full text-xs" placeholder={t("Search people …")} value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
+            <input className="input mb-1 h-7 w-full text-xs" aria-label={t("Search people")} placeholder={t("Search people …")} value={q} onChange={(e) => setQ(e.target.value)} autoFocus />
             <ul className="max-h-64 overflow-y-auto">
               {rest
                 .filter((c) => !w || name(c).toLowerCase().includes(w))

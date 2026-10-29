@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useMenuKeys } from "@/components/useMenuKeys";
 import { linkEntryAction, unlinkEntryAction } from "@/app/entry-group-actions";
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
@@ -41,6 +42,8 @@ export function GroupMenu({ entryId, currentSpanId, headOfSpan, options }: { ent
   const [pending, start] = useTransition();
   const box = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  useMenuKeys(open, menu, button, () => setOpen(false));
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
@@ -103,7 +106,7 @@ export function GroupMenu({ entryId, currentSpanId, headOfSpan, options }: { ent
         <GroupIcon filled={grouped} />
       </button>
       {open && (
-        <div role="menu" style={{ position: "fixed", top: pos.top, left: pos.left }} className="z-50 max-h-[80vh] w-80 max-w-[calc(100vw-1rem)] overflow-auto rounded-lg border border-zinc-200 bg-white p-1.5 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <div ref={menu} role="menu" style={{ position: "fixed", top: pos.top, left: pos.left }} className="z-50 max-h-[80vh] w-80 max-w-[calc(100vw-1rem)] overflow-auto rounded-lg border border-zinc-200 bg-white p-1.5 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
           {grp && (
             <>
               <p className={heading}>{t("How this group books")}</p>

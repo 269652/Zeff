@@ -84,7 +84,7 @@ export default async function JiraSettingsPage() {
               </thead>
               <tbody>
                 {boards.map((b) => (
-                  <tr key={b.id} className={b.enabled ? "" : "opacity-45"}>
+                  <tr key={b.id} className={b.enabled ? "" : "bg-zinc-50 dark:bg-zinc-900/60"}>
                     <td className="text-center">
                       <BoardEnableToggle boardId={b.id} enabled={b.enabled} />
                     </td>
@@ -93,7 +93,7 @@ export default async function JiraSettingsPage() {
                     <td className="font-mono text-xs">{b.projectKey}</td>
                     <td className="text-right tabular-nums text-zinc-500">{b.memberCount}</td>
                     <td>
-                      <BoardJobSelect boardId={b.id} jobs={jobs} current={b.jobNumber} />
+                      <BoardJobSelect boardId={b.id} boardName={b.name} jobs={jobs} current={b.jobNumber} />
                     </td>
                   </tr>
                 ))}

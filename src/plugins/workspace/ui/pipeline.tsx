@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useState } from "react";
+import { Fragment, useEffect, useId, useState } from "react";
 import { saveSyncIntervalAction } from "@/app/actions";
 import { Markdown } from "@/components/Markdown";
 import { toast } from "@/components/Toaster";
@@ -176,12 +176,17 @@ function InstructionPicker({ chosen, all, set, reload }: { chosen: number[]; all
   const t = useT();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
+  // The option the arrow keys are on: a prompt, or (found.length) the "New prompt" at the end.
+  const [active, setActive] = useState(0);
+  const list = useId();
   const words = q.trim().toLowerCase();
   const found = all.filter((x) => !chosen.includes(x.id) && (!words || `${x.title} ${x.group ?? ""}`.toLowerCase().includes(words))).slice(0, 12);
+  const at = Math.min(active, found.length);
   const pick = (id: number) => {
     set([...chosen, id]);
     setQ("");
     setOpen(false);
+    setActive(0);
   };
   const create = async () => {
     const r = await newInstructionAction(q.trim() || t("New prompt"));
@@ -214,31 +219,41 @@ function InstructionPicker({ chosen, all, set, reload }: { chosen: number[]; all
           aria-label={t("Add a prompt")}
           role="combobox"
           aria-expanded={open}
+          aria-controls={list}
+          aria-autocomplete="list"
+          aria-activedescendant={open ? `${list}-${at}` : undefined}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => setOpen(false), 150)}
-          onChange={(e) => (setQ(e.target.value), setOpen(true))}
+          onChange={(e) => (setQ(e.target.value), setOpen(true), setActive(0))}
           onKeyDown={(e) => {
-            if (e.key === "Enter") {
+            if (e.key === "ArrowDown" || e.key === "ArrowUp") {
               e.preventDefault();
-              if (found[0]) pick(found[0].id);
-              else if (q.trim()) void create();
+              setOpen(true);
+              setActive(Math.max(0, Math.min(found.length, at + (e.key === "ArrowDown" ? 1 : -1))));
+            } else if (e.key === "Enter") {
+              e.preventDefault();
+              if (found[at]) pick(found[at].id);
+              else if (q.trim() || (found.length && at === found.length)) void create();
             } else if (e.key === "Escape") setOpen(false);
           }}
         />
         {open && (
-          <ul className="absolute top-full left-0 z-30 mt-1 max-h-72 w-80 overflow-y-auto rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900" role="listbox">
+          <ul className="absolute top-full left-0 z-30 mt-1 max-h-72 w-80 overflow-y-auto rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900" id={list} role="listbox" aria-label={t("Prompts")}>
+            {/* The options are picked with the arrow keys in the field (aria-activedescendant), or clicked. */}
             {found.map((x, i) => (
-              <li key={x.id}>
-                {(i === 0 || x.group !== found[i - 1]?.group) && <p className="px-2 pt-1.5 text-[11px] font-semibold text-zinc-500 uppercase">{x.group ? `${t("System prompts")} · ${x.group}` : t("My prompts")}</p>}
-                <button type="button" role="option" aria-selected={false} className="block w-full rounded px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" onMouseDown={(e) => e.preventDefault()} onClick={() => pick(x.id)}>
+              <Fragment key={x.id}>
+                {(i === 0 || x.group !== found[i - 1]?.group) && (
+                  <li role="presentation" className="px-2 pt-1.5 text-[11px] font-semibold text-zinc-500 uppercase">
+                    {x.group ? `${t("System prompts")} · ${x.group}` : t("My prompts")}
+                  </li>
+                )}
+                <li id={`${list}-${i}`} role="option" aria-selected={i === at} className={`block w-full cursor-pointer rounded px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800 ${i === at ? "bg-zinc-100 dark:bg-zinc-800" : ""}`} onMouseDown={(e) => e.preventDefault()} onMouseEnter={() => setActive(i)} onClick={() => pick(x.id)}>
                   {x.icon || "📋"} {x.title}
-                </button>
-              </li>
+                </li>
+              </Fragment>
             ))}
-            <li>
-              <button type="button" className="block w-full rounded px-2 py-1 text-left text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800" onMouseDown={(e) => e.preventDefault()} onClick={() => void create()}>
-                ＋ {q.trim() ? t("New prompt “{title}”", { title: q.trim() }) : t("New prompt …")}
-              </button>
+            <li id={`${list}-${found.length}`} role="option" aria-selected={at === found.length} className={`block w-full cursor-pointer rounded px-2 py-1 text-left text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800 ${at === found.length ? "bg-zinc-100 dark:bg-zinc-800" : ""}`} onMouseDown={(e) => e.preventDefault()} onMouseEnter={() => setActive(found.length)} onClick={() => void create()}>
+              ＋ {q.trim() ? t("New prompt “{title}”", { title: q.trim() }) : t("New prompt …")}
             </li>
           </ul>
         )}
@@ -623,13 +638,13 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
             <input className="input flex-1 text-sm" placeholder={t("(free text)")} value={(s.choices ?? []).join(", ")} onChange={(e) => set({ choices: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />
           </label>
         </div>
-        <textarea className="input min-h-16 w-full text-sm" placeholder={t("What the AI writes into the field, for each row …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
+        <textarea className="input min-h-16 w-full text-sm" aria-label={t("Instruction")} placeholder={t("What the AI writes into the field, for each row …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
       </div>
     );
   if (s.kind === "ai" && s.output === "filter")
     return (
       <div className="space-y-1.5">
-        <textarea className="input min-h-16 w-full text-sm" placeholder={t("Which rows stay — e.g. “important, urgent, or needs me to act” …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
+        <textarea className="input min-h-16 w-full text-sm" aria-label={t("Instruction")} placeholder={t("Which rows stay — e.g. “important, urgent, or needs me to act” …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
         <div className="flex flex-wrap items-center gap-2">
           <p className="flex-1 text-xs text-zinc-500">{t("Each row is judged once (again when it changes) — after a sync, only the new ones. The reason goes with the ones that stay (field “Why”).")}</p>
           <button
@@ -678,14 +693,14 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
   if (s.kind === "ai" && s.output === "actions")
     return (
       <div className="space-y-1.5">
-        <textarea className="input min-h-16 w-full text-sm" placeholder={t("What to suggest — e.g. “a reply where someone asks me something; a Teams message to whoever I wait for” …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
+        <textarea className="input min-h-16 w-full text-sm" aria-label={t("Instruction")} placeholder={t("What to suggest — e.g. “a reply where someone asks me something; a Teams message to whoever I wait for” …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
         <p className="text-xs text-zinc-500">{t("From the actions installed that a row can run: drafts (Outlook, Gmail), messages (Teams, WhatsApp, Signal), things done in Zeff — one-click buttons on the row. Each row asked once per change, with the AI steps' runs.")}</p>
       </div>
     );
   if (s.kind === "ai" && s.output === "summary")
     return (
       <div className="space-y-1.5">
-        <textarea className="input min-h-16 w-full text-sm" placeholder={t("What the AI writes over all rows …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
+        <textarea className="input min-h-16 w-full text-sm" aria-label={t("Instruction")} placeholder={t("What the AI writes over all rows …")} value={s.prompt ?? ""} onChange={(e) => set({ prompt: e.target.value })} />
         {s.result?.text && <p className="whitespace-pre-wrap rounded bg-zinc-50 p-2 text-sm text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">{s.result.text}</p>}
       </div>
     );

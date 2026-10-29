@@ -32,6 +32,13 @@ const nextConfig: NextConfig = {
       { source: "/boards", destination: "/todos", permanent: false },
       // The AI steps are the prompts now: Settings → Prompts.
       { source: "/auswerten", destination: "/settings/prompts", permanent: false },
+      // Pages that moved — here, not as a redirect() in a page: under the streamed layout that becomes a timed
+      // <meta refresh> (WCAG 2.2.1); here it is a plain HTTP redirect (the query, e.g. a sign-in's, goes along).
+      { source: "/apps/keep", destination: "/keep", permanent: false },
+      { source: "/connections", destination: "/settings/connections", permanent: false },
+      { source: "/kalender/einstellungen", destination: "/settings/calendar", permanent: false },
+      { source: "/workspace/settings", destination: "/workspace/settings/sources", permanent: false },
+      { source: "/workspace/sources", destination: "/workspace/settings/sources", permanent: false },
     ];
   },
   experimental: {

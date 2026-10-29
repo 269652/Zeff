@@ -72,11 +72,11 @@ function GitlabItemCard({ item, prefixes }: { item: GitlabItemView; prefixes: Se
           </a>
         </span>
       </header>
-      <h3 className="mt-1.5 text-sm font-semibold">
+      <h2 className="mt-1.5 text-sm font-semibold">
         {item.kind === "branch" ? <span className="font-mono">{item.ref}</span> : item.kind === "comment"
             ? t("On {ref} {title}", { ref: item.ref, title: item.title })
             : `${item.ref} ${item.title}`}
-      </h3>
+      </h2>
       {markdown.trim() && (
         <div className="mt-1">
           <div className={`relative ${long && !open ? "max-h-48 overflow-hidden" : ""}`}>

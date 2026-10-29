@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
+import { useMenuKeys } from "@/components/useMenuKeys";
 import { switchAccountAction } from "@/plugins/accounts/server-actions";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -33,6 +34,9 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
   const [pending, start] = useTransition();
   const router = useRouter();
   const box = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  useMenuKeys(open, menu, button, () => setOpen(false));
 
   useEffect(() => {
     if (!open) return;
@@ -78,6 +82,7 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
   return (
     <div ref={box} className="relative">
       <button
+        ref={button}
         type="button"
         onClick={() => setOpen(!open)}
         className="flex max-w-40 items-center gap-1.5 rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
@@ -90,7 +95,7 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
         <span className="truncate">{pending ? t("switching…") : current.name}</span>
       </button>
       {open && (
-        <div role="menu" className="absolute top-full left-0 z-50 mt-1 w-56 rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <div ref={menu} role="menu" className="absolute top-full left-0 z-50 mt-1 w-56 rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
           {list.map((a) => (
             <button
               key={a.id}
@@ -106,7 +111,7 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
               {a.id === current.id && <span className="text-xs text-zinc-500">{t("active")}</span>}
             </button>
           ))}
-          <div className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
+          <div role="separator" className="my-1 border-t border-zinc-200 dark:border-zinc-700" />
           <Link href="/accounts" onClick={() => setOpen(false)} className="block rounded px-2 py-1.5 text-sm text-indigo-600 hover:bg-zinc-100 dark:text-indigo-400 dark:hover:bg-zinc-800" role="menuitem">
             {t("Manage accounts…")}
           </Link>

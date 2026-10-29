@@ -421,7 +421,7 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
     <NodeViewWrapper className="ws-widget ws-module-block my-1" contentEditable={false} data-app-block="widget">
       {editor.isEditable && (
         <div className="ws-grip-bar" contentEditable={false}>
-          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-label="Drag to move">
+          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-hidden="true">
             ⠿
           </span>
           <span className="ws-grip-label">{label || "widget"}</span>

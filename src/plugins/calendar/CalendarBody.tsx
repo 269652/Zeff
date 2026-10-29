@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState, useTransition, type ReactNode, type TransitionStartFunction } from "react";
 import { useLang, useT } from "@/components/I18nProvider";
+import { FocusDialog } from "@/components/Overlay";
 import { toast } from "@/components/Toaster";
 import type { CalendarEventView, CalendarView, ProposedEvent, SeriesScope } from "@/lib/calendar/ir-shared";
 import { LANGUAGES } from "@/lib/i18n/shared";
@@ -186,7 +187,7 @@ export function useCalendarBody({
       {editor && <EventEditor init={editor} calendars={own} onClose={() => setEditor(null)} onDone={(r, undo) => done(r, undo) && setEditor(null)} />}
       {moving && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4">
-          <div role="dialog" aria-modal="true" className="card w-full max-w-sm p-4 shadow-2xl">
+          <FocusDialog label={t("Move recurring event")} className="card w-full max-w-sm p-4 shadow-2xl">
             <p className="mb-2 text-xs text-zinc-500">
               “{moving.item.title}” → {local(moving.start).toLocaleString(locale, { weekday: "short", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })}
             </p>
@@ -199,7 +200,7 @@ export function useCalendarBody({
                 setMoving(null);
               }}
             />
-          </div>
+          </FocusDialog>
         </div>
       )}
     </>

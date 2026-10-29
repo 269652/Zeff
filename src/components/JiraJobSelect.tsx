@@ -28,6 +28,7 @@ export function JiraJobSelect({
       <select
         name="jobNumber"
         defaultValue={effective}
+        aria-label={`${t("Job")} – ${ticketKey}`}
         title={inherited ? t("Inherited from board ({name})", { name: boardJob!.name }) : undefined}
         className={`input py-1 text-xs ${inherited ? "text-zinc-500 italic" : ""}`}
         onChange={() => ref.current?.requestSubmit()}

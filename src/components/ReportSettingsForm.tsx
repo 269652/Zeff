@@ -72,9 +72,11 @@ export function ReportSettingsForm({
 
   const conditionValue = (r: ReportRule, i: number, c: RuleCondition) => {
     const onChange = (value: string) => setCondition(r.id, i, { value });
+    // Each field of a condition says what it is (there's no label beside it).
+    const label = ruleFieldLabels(t)[c.field];
     if (c.field === "type")
       return (
-        <select className="input w-24 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
+        <select aria-label={label} className="input w-24 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
           {c.value && !types.some((t) => t.key === c.value) && <option value={c.value}>{c.value}</option>}
           {types.map((t) => (
             <option key={t.key} value={t.key}>{t.label}</option>
@@ -83,16 +85,17 @@ export function ReportSettingsForm({
       );
     if (c.field === "tag")
       return (
-        <input className="input w-28 py-1 text-sm" list="rule-tags" placeholder={t("Migration")} value={c.value} onChange={(e) => onChange(e.target.value)} />
+        <input aria-label={label} className="input w-28 py-1 text-sm" list="rule-tags" placeholder={t("Migration")} value={c.value} onChange={(e) => onChange(e.target.value)} />
       );
     if (c.field === "ticket")
       return (
-        <input className="input w-24 py-1 font-mono text-sm" placeholder="PROJ-" value={c.value} onChange={(e) => onChange(e.target.value)} />
+        <input aria-label={label} className="input w-24 py-1 font-mono text-sm" placeholder="PROJ-" value={c.value} onChange={(e) => onChange(e.target.value)} />
       );
     if (c.field === "title")
       return (
         <input
           className="input w-56 py-1 text-sm"
+          aria-label={label}
           list="rule-meeting-titles"
           placeholder="PROJ | Mob Programming"
           title={t("Case-insensitive; matches anywhere in the meeting title (the entry's description)")}
@@ -102,7 +105,7 @@ export function ReportSettingsForm({
       );
     if (c.field === "project")
       return (
-        <select className="input w-44 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
+        <select aria-label={label} className="input w-44 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
           <option value="">{t("(any project)")}</option>
           {c.value && !projects.includes(c.value) && <option value={c.value}>{c.value}</option>}
           {projects.map((p) => (
@@ -111,7 +114,7 @@ export function ReportSettingsForm({
         </select>
       );
     return (
-      <select className="input w-44 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
+      <select aria-label={label} className="input w-44 py-1 text-sm" value={c.value} onChange={(e) => onChange(e.target.value)}>
         {jobs.length === 0 && <option value="">{t("(no jobs)")}</option>}
         {jobs.map((j) => (
           <option key={j.number} value={j.number}>{j.number} — {j.name}</option>
@@ -168,7 +171,7 @@ export function ReportSettingsForm({
               {r.conditions.map((c, ci) => (
                 <span key={ci} className="inline-flex items-center gap-1">
                   {ci > 0 && <span className="px-0.5 text-xs font-medium text-zinc-400">{t("and")}</span>}
-                  <select className="input w-44 py-1 text-sm" value={c.field} onChange={(e) => changeField(r.id, ci, e.target.value as RuleField)}>
+                  <select className="input w-44 py-1 text-sm" aria-label={t("Condition")} value={c.field} onChange={(e) => changeField(r.id, ci, e.target.value as RuleField)}>
                     {RULE_FIELDS.map((f) => (
                       <option key={f} value={f}>{ruleFieldLabels(t)[f]}</option>
                     ))}
@@ -192,6 +195,7 @@ export function ReportSettingsForm({
               <span className="text-zinc-400">→</span>
               <input
                 className="input min-w-40 flex-1 py-1 font-mono text-sm"
+                aria-label={t("Template")}
                 placeholder="{ticket}: {desc}"
                 value={r.template}
                 onChange={(e) => setRule(r.id, { template: e.target.value })}
@@ -204,6 +208,7 @@ export function ReportSettingsForm({
                   allTags={tags}
                   defaultValue={r.tags ?? []}
                   placeholder={t("+ tags")}
+                  label={t("Tags for the entries this rule applies to")}
                   onChange={(t) => setRule(r.id, { tags: t })}
                 />
               </div>

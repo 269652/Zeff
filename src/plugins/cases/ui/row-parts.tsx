@@ -134,7 +134,7 @@ function Note({ note, onSave }: { note: string; onSave: (note: string) => Promis
   const [v, setV] = useState(note);
   // eslint-disable-next-line react-hooks/set-state-in-effect -- the note as saved elsewhere follows
   useEffect(() => setV(note), [note]);
-  return <textarea className="input min-h-24" value={v} onChange={(e) => setV(e.target.value)} onBlur={() => v !== note && void onSave(v)} placeholder={t("What you want to remember about this case")} />;
+  return <textarea className="input min-h-24" value={v} aria-label={t("Note")} onChange={(e) => setV(e.target.value)} onBlur={() => v !== note && void onSave(v)} placeholder={t("What you want to remember about this case")} />;
 }
 
 const page: ViewAppModule = {

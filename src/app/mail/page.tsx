@@ -101,7 +101,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
             aria-current={folder === f ? "page" : undefined}
             className={`shrink-0 rounded px-3 py-1 whitespace-nowrap ${folder === f ? "bg-zinc-200 font-medium dark:bg-zinc-700" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
           >
-            {f ?? t("All")} <span className="text-xs text-zinc-400">{f ? counts[f] : total}</span>
+            {f ?? t("All")} <span className="text-xs text-zinc-600 dark:text-zinc-300">{f ? counts[f] : total}</span>
           </Link>
         ))}
       </nav>

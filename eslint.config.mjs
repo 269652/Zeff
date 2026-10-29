@@ -26,6 +26,21 @@ const eslintConfig = defineConfig([
     "dist/**",
     "launcher/node_modules/**",
   ]),
+  // Accessibility (WCAG 2.2 AA): the jsx-a11y rules that don't misfire on this code base, as errors. (Not
+  // label-has-associated-control — it misses controls nested in spans — nor the click-handler rules, which flag
+  // drop zones and stopPropagation wrappers; those are checked in the browser with axe instead.)
+  {
+    files: ["**/*.tsx"],
+    rules: Object.fromEntries(
+      [
+        "alt-text", "anchor-has-content", "anchor-is-valid", "aria-activedescendant-has-tabindex", "aria-props",
+        "aria-proptypes", "aria-role", "aria-unsupported-elements", "autocomplete-valid", "heading-has-content",
+        "html-has-lang", "iframe-has-title", "img-redundant-alt", "interactive-supports-focus", "no-access-key",
+        "no-distracting-elements", "no-interactive-element-to-noninteractive-role", "no-redundant-roles",
+        "role-has-required-aria-props", "role-supports-aria-props", "scope", "tabindex-no-positive",
+      ].map((r) => [`jsx-a11y/${r}`, "error"]),
+    ),
+  },
   // The launcher (launcher/) is plain CommonJS for Electron.
   { files: ["launcher/**/*.js"], rules: { "@typescript-eslint/no-require-imports": "off" } },
 ]);

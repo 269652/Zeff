@@ -25,7 +25,7 @@ export function ReceiptText({ id }: { id: number }) {
       >
         {open ? t("Hide the text") : t("Show what went")}
       </button>
-      {open && text !== null && <pre className="mt-1 max-h-96 overflow-auto rounded-md bg-zinc-50 p-2 text-xs whitespace-pre-wrap dark:bg-zinc-900">{text}</pre>}
+      {open && text !== null && <pre tabIndex={0} className="mt-1 max-h-96 overflow-auto rounded-md bg-zinc-50 p-2 text-xs whitespace-pre-wrap dark:bg-zinc-900">{text}</pre>}
     </div>
   );
 }

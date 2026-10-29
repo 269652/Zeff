@@ -146,12 +146,13 @@ function Composer({ api, run, known }: { api: Api; run: Run; known: string[] }) 
         autoFocus
         disabled={busy}
         className="w-full bg-transparent font-medium outline-none"
+        aria-label={t("Title")}
         placeholder={t("Title")}
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), void save())}
       />
-      <textarea disabled={busy} className="min-h-24 w-full resize-y bg-transparent text-sm outline-none" placeholder={t("Note … (a list: lines with “- [ ] ”)")} value={text} onChange={(e) => setText(e.target.value)} />
+      <textarea disabled={busy} aria-label={t("Note")} className="min-h-24 w-full resize-y bg-transparent text-sm outline-none" placeholder={t("Note … (a list: lines with “- [ ] ”)")} value={text} onChange={(e) => setText(e.target.value)} />
       <LabelsInput disabled={busy} value={labels} onChange={setLabels} known={known} />
       <div className="flex flex-wrap items-center gap-2">
         <ColorPicker value={color} onPick={setColor} disabled={busy} />
@@ -205,8 +206,8 @@ function NoteCard({ n, api, run, labelHref, known }: { n: BoardNote; api: Api; r
     <article id={`note-${n.id}`} aria-busy={busy} className={`card group mb-3 break-inside-avoid space-y-2 p-3 ${keepNoteClass(n.color)} ${busy ? "opacity-70" : ""}`}>
       {editing ? (
         <>
-          <input autoFocus disabled={busy} className="w-full bg-transparent font-medium outline-none" placeholder={t("Title")} value={title} onChange={(e) => setTitle(e.target.value)} />
-          <textarea disabled={busy} className="min-h-32 w-full resize-y bg-transparent text-sm outline-none" value={text} onChange={(e) => setText(e.target.value)} />
+          <input autoFocus disabled={busy} className="w-full bg-transparent font-medium outline-none" placeholder={t("Title")} aria-label={t("Title")} value={title} onChange={(e) => setTitle(e.target.value)} />
+          <textarea disabled={busy} aria-label={t("Note")} className="min-h-32 w-full resize-y bg-transparent text-sm outline-none" value={text} onChange={(e) => setText(e.target.value)} />
           <LabelsInput disabled={busy} value={labels} onChange={setLabels} known={known} />
           <div className="flex justify-end gap-2">
             <button type="button" disabled={busy} className="btn btn-sm" onClick={() => (setTitle(n.title), setText(n.text), setLabels(n.labels.join(", ")), setEditing(false))}>

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useMenuKeys } from "@/components/useMenuKeys";
 import type { SessionItem, SessionTicket } from "@/lib/work/sessions";
 import { archiveSessionAction, deleteSessionAction } from "@/plugins/work/server-actions";
 import { useT } from "../I18nProvider";
@@ -41,6 +42,9 @@ function SessionMenu({ s, active }: { s: SessionItem; active: boolean }) {
   const [open, setOpen] = useState(false);
   const [pending, start] = useTransition();
   const ref = useRef<HTMLDivElement>(null);
+  const button = useRef<HTMLButtonElement>(null);
+  const menu = useRef<HTMLDivElement>(null);
+  useMenuKeys(open, menu, button, () => setOpen(false));
   useEffect(() => {
     if (!open) return;
     const away = (e: MouseEvent) => {
@@ -58,11 +62,11 @@ function SessionMenu({ s, active }: { s: SessionItem; active: boolean }) {
     });
   return (
     <div ref={ref} className="absolute top-1/2 right-0.5 -translate-y-1/2">
-      <button type="button" className={`icon-btn size-6 text-sm group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 ${open ? "opacity-100" : "opacity-0"}`} onClick={() => setOpen(!open)} aria-label={t("Session menu")} aria-expanded={open} disabled={pending}>
+      <button ref={button} type="button" className={`icon-btn size-6 text-sm group-hover:opacity-100 group-focus-within:opacity-100 focus-visible:opacity-100 [@media(hover:none)]:opacity-100 ${open ? "opacity-100" : "opacity-0"}`} onClick={() => setOpen(!open)} aria-label={t("Session menu")} aria-haspopup="menu" aria-expanded={open} disabled={pending}>
         ⋯
       </button>
       {open && (
-        <div role="menu" className="absolute top-full right-0 z-30 mt-1 w-44 rounded-md border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <div ref={menu} role="menu" className="absolute top-full right-0 z-30 mt-1 w-44 rounded-md border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
           <button type="button" role="menuitem" className="block w-full px-3 py-1.5 text-left hover:bg-zinc-50 dark:hover:bg-zinc-800" onClick={() => act(() => archiveSessionAction(s.todoId, !s.archived))}>
             {s.archived ? t("Unarchive") : t("Archive")}
           </button>
@@ -200,7 +204,7 @@ export function SessionSidebar({
             <section key={g.key}>
               {g.id !== "all" && (
                 <div className="flex items-center gap-1 px-0.5 pt-2 pb-0.5 text-xs text-zinc-500">
-                  <button type="button" className="flex min-w-0 items-center gap-1 rounded px-0.5 hover:text-zinc-800 dark:hover:text-zinc-200" onClick={() => fold(g.key)} aria-expanded={!isFolded} aria-label={isFolded ? t("Expand") : t("Collapse")}>
+                  <button type="button" className="flex min-w-0 items-center gap-1 rounded px-0.5 py-1 hover:text-zinc-800 dark:hover:text-zinc-200" onClick={() => fold(g.key)} aria-expanded={!isFolded} aria-label={isFolded ? t("Expand") : t("Collapse")}>
                     <span className="w-3 shrink-0 text-xs">{isFolded ? "▸" : "▾"}</span>
                     {g.id !== "ticket" && <span className="font-medium tracking-wide uppercase">{headings[g.id]}</span>}
                   </button>
