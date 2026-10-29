@@ -930,6 +930,13 @@
 .ws-flex {
   position: relative;
   margin: 0.4rem 0;
+  /* set off from the page a little: a box of its own (nested ones a shade more) */
+  padding: 0.5rem 0.6rem;
+  border-radius: 0.6rem;
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 5%, transparent);
+}
+.ws-flex[data-dir="row"] {
+  background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 4%, transparent);
 }
 /* Controls (grips, labels, buttons) are in the flow — never over the content — and only while arranging the layout. */
 .ws-flex-bar,

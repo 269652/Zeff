@@ -1,6 +1,7 @@
 "use client";
 
-import { mergeAttributes, Node, NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
+import { NodeSelection } from "@tiptap/pm/state";
+import { Extension, mergeAttributes, Node, NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { aiBlockAction, mentionStateAction } from "../actions";
@@ -111,10 +112,13 @@ function FlexView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
           onClick={() => {
             const pos = typeof getPos === "function" ? getPos() : undefined;
             if (pos === undefined) return;
-            editor.chain().focus().insertContentAt(pos + node.nodeSize - 1, { type: "paragraph", content: [{ type: "text", text: "/" }] }).run();
+            const at = pos + node.nodeSize - 1;
+            // A row gets another column (a collection of blocks of its own), a column another line — with the "/" menu open.
+            if (dir === "row") editor.chain().focus().insertContentAt(at, { type: "flexBox", attrs: { dir: "col", gap: "md" }, content: [{ type: "paragraph", content: [{ type: "text", text: "/" }] }] }).setTextSelection(at + 3).run();
+            else editor.chain().focus().insertContentAt(at, { type: "paragraph", content: [{ type: "text", text: "/" }] }).setTextSelection(at + 2).run();
           }}
         >
-          ＋ Add a block
+          {dir === "row" ? "＋ Add a column" : "＋ Add a block"}
         </button>
       )}
     </NodeViewWrapper>
@@ -139,6 +143,23 @@ export const FlexBox = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(FlexView);
+  },
+});
+
+/**
+ * Moving between blocks that hold no text (widgets, embedded databases, calendars): Enter on a selected block makes a new line
+ * after it, Shift+Enter one before — so a cursor is set between two cards without the mouse (the arrow keys reach the gaps).
+ */
+export const BlockGaps = Extension.create({
+  name: "blockGaps",
+  addKeyboardShortcuts() {
+    const line = (before: boolean) => () => {
+      const sel = this.editor.state.selection;
+      if (!(sel instanceof NodeSelection) || !sel.node.isBlock || sel.node.isTextblock) return false;
+      const at = before ? sel.from : sel.to;
+      return this.editor.chain().insertContentAt(at, { type: "paragraph" }).setTextSelection(at + 1).run();
+    };
+    return { Enter: line(false), "Shift-Enter": line(true) };
   },
 });
 

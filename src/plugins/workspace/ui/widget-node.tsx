@@ -337,6 +337,12 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
           ⚙
         </button>
       )}
+      {editor.isEditable && (
+        // Removed right here (not only while arranging the page).
+        <button type="button" className="grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Remove this block")} aria-label={t("Remove this block")} onClick={() => deleteNode()}>
+          ✕
+        </button>
+      )}
     </span>
   );
   return (

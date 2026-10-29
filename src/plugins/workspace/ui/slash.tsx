@@ -65,7 +65,12 @@ export const slashItems = (t: T): SlashItem[] => [
       icon: dir === "row" ? "↔" : "↕",
       group: t("Layout"),
       keywords: ["flex", "layout", "row", "column", "columns", "spalten", "zeile", "grid", dir],
-      run: ({ editor, range }) => chain(editor, range).insertContent({ type: "flexBox", attrs: { dir, gap: "md" }, content: [{ type: "paragraph" }, { type: "paragraph" }] }).run(),
+      run: ({ editor, range }) => chain(editor, range).insertContent(
+          // A row of columns (each a collection of blocks of its own), a column of lines.
+          dir === "row"
+            ? { type: "flexBox", attrs: { dir, gap: "md" }, content: [0, 1].map(() => ({ type: "flexBox", attrs: { dir: "col", gap: "md" }, content: [{ type: "paragraph" }] })) }
+            : { type: "flexBox", attrs: { dir, gap: "md" }, content: [{ type: "paragraph" }] },
+        ).run(),
     }),
   ),
   {
