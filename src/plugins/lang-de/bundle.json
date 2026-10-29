@@ -7919,5 +7919,17 @@
   "Into the box after it (Alt+→)": "In den Kasten danach (Alt+→)",
   "Into the next box": "In den nächsten Kasten",
   "Out of its box (Alt+←)": "Aus seinem Kasten (Alt+←)",
-  "Out of the box": "Aus dem Kasten"
+  "Out of the box": "Aus dem Kasten",
+  "Every field of the database is on the form.": "Alle Felder der Datenbank sind im Formular.",
+  "New field": "Neues Feld",
+  "Name of the new field": "Name des neuen Feldes",
+  "e.g. Dosis (mg)": "z. B. Dosis (mg)",
+  "Choices (separated by commas)": "Auswahlmöglichkeiten (mit Komma getrennt)",
+  "e.g. morning, noon, evening": "z. B. morgens, mittags, abends",
+  "It is made in the database as well.": "Es wird auch in der Datenbank angelegt.",
+  "Making …": "Wird angelegt …",
+  "Add the field": "Feld hinzufügen",
+  "Give the field a name.": "Gib dem Feld einen Namen.",
+  "A form can't make a field of that type.": "Ein Formular kann kein Feld dieses Typs anlegen.",
+  "The database already has a field “{name}”.": "Die Datenbank hat schon ein Feld „{name}“."
 }

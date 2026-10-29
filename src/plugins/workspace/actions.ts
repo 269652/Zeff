@@ -1503,6 +1503,11 @@ export async function saveFormAction(id: number, def: unknown) {
   return run(async () => ({ form: (await import("./forms")).saveForm(Number(id), def) }));
 }
 
+/** A new field of the database a form fills, made from its designer (its choices for a select). */
+export async function addFormFieldAction(formId: number, name: string, type: string, choices: string[] = []) {
+  return run(async () => (await import("./forms")).addFormField(Number(formId), String(name ?? ""), type as import("./model").PropType, Array.isArray(choices) ? choices.map(String) : []));
+}
+
 /** A new form page for a database (below `parentId`). */
 export async function createFormAction(v: { parentId?: number | null; dbId?: number | null; title?: string }) {
   return run(async () => ({ id: (await import("./forms")).createForm({ parentId: v.parentId ?? null, dbId: v.dbId ? Number(v.dbId) : null, title: v.title }) }));

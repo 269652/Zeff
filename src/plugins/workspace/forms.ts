@@ -2,7 +2,7 @@ import { getSqlite } from "@/db";
 import { t } from "@/lib/i18n/server";
 import { addRow, createPage, getDatabase, getPage, rawRows, setPageProps, updateSchema } from "./store";
 import { blockFormDef, coerceAnswers, formCells, formErrors, formFields, formProps, legacyFormDef, newFormDef, normalizeForm, type Answers, type FormDef } from "./form-spec";
-import type { Property } from "./model";
+import { newId, newProperty, type Property, type PropType } from "./model";
 
 /**
  * Forms as pages of their own (kind "form"): what one asks is kept in the page's `props.form` (form-spec.ts says what it may be), the
@@ -32,6 +32,28 @@ export function getForm(id: number): FormRun | null {
   const raw = normalizeForm(p.props.form);
   const db = formDb(raw.dbId);
   return { id: p.id, title: p.title, icon: p.icon, def: db ? normalizeForm(raw, db.props) : raw, db };
+}
+
+/** The types a field made from the designer can have (a relation needs its other database — that is made in the database). */
+export const NEW_FIELD_TYPES: PropType[] = ["text", "markdown", "number", "date", "checkbox", "select", "multi_select", "status", "url", "email", "phone", "person"];
+
+/**
+ * A new field made in the form's designer: a property of the database the form fills (its choices for a select), so the form
+ * can ask what the database didn't hold yet. Its id — the designer puts it on the form.
+ */
+export function addFormField(formId: number, name: string, type: PropType, choices: string[] = []): { prop: string; form: FormRun } {
+  const form = getForm(formId);
+  if (!form?.db) throw new Error(t("Choose the database this form fills first."));
+  const label = name.trim().slice(0, 120);
+  if (!label) throw new Error(t("Give the field a name."));
+  if (!NEW_FIELD_TYPES.includes(type)) throw new Error(t("A form can't make a field of that type."));
+  const d = getDatabase(form.db.id)!;
+  if (d.schema.properties.some((p) => p.name.trim().toLowerCase() === label.toLowerCase())) throw new Error(t("The database already has a field “{name}”.", { name: label }));
+  const p = newProperty(label, type);
+  const names = [...new Set(choices.map((c) => c.trim().slice(0, 80)).filter(Boolean))].slice(0, 50);
+  if ((type === "select" || type === "multi_select") && names.length) p.options = names.map((n) => ({ id: newId("o"), name: n, color: "gray" }));
+  updateSchema(d.page.id, { ...d.schema, properties: [...d.schema.properties, p] });
+  return { prop: p.id, form: getForm(formId)! };
 }
 
 /** What a form asks, saved (made to fit: form-spec.ts normalizeForm; fields its database can't take are dropped). */

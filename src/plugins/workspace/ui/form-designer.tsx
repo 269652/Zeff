@@ -3,11 +3,11 @@
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
-import { databasesAction, saveFormAction } from "../actions";
+import { addFormFieldAction, databasesAction, saveFormAction } from "../actions";
 import { COND_OPS, defaultAnswer, fieldItem, fieldLabel, fieldsIn, formItemId, newStep, type CondOp, type FieldItem, type FlexItem, type FormDef, type FormItem, type FormStep } from "../form-spec";
 import { canPlace, findPart, freshIds, newBox, partsOf, patchPart, placePart, removePart, spotOf } from "../form-tree";
 import type { FormRun } from "../forms";
-import { PROP_LABELS, TITLE, type Property } from "../model";
+import { PROP_LABELS, TITLE, type Property, type PropType } from "../model";
 import { FieldControl, flexChildClass, flexClass, StaticItem, StepProgress } from "./form-runner";
 
 /**
@@ -221,7 +221,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
           key={item.id}
           role="group"
           aria-label={boxName(item)}
-          className={`rounded-md border border-dashed p-2 ${across ? "border-indigo-300 bg-indigo-500/[0.04] dark:border-indigo-800" : "border-zinc-300 bg-zinc-500/[0.05] dark:border-zinc-600"} ${top ? "sm:col-span-2" : ""} ${inRow ? flexChildClass({ dir: "row" }) : ""} ${ring} ${line(owner, index, inRow)}`}
+          className={`rounded-md border border-dashed p-2 ${across ? "border-indigo-300 bg-indigo-500/[0.04] dark:border-indigo-800" : "border-zinc-300 bg-zinc-500/[0.05] dark:border-zinc-600"} ${top ? "@md:col-span-2" : ""} ${inRow ? flexChildClass({ dir: "row" }) : ""} ${ring} ${line(owner, index, inRow)}`}
           onDragOver={overPart(owner, index, inRow)}
           onDrop={(e) => dropAt(e, owner, over?.owner === owner ? over.index : index)}
         >
@@ -242,7 +242,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
         aria-label={`${nameOf(item)}${notes.length ? ` (${notes.join(", ")})` : ""} — ${pos}`}
         onDragOver={overPart(owner, index, inRow || (top && half))}
         onDrop={(e) => dropAt(e, owner, over?.owner === owner ? over.index : index)}
-        className={`group relative cursor-grab rounded-md p-2 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${top && !half ? "sm:col-span-2" : ""} ${inRow ? flexChildClass({ dir: "row" }) : ""} ${isSel ? "bg-indigo-50/60 ring-2 ring-indigo-500 dark:bg-indigo-950/40" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"} ${item.kind === "field" && (item.hidden || item.when) ? "border border-dashed border-zinc-300 dark:border-zinc-600" : ""} ${line(owner, index, inRow || (top && half))}`}
+        className={`group relative cursor-grab rounded-md p-2 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${top && !half ? "@md:col-span-2" : ""} ${inRow ? flexChildClass({ dir: "row" }) : ""} ${isSel ? "bg-indigo-50/60 ring-2 ring-indigo-500 dark:bg-indigo-950/40" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"} ${item.kind === "field" && (item.hidden || item.when) ? "border border-dashed border-zinc-300 dark:border-zinc-600" : ""} ${line(owner, index, inRow || (top && half))}`}
       >
         {notes.length > 0 && (
           <span className="absolute top-1 right-2 text-[11px] text-zinc-500" aria-hidden="true">
@@ -262,7 +262,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
     return (
       <div
         ref={top ? canvas : undefined}
-        className={top ? "grid min-h-24 grid-cols-1 gap-3 sm:grid-cols-2" : `${flexClass(box!)} min-h-12`}
+        className={top ? "grid min-h-24 grid-cols-1 gap-3 @md:grid-cols-2" : `${flexClass(box!)} min-h-12`}
         onDragOver={(e) => e.target === e.currentTarget && hover(e, { owner, index: items.length })}
         onDragLeave={(e) => top && !e.currentTarget.contains(e.relatedTarget as Node | null) && setOver(null)}
         onDrop={(e) => dropAt(e, owner, over?.owner === owner ? over.index : items.length)}
@@ -270,13 +270,13 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
         {items.map((item, i) => part(item, owner, i, items.length, across, top))}
         {!items.length &&
           (top ? (
-            <p className="rounded-md border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 sm:col-span-2 dark:border-zinc-700">{form.db ? t("Drag fields here, or add them with ＋.") : t("Choose the database this form fills first.")}</p>
+            <p className="rounded-md border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 @md:col-span-2 dark:border-zinc-700">{form.db ? t("Drag fields here, or add them with ＋.") : t("Choose the database this form fills first.")}</p>
           ) : (
             <p className={`flex-1 rounded p-2 text-center text-xs text-zinc-400 ${end ? "ring-2 ring-indigo-500" : ""}`} onDragOver={(e) => hover(e, { owner, index: 0 })}>
               {t("Drop parts here")}
             </p>
           ))}
-        {end && items.length > 0 && <div className={across ? "w-1 self-stretch rounded bg-indigo-500" : `h-1 rounded bg-indigo-500 ${top ? "sm:col-span-2" : ""}`} aria-hidden="true" />}
+        {end && items.length > 0 && <div className={across ? "w-1 self-stretch rounded bg-indigo-500" : `h-1 rounded bg-indigo-500 ${top ? "@md:col-span-2" : ""}`} aria-hidden="true" />}
       </div>
     );
   }
@@ -331,13 +331,13 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
   const targetName = target === step.id ? "" : nameOf(findPart(def, target)!);
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)_19rem]">
+    <div className="grid gap-4 lg:grid-cols-[13rem_minmax(0,1fr)] xl:grid-cols-[13rem_minmax(0,1fr)_17rem]">
       <div role="status" aria-live="polite" className="sr-only">
         {said}
       </div>
 
       {/* The palette */}
-      <aside aria-label={t("Parts of the form")} className="space-y-4 text-sm">
+      <aside aria-label={t("Parts of the form")} className="space-y-4 self-start text-sm lg:sticky lg:top-4">
         <section className="space-y-1.5">
           <label htmlFor={`fd-db-${form.id}`} className="block text-sm font-medium">
             {t("Database it fills")}
@@ -374,8 +374,17 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
                 ))}
               </ul>
             ) : (
-              <p className="text-xs text-zinc-500">{t("Every field is on the form.")}</p>
+              <p className="text-xs text-zinc-500">{t("Every field of the database is on the form.")}</p>
             )}
+            <NewField
+              formId={form.id}
+              onMade={(prop, next) => {
+                // The database has it now: the form knows it, then it goes on the form (where ＋ adds).
+                setForm((cur) => ({ ...cur, db: next.db }));
+                onChange?.({ ...form, db: next.db });
+                add(fieldItem(prop));
+              }}
+            />
           </section>
         )}
         <section className="space-y-1.5">
@@ -406,7 +415,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
       </aside>
 
       {/* The canvas */}
-      <section aria-label={t("The form")} className="min-w-0 space-y-3">
+      <section aria-label={t("The form")} className="@container min-w-0 space-y-3">
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("Steps")}>
           {def.steps.map((s, i) => (
             <button
@@ -442,7 +451,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
       </section>
 
       {/* The inspector */}
-      <aside aria-label={t("Settings of the selected part")} className="space-y-3 text-sm">
+      <aside aria-label={t("Settings of the selected part")} className="space-y-3 self-start text-sm lg:col-span-2 xl:sticky xl:top-4 xl:col-span-1">
         {sel.kind === "form" && (
           <>
             <h2 className="font-semibold">{t("The form")}</h2>
@@ -487,6 +496,84 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
           />
         )}
       </aside>
+    </div>
+  );
+}
+
+/** The types a new field can have (forms.ts NEW_FIELD_TYPES — a relation is made in the database). */
+const NEW_TYPES: PropType[] = ["text", "markdown", "number", "date", "checkbox", "select", "multi_select", "status", "url", "email", "phone", "person"];
+
+/** "New field": a name, a type (choices for a select) — made in the database the form fills, and put on the form. */
+function NewField({ formId, onMade }: { formId: number; onMade: (prop: string, form: FormRun) => void }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [name, setName] = useState("");
+  const [type, setType] = useState<PropType>("text");
+  const [choices, setChoices] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const choosing = type === "select" || type === "multi_select";
+  const make = async () => {
+    if (!name.trim() || busy) return;
+    setBusy(true);
+    setError("");
+    const r = await addFormFieldAction(formId, name, type, choosing ? choices.split(/[,;\n]/) : []);
+    setBusy(false);
+    if (!r.ok) return setError(r.error);
+    onMade(r.prop, r.form);
+    setName("");
+    setChoices("");
+  };
+  if (!open)
+    return (
+      <button type="button" className="btn btn-sm w-full justify-center" onClick={() => setOpen(true)}>
+        ＋ {t("New field")}
+      </button>
+    );
+  return (
+    <div
+      className="space-y-2 rounded-md border border-zinc-200 p-2 dark:border-zinc-700"
+      onKeyDown={(e) => {
+        if (e.key === "Enter" && (e.target as HTMLElement).tagName === "INPUT") {
+          e.preventDefault();
+          void make();
+        } else if (e.key === "Escape") setOpen(false);
+      }}
+    >
+      <label className="block space-y-1">
+        <span className="text-xs font-medium">{t("Name of the new field")}</span>
+        <input autoFocus className="input w-full" value={name} onChange={(e) => setName(e.target.value)} placeholder={t("e.g. Dosis (mg)")} />
+      </label>
+      <label className="block space-y-1">
+        <span className="text-xs font-medium">{t("Type")}</span>
+        <select className="input w-full" value={type} onChange={(e) => setType(e.target.value as PropType)}>
+          {NEW_TYPES.map((x) => (
+            <option key={x} value={x}>
+              {t(PROP_LABELS[x])}
+            </option>
+          ))}
+        </select>
+      </label>
+      {choosing && (
+        <label className="block space-y-1">
+          <span className="text-xs font-medium">{t("Choices (separated by commas)")}</span>
+          <input className="input w-full" value={choices} onChange={(e) => setChoices(e.target.value)} placeholder={t("e.g. morning, noon, evening")} />
+        </label>
+      )}
+      {error && (
+        <p role="alert" className="text-xs text-red-700 dark:text-red-400">
+          {error}
+        </p>
+      )}
+      <p className="text-xs text-zinc-500">{t("It is made in the database as well.")}</p>
+      <div className="flex gap-2">
+        <button type="button" className="btn btn-sm btn-primary" disabled={!name.trim() || busy} onClick={() => void make()}>
+          {busy ? t("Making …") : t("Add the field")}
+        </button>
+        <button type="button" className="btn btn-sm" onClick={() => setOpen(false)}>
+          {t("Cancel")}
+        </button>
+      </div>
     </div>
   );
 }

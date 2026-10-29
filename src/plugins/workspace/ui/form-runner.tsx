@@ -192,12 +192,13 @@ export function StaticItem({ item, level = 2 }: { item: Exclude<FormItem, FieldI
 
 const GAPS = { sm: "gap-2", md: "gap-4", lg: "gap-6" } as const;
 /**
- * A box's own layout (the designer's canvas draws it the same): a row side by side from a small screen up (stacked below ~640px,
- * wrapping when its parts get too narrow), a column one under the other.
+ * A box's own layout (the designer's canvas draws it the same): a row side by side once the form itself is wide enough (a
+ * container query — the form's width, not the window's: a form beside the designer's panels or in a page column is narrow), a
+ * column one under the other.
  */
-export const flexClass = (box: Pick<FlexItem, "dir" | "gap">): string => `flex flex-col ${GAPS[box.gap ?? "md"]} ${box.dir === "row" ? "sm:flex-row sm:flex-wrap sm:items-start" : ""}`;
+export const flexClass = (box: Pick<FlexItem, "dir" | "gap">): string => `flex flex-col ${GAPS[box.gap ?? "md"]} ${box.dir === "row" ? "@md:flex-row @md:items-start" : ""}`;
 /** A part inside a row shares it with the others (inside a column it is as wide as the column). */
-export const flexChildClass = (box: Pick<FlexItem, "dir">): string => (box.dir === "row" ? "min-w-0 sm:min-w-[12rem] sm:flex-1 sm:basis-0" : "min-w-0");
+export const flexChildClass = (box: Pick<FlexItem, "dir">): string => (box.dir === "row" ? "min-w-0 @md:flex-1 @md:basis-0" : "min-w-0");
 
 /** "Step 2 of 3 — Contact": what a wizard says above its fields (a progress bar beside it, the words for screen readers). */
 export function StepProgress({ at, of, title }: { at: number; of: number; title: string }) {
@@ -314,7 +315,7 @@ export function FormRunner({ form, submit, onDone, onCancel, heading = true, hea
   const part = (item: FormItem, top: boolean): ReactNode => {
     if (item.kind === "flex")
       return (
-        <div key={item.id} className={`${flexClass(item)} ${top ? "sm:col-span-2" : ""}`}>
+        <div key={item.id} className={`${flexClass(item)} ${top ? "@md:col-span-2" : ""}`}>
           {item.items.map((c) => {
             const inner = part(c, false);
             return inner === null ? null : (
@@ -327,14 +328,14 @@ export function FormRunner({ form, submit, onDone, onCancel, heading = true, hea
       );
     if (item.kind !== "field")
       return (
-        <div key={item.id} className={top ? "sm:col-span-2" : ""}>
+        <div key={item.id} className={top ? "@md:col-span-2" : ""}>
           <StaticItem item={item} level={headingLevel === 1 ? 2 : 3} />
         </div>
       );
     const prop = props.find((p) => p.id === item.prop);
     if (!prop || !shown.has(item.id)) return null;
     return (
-      <div key={item.id} className={!top || item.width === "half" ? "" : "sm:col-span-2"}>
+      <div key={item.id} className={!top || item.width === "half" ? "" : "@md:col-span-2"}>
         <FieldControl item={item} prop={prop} value={answers[item.prop]} onChange={(v) => set(item.prop, v)} uid={uid} error={errors[item.id]} dbId={db.id} labels={labels[item.prop]} onLabel={(id, label) => setLabels((l) => ({ ...l, [item.prop]: { ...l[item.prop], [id]: label } }))} />
       </div>
     );
@@ -405,7 +406,7 @@ export function FormRunner({ form, submit, onDone, onCancel, heading = true, hea
             </div>
           )}
           {curFields.some((i) => i.required && shown.has(i.id)) && <p className="text-xs text-zinc-500 dark:text-zinc-400">{t("Fields marked * are required.")}</p>}
-          <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
+          <div className="@container grid grid-cols-1 gap-x-4 gap-y-4 @md:grid-cols-2">
             {cur.items.map((item) => part(item, true))}
           </div>
           {failure && (
