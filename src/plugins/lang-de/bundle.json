@@ -7766,5 +7766,8 @@
   "Coming up with a person": "Was ansteht mit einer Person",
   "What is coming up with a person: the next appointments with them, their birthday and the other dates you keep.": "Was mit einer Person ansteht: die nächsten Termine mit ihr, ihr Geburtstag und die anderen Daten, die du dir merkst.",
   "Nothing coming up with {name}.": "Nichts steht an mit {name}.",
-  "Remove this block": "Diesen Block entfernen"
+  "Remove this block": "Diesen Block entfernen",
+  "A value worked out in the text: {=@Kennzahl * 12}": "Ein im Text berechneter Wert: {=@Kennzahl * 12}",
+  "Date from a duration": "Datum aus einer Dauer",
+  "{=Datum(@Schuldenfrei in)} — the day a duration from today ends": "{=Datum(@Schuldenfrei in)} – der Tag, an dem eine Dauer ab heute endet"
 }

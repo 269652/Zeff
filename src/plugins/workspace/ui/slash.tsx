@@ -2,7 +2,7 @@
 
 import { Extension, type Editor, type Range } from "@tiptap/react";
 import { useT } from "@/components/I18nProvider";
-import { PluginKey } from "@tiptap/pm/state";
+import { PluginKey, TextSelection } from "@tiptap/pm/state";
 import Suggestion from "@tiptap/suggestion";
 import type { Lang, T } from "@/lib/i18n/shared";
 import type { MenuProps } from "./popup";
@@ -82,6 +82,21 @@ export const slashItems = (t: T): SlashItem[] => [
     keywords: ["callout", "note", "info", "warning", "box"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "callout", attrs: { icon: "💡", tone: "gray" }, content: [{ type: "paragraph" }] }).run(),
   },
+  // A formula in the text ({=…}): its value shows where it stands — the caret put where the formula is written.
+  ...[
+    { key: "formula", title: t("Formula"), hint: t("A value worked out in the text: {=@Kennzahl * 12}"), icon: "=", text: "{=}", back: 1, keywords: ["formula", "formel", "rechnen", "calc", "=", "berechnen"] },
+    { key: "formula-date", title: t("Date from a duration"), hint: t("{=Datum(@Schuldenfrei in)} — the day a duration from today ends"), icon: "📅", text: "{=Datum()}", back: 2, keywords: ["datum", "date", "formel", "formula", "wann", "when"] },
+  ].map(
+    ({ text, back, ...item }): SlashItem => ({
+      ...item,
+      group: t("Basic blocks"),
+      run: ({ editor, range }) =>
+        chain(editor, range)
+          .insertContent(text)
+          .command(({ tr }) => (tr.setSelection(TextSelection.create(tr.doc, tr.selection.from - back)), true))
+          .run(),
+    }),
+  ),
   { key: "divider", title: t("Divider"), hint: t("A line between blocks"), icon: "—", group: t("Basic blocks"), keywords: ["divider", "line", "hr", "rule", "---"], run: ({ editor, range }) => chain(editor, range).setHorizontalRule().run() },
   { key: "code", title: t("Code block"), hint: t("Code with highlighting"), icon: "</>", group: t("Basic blocks"), keywords: ["code", "snippet", "```"], run: ({ editor, range }) => chain(editor, range).setCodeBlock().run() },
   { key: "table", title: t("Table"), hint: t("Rows and columns"), icon: "▦", group: t("Basic blocks"), keywords: ["table", "grid"], run: ({ editor, range }) => chain(editor, range).insertTable({ rows: 3, cols: 3, withHeaderRow: true }).run() },

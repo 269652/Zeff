@@ -466,8 +466,8 @@ const unitOf = (v: FormulaValue): string => {
 };
 function addUnits(d: Date, n: number, unit: string): Date {
   const r = new Date(d);
-  if (unit === "months") r.setMonth(r.getMonth() + n);
-  else if (unit === "years") r.setFullYear(r.getFullYear() + n);
+  if (unit === "months") r.setMonth(r.getMonth() + Math.round(n));
+  else if (unit === "years") r.setFullYear(r.getFullYear() + Math.round(n));
   else if (unit === "days" || unit === "weeks") r.setDate(r.getDate() + n * (unit === "weeks" ? 7 : 1));
   else r.setTime(r.getTime() + n * UNIT_MS[unit]);
   return r;
@@ -534,6 +534,15 @@ const FUNCTIONS: Record<string, Fn> = {
   month: (a) => (need("month", a, 1), asDate(a[0]).getMonth() + 1),
   day: (a) => (need("day", a, 1), asDate(a[0]).getDate()),
   weekday: (a) => (need("weekday", a, 1), (asDate(a[0]).getDay() + 6) % 7 + 1),
+  /** A date: a date as it is, a number of days from today (a duration with its unit — 127 Monate — is from today on, see inferUnits). */
+  date: (a, c) => {
+    need("date", a, 1);
+    if (typeof a[0] !== "number") return asDate(a[0]);
+    const d = new Date(c.now ?? new Date());
+    d.setHours(0, 0, 0, 0);
+    d.setDate(d.getDate() + Math.round(a[0]));
+    return d;
+  },
   dateAdd: (a) => (need("dateAdd", a, 3), addUnits(asDate(a[0]), num(a[1]), unitOf(a[2]))),
   dateSubtract: (a) => (need("dateSubtract", a, 3), addUnits(asDate(a[0]), -num(a[1]), unitOf(a[2]))),
   dateBetween: (a) => {
@@ -572,6 +581,7 @@ const ALIASES: Record<string, string> = {
   und: "and",
   oder: "or",
   heute: "today",
+  datum: "date",
   jetzt: "now",
   verketten: "concat",
   länge: "length",
@@ -764,6 +774,7 @@ export const FORMULA_SIGNATURES: Record<string, string> = {
   text: "text(value)",
   now: "now()",
   today: "today()",
+  date: "date(12 Monate | date)",
   year: "year(date)",
   month: "month(date)",
   day: "day(date)",
@@ -958,6 +969,14 @@ function inferUnits(root: Node, ctx: FormulaContext): { node: Node; label: strin
         if (fn === "pow" && args[0]?.u && n.args[1]?.k === "lit" && typeof n.args[1].v === "number") {
           const e = n.args[1].v;
           return { n: call(args.map((x) => x.n)), u: Object.fromEntries(Object.entries(args[0].u).map(([k, v]) => [k, v * e])) };
+        }
+        // Datum(127 Monate), Datum(@Schuldenfrei in): a duration from today on — the day it ends.
+        if (fn === "date" && args.length === 1 && args[0].u) {
+          const months = conversion(args[0].u, parseUnit("Monat")!);
+          const days = months === null ? conversion(args[0].u, parseUnit("Tag")!) : null;
+          const f = months ?? days;
+          if (f !== null) return { n: { k: "call", name: "dateAdd", args: [{ k: "call", name: "today", args: [] }, scale(args[0].n, f), { k: "lit", v: months !== null ? "months" : "days" }] }, u: null };
+          warn(`${name(args[0].u)} is no duration`);
         }
         if ((fn === "kennzahl" || fn === "metric") && n.args[0]?.k === "lit") return { n: call(args.map((x) => x.n)), u: leaf((ctx.metricUnit ?? reader.__zeffMetricUnit)?.(String(n.args[0].v))) };
         // A plugin's function: its unit (Schulden: €).
