@@ -47,8 +47,9 @@ export const MentionCommand = Extension.create<{ getLang: () => Lang }>({
         editor: this.editor,
         char: "@",
         allowSpaces: true,
-        // (also after what a formula has before a name: =, +, ;, & …)
-        allowedPrefixes: [" ", "\n", "(", "=", "+", "-", "*", "/", ";", ",", "&", "<", ">"],
+        // (also after what a formula has before a name: =, +, ;, & … — escaped: Tiptap puts them into a [character class] as
+        // they are, and "+-*" there is a range out of order: every @ threw and was lost)
+        allowedPrefixes: [" ", "\n", "(", "=", "+", "-", "*", "/", ";", ",", "&", "<", ">"].map((c) => c.replace(/[\\\]^-]/g, "\\$&")),
         items: async ({ query }) => mentionSearchAction(query),
         command: ({ editor, range, props }) => {
           editor
