@@ -367,6 +367,13 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
         <Picker defs={defs} pick={(w) => updateAttributes({ widget: w, config: "{}" })} />
       ) : (
         <section className={`group/widget relative ${bare ? "" : "rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"}`} data-widget={id}>
+          {/* Without its header: its name shows over the card on hover (it takes no room in the page), the controls top right. */}
+          {!showHeader && (
+            <span className="pointer-events-none absolute -top-5 left-2 z-10 flex items-center gap-1 text-xs font-medium whitespace-nowrap text-zinc-500 opacity-0 transition group-hover/widget:opacity-100 dark:text-zinc-400" aria-hidden>
+              {def?.icon} {label}
+              {count !== undefined && count > 0 && <span className="rounded-full bg-indigo-50 px-1.5 text-[10px] font-semibold text-indigo-700 tabular-nums dark:bg-indigo-950 dark:text-indigo-300">{count}</span>}
+            </span>
+          )}
           {!showHeader && controls}
           {showHeader && (
           <header className={`flex items-center gap-2 ${bare ? "mb-2 px-1" : "mb-1.5 px-1"}`}>

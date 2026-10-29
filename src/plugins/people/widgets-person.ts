@@ -88,6 +88,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
     },
     icon: "🧑",
     size: "full",
+    header: false,
     get description() {
       return t("Everything Zeff knows about a person in one place: who they are to you, key facts, what was learned, relations, dates, last contact, open promises and todos, money, tickets, pages, how to reach them.");
     },
@@ -179,6 +180,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       return t("Open promises (both ways)");
     },
     icon: "🤝",
+    header: false,
     get description() {
       return t("What you promised a person and what they promised you, open — past its day first; on their page by itself, empty: everyone. Tick one off when it is kept.");
     },
