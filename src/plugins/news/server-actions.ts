@@ -88,9 +88,22 @@ export async function newsMoreAction(view: string, sourceId: number | null, cate
   guard();
   const { formatAgo } = await import("@/lib/format");
   const { getPrefs } = await import("./store");
-  const v = (["foryou", "latest", "saved", "hidden", "discover"] as string[]).includes(view) ? (view as NewsView) : "foryou";
+  const v = (["foryou", "latest", "saved", "hidden", "discover", "filtered"] as string[]).includes(view) ? (view as NewsView) : "foryou";
   const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, likeOf: term.startsWith("like:") ? Number(term.slice(5)) || undefined : undefined, term: term.startsWith("story:") || term.startsWith("like:") ? undefined : term || undefined, story: term.startsWith("story:") ? term.slice(6) : undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
   return { items, ago: Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)])), done: items.length < NEWS_PAGE };
+}
+
+/** "Let the agent look now": a round of the funnel in the background (the page's "N new" shows what it let through). */
+export async function newsFunnelAction(): Promise<Result> {
+  try {
+    guard();
+    if (!getPrefs().funnel) throw new Error(t("The filter is off — switch it on under News settings → Funnel."));
+    if (!isInstalled("llm")) throw new Error(t("The filter needs the LLM plugin (Menu → Plugins)."));
+    const started = (await import("./funnel")).startFunnel();
+    return { ok: true, message: started ? t("The agent is reading the new headlines — what it lets through comes in at the top.") : t("The agent is at it already.") };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
 }
 
 /** Ask your news: a question answered from the fetched items, with the sources it used. */
@@ -414,9 +427,15 @@ export async function savePrefsFormAction(fd: FormData): Promise<void> {
       perSource: clamp(Number(str(fd, "perSource")), 5, 100, 25),
       perRun: clamp(Number(str(fd, "perRun")), 10, 1000, 150),
       keepDays: clamp(Number(str(fd, "keepDays")), 3, 365, 30),
+      funnel: fd.get("funnel") === "on" && isInstalled("llm"),
+      funnelBatch: clamp(Number(str(fd, "funnelBatch")), 10, 150, 60),
+      keepLatest: clamp(Number(str(fd, "keepLatest")), 50, 5000, 300),
     };
+    const was = getPrefs().funnel;
     setPrefs(patch);
     await (await import("./sync")).rescoreAll();
+    // Just switched on: the agent starts at once, so For you isn't empty until the next fetch.
+    if (patch.funnel && !was) (await import("./funnel")).startFunnel();
   } catch (e) {
     back({ error: errorMessage(e) });
   }

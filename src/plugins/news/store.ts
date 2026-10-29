@@ -1,6 +1,6 @@
 import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
-import { DEFAULT_PREFS, diversify, normalizeUrl, scoreItem, snippetOf, titleKey, tokens, type NewsItem, type NewsPrefs, type NewsSource, type NewsState, type ScoreContext } from "./shared";
+import { BIG_STORY, DEFAULT_PREFS, diversify, normalizeUrl, scoreItem, snippetOf, titleKey, tokens, type NewsItem, type NewsPrefs, type NewsSource, type NewsState, type ScoreContext } from "./shared";
 import type { FeedItem } from "./feed";
 import { aliasesOf } from "./gazetteer";
 import { currentAccountId } from "@/db/accounts";
@@ -27,6 +27,13 @@ function db() {
   if (!cols.includes("tag_src")) d.exec("alter table news_items add column tag_src text not null default ''");
   if (!cols.includes("seen_at")) d.exec("alter table news_items add column seen_at text");
   if (!cols.includes("content")) d.exec("alter table news_items add column content text not null default ''");
+  // The funnel: what the agent made of an item ('' not looked at, pass, top = important, drop) and why.
+  if (!cols.includes("gate")) d.exec("alter table news_items add column gate text not null default ''");
+  if (!cols.includes("gate_why")) d.exec("alter table news_items add column gate_why text not null default ''");
+  if (!cols.includes("gate_at")) d.exec("alter table news_items add column gate_at text");
+  d.exec("create index if not exists news_items_story on news_items (story)");
+  // What was cleared away (its link and headline): a feed that still carries it doesn't bring it back.
+  d.exec("create table if not exists news_gone (url_key text primary key, title_key text not null default '', at text not null)");
   const scols = (d.prepare("pragma table_info(news_sources)").all() as { name: string }[]).map((c) => c.name);
   for (const [name, def] of [["category", "text not null default ''"], ["lang", "text not null default ''"], ["etag", "text"], ["modified", "text"], ["fails", "integer not null default 0"]] as const) if (!scols.includes(name)) d.exec(`alter table news_sources add column ${name} ${def}`);
   // Stub summaries (Hacker News's "Article URL: … Points: 8") kept before they were dropped: emptied, so the page's own text is used.
@@ -123,6 +130,8 @@ export function addItems(source: { id: number | null; name: string }, items: Fee
   const fill = d.prepare("update news_items set image = case when image in ('', '-') then ? else image end, content = case when length(content) <= 1 then ? else content end where url_key = ?");
   const known = d.prepare("select 1 from news_items where url_key = ?");
   const sameStory = d.prepare("select 1 from news_items where title_key = ? and published_at > ?");
+  const gone = d.prepare("select 1 from news_gone where url_key = ?");
+  const goneStory = d.prepare("select 1 from news_gone where title_key = ?");
   let added = 0;
   d.transaction(() => {
     for (const it of items) {
@@ -134,6 +143,8 @@ export function addItems(source: { id: number | null; name: string }, items: Fee
       }
       const since = new Date(Date.parse(it.publishedAt) - 3 * 864e5).toISOString();
       if (key.length > 12 && sameStory.get(key, since)) continue;
+      // Cleared away before (kept: only the newest and the best): not again.
+      if (gone.get(normalizeUrl(it.url)) || (key.length > 12 && goneStory.get(key))) continue;
       added += insert.run(source.id, source.name, it.guid, it.url, normalizeUrl(it.url), it.title, key, it.summary, it.publishedAt, now(), it.image ?? "", it.content ?? "").changes;
     }
   })();
@@ -168,6 +179,8 @@ export function unseenCount(maxAgeDays: number): number {
 
 /** How many visible items were fetched after `sinceIso` (the page shows "N new"). */
 export function countNewSince(sinceIso: string): number {
+  // With the funnel: what the agent let through since.
+  if (funnelOn()) return (db().prepare(`select count(*) n from news_items i where ${PASSED} and i.gate_at > ? and i.state = 'new' and i.seen_at is null`).get(sinceIso) as { n: number }).n;
   return (db().prepare("select count(*) n from news_items i left join news_sources s on s.id = i.source_id where i.fetched_at > ? and i.state = 'new' and i.score > -50 and (i.source_id is null or s.enabled = 1)").get(sinceIso) as { n: number }).n;
 }
 
@@ -195,9 +208,44 @@ export function rescore(ctx: (item: { sourceId: number | null }) => Omit<ScoreCo
   return rows.length;
 }
 
-/** Old items out: read and unread ones past `keepDays`; saved ones stay. */
+/** Old items out: read and unread ones past `keepDays`; saved and liked ones stay. */
 export function prune(keepDays: number): number {
-  return db().prepare("delete from news_items where state != 'saved' and published_at < ?").run(new Date(Date.now() - keepDays * 864e5).toISOString()).changes;
+  return db().prepare("delete from news_items where state != 'saved' and vote != 1 and published_at < ?").run(new Date(Date.now() - keepDays * 864e5).toISOString()).changes;
+}
+
+/**
+ * Only what is worth it stays: the newest `keepLatest` and the best `keepLatest`, and besides them what you saved or liked,
+ * what the agent let through (while it is fresh) or found important, the best report of each big story, what you hid (for
+ * its view) and what the agent filtered out today (to look at). The rest goes — its link and headline are remembered for a
+ * while, so a feed that still carries it doesn't bring it back. Returns how many went.
+ */
+export function trim(opts: { keepLatest: number; maxAgeDays: number; nowMs?: number }): number {
+  const d = db();
+  const nowMs = opts.nowMs ?? Date.now();
+  const since = new Date(nowMs - opts.maxAgeDays * 864e5).toISOString();
+  const day = new Date(nowMs - 864e5).toISOString();
+  const n = Math.max(20, Math.floor(opts.keepLatest));
+  const keep = `
+    select id from news_items where state = 'saved' or vote = 1 or gate = 'top'
+    union select id from news_items where (gate = 'pass' or state = 'hidden') and published_at > @since
+    union select id from news_items where gate = 'drop' and gate_at > @day
+    union select sm.item_id from news_similar sm join news_items x on x.id = sm.item_id where sm.at > @day or x.published_at > @since
+    union select id from (select id from news_items where state != 'hidden' and gate != 'drop' order by published_at desc limit @n)
+    union select id from (select id from news_items where state != 'hidden' and gate != 'drop' and score > -50 and published_at > @since order by score desc limit @n)
+    union select id from (select id, row_number() over (partition by story order by score desc) rn from news_items
+      where story in (select story from news_items where story != '' and published_at > @since group by story having count(distinct source_name) >= ${BIG_STORY})) where rn = 1`;
+  let gone = 0;
+  d.transaction(() => {
+    d.prepare("create temp table if not exists news_keep (id integer primary key)").run();
+    d.prepare("delete from news_keep").run();
+    d.prepare(`insert or ignore into news_keep (id) ${keep}`).run({ since, day, n });
+    // Only what a feed could still bring is remembered (older than the days fetched can't come back anyway).
+    d.prepare("insert or replace into news_gone (url_key, title_key, at) select url_key, case when length(title_key) > 12 then title_key else '' end, @now from news_items where id not in (select id from news_keep) and published_at > @since").run({ since, now: new Date(nowMs).toISOString() });
+    gone = d.prepare("delete from news_items where id not in (select id from news_keep)").run().changes;
+    d.prepare("delete from news_similar where item_id not in (select id from news_items)").run();
+    d.prepare("delete from news_gone where at < ?").run(new Date(nowMs - (opts.maxAgeDays + 2) * 864e5).toISOString());
+  })();
+  return gone;
 }
 
 /** An item's tags: the stored ones (the AI's or the corpus tagger's), else what the headline alone says. */
@@ -211,9 +259,9 @@ function tagsOf(r: { tags?: string; title: string }): string[] {
   return [];
 }
 
-type IRow = { id: number; tags: string; story: string; tag_src: string; seen: number; category: string; source_id: number | null; source_name: string; url: string; title: string; summary: string; image: string; has_content: number; published_at: string; state: string; vote: number; score: number; reasons: string };
+type IRow = { id: number; gate: string; gate_why: string; story_n: number; tags: string; story: string; tag_src: string; seen: number; category: string; source_id: number | null; source_name: string; url: string; title: string; summary: string; image: string; has_content: number; published_at: string; state: string; vote: number; score: number; reasons: string };
 /** The columns of a list (not the whole articles: only whether one is kept). */
-const ICOLS = "i.id, i.tags, i.story, i.tag_src, i.seen_at is not null as seen, coalesce(s.category, '') as category, i.source_id, i.source_name, i.url, i.title, i.summary, i.image, length(i.content) > 1 as has_content, i.published_at, i.state, i.vote, i.score, i.reasons";
+const ICOLS = "i.id, i.gate, i.gate_why, (select count(distinct x.source_name) from news_items x where i.story != '' and x.story = i.story) as story_n, i.tags, i.story, i.tag_src, i.seen_at is not null as seen, coalesce(s.category, '') as category, i.source_id, i.source_name, i.url, i.title, i.summary, i.image, length(i.content) > 1 as has_content, i.published_at, i.state, i.vote, i.score, i.reasons";
 const IFROM = "news_items i left join news_sources s on s.id = i.source_id";
 const toItem = (r: IRow): NewsItem => ({
   id: r.id,
@@ -225,6 +273,9 @@ const toItem = (r: IRow): NewsItem => ({
   seen: !!r.seen,
   terms: tagsOf(r),
   story: r.story ?? "",
+  storySources: r.story_n ?? 0,
+  gate: (["pass", "top", "drop"].includes(r.gate) ? r.gate : "") as NewsItem["gate"],
+  gateWhy: r.gate_why ?? "",
   category: r.category,
   image: r.image === "-" ? "" : r.image,
   imageChecked: r.image !== "",
@@ -242,7 +293,12 @@ const toItem = (r: IRow): NewsItem => ({
   })(),
 });
 
-export type NewsView = "foryou" | "latest" | "saved" | "hidden" | "discover";
+export type NewsView = "foryou" | "latest" | "saved" | "hidden" | "discover" | "filtered";
+
+/** The agent filters the news (For you shows only what it let through). */
+export const funnelOn = (): boolean => getPrefs().funnel;
+/** The items the agent let through or found important. */
+const PASSED = "i.gate in ('pass', 'top')";
 
 /** The items of a view: For you (best first, nothing hidden or muted), Latest (by date), Saved, Hidden. */
 export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; term?: string; story?: string; likeOf?: number; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
@@ -255,12 +311,15 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; category?:
   }
   const where: string[] = [];
   const args: (string | number)[] = [];
+  const gated = view === "foryou" && funnelOn();
   if (view === "saved") where.push("i.state = 'saved'");
   else if (view === "hidden") where.push("i.state = 'hidden'");
+  else if (view === "filtered") where.push("i.gate = 'drop'", "i.state != 'hidden'");
   else {
     // (a paused or removed source's items are out of the lists; what you saved stays)
     where.push("i.state != 'hidden'", "i.score > -50", "i.published_at > ?", "(i.source_id is null or s.enabled = 1)");
     args.push(new Date(Date.now() - (opts.maxAgeDays ?? 7) * 864e5).toISOString());
+    if (gated) where.push(PASSED);
   }
   if (opts.sourceId) {
     where.push("i.source_id = ?");
@@ -285,13 +344,15 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; category?:
   }
   // What you have seen goes last (in For you and Latest): the feed is always new things first.
   const unseenFirst = view === "foryou" || view === "latest" ? "i.seen_at is not null, " : "";
-  const order = view === "foryou" ? `${unseenFirst}i.score desc, i.published_at desc` : `${unseenFirst}i.published_at desc`;
+  // What the agent found important comes first among the unseen.
+  const order = view === "foryou" ? `${unseenFirst}${gated ? "i.gate = 'top' desc, " : ""}i.score desc, i.published_at desc` : view === "filtered" ? "i.gate_at desc, i.score desc" : `${unseenFirst}i.published_at desc`;
   const sql = `select ${ICOLS} from ${IFROM} where ${where.map((w) => `(${w})`).join(" and ")} order by ${order}, i.id desc limit ? offset ?`;
   // For you is mixed (diversify) — the mix is made of the best 600 and then paged, so a page continues the one before.
   if (view === "foryou" && getPrefs().diversity) {
     const all = (db().prepare(sql).all(...args, 600, 0) as IRow[]).map(toItem);
     // The unseen are mixed, then the seen (also mixed) after them.
-    const mixed = [...diversify(all.filter((i) => !i.seen)), ...diversify(all.filter((i) => i.seen))];
+    const fresh = all.filter((i) => !i.seen);
+    const mixed = [...fresh.filter((i) => i.gate === "top"), ...diversify(fresh.filter((i) => i.gate !== "top")), ...diversify(all.filter((i) => i.seen))];
     const from = opts.offset ?? 0;
     return mixed.slice(from, from + (opts.limit ?? 60));
   }
@@ -365,7 +426,7 @@ export function setStories(entries: { id: number; story: string }[]): void {
 /** The best visible items the AI hasn't tagged yet (what the next AI batch takes). */
 export function untaggedByAi(limit: number, maxAgeDays: number): { id: number; title: string; summary: string }[] {
   return db()
-    .prepare("select i.id, i.title, i.summary from news_items i left join news_sources s on s.id = i.source_id where i.tag_src != 'ai' and i.state != 'hidden' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1) order by (i.seen_at is not null), i.score desc, i.published_at desc limit ?")
+    .prepare(`select i.id, i.title, i.summary from news_items i left join news_sources s on s.id = i.source_id where i.tag_src != 'ai' and i.state != 'hidden' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1)${funnelOn() ? ` and ${PASSED}` : ""} order by (i.seen_at is not null), i.score desc, i.published_at desc limit ?`)
     .all(new Date(Date.now() - maxAgeDays * 864e5).toISOString(), limit) as { id: number; title: string; summary: string }[];
 }
 
@@ -469,7 +530,7 @@ export function markNoImage(id: number): void {
 /** The best items without their whole article yet (for reading ahead). */
 export function withoutContent(limit: number, maxAgeDays: number): { id: number; url: string }[] {
   return db()
-    .prepare("select id, url from news_items where content = '' and state = 'new' and score > -50 and published_at > ? order by score desc limit ?")
+    .prepare(`select i.id, i.url from news_items i where i.content = '' and i.state = 'new' and i.score > -50 and i.published_at > ?${funnelOn() ? ` and ${PASSED}` : ""} order by i.score desc limit ?`)
     .all(new Date(Date.now() - maxAgeDays * 864e5).toISOString(), limit) as { id: number; url: string }[];
 }
 
@@ -502,7 +563,7 @@ export function vote(id: number, value: -1 | 0 | 1): void {
   })();
 }
 
-export function counts(): { foryou: number; saved: number; hidden: number; unread: number; discover: number } {
+export function counts(): { foryou: number; saved: number; hidden: number; unread: number; discover: number; filtered: number; waiting: number } {
   const d = db();
   const n = (sql: string, ...a: unknown[]) => (d.prepare(sql).get(...a) as { n: number }).n;
   const since = new Date(Date.now() - getPrefs().maxAgeDays * 864e5).toISOString();
@@ -511,7 +572,9 @@ export function counts(): { foryou: number; saved: number; hidden: number; unrea
     saved: n("select count(*) n from news_items where state = 'saved'"),
     hidden: n("select count(*) n from news_items where state = 'hidden'"),
     discover: n("select count(*) n from news_similar sm join news_items i on i.id = sm.item_id where sm.like_of = -1 and i.seen_at is null and i.state = 'new'"),
-    unread: n("select count(*) n from news_items where state = 'new' and score > -50 and published_at > ?", since),
+    unread: n(`select count(*) n from news_items i where i.state = 'new' and i.score > -50 and i.published_at > ?${funnelOn() ? ` and ${PASSED} and i.seen_at is null` : ""}`, since),
+    filtered: n("select count(*) n from news_items where gate = 'drop' and state != 'hidden'"),
+    waiting: n("select count(*) n from news_items where gate = '' and state = 'new' and seen_at is null and score > -50 and published_at > ?", new Date(Date.now() - FUNNEL_DAYS * 864e5).toISOString()),
   };
 }
 
@@ -520,4 +583,39 @@ export function forgetLearning(): void {
   const d = db();
   d.prepare("delete from news_terms").run();
   d.prepare("update news_sources set votes = 0").run();
+}
+
+/** The agent looks at news of the last two days only (older ones are history by the time it would let them through). */
+export const FUNNEL_DAYS = 2;
+
+/** What the agent looks at next: the best items it hasn't looked at yet (unseen, fresh, not muted, from a source that is on). */
+export function funnelCandidates(limit: number, nowMs: number = Date.now()): { id: number; title: string; summary: string; sourceName: string; publishedAt: string }[] {
+  return (db()
+    .prepare("select i.id, i.title, i.summary, i.source_name, i.published_at from news_items i left join news_sources s on s.id = i.source_id where i.gate = '' and i.state = 'new' and i.seen_at is null and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1) order by i.score desc, i.published_at desc limit ?")
+    .all(new Date(nowMs - FUNNEL_DAYS * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; source_name: string; published_at: string }[]).map((r) => ({ id: r.id, title: r.title, summary: r.summary, sourceName: r.source_name, publishedAt: r.published_at }));
+}
+
+/** What the agent decided about items, with why. */
+export function setGate(entries: { id: number; gate: "pass" | "top" | "drop"; why: string }[], nowMs: number = Date.now()): void {
+  const d = db();
+  const up = d.prepare("update news_items set gate = ?, gate_why = ?, gate_at = ? where id = ?");
+  const at = new Date(nowMs).toISOString();
+  d.transaction(() => {
+    for (const e of entries) up.run(e.gate, e.why.slice(0, 200), at, e.id);
+  })();
+}
+
+/** The day's funnel: how many came in, how many the agent looked at, let through, found important, filtered out, cleared away. */
+export type FunnelStats = { day: string; fetched: number; judged: number; passed: number; top: number; dropped: number; cleared: number };
+const dayOf = (ms: number) => new Date(ms).toLocaleDateString("sv-SE");
+export function funnelStats(nowMs: number = Date.now()): FunnelStats {
+  const s = getPref<Partial<FunnelStats>>("news:funnel-stats", {});
+  const empty: FunnelStats = { day: dayOf(nowMs), fetched: 0, judged: 0, passed: 0, top: 0, dropped: 0, cleared: 0 };
+  return s.day === empty.day ? { ...empty, ...s } : empty;
+}
+export function bumpFunnel(add: Partial<Omit<FunnelStats, "day">>, nowMs: number = Date.now()): FunnelStats {
+  const next = { ...funnelStats(nowMs) };
+  for (const [k, v] of Object.entries(add) as [keyof Omit<FunnelStats, "day">, number][]) next[k] += v ?? 0;
+  setPref("news:funnel-stats", next);
+  return next;
 }

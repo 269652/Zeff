@@ -12,14 +12,17 @@ import { NewsFetching, NewsRefreshButtons } from "@/plugins/news/RefreshButton";
 import { getDigest } from "@/plugins/news/digest";
 import { DiscoverButton } from "@/plugins/news/DiscoverButton";
 import { getTaste } from "@/plugins/news/taste";
+import { FunnelButton } from "@/plugins/news/FunnelButton";
+import { NewsStories } from "@/plugins/news/Stories";
+import { storyGroups } from "@/plugins/news/story-groups";
 import { NEWS_PAGE } from "@/plugins/news/shared";
-import { counts, getItem, getPrefs, listItems, listSources, type NewsView } from "@/plugins/news/store";
+import { countItems, counts, funnelStats, getItem, getPrefs, listItems, listSources, type NewsView } from "@/plugins/news/store";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("News") };
 }
 
-const VIEWS: NewsView[] = ["foryou", "discover", "latest", "saved", "hidden"];
+const VIEWS: NewsView[] = ["foryou", "discover", "latest", "saved", "filtered", "hidden"];
 
 /** News: what your sources and interests brought, in the order that fits you; teach it with 👍 👎. */
 export default async function NewsPage({ searchParams }: { searchParams: Promise<{ view?: string; source?: string; category?: string }> }) {
@@ -36,8 +39,14 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
   const digest = view === "foryou" && !sourceId ? getDigest() : null;
   const byId = new Map([...(digest?.picks ?? []).map((p) => p.id), ...(digest?.themes ?? []).flatMap((th) => th.ids)].flatMap((id) => { const it = getItem(id); return it ? [[id, it] as const] : []; }));
   const spoken = digest ? [digest.overview, ...digest.themes.map((th) => `${th.title}. ${th.summary}`), ...digest.picks.flatMap((p) => { const it = byId.get(p.id); return it ? [`${it.title}. ${p.why}`] : []; })].join("\n\n") : "";
-  const labels: Record<NewsView, string> = { foryou: t("For you"), discover: `✨ ${t("Discover")}`, latest: t("Latest"), saved: t("Saved"), hidden: t("Hidden") };
-  const count: Record<NewsView, number | null> = { foryou: c.unread, discover: c.discover, latest: null, saved: c.saved, hidden: c.hidden };
+  const labels: Record<NewsView, string> = { foryou: t("For you"), discover: `✨ ${t("Discover")}`, latest: prefs.funnel ? t("Everything (unfiltered)") : t("Latest"), saved: t("Saved"), filtered: t("Filtered out"), hidden: t("Hidden") };
+  const count: Record<NewsView, number | null> = { foryou: c.unread, discover: c.discover, latest: null, saved: c.saved, filtered: c.filtered, hidden: c.hidden };
+  const views = VIEWS.filter((v) => v !== "filtered" || prefs.funnel || c.filtered > 0);
+  // The stories on top of For you: what is important and the stories running through what is for you.
+  const stories = view === "foryou" && !sourceId && !category ? storyGroups(listItems({ view: "foryou", limit: 150, maxAgeDays: Math.min(prefs.maxAgeDays, 3) })) : [];
+  const storyAgo = Object.fromEntries(stories.flatMap((g) => g.items).map((i) => [i.id, formatAgo(i.publishedAt)]));
+  const stats = funnelStats();
+  const llm = isInstalled("llm");
   const taste = view === "discover" ? getTaste() : null;
   const href = (v: NewsView, s?: number, c?: string) => `/news?view=${v}${s ? `&source=${s}` : ""}${c ? `&category=${encodeURIComponent(c)}` : ""}`;
   // The enabled sources by category (a few hundred sources are too many to list one by one).
@@ -49,7 +58,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
       <div className="page-aside">
         <h1 className="text-lg font-semibold">{t("News")}</h1>
         <nav className="space-y-1 text-sm">
-          {VIEWS.map((v) => (
+          {views.map((v) => (
             <Link key={v} href={href(v)} className={`flex justify-between rounded px-2 py-1 ${v === view && !sourceId && !category ? "bg-zinc-200 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}>
               <span>{labels[v]}</span>
               {count[v] ? <span className="tabular-nums">{count[v]}</span> : null}
@@ -84,6 +93,41 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
       </div>
 
       <div className="space-y-3">
+        {view === "foryou" && !sourceId && !category && (
+          <section className="card flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 py-2 text-xs text-zinc-600 dark:text-zinc-300" aria-label={t("Funnel")}>
+            <span className="font-semibold text-zinc-500 uppercase">{t("Today")}</span>
+            <span title={t("Headlines fetched from your sources today")}>📥 {t("{n} in", { n: stats.fetched })}</span>
+            {prefs.funnel ? (
+              <>
+                <span className="text-zinc-400">→</span>
+                <span title={t("The best by score that the agent read")}>🔎 {t("{n} read by the agent", { n: stats.judged })}</span>
+                <span className="text-zinc-400">→</span>
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400" title={t("Let through to For you")}>✓ {t("{n} for you", { n: stats.passed + stats.top })}</span>
+                {stats.top > 0 && <span className="font-semibold text-amber-600 dark:text-amber-400">★ {t("{n} important", { n: stats.top })}</span>}
+                <Link href={href("filtered")} className="text-zinc-500 hover:underline">⊘ {t("{n} filtered out", { n: stats.dropped })}</Link>
+              </>
+            ) : (
+              <>
+                <span className="text-zinc-400">→</span>
+                <span>{t("scored for you")}</span>
+              </>
+            )}
+            <span className="text-zinc-400">·</span>
+            <span title={t("Only the newest and the best are kept, besides what you saved or liked")}>🧹 {t("{n} kept", { n: countItems() })}</span>
+            <span className="flex-1" />
+            {prefs.funnel ? (
+              <>
+                {c.waiting > 0 && <span className="text-zinc-500">{t("{n} waiting for the agent", { n: c.waiting })}</span>}
+                <FunnelButton />
+              </>
+            ) : (
+              <Link href="/settings/news#funnel" className="font-medium text-emerald-700 hover:underline dark:text-emerald-400" title={llm ? t("An agent reads the news first and lets only what interests you through") : t("Needs the LLM plugin (Menu → Plugins).")}>
+                {t("Filter with an agent …")}
+              </Link>
+            )}
+          </section>
+        )}
+        {stories.length > 0 && <NewsStories groups={stories} ago={storyAgo} showImages={prefs.images} />}
         {taste && (
           <section className="card space-y-1.5 border-violet-200 bg-violet-50 p-4 text-sm dark:border-violet-900 dark:bg-violet-950/40">
             <h2 className="text-xs font-semibold text-violet-700 uppercase dark:text-violet-300">✨ {t("Your taste")}</h2>
@@ -152,6 +196,16 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
                   .
                 </span>
               </NewsFetching>
+            ) : view === "foryou" && prefs.funnel ? (
+              <div className="space-y-2">
+                <p>{c.waiting > 0 ? t("The agent hasn't let anything through yet — {n} headlines are waiting for it.", { n: c.waiting }) : t("Nothing new for you right now — the agent looks again after the next fetch.")}</p>
+                <div className="flex flex-wrap gap-2">
+                  <FunnelButton />
+                  <Link href={href("latest")} className="btn btn-sm">
+                    {t("See everything unfiltered")}
+                  </Link>
+                </div>
+              </div>
             ) : view === "foryou" || view === "latest" ? (
               <NewsFetching starter={false}>
                 <span className="mt-2 block">{t("No news in the last {n} days — click Refresh.", { n: prefs.maxAgeDays })}</span>

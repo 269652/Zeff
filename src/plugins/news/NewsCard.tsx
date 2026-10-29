@@ -18,7 +18,7 @@ function flushSeen() {
   seenQueue.clear();
   void postJson("/api/news/seen", { ids }, { keepalive: true }).catch(() => undefined);
 }
-function reportSeen(id: number) {
+export function reportSeen(id: number) {
   seenQueue.add(id);
   seenTimer ??= setTimeout(flushSeen, 3000);
 }
@@ -50,6 +50,8 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
   const [pending, start] = useTransition();
   const [broken, setBroken] = useState(false);
   const [menu, setMenu] = useState(false);
+  // A double click on the picture likes it (a heart pops up).
+  const [heart, setHeart] = useState(0);
   // The red thread: the story this item is part of (other reports, oldest first), opened under the card.
   const [thread, setThread] = useState<{ open: boolean; busy: boolean; label: string; items: { id: number; title: string; url: string; sourceName: string; ago: string }[] }>({ open: false, busy: false, label: "", items: [] });
   const toggleThread = () => {
@@ -131,10 +133,25 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
     });
   };
   return (
-    <article ref={card} id={`news-card-${item.id}`} className={`card overflow-hidden ${item.fromTopic ? "border-l-4 border-l-indigo-400" : ""} ${read ? "opacity-75" : ""} ${pending ? "opacity-50" : ""}`}>
+    <article ref={card} id={`news-card-${item.id}`} className={`card overflow-hidden ${item.gate === "top" ? "ring-2 ring-amber-400/70" : ""} ${item.fromTopic ? "border-l-4 border-l-indigo-400" : ""} ${read ? "opacity-75" : ""} ${pending ? "opacity-50" : ""}`}>
       {showImage && item.image && !broken && (
-        // eslint-disable-next-line @next/next/no-img-element -- pictures of other sites, shown as they are (no optimiser on the way)
-        <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className="aspect-video w-full bg-zinc-100 object-cover dark:bg-zinc-800" />
+        <div
+          className="relative"
+          onDoubleClick={() => {
+            setHeart((h) => h + 1);
+            if (item.vote !== 1) run(() => newsVoteAction(item.id, 1), { vote: 1 });
+          }}
+        >
+          {/* eslint-disable-next-line @next/next/no-img-element -- pictures of other sites, shown as they are (no optimiser on the way) */}
+          <img src={item.image} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setBroken(true)} className="aspect-video w-full bg-zinc-100 object-cover select-none dark:bg-zinc-800" />
+          {heart > 0 && (
+            <span key={heart} className="pointer-events-none absolute inset-0 flex items-center justify-center text-6xl drop-shadow-lg" style={{ animation: "news-heart 0.9s ease-out forwards" }}>
+              ❤️
+            </span>
+          )}
+          {item.gate === "top" && <span className="absolute top-2 left-2 rounded-full bg-amber-400 px-2 py-0.5 text-xs font-semibold text-amber-950 shadow">★ {t("Important")}</span>}
+          <style>{"@keyframes news-heart { 0% { opacity: 0; transform: scale(0.4) } 25% { opacity: 1; transform: scale(1.15) } 60% { opacity: 1; transform: scale(1) } 100% { opacity: 0; transform: scale(1.3) } }"}</style>
+        </div>
       )}
       <div className="space-y-2 p-4">
         <div>
@@ -150,9 +167,16 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
             {item.title}
           </a>
           <p className="text-xs text-zinc-500">
+            {item.gate === "top" && !(showImage && item.image && !broken) && <span className="mr-1 font-semibold text-amber-600 dark:text-amber-400">★ {t("Important")} ·</span>}
             {item.sourceName} · {ago}
+            {item.storySources >= 2 && <span title={t("This many outlets report this story")}> · 📣 {t("{n} outlets", { n: item.storySources })}</span>}
           </p>
         </div>
+        {item.gateWhy && (
+          <p className={`text-xs ${item.gate === "drop" ? "text-zinc-500" : item.gate === "top" ? "font-medium text-amber-700 dark:text-amber-400" : "font-medium text-emerald-700 dark:text-emerald-400"}`} title={item.gate === "drop" ? t("Why the agent filtered it out — 👍 lets it know it was wrong") : t("Why the agent let it through")}>
+            {item.gate === "drop" ? "⊘" : item.gate === "top" ? "★" : "✓"} {item.gateWhy}
+          </p>
+        )}
         {item.fromTopic && <p className="text-xs font-medium text-indigo-600 dark:text-indigo-400">↳ {item.fromTopic}</p>}
         {item.summary && !reader.open && <p className="line-clamp-4 text-sm text-zinc-600 dark:text-zinc-300">{item.summary}</p>}
         {reader.open && (

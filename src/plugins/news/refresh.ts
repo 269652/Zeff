@@ -43,7 +43,8 @@ export type RefreshDeps = {
 /** Starts a refresh in the background (one at a time). Returns the status at once. */
 export function startRefresh(deps: RefreshDeps = {}): { status: RefreshStatus; promise: Promise<RefreshStatus> } {
   if (getRefreshStatus().running) return { status: getRefreshStatus(), promise: Promise.resolve(getRefreshStatus()) };
-  const target = deps.target ?? REFRESH_TARGET;
+  // Only the newest and the best are kept: the target is what fits in that (none with the funnel on — it fetches, it doesn't add sources).
+  const target = deps.target ?? (getPrefs().funnel ? 0 : Math.min(REFRESH_TARGET, Math.floor(getPrefs().keepLatest / 3)));
   set({ ...idle(), running: true, phase: "Fetching your sources …", target, startedAt: new Date().toISOString() });
   const promise = run(deps, target).catch((e) => set({ running: false, phase: "", finishedAt: new Date().toISOString(), message: `Failed: ${e instanceof Error ? e.message : String(e)}` }));
   return { status: getRefreshStatus(), promise };

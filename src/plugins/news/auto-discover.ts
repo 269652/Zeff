@@ -20,6 +20,12 @@ export const discoveries = (): Discovery[] => getPref<Discovery[]>("news:discove
 const DAY = 864e5;
 /** Fewer unseen items than this: the feed is running out. */
 export const LOW_UNSEEN = 200;
+
+/**
+ * "Low" for what is kept: only the newest and the best `keepLatest` stay, so a third of that is low — never more than
+ * LOW_UNSEEN. With the funnel on nothing is low: the stream is meant to be small, more feeds would only be more to filter.
+ */
+export const lowUnseen = (): number => (getPrefs().funnel ? 0 : Math.min(LOW_UNSEEN, Math.floor(getPrefs().keepLatest / 3)));
 const LOW_COOLDOWN = 2 * 3600e3;
 const LOW_DAILY_CAP = 12;
 
@@ -98,7 +104,7 @@ export async function discoverWhenLow(deps: DiscoverDeps = {}): Promise<number> 
   const prefs = getPrefs();
   const nowMs = (deps.now ?? Date.now)();
   if (!prefs.autoDiscover || searching) return 0;
-  if (!deps.force && (deps.unseen ?? (() => unseenCount(prefs.maxAgeDays)))() >= LOW_UNSEEN) return 0;
+  if (!deps.force && (deps.unseen ?? (() => unseenCount(prefs.maxAgeDays)))() >= (deps.unseen ? LOW_UNSEEN : lowUnseen())) return 0;
   if (!deps.force && nowMs - Number(getPref<number>("news:lowdiscover-at", 0)) < LOW_COOLDOWN) return 0;
   if (addedToday(nowMs) >= (deps.force ? 40 : LOW_DAILY_CAP)) return 0;
   const wanted = await wantedTopics(deps);

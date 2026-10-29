@@ -31,6 +31,7 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
   const profile = prefs.useProfile ? await profileTerms() : [];
   const taste = getTaste();
   const have = new Set(sources.map((s) => s.url));
+  const llm = isInstalled("llm");
 
   return (
     <div className="page">
@@ -51,6 +52,27 @@ export default async function NewsSettingsPage({ searchParams }: { searchParams:
         <section className="card space-y-3 p-4">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("What suits you")}</h2>
           <form action={savePrefsFormAction} className="space-y-3 text-sm">
+            <fieldset id="funnel" className="space-y-3 rounded-xl border border-emerald-200 bg-emerald-50/60 p-3 dark:border-emerald-900 dark:bg-emerald-950/30">
+              <legend className="px-1 text-xs font-semibold text-emerald-700 uppercase dark:text-emerald-300">{t("Funnel")}</legend>
+              <p className="text-xs text-zinc-600 dark:text-zinc-300">{t("Thousands of headlines come in a day. The scoring puts the best first; the agent reads them like an editor who knows you and lets only what interests you through to For you. Only the newest and the best are kept — and everything you saved, liked or the agent found important.")}</p>
+              <label className="flex items-start gap-2">
+                <input type="checkbox" name="funnel" defaultChecked={prefs.funnel} disabled={!llm} className="mt-1" />
+                <span>
+                  {t("An agent filters my news")}
+                  <span className="block text-xs text-zinc-500">{llm ? t("After every fetch the AI reads the best new headlines with your taste, interests and what you liked, and lets through only what interests you; what it filters out stays a day under Filtered out. Headlines and your taste go to the AI you chose.") : t("Needs the LLM plugin (Menu → Plugins).")}</span>
+                </span>
+              </label>
+              <div className="grid gap-3 sm:grid-cols-2">
+                <label className="space-y-1">
+                  <span className="font-medium">{t("The agent reads per round")}</span>
+                  <input type="number" name="funnelBatch" min={10} max={150} defaultValue={prefs.funnelBatch} className={field} title={t("The best this many new headlines (by score) go to the agent per fetch")} />
+                </label>
+                <label className="space-y-1">
+                  <span className="font-medium">{t("Keep the newest and best")}</span>
+                  <input type="number" name="keepLatest" min={50} max={5000} defaultValue={prefs.keepLatest} className={field} title={t("This many of the newest and this many of the best stay; the rest is cleared away after each fetch")} />
+                </label>
+              </div>
+            </fieldset>
             <label className="block space-y-1">
               <span className="font-medium">{t("Interests")}</span>
               <textarea name="interests" rows={5} defaultValue={formatInterests(prefs.interests)} className={field} placeholder={"TypeScript x2\nFormel 1\nKlimaschutz"} />

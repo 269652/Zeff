@@ -144,7 +144,8 @@ test("the sync fetches sources and an interest search each, keeps what is recent
   assert.match(r.message, /2 new from 2 of 3 sources/);
   assert.match(r.message, /Kaputt: HTTP 500/);
   assert.ok(asked.some((u) => u.includes("Klimaschutz")), "one search per interest");
-  const titles = s.listItems({ view: "foryou" }).map((i) => i.title);
+  // (NOW is a fixed day: the view looks back far enough to have it)
+  const titles = s.listItems({ view: "foryou", maxAgeDays: 3650 }).map((i) => i.title);
   assert.equal(titles[0], "Klimaschutz: neues Gesetz", "the interest first");
   assert.ok(!titles.includes("Uralt-Meldung"), "too old isn't kept");
   assert.equal(s.listSources().find((x) => x.name === "Kaputt")!.lastError, "HTTP 500");

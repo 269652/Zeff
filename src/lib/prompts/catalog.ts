@@ -60,6 +60,7 @@ export const PROMPTS: PromptEntry[] = [
   { key: "news-digest", group: "News", title: "News: the day's digest", uses: "The overview of your unread news", plugin: "news", builtIn: async () => (await import("@/plugins/news/digest")).DIGEST_INSTRUCTIONS },
   { key: "news-ask", group: "News", title: "News: ask", uses: "A question answered from your news", plugin: "news", builtIn: async () => (await import("@/plugins/news/ask")).ASK_INSTRUCTIONS },
   { key: "news-plan", group: "News", title: "News: search plan", uses: "What to search for new news", plugin: "news", builtIn: async () => (await import("@/plugins/news/discover-job")).PLAN_INSTRUCTIONS },
+  { key: "news-funnel", group: "News", title: "News: the filter (funnel)", uses: "Which new news get through to For you", plugin: "news", builtIn: async () => (await import("@/plugins/news/funnel")).FUNNEL_INSTRUCTIONS },
   { key: "news-tags", group: "News", title: "News: tags", uses: "Tags and stories of the news", plugin: "news", builtIn: async () => (await import("@/plugins/news/retag")).TAGGING_INSTRUCTIONS },
   { key: "news-similar", group: "News", title: "News: more like this", uses: "More of what you read", plugin: "news", builtIn: async () => (await import("@/plugins/news/similar")).SIMILAR_INSTRUCTIONS },
   { key: "news-taste", group: "News", title: "News: your taste", uses: "The description of what you like to read", plugin: "news", builtIn: async () => (await import("@/plugins/news/taste")).TASTE_INSTRUCTIONS },

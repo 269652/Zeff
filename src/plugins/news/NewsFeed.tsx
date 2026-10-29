@@ -20,7 +20,7 @@ function scrollParent(el: HTMLElement | null): HTMLElement | null {
   return null;
 }
 
-/** Focus mode is a preference of this browser (kept in localStorage, which may be blocked: then it just isn't kept). */
+/** Focus mode (one column, like a phone feed — the default) is a preference of this browser (kept in localStorage, which may be blocked: then it just isn't kept). */
 const FOCUS_KEY = "zeff-news-focus";
 const FOCUS_EVENT = "zeff-news-focus";
 const subscribeFocus = (cb: () => void) => {
@@ -33,9 +33,9 @@ const subscribeFocus = (cb: () => void) => {
 };
 const readFocus = () => {
   try {
-    return localStorage.getItem(FOCUS_KEY) === "1";
+    return localStorage.getItem(FOCUS_KEY) !== "0";
   } catch {
-    return false;
+    return true;
   }
 };
 const setFocus = (on: boolean) => {
@@ -96,7 +96,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
   const [cols, setCols] = useState(2);
   const [top, setTop] = useState(false);
   const [wide, setWide] = useState(true);
-  const focus = useSyncExternalStore(subscribeFocus, readFocus, () => false);
+  const focus = useSyncExternalStore(subscribeFocus, readFocus, () => true);
   const box = useRef<HTMLDivElement>(null);
   const sentinel = useRef<HTMLDivElement>(null);
   const busy = useRef(false);
@@ -301,24 +301,34 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
     };
   }, [more, items.length]);
 
-  const columns = useMemo(() => {
-    const out: NewsItem[][] = Array.from({ length: cols }, () => []);
-    const h = new Array<number>(cols).fill(0);
-    for (const it of items) {
-      const k = h.indexOf(Math.min(...h));
-      out[k].push(it);
-      h[k] += height(it, showImages);
-    }
-    return out;
-  }, [items, cols, showImages]);
-
-  // Focus mode: Esc leaves it.
-  useEffect(() => {
-    if (!focus) return;
-    const key = (e: KeyboardEvent) => e.key === "Escape" && setFocus(false);
-    window.addEventListener("keydown", key);
-    return () => window.removeEventListener("keydown", key);
-  }, [focus]);
+  // "You're all caught up": what you have seen comes after the unseen (For you, Latest) — a line says where that begins.
+  const caughtUpAt = !topic && (view === "foryou" || view === "latest") ? items.findIndex((i) => i.seen) : -1;
+  const parts = useMemo(() => (caughtUpAt > 0 ? [items.slice(0, caughtUpAt), items.slice(caughtUpAt)] : [items]), [items, caughtUpAt]);
+  const columns = useMemo(
+    () =>
+      parts.map((list) => {
+        const out: NewsItem[][] = Array.from({ length: cols }, () => []);
+        const h = new Array<number>(cols).fill(0);
+        for (const it of list) {
+          const k = h.indexOf(Math.min(...h));
+          out[k].push(it);
+          h[k] += height(it, showImages);
+        }
+        return out;
+      }),
+    [parts, cols, showImages],
+  );
+  const caughtUp = (
+    <div className="flex items-center gap-3 py-6 text-sm text-zinc-500">
+      <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+      <span className="flex flex-col items-center gap-1 text-center">
+        <span className="flex h-10 w-10 items-center justify-center rounded-full bg-gradient-to-tr from-emerald-400 to-sky-500 text-lg text-white">✓</span>
+        <span className="font-medium text-zinc-700 dark:text-zinc-200">{t("You're all caught up")}</span>
+        <span className="text-xs">{t("Below: what you have seen already")}</span>
+      </span>
+      <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />
+    </div>
+  );
 
   // The side columns of focus mode: the same news, shuffled (by a fixed order of their ids, so it doesn't jump on a render), half each side.
   const sides = useMemo(() => {
@@ -431,8 +441,8 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
         </div>
       )}
       <div className="flex justify-end">
-        <button type="button" className={`btn btn-sm ${focus ? "btn-primary" : ""}`} onClick={() => setFocus(!focus)} title={focus ? t("Back to the columns (Esc)") : t("One column to read, like a phone feed")} aria-pressed={focus}>
-          {focus ? t("Leave focus") : t("Focus")}
+        <button type="button" className={`btn btn-sm ${focus ? "btn-primary" : ""}`} onClick={() => setFocus(!focus)} title={focus ? t("Cards in columns") : t("One column to read, like a phone feed")} aria-pressed={focus}>
+          {focus ? t("Grid") : t("Stream")}
         </button>
       </div>
       {focus ? (
@@ -440,22 +450,30 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
           {wide && <FocusSide items={sides[0]} showImage={showImages} />}
           {/* The middle column holds all the news, a little bigger. */}
           <div className="space-y-4" style={{ zoom: 1.06 }}>
-            {items.map((it) => (
-              <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} onMoreLike={() => void moreLike(it)} />
+            {items.map((it, k) => (
+              <div key={it.id}>
+                {k === caughtUpAt && caughtUp}
+                <NewsCard item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} onMoreLike={() => void moreLike(it)} />
+              </div>
             ))}
           </div>
           {wide && <FocusSide items={sides[1]} showImage={showImages} />}
         </div>
       ) : (
-        <div className="flex items-start gap-3">
-          {columns.map((col, k) => (
-            <div key={k} className="min-w-0 flex-1 space-y-3">
-              {col.map((it) => (
-                <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} onMoreLike={() => void moreLike(it)} />
+        columns.map((part, p) => (
+          <div key={p}>
+            {p === 1 && caughtUp}
+            <div className="flex items-start gap-3">
+              {part.map((col, k) => (
+                <div key={k} className="min-w-0 flex-1 space-y-3">
+                  {col.map((it) => (
+                    <NewsCard key={it.id} item={it} ago={ago[it.id] ?? ""} showImage={showImages} onChange={(p) => patch(it.id, p)} onDrop={drop} onFollow={(term) => void follow(term, it.id)} following={topic} onMoreLike={() => void moreLike(it)} />
+                  ))}
+                </div>
               ))}
             </div>
-          ))}
-        </div>
+          </div>
+        ))
       )}
       <div ref={sentinel} className="py-4 text-center text-xs text-zinc-500">
         {loading ? (topic ? t("Loading more about “{topic}” …", { topic }) : t("Loading more …")) : done && !topic ? (searchingFeeds ? t("You've seen it all — looking for new sources for you …") : items.length ? t("That's all for now.") : "") : <button type="button" className="btn btn-sm" onClick={() => void more()}>{t("Load more")}</button>}

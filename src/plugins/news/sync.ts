@@ -1,7 +1,7 @@
 import { decodeBody, parseFeed } from "./feed";
 import { newsFetch } from "./http";
 import { fetchArticle, type Article } from "./reader";
-import { addItems, dueForFetch, fetchState, getPrefs, listSources, pauseDisliked, prune, recordFetch, rescore, setContent, setFetchState, UNREADABLE, withoutContent } from "./store";
+import { addItems, bumpFunnel, dueForFetch, fetchState, getPrefs, listSources, pauseDisliked, prune, recordFetch, rescore, setContent, setFetchState, trim, UNREADABLE, withoutContent } from "./store";
 import { tokens, topicFeedUrl, type ProfileTerm } from "./shared";
 
 /**
@@ -34,6 +34,8 @@ export type NewsSyncDeps = {
   noLow?: boolean;
   /** After the sync: the AI overview (default: when the preference is on). */
   digest?: () => Promise<void>;
+  /** The funnel's agent (default: when the funnel is on and the LLM plugin is there). */
+  funnel?: () => Promise<{ judged: number; passed: number; top: number }>;
 };
 
 /** A feed fetched with ETag / Last-Modified from last time: an unchanged one answers 304 and costs next to nothing. */
@@ -137,7 +139,20 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   });
 
   await rescoreAll({ work: deps.work, profile: deps.profile, nowMs });
+  bumpFunnel({ fetched: added }, nowMs);
+
+  // The funnel: the agent looks at the best new items and lets through what interests you (before the clearing, so what it let through stays).
+  let gate = { judged: 0, passed: 0, top: 0 };
+  let gateNote = "";
+  try {
+    gate = await (deps.funnel ?? (async () => (await import("./funnel")).runFunnel({ nowMs })))();
+  } catch (e) {
+    gateNote = ` · the filter failed (${e instanceof Error ? e.message : String(e)})`.slice(0, 160);
+  }
+  // Only what is worth it stays: the newest and the best, what you keep, what the agent let through, the big stories.
   prune(prefs.keepDays);
+  const cleared = trim({ keepLatest: prefs.keepLatest, maxAgeDays: prefs.maxAgeDays, nowMs });
+  if (cleared) bumpFunnel({ cleared }, nowMs);
 
   // Reading ahead: the best unread items' whole text, so they open at once (a page that can't be read is marked, not retried).
   let read = 0;
@@ -175,13 +190,14 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   }
   // Fresh news running low: look for new feeds now and fetch them straight away — the stream shouldn't run dry.
   let foundLow = 0;
-  if (!deps.noLow) {
+  // With the funnel the stream is meant to be small: no hunting for more feeds when it runs low.
+  if (!deps.noLow && !prefs.funnel) {
     try {
       // The catalog first (checked feeds, at once), then the internet search.
       foundLow = await (deps.discoverWhenLow ?? (async () => {
         const { unseenCount } = await import("./store");
-        const { LOW_UNSEEN, discoverWhenLow } = await import("./auto-discover");
-        if (!getPrefs().autoDiscover || unseenCount(getPrefs().maxAgeDays) >= LOW_UNSEEN) return 0;
+        const { lowUnseen, discoverWhenLow } = await import("./auto-discover");
+        if (!getPrefs().autoDiscover || unseenCount(getPrefs().maxAgeDays) >= lowUnseen()) return 0;
         return (await import("./expand")).expandWhenLow() || discoverWhenLow();
       }))();
     } catch {
@@ -191,5 +207,5 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   }
   const ok = failed.length < jobs.length;
   const failNote = failed.length ? ` — ${failed.length} failed: ${failed.slice(0, 3).join("; ").slice(0, 300)}${failed.length > 3 ? " …" : ""}` : "";
-  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${sources.length < due.length ? ` (this round; ${due.length - sources.length} more next)` : ""}${unchanged ? ` (${unchanged} unchanged)` : ""}${discovered ? `, ${discovered} new feeds found` : ""}${paused.length ? `, paused: ${paused.slice(0, 3).join(", ")}` : ""}${foundLow ? `, ${foundLow} new feeds found (fresh news were running low)` : ""}${read ? `, ${read} read in full` : ""}${failNote}${digestNote}` };
+  return { ok, message: `${added} new from ${jobs.length - failed.length} of ${jobs.length} sources${sources.length < due.length ? ` (this round; ${due.length - sources.length} more next)` : ""}${unchanged ? ` (${unchanged} unchanged)` : ""}${discovered ? `, ${discovered} new feeds found` : ""}${paused.length ? `, paused: ${paused.slice(0, 3).join(", ")}` : ""}${foundLow ? `, ${foundLow} new feeds found (fresh news were running low)` : ""}${gate.judged ? `, the filter let ${gate.passed + gate.top} of ${gate.judged} through` : ""}${cleared ? `, ${cleared} cleared away` : ""}${read ? `, ${read} read in full` : ""}${failNote}${gateNote}${digestNote}` };
 }

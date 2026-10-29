@@ -47,6 +47,12 @@ export type NewsItem = {
   terms: string[];
   /** The concrete story it belongs to ("Rücktritt Bärbel Bas"): the same label on every item about it (the AI's, or ""). */
   story: string;
+  /** How many outlets report its story (0: in none) — a big story is important. */
+  storySources: number;
+  /** What the agent of the funnel made of it: "" not looked at, "pass" let through, "top" important, "drop" filtered out. */
+  gate: "" | "pass" | "top" | "drop";
+  /** Why (the agent's short sentence). */
+  gateWhy: string;
   /** It has been on screen already (a fresh feed puts what you have seen last). */
   seen: boolean;
   /** The category of its source ("" for a search or one you added). */
@@ -90,9 +96,15 @@ export type NewsPrefs = {
   perRun: number;
   /** How long read items are kept (saved ones always). */
   keepDays: number;
+  /** The funnel: an agent (the AI) looks at the best new items and lets only what interests you through to For you. */
+  funnel: boolean;
+  /** How many items the agent looks at per round (the best by score first). */
+  funnelBatch: number;
+  /** Besides what you keep: only the newest and the best this many stay, the rest is cleared away. */
+  keepLatest: number;
 };
 
-export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, useProfile: true, diversity: true, digest: false, autoDiscover: true, aiTags: true, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, perRun: 150, keepDays: 30 };
+export const DEFAULT_PREFS: NewsPrefs = { interests: [], mutes: [], language: "de", topicSearch: true, useWork: true, useProfile: true, diversity: true, digest: false, autoDiscover: true, aiTags: true, images: true, prefetch: true, maxAgeDays: 7, perSource: 25, perRun: 150, keepDays: 30, funnel: false, funnelBatch: 60, keepLatest: 300 };
 
 export type Preset = { name: string; url: string; about: string; lang: "de" | "en" };
 
@@ -319,6 +331,9 @@ export function followSplit<T extends { id: number; fromTopic?: string }>(items:
   if (at < 0) return { base: items, rest: [] };
   return { base: items.slice(0, at + 1), rest: items.slice(at + 1).filter((i) => !i.fromTopic) };
 }
+
+/** A story is big when this many outlets report it: its best report is kept and counts as important. */
+export const BIG_STORY = 4;
 
 /** Items per page (infinite scroll loads this many at a time). */
 export const NEWS_PAGE = 24;
