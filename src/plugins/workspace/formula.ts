@@ -10,7 +10,24 @@
  * @[Frei im Monat]; Excel's spelling too: = and <> to compare, & to join, ; between arguments, SUMME / MITTELWERT / WENN …
  */
 
-export type FormulaValue = number | string | boolean | null | Date | FormulaValue[];
+import { combine, conversion, formatUnit, isUnitWord, numberWithUnit, parseUnit, sameUnit, simplify, type Unit } from "./units";
+
+export type FormulaValue = number | string | boolean | null | Date | EntityRef | FormulaValue[];
+
+/**
+ * What @ names in a formula: a person, a page, a todo, a ticket ([[person:12|Chris]]) — or a name nothing else had (@Freunde:
+ * kind "name") for a function to resolve (a plugin's: Schulden(@Chris), Personen(@Familie)). As text it is its name.
+ */
+export class EntityRef {
+  constructor(
+    readonly kind: "person" | "page" | "todo" | "ticket" | "name",
+    readonly id: string,
+    readonly label: string,
+  ) {}
+  toString(): string {
+    return this.label;
+  }
+}
 export type FormulaResult = { value: FormulaValue } | { error: string };
 export type FormulaContext = {
   /** The value of the property named so in this row (dates as strings, multi values as arrays). */
@@ -19,6 +36,10 @@ export type FormulaContext = {
   now?: Date;
   /** A Kennzahl's value by its name (kennzahl("Sparrate")) — none given: the server's (setMetricReader). */
   metric?: (name: string) => unknown;
+  /** A Kennzahl's unit by its name ("€/Monat") — for evalWithUnits. */
+  metricUnit?: (name: string) => string | null;
+  /** A plugin's function by its name (none given: the server's, setFunctionReader) — a page's table asks the server through this. */
+  fn?: (name: string) => FormulaFn | null;
   /** A table as cells (A1, B:B, [Betrag]): `null` this formula's own, else one shared under that name — none: no references. */
   sheet?: (name: string | null) => FormulaSheet | null;
 };
@@ -33,15 +54,29 @@ export type FormulaSheet = {
   colIndex: (name: string) => number;
   /** The row the formula stands in (its own table only). */
   row?: number;
+  /** A cell's unit as written ("€", "€/Monat", "h") — null: none. */
+  unit?: (col: number, row: number) => string | null;
 };
 
 /**
  * Where kennzahl() reads on the server (metrics.ts sets it): a formula anywhere — a database's column, a Kennzahl's own
  * formula — reads the account's Kennzahlen. In the browser there is none: the preview says so, the server computes it.
  */
-const reader = globalThis as { __zeffMetricReader?: (name: string) => unknown };
+const reader = globalThis as { __zeffMetricReader?: (name: string) => unknown; __zeffMetricUnit?: (name: string) => string | null; __zeffFormulaFn?: (name: string) => FormulaFn | null };
+/** Where a Kennzahl's unit is read on the server (metrics.ts sets it). */
+export const setMetricUnitReader = (fn: (name: string) => string | null): void => {
+  reader.__zeffMetricUnit = fn;
+};
+/** (`undefined` back: there is no Kennzahl of that name — @Name is then a name for a function to resolve.) */
 export const setMetricReader = (fn: (name: string) => unknown): void => {
   reader.__zeffMetricReader = fn;
+};
+
+/** A function a plugin brings (formula-point.ts): how it is worked out, what its numbers are in. */
+export type FormulaFn = { call: (args: FormulaValue[]) => FormulaValue; unit?: string };
+/** Where the plugins' functions are found on the server (metrics.ts sets it from formula-point.ts). */
+export const setFunctionReader = (fn: (name: string) => FormulaFn | null): void => {
+  reader.__zeffFormulaFn = fn;
 };
 
 // ---------------------------------------------------------------------------
@@ -49,17 +84,17 @@ export const setMetricReader = (fn: (name: string) => unknown): void => {
 // ---------------------------------------------------------------------------
 
 /** A token; `end` is where it stops (A1:B3 and Kosten!A1 are told by their parts touching). */
-type Tok = { t: "num" | "str" | "id" | "op" | "br" | "ref" | "eof"; v: string; at: number; end: number };
+type Tok = { t: "num" | "str" | "id" | "op" | "br" | "ref" | "eof"; v: string; at: number; end: number; /** A number's unit written after it (5 h, 12 €/Monat). */ unit?: string };
 /** A cell reference's end: a column and a row (0-based), either left out for a whole row / column. */
 type Pt = { c: number | null; r: number | null };
 type Node =
-  | { k: "lit"; v: FormulaValue }
+  | { k: "lit"; v: FormulaValue; unit?: string }
   | { k: "call"; name: string; args: Node[] }
   | { k: "un"; op: string; a: Node }
   | { k: "bin"; op: string; a: Node; b: Node }
   | { k: "cond"; c: Node; a: Node; b: Node }
-  | { k: "ref"; sheet: string | null; a: Pt; b: Pt | null }
-  | { k: "field"; sheet: string | null; name: string }
+  | { k: "ref"; sheet: string | null; a: Pt; b: Pt | null; conv?: Record<string, number> }
+  | { k: "field"; sheet: string | null; name: string; conv?: Record<string, number> }
   | { k: "metric"; name: string };
 
 const OPS = ["==", "!=", "<=", ">=", "<>", "&&", "||", "+", "-", "*", "/", "%", "<", ">", "=", "&", "!", "(", ")", ",", ";", "?", ":", "@"];
@@ -125,6 +160,20 @@ function tokenize(src: string): Tok[] {
     }
     if (/[0-9]/.test(c) || (c === "." && /[0-9]/.test(src[i + 1] ?? ""))) {
       const m = /^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/.exec(src.slice(i))!;
+      // A unit after it (5 h, 12 €, 12 Monate, 3 €/Monat) — the known words only, and not a function's name (min( …).
+      const u = /^\s*([€$]|\p{L}+)(?:\/(\p{L}+))?(?![\p{L}\p{N}_(])/u.exec(src.slice(i + m[0].length));
+      if (u && isUnitWord(u[1]) && (!u[2] || isUnitWord(u[2]))) {
+        out.push({ t: "num", v: m[0], at: i, end: i + m[0].length + u[0].length, unit: u[2] ? `${u[1]}/${u[2]}` : u[1] });
+        i += m[0].length + u[0].length;
+        continue;
+      }
+      // A % at its end is percent (45 %, @Nettoeinkommen * 45 %): what follows isn't a number to take the rest of (10 % 3 stays modulo).
+      const pct = /^\s*%(?=\s*(?:$|[)+\-*/;,&<>=?:\]]))/.exec(src.slice(i + m[0].length));
+      if (pct) {
+        out.push({ t: "num", v: m[0], at: i, end: i + m[0].length + pct[0].length, unit: "%" });
+        i += m[0].length + pct[0].length;
+        continue;
+      }
       out.push({ t: "num", v: m[0], at: i, end: i + m[0].length });
       i += m[0].length;
       continue;
@@ -281,7 +330,7 @@ class Parser {
     const t = this.cur;
     // A row range (3:5) before a number.
     if (t.t === "num" && /^\d+$/.test(t.v) && this.toks[this.i + 1]?.t === "op" && this.toks[this.i + 1].v === ":" && this.touching() && this.touching(1) && this.toks[this.i + 2]?.t === "num") return this.reference(null);
-    if (t.t === "num") return this.eat(), { k: "lit", v: Number(t.v) };
+    if (t.t === "num") return this.eat(), { k: "lit", v: Number(t.v), ...(t.unit ? { unit: t.unit } : {}) };
     // 'Meine Tabelle'!A1
     if (t.t === "str" && this.toks[this.i + 1]?.v === "!" && this.touching()) {
       this.eat();
@@ -300,7 +349,7 @@ class Parser {
       this.eat();
       const m = REF.exec(t.v);
       if (!m) throw new Error(`Not a reference: [[${t.v}]]`);
-      return m[1] === "metric" ? { k: "metric", name: m[2] } : { k: "lit", v: (m[3] ?? "").trim() || m[2] };
+      return m[1] === "metric" ? { k: "metric", name: m[2] } : { k: "lit", v: new EntityRef(m[1] as EntityRef["kind"], m[2], (m[3] ?? "").trim() || m[2]) };
     }
     // @Sparrate, @[Frei im Monat], @"Frei im Monat"
     if (this.is("@")) {
@@ -373,6 +422,7 @@ export function toFormulaValue(v: unknown): FormulaValue {
 
 const num = (v: FormulaValue): number => {
   if (typeof v === "number") return v;
+  if (v instanceof EntityRef) throw new Error(v.kind === "name" ? `"${v.label}" is no Kennzahl and no number` : `"${v.label}" is a ${v.kind}, not a number — a function takes it: Schulden(@${v.label})`);
   if (typeof v === "boolean") return v ? 1 : 0;
   if (v === null) return 0;
   if (v instanceof Date) return v.getTime();
@@ -424,6 +474,7 @@ function addUnits(d: Date, n: number, unit: string): Date {
 }
 
 function equal(a: FormulaValue, b: FormulaValue): boolean {
+  if (a instanceof EntityRef || b instanceof EntityRef) return str(a).toLowerCase() === str(b).toLowerCase();
   if (a instanceof Date && b instanceof Date) return a.getTime() === b.getTime();
   if (Array.isArray(a) || Array.isArray(b)) return str(a) === str(b);
   return a === b;
@@ -537,7 +588,14 @@ const ALIASES: Record<string, string> = {
 const canonical = (name: string) => ALIASES[name.toLowerCase()] ?? name;
 
 /** A cell's value as a formula takes it. */
-const cellValue = (v: unknown): FormulaValue => (typeof v === "string" && v.trim() !== "" && /^-?\d+(?:[.,]\d+)?$/.test(v.trim()) ? Number(v.trim().replace(",", ".")) : toFormulaValue(v));
+const cellValue = (v: unknown): FormulaValue => {
+  if (typeof v !== "string" || !v.trim()) return toFormulaValue(v);
+  const n = numberWithUnit(v);
+  return n ? n.n : toFormulaValue(v);
+};
+
+/** A cell of a range in the range's unit (units.ts: 30 min beside 2 h). */
+const convert = (v: FormulaValue, f: number | undefined): FormulaValue => (f !== undefined && f !== 1 && typeof v === "number" ? v * f : v);
 
 function sheetOf(ctx: FormulaContext, name: string | null): FormulaSheet {
   const s = ctx.sheet?.(name);
@@ -553,7 +611,9 @@ function run(n: Node, ctx: FormulaContext): FormulaValue {
     case "metric": {
       const read = ctx.metric ?? reader.__zeffMetricReader;
       if (!read) throw new Error("Kennzahlen are read on the server — saved, the value shows");
-      return toFormulaValue(read(n.name));
+      const v = read(n.name);
+      // No Kennzahl of that name: a name, for a function to resolve (Schulden(@Chris), Personen(@Freunde)).
+      return v === undefined ? new EntityRef("name", n.name, n.name) : toFormulaValue(v);
     }
     case "field": {
       const s = sheetOf(ctx, n.sheet);
@@ -561,7 +621,7 @@ function run(n: Node, ctx: FormulaContext): FormulaValue {
       if (c < 0) throw new Error(`No column "${n.name}"${n.sheet ? ` in ${n.sheet}` : ""}`);
       // [Betrag] is this row's; another table's Kosten[Betrag] is its whole column.
       if (n.sheet === null && s.row !== undefined) return cellValue(s.cell(c, s.row));
-      return Array.from({ length: s.rows }, (_, r) => cellValue(s.cell(c, r)));
+      return Array.from({ length: s.rows }, (_, r) => convert(cellValue(s.cell(c, r)), n.conv?.[`${r}:${c}`]));
     }
     case "ref": {
       const s = sheetOf(ctx, n.sheet);
@@ -572,7 +632,7 @@ function run(n: Node, ctx: FormulaContext): FormulaValue {
       const [c1, c2] = n.a.c === null ? [0, s.cols - 1] : [Math.min(n.a.c, n.b.c!), Math.min(s.cols - 1, Math.max(n.a.c, n.b.c!))];
       const [r1, r2] = n.a.r === null ? [0, s.rows - 1] : [Math.min(n.a.r, n.b.r!), Math.min(s.rows - 1, Math.max(n.a.r, n.b.r!))];
       const out: FormulaValue[] = [];
-      for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) out.push(cellValue(s.cell(c, r)));
+      for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) out.push(convert(cellValue(s.cell(c, r)), n.conv?.[`${r}:${c}`]));
       return out;
     }
     case "un": {
@@ -651,7 +711,12 @@ function run(n: Node, ctx: FormulaContext): FormulaValue {
         return toFormulaValue(ctx.prop(str(run(n.args[0], ctx))));
       }
       const key = Object.keys(FUNCTIONS).find((k) => k.toLowerCase() === name.toLowerCase());
-      if (!key) throw new Error(`Unknown function "${name}"`);
+      if (!key) {
+        // A plugin's (Schulden, Personen …): on the server from the plugins, in the browser asked of the server.
+        const ext = (ctx.fn ?? reader.__zeffFormulaFn)?.(n.name);
+        if (!ext) throw new Error(`Unknown function "${n.name}"`);
+        return ext.call(n.args.map((a) => run(a, ctx)));
+      }
       return FUNCTIONS[key](
         n.args.map((a) => run(a, ctx)),
         ctx,
@@ -731,8 +796,191 @@ export function evalFormula(src: string, ctx: FormulaContext): FormulaResult {
   }
 }
 
+// ---------------------------------------------------------------------------
+// Units: what a result is in (units.ts)
+// ---------------------------------------------------------------------------
+
+/** A result with its unit: "€/Monat" ("" none) and what didn't fit (€/Monat + h …). */
+export type UnitResult = { value: FormulaValue; unit: string; warnings: string[] } | { error: string };
+
+/**
+ * A formula worked out with its units: the units of its Kennzahlen and cells go through it — a number without one takes the
+ * other side's (=@Tilgungsrate + 3 is in €/Monat), what fits is converted (€/Jahr + €/Monat, €/Monat × 12 Monate → €, h and
+ * min, a % of an amount is a share of it), what doesn't is said (a warning, the value is still worked out).
+ */
+export function evalWithUnits(src: string, ctx: FormulaContext): UnitResult {
+  try {
+    if (!src.trim()) return { value: null, unit: "", warnings: [] };
+    const ast = new Parser(tokenize(src)).parse();
+    const u = inferUnits(ast, ctx);
+    const value = run(u.node, ctx);
+    const numeric = typeof value === "number" || (Array.isArray(value) && value.every((x) => typeof x === "number" || x === null));
+    return { value, unit: numeric ? u.label : "", warnings: u.warnings };
+  } catch (e) {
+    return { error: e instanceof Error ? e.message : String(e) };
+  }
+}
+
+type Inferred = { n: Node; u: Unit | null };
+
+function inferUnits(root: Node, ctx: FormulaContext): { node: Node; label: string; warnings: string[] } {
+  const warnings: string[] = [];
+  // The units as written where they came from (Monate, € pro Monat): a result in one of them is said that way.
+  const labels = new Map<string, string>();
+  const name = (u: Unit | null) => (u ? (labels.get(formatUnit(u)) ?? formatUnit(u)) : "");
+  const leaf = (text: string | null | undefined): Unit | null => {
+    const u = parseUnit(text);
+    if (u && text && !labels.has(formatUnit(u))) labels.set(formatUnit(u), text.trim());
+    return u;
+  };
+  const warn = (w: string) => warnings.includes(w) || warnings.push(w);
+  const scale = (n: Node, f: number): Node => (f === 1 ? n : { k: "bin", op: "*", a: n, b: { k: "lit", v: f } });
+  /** Two sides that are added, compared or chosen between: the second converted into the first's unit; none takes the other's. */
+  const merge = (a: Inferred, b: Inferred): { a: Node; b: Node; u: Unit | null } => {
+    if (!a.u || !b.u) return { a: a.n, b: b.n, u: a.u ?? b.u };
+    const f = conversion(b.u, a.u);
+    if (f === null) {
+      warn(`${name(a.u)} and ${name(b.u)} don't go together`);
+      return { a: a.n, b: b.n, u: a.u };
+    }
+    return { a: a.n, b: scale(b.n, f), u: a.u };
+  };
+  const mergeAll = (xs: Inferred[]): { ns: Node[]; u: Unit | null } => {
+    const first = xs.find((x) => x.u);
+    if (!first) return { ns: xs.map((x) => x.n), u: null };
+    return { ns: xs.map((x) => (x === first ? x.n : merge(first, x).b)), u: first.u };
+  };
+  /**
+   * The unit of many cells (a range, a column — each by its key "row:col"): the first one's; the others converted into it
+   * (their factors), a warning for one that doesn't fit.
+   */
+  const cellsUnit = (cells: [string, string | null | undefined][]): { u: Unit | null; conv?: Record<string, number> } => {
+    const us = cells.flatMap(([k, t]) => {
+      const u = leaf(t);
+      return u ? [[k, u] as const] : [];
+    });
+    if (!us.length) return { u: null };
+    const first = us[0][1];
+    const conv: Record<string, number> = {};
+    for (const [k, u] of us) {
+      if (sameUnit(u, first)) continue;
+      const f = conversion(u, first);
+      if (f === null) warn(`The range mixes ${name(first)} and ${name(u)}`);
+      else conv[k] = f;
+    }
+    return { u: first, ...(Object.keys(conv).length ? { conv } : {}) };
+  };
+  const sheet = (n: string | null): FormulaSheet | null => {
+    try {
+      return ctx.sheet?.(n) ?? null;
+    } catch {
+      return null;
+    }
+  };
+  const walk = (n: Node): Inferred => {
+    switch (n.k) {
+      case "lit":
+        return { n, u: n.unit ? leaf(n.unit) : null };
+      case "metric":
+        return { n, u: leaf((ctx.metricUnit ?? reader.__zeffMetricUnit)?.(n.name)) };
+      case "ref": {
+        const s = sheet(n.sheet);
+        if (!s?.unit) return { n, u: null };
+        if (!n.b) return { n, u: leaf(s.unit(n.a.c!, n.a.r!)) };
+        const [c1, c2] = n.a.c === null ? [0, s.cols - 1] : [Math.min(n.a.c, n.b.c!), Math.max(n.a.c, n.b.c!)];
+        const [r1, r2] = n.a.r === null ? [0, s.rows - 1] : [Math.min(n.a.r, n.b.r!), Math.max(n.a.r, n.b.r!)];
+        const cells: [string, string | null][] = [];
+        for (let r = r1; r <= Math.min(r2, s.rows - 1, r1 + 2000); r++) for (let c = c1; c <= Math.min(c2, s.cols - 1); c++) cells.push([`${r}:${c}`, s.unit(c, r)]);
+        const cu = cellsUnit(cells);
+        return { n: cu.conv ? { ...n, conv: cu.conv } : n, u: cu.u };
+      }
+      case "field": {
+        const s = sheet(n.sheet);
+        const c = s?.colIndex(n.name) ?? -1;
+        if (!s?.unit || c < 0) return { n, u: null };
+        if (n.sheet === null && s.row !== undefined) return { n, u: leaf(s.unit(c, s.row)) };
+        const cu = cellsUnit(Array.from({ length: Math.min(s.rows, 2000) }, (_, r) => [`${r}:${c}`, s.unit!(c, r)] as [string, string | null]));
+        return { n: cu.conv ? { ...n, conv: cu.conv } : n, u: cu.u };
+      }
+      case "un": {
+        const a = walk(n.a);
+        return { n: { ...n, a: a.n }, u: n.op === "-" ? a.u : null };
+      }
+      case "cond": {
+        const c = walk(n.c);
+        const m = merge(walk(n.a), walk(n.b));
+        return { n: { k: "cond", c: c.n, a: m.a, b: m.b }, u: m.u };
+      }
+      case "bin": {
+        const a = walk(n.a);
+        const b = walk(n.b);
+        if (n.op === "&&" || n.op === "||") return { n: { ...n, a: a.n, b: b.n }, u: null };
+        if (["+", "-", "==", "!=", "<", ">", "<=", ">="].includes(n.op)) {
+          const m = merge(a, b);
+          return { n: { ...n, a: m.a, b: m.b }, u: n.op === "+" || n.op === "-" ? m.u : null };
+        }
+        if (n.op === "%") return { n: { ...n, a: a.n, b: b.n }, u: a.u };
+        // × and ÷: the powers add up; a % of an amount (Sparquote × Einkommen) is a share of it.
+        let [an, bn, au, bu] = [a.n, b.n, a.u, b.u];
+        const pct = (u: Unit | null) => !!u && u["%"] === 1 && Object.keys(u).length === 1;
+        if (pct(au) && bu && !pct(bu)) [an, au] = [scale(an, 0.01), null];
+        if (pct(bu) && au && !pct(au)) [bn, bu] = [scale(bn, 0.01), null];
+        const s = simplify(combine(au, bu, n.op === "*" ? 1 : -1));
+        return { n: scale({ ...n, a: an, b: bn }, s.factor), u: s.unit };
+      }
+      case "call": {
+        const fn = canonical(n.name).toLowerCase();
+        const args = n.args.map(walk);
+        const call = (ns: Node[]): Node => ({ ...n, args: ns });
+        if (fn === "if") {
+          const m = merge(args[1] ?? { n: { k: "lit", v: null }, u: null }, args[2] ?? { n: { k: "lit", v: null }, u: null });
+          return { n: call([args[0]?.n, m.a, ...(args[2] ? [m.b] : [])].filter(Boolean) as Node[]), u: m.u };
+        }
+        if (fn === "iferror" && args.length === 2) {
+          const m = merge(args[0], args[1]);
+          return { n: call([m.a, m.b]), u: m.u };
+        }
+        if (fn === "ifs") {
+          const values = args.filter((_, i) => i % 2 === 1 || (args.length % 2 === 1 && i === args.length - 1));
+          const m = mergeAll(values);
+          let k = 0;
+          return { n: call(args.map((x) => (values.includes(x) ? m.ns[k++] : x.n))), u: m.u };
+        }
+        if (["sum", "mean", "min", "max"].includes(fn)) {
+          const m = mergeAll(args);
+          return { n: call(m.ns), u: m.u };
+        }
+        if (["round", "floor", "ceil", "abs"].includes(fn)) return { n: call(args.map((x) => x.n)), u: args[0]?.u ?? null };
+        if (fn === "product") {
+          const s = simplify(args.reduce<Unit>((u, x) => combine(u, x.u, 1), {}));
+          return { n: scale(call(args.map((x) => x.n)), s.factor), u: s.unit };
+        }
+        if (fn === "pow" && args[0]?.u && n.args[1]?.k === "lit" && typeof n.args[1].v === "number") {
+          const e = n.args[1].v;
+          return { n: call(args.map((x) => x.n)), u: Object.fromEntries(Object.entries(args[0].u).map(([k, v]) => [k, v * e])) };
+        }
+        if ((fn === "kennzahl" || fn === "metric") && n.args[0]?.k === "lit") return { n: call(args.map((x) => x.n)), u: leaf((ctx.metricUnit ?? reader.__zeffMetricUnit)?.(String(n.args[0].v))) };
+        // A plugin's function: its unit (Schulden: €).
+        if (!Object.keys(FUNCTIONS).some((k) => k.toLowerCase() === fn)) {
+          let ext: FormulaFn | null = null;
+          try {
+            ext = (ctx.fn ?? reader.__zeffFormulaFn)?.(n.name) ?? null;
+          } catch {
+            ext = null;
+          }
+          return { n: call(args.map((x) => x.n)), u: leaf(ext?.unit) };
+        }
+        return { n: call(args.map((x) => x.n)), u: null };
+      }
+    }
+  };
+  const out = walk(root);
+  return { node: out.n, label: name(out.u), warnings };
+}
+
 /** A formula result as it is stored and shown: dates as ISO text, the rest as it is. */
 export function formulaToStored(v: FormulaValue): string | number | boolean | null | (string | number | boolean | null)[] {
+  if (v instanceof EntityRef) return v.label;
   if (v instanceof Date) return v.getHours() || v.getMinutes() ? `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}T${pad(v.getHours())}:${pad(v.getMinutes())}` : `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
   if (Array.isArray(v)) return v.map((x) => formulaToStored(x) as string | number | boolean | null);
   return v;
@@ -779,3 +1027,26 @@ export function formulaCompletions(src: string, caret: number, props: string[], 
   const ps = props.filter((n) => n.toLowerCase().startsWith(w)).map((n) => ({ kind: "property" as const, label: n, insert: `prop(${JSON.stringify(n)})` }));
   return { from: caret - q.length, to: caret, items: [...fns, ...ps] };
 }
+
+// ---------------------------------------------------------------------------
+// A plugin's function asked of the server (a page's table works out in the browser)
+// ---------------------------------------------------------------------------
+
+/** A value as it travels (JSON): a mention {e: [kind, id, label]}, a date {d: ISO}, lists as lists. */
+export type WireValue = number | string | boolean | null | { e: [string, string, string] } | { d: string } | WireValue[];
+
+export function toWire(v: FormulaValue): WireValue {
+  if (v instanceof EntityRef) return { e: [v.kind, v.id, v.label] };
+  if (v instanceof Date) return { d: v.toISOString() };
+  if (Array.isArray(v)) return v.map(toWire);
+  return v;
+}
+
+export function fromWire(v: WireValue): FormulaValue {
+  if (Array.isArray(v)) return v.map(fromWire);
+  if (v && typeof v === "object") return "e" in v ? new EntityRef(v.e[0] as EntityRef["kind"], v.e[1], v.e[2]) : new Date(v.d);
+  return v;
+}
+
+/** A call's key: its name and arguments (what the server is asked once and the page keeps). */
+export const callKey = (name: string, args: FormulaValue[]): string => `${name.toLowerCase()}(${JSON.stringify(args.map(toWire))})`;

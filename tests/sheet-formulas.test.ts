@@ -148,7 +148,8 @@ test("a page's tables (/Tabelle): formula cells worked out in the browser — th
   assert.equal(at(kosten, 4)?.value, 93);
   assert.match(String(at(kosten, 5)?.error), /Circular/);
   assert.equal(at(plan, 1)?.value, 10326);
-  assert.equal(at(plan, 2)?.value, 1000 - (800 + 60.5 + 860.5 + 93), "the whole column of the named table, its formulas worked out");
+  // The whole column of the named table — its circle (B6) makes the sum an error too, as a spreadsheet does (not a silent gap).
+  assert.match(String(at(plan, 2)?.error), /B6: Circular/);
   assert.equal(at(plan, 3)?.value, 73, "a table shared for formulas, from the server");
   assert.equal(at(plan, 4)?.value, "Siehe Budget", "a mention is its name");
   assert.equal(at(plan, 5)?.value, 2000, "a Kennzahl's mention is its value");

@@ -45,8 +45,25 @@ export function Tag({ option }: { option: Option }) {
   );
 }
 
-/** A cell as it is shown (not editing). */
+/** A cell as it is shown (not editing) — a formula's unit after it (a column without one of its own), a ⚠ when its units don't fit. */
 export function CellView({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx }) {
+  const unit = row.cells[`${p.id}~`];
+  const warn = row.cells[`${p.id}?`];
+  if (!unit && !warn) return <CellValue p={p} row={row} ctx={ctx} />;
+  return (
+    <span className="inline-flex items-baseline gap-1">
+      <CellValue p={p} row={row} ctx={ctx} />
+      {typeof unit === "string" && unit && row.cells[p.id] !== null && row.cells[p.id] !== undefined && <span className="text-xs text-zinc-500">{unit}</span>}
+      {!!warn && (
+        <span className="cursor-help text-amber-600" title={String(warn)}>
+          ⚠
+        </span>
+      )}
+    </span>
+  );
+}
+
+function CellValue({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx }) {
   const t = useT();
   const v = row.cells[p.id];
   const err = row.cells[`${p.id}!`];

@@ -100,10 +100,10 @@ export function ColumnLegend({ schema, row }: { schema: DbSchema; row?: number }
   );
 }
 
-/** The Kennzahlen and shared tables, read once per page (what @ and Name! can name). */
-let names: Promise<{ metrics: string[]; tables: { name: string; title: string }[] }> | null = null;
-const loadNames = () =>
-  (names ??= formulaNamesAction().then((r) => (r.ok ? { metrics: r.metrics, tables: r.tables } : { metrics: [], tables: [] }), () => ({ metrics: [], tables: [] })));
+type Names = { metrics: string[]; tables: { name: string; title: string }[]; functions: { name: string; signature: string; what: string; unit: string }[] };
+/** The Kennzahlen, shared tables and the plugins' functions, read once per page (what @, Name! and Schulden(…) can name). */
+let names: Promise<Names> | null = null;
+const loadNames = () => (names ??= formulaNamesAction().then((r): Names => (r.ok ? { metrics: r.metrics, tables: r.tables, functions: r.functions } : { metrics: [], tables: [], functions: [] }), (): Names => ({ metrics: [], tables: [], functions: [] })));
 
 /** @Sparrate, or @[Frei im Monat] when the name has more than a word. */
 export const metricRef = (name: string) => (/^[\p{L}_][\p{L}\p{N}_]*$/u.test(name) ? `@${name}` : `@[${name}]`);
@@ -157,7 +157,7 @@ function CellMentions({ q, onPick }: { q: string; onPick: (it: MentionItem) => v
  */
 export function FormulaHelp({ schema, row, text, formula = true, onPick }: { schema: DbSchema; row?: number; text: string; formula?: boolean; onPick: (next: string) => void }) {
   const t = useT();
-  const [n, setN] = useState<{ metrics: string[]; tables: { name: string; title: string }[] } | null>(null);
+  const [n, setN] = useState<Names | null>(null);
   useEffect(() => {
     let live = true;
     void loadNames().then((x) => live && setN(x));
@@ -174,10 +174,22 @@ export function FormulaHelp({ schema, row, text, formula = true, onPick }: { sch
       {at ? (
         <CellMentions q={at.q} onPick={(it) => onPick(`${text.slice(0, at.at)}${mentionInsert(it, formula)}${formula ? "" : " "}`)} />
       ) : !formula ? null : (
-        <p className="text-xs text-zinc-500">
-          {t("A1 · A1:B3 · B:B · [Column] · @Kennzahl · SUMME(…) · WENN(…; …; …)")}
-          {n?.tables.length ? ` · ${n.tables.map((x) => `${sheetRef(x.name)}!A1`).join(" · ")}` : ""}
-        </p>
+        <div className="space-y-0.5 text-xs text-zinc-500">
+          <p>
+            {t("A1 · A1:B3 · B:B · [Column] · @Kennzahl · SUMME(…) · WENN(…; …; …) · 5 h, 12 €, 45 %")}
+            {n?.tables.length ? ` · ${n.tables.map((x) => `${sheetRef(x.name)}!A1`).join(" · ")}` : ""}
+          </p>
+          {/* The plugins' functions (Schulden(@Chris) …): a click puts one in. */}
+          {!!n?.functions.length && (
+            <p className="flex flex-wrap gap-1">
+              {n.functions.map((f) => (
+                <button key={f.name} type="button" className="ws-tag font-mono" title={`${f.what}${f.unit ? ` (${f.unit})` : ""}`} onClick={() => onPick(`${text}${f.name}(`)}>
+                  {f.signature}
+                </button>
+              ))}
+            </p>
+          )}
+        </div>
       )}
     </div>
   );

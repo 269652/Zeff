@@ -3,7 +3,8 @@ import { currentAccountId } from "@/db/accounts";
 import { getPref, setPref } from "@/lib/prefs";
 import { ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { checkFormula, evalFormula, setMetricReader } from "./formula";
+import { checkFormula, evalWithUnits, setFunctionReader, setMetricReader, setMetricUnitReader, type FormulaFn } from "./formula";
+import { workspaceFormulaFunctions, type FormulaFunction } from "./formula-point";
 import { workspaceMetrics, type MetricProvider } from "./metric-point";
 import { listNamedValues, namedValue, unpublishValue, valueKey, valueUnit, type NamedValue } from "./values";
 
@@ -66,14 +67,14 @@ function providers(): Map<string, MetricProvider & { plugin: string }> {
 /** Values read a moment ago (a formula column reads a Kennzahl once per row): kept a few seconds, per account. */
 const CACHE_MS = 5000;
 const state = globalThis as { __zeffMetricCache?: Map<string, { at: number; value: number | null; error?: string }> };
-const cache = (state.__zeffMetricCache ??= new Map());
+const cache: Map<string, { at: number; value: number | null; error?: string; unit?: string }> = (state.__zeffMetricCache ??= new Map());
 /** The Kennzahlen being worked out right now (a formula that reads itself, round about, is a loop — not a hang). */
 const reading: string[] = [];
 
 const round = (v: number) => Math.round(v * 10000) / 10000;
 
 /** A Kennzahl's value now, by its name or key — null with why, when it has none. */
-export function metricValue(name: string): { value: number | null; error?: string } {
+export function metricValue(name: string): { value: number | null; error?: string; /** A formula's own unit (worked out from what it reads). */ unit?: string } {
   const key = valueKey(name);
   if (!key) return { value: null, error: "No name" };
   const cacheKey = `${currentAccountId()}:${key}`;
@@ -81,7 +82,7 @@ export function metricValue(name: string): { value: number | null; error?: strin
   if (hit && Date.now() - hit.at < CACHE_MS) return hit;
   if (reading.includes(key)) return { value: null, error: `Kennzahl "${name}" reads itself (${[...reading, key].join(" → ")})` };
   reading.push(key);
-  let out: { value: number | null; error?: string };
+  let out: { value: number | null; error?: string; unit?: string };
   try {
     out = compute(key);
   } catch (e) {
@@ -94,23 +95,24 @@ export function metricValue(name: string): { value: number | null; error?: strin
   return out;
 }
 
-function compute(key: string): { value: number | null; error?: string } {
+function compute(key: string): { value: number | null; error?: string; unit?: string } {
   const meta = metas()[key];
   if (meta?.formula) {
-    // A loop is the formula's error (not a null it computes on with).
-    const r = evalFormula(meta.formula, {
+    // A loop is the formula's error (not a null it computes on with). Its unit: what it reads (Nettoeinkommen − Ausgaben: €/Monat).
+    const r = evalWithUnits(meta.formula, {
       prop: () => null,
       metric: (n) => {
         const v = metricValue(n);
         if (v.error?.includes("reads itself")) throw new Error(v.error);
-        return v.value;
+        return v.error?.startsWith("No Kennzahl") ? undefined : v.value;
       },
+      metricUnit: (n) => metricUnit(n),
     });
     if ("error" in r) return { value: null, error: r.error };
     const v = r.value;
     if (v === null) return { value: null };
-    const n = typeof v === "number" ? v : typeof v === "boolean" ? (v ? 1 : 0) : Number(v);
-    return Number.isFinite(n) ? { value: round(n) } : { value: null, error: "The formula doesn't give a number" };
+    const n = typeof v === "number" ? v : typeof v === "boolean" ? (v ? 1 : 0) : Array.isArray(v) ? NaN : Number(v);
+    return Number.isFinite(n) ? { value: round(n), ...(r.unit ? { unit: r.unit } : {}) } : { value: null, error: "The formula doesn't give a number" };
   }
   const agg = namedValue(key);
   if (agg) return { value: agg.value };
@@ -122,8 +124,37 @@ function compute(key: string): { value: number | null; error?: string } {
   return { value: null, error: `No Kennzahl "${key}"` };
 }
 
-// The formulas everywhere read Kennzahlen through this.
-setMetricReader((name) => metricValue(name).value);
+/** A Kennzahl's unit by its name (yours, set; a formula's, worked out; a plugin's) — null: none, or no such Kennzahl. */
+export function metricUnit(name: string): string | null {
+  const key = valueKey(name);
+  const meta = metas()[key];
+  if (meta?.unit) return meta.unit;
+  if (meta?.formula) return metricValue(key).unit ?? null;
+  const agg = namedValue(key);
+  if (agg) return valueUnit(key) || null;
+  return providers().get(key)?.unit || null;
+}
+
+// The formulas everywhere read Kennzahlen through this (undefined: no Kennzahl of that name — @Name is a name then).
+setMetricReader((name) => {
+  const v = metricValue(name);
+  return v.error?.startsWith("No Kennzahl") ? undefined : v.value;
+});
+
+setMetricUnitReader(metricUnit);
+
+/** The plugins' formula functions (installed plugins only), by every name they go by. */
+export function formulaFunctions(): (FormulaFunction & { plugin: string })[] {
+  return workspaceFormulaFunctions.list().flatMap((c) => c.impl.map((f) => ({ ...f, plugin: c.plugin })));
+}
+const fnByName = (name: string): FormulaFunction | null => {
+  const n = name.trim().toLowerCase();
+  return formulaFunctions().find((f) => f.name.toLowerCase() === n || (f.aliases ?? []).some((a) => a.toLowerCase() === n)) ?? null;
+};
+setFunctionReader((name): FormulaFn | null => {
+  const f = fnByName(name);
+  return f ? { call: f.call, unit: f.unit } : null;
+});
 
 /** Forget the values read a moment ago (after a change to what they're made of). */
 export const forgetMetricValues = () => cache.clear();
@@ -143,7 +174,7 @@ export function listMetrics(): Metric[] {
   for (const [key, meta] of Object.entries(m)) {
     if (!meta.formula) continue;
     const v = metricValue(key);
-    out.set(key, { key, label: meta.label ?? key, kind: "formula", unit: meta.unit ?? "", what: meta.what ?? "", value: v.value, error: v.error, formula: meta.formula, goal: meta.goal, alert: meta.alert });
+    out.set(key, { key, label: meta.label ?? key, kind: "formula", unit: meta.unit || v.unit || "", what: meta.what ?? "", value: v.value, error: v.error, formula: meta.formula, goal: meta.goal, alert: meta.alert });
   }
   return [...out.values()].sort((a, b) => a.label.localeCompare(b.label, "de"));
 }

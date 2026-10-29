@@ -1295,3 +1295,6 @@
 .ws-formula-preview.is-error {
   color: rgb(220 38 38);
 }
+.ws-formula-cell.has-warning .ws-formula-value {
+  color: rgb(217 119 6);
+}

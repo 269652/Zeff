@@ -16,7 +16,7 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useLang, useT } from "@/components/I18nProvider";
-import { formulaDataAction, aiTextAction, aiTodosFromPageAction, createPageAction, createTodoListAction, createTodosAction, databasesAction, pageContentAction, savePageAction, taskListsAction, treeAction, type AiMode, type TaskListInfo } from "../actions";
+import { formulaCallsAction, formulaDataAction, aiTextAction, aiTodosFromPageAction, createPageAction, createTodoListAction, createTodosAction, databasesAction, pageContentAction, savePageAction, taskListsAction, treeAction, type AiMode, type TaskListInfo } from "../actions";
 import { markdownToDoc } from "../doc";
 import { fitAiContent, relocate, type TextBlock } from "../ai-fit";
 import { embedChoices } from "../embed-picker";
@@ -73,6 +73,8 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
   // What the formulas of the page's tables need from the server (Kennzahlen, shared tables): asked once a formula is there.
   const formulaData = useRef<FormulaData | null>(null);
   const formulaAsked = useRef(false);
+  /** The calls of the plugins' functions asked of the server (each once). */
+  const callsAsked = useRef(new Set<string>());
   const saving = useRef(false);
   const [state, setState] = useState<SaveState>("saved");
   const [conflictRev, setConflictRev] = useState<number | null>(null);
@@ -288,7 +290,23 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
           if (formulaAsked.current) return;
           formulaAsked.current = true;
           void formulaDataAction().then((r) => {
-            formulaData.current = r.ok ? { metrics: r.metrics, sheets: r.sheets } : { metrics: {}, sheets: {} };
+            formulaData.current = r.ok ? { metrics: r.metrics, metricUnits: r.metricUnits, sheets: r.sheets, functions: r.functions, calls: {} } : { metrics: {}, sheets: {} };
+            const ed = editorRef.current;
+            if (ed && !ed.isDestroyed) ed.view.dispatch(ed.state.tr.setMeta(tableFormulasKey, true));
+          });
+        },
+        requestCalls: (calls) => {
+          const fresh = calls.filter((c) => {
+            const k = `${c.name.toLowerCase()}(${JSON.stringify(c.args)})`;
+            if (callsAsked.current.has(k)) return false;
+            callsAsked.current.add(k);
+            return true;
+          });
+          if (!fresh.length) return;
+          void formulaCallsAction(fresh).then((r) => {
+            const d = formulaData.current;
+            if (!d || !r.ok) return;
+            d.calls = { ...d.calls, ...r.results };
             const ed = editorRef.current;
             if (ed && !ed.isDestroyed) ed.view.dispatch(ed.state.tr.setMeta(tableFormulasKey, true));
           });

@@ -7678,5 +7678,6 @@
   "Remove the column": "Spalte entfernen",
   "e.g. Kosten": "z. B. Kosten",
   "Enter to keep. The page's other tables then read it as Name!A1, SUMME(Name!B:B).": "Enter zum Übernehmen. Die anderen Tabellen der Seite lesen sie dann als Name!A1, SUMME(Name!B:B).",
-  "Remove the table": "Tabelle entfernen"
+  "Remove the table": "Tabelle entfernen",
+  "A1 · A1:B3 · B:B · [Column] · @Kennzahl · SUMME(…) · WENN(…; …; …) · 5 h, 12 €, 45 %": "A1 · A1:B3 · B:B · [Spalte] · @Kennzahl · SUMME(…) · WENN(…; …; …) · 5 h, 12 €, 45 %"
 }

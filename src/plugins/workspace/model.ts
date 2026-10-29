@@ -4,7 +4,8 @@
  * matching, sorting, grouping, and the computed properties (formulas, rollups through relations, back
  * relations, created/edited times). Pure functions over plain data; client-safe.
  */
-import { evalFormula, formulaToStored, type FormulaSheet, type FormulaValue } from "./formula";
+import { evalFormula, evalWithUnits, formulaToStored, type FormulaSheet, type FormulaValue } from "./formula";
+import { conversion, numberWithUnit, parseUnit } from "./units";
 
 export const PROP_TYPES = ["text", "markdown", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone", "person", "relation", "custom", "rollup", "formula", "created_time", "updated_time", "todo", "ticket", "ai", "button"] as const;
 export type PropType = (typeof PROP_TYPES)[number];
@@ -669,6 +670,10 @@ export const cellFormula = (row: Pick<Row, "cells">, propId: string): string | n
   const f = row.cells[formulaKey(propId)];
   return typeof f === "string" && f.trim() ? f : null;
 };
+/** A column's unit by its format: € (euro), $ (dollar), h (hours), its own (unit) — null for none (a percent column holds fractions). */
+export const columnUnit = (p: Pick<Property, "format" | "unit"> | undefined): string | null =>
+  !p ? null : p.format === "euro" ? "€" : p.format === "dollar" ? "$" : p.format === "hours" ? "h" : p.format === "unit" && p.unit?.trim() ? p.unit.trim() : null;
+
 /** Whether any cell of these rows holds a formula. */
 export const hasCellFormulas = (rows: Pick<Row, "cells">[]): boolean => rows.some((r) => Object.keys(r.cells).some((k) => k.endsWith("=")));
 
@@ -1361,10 +1366,19 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
     const n = name.trim().toLowerCase();
     return cols.findIndex((p) => p.name.toLowerCase() === n || (p.id === TITLE && (n === "title" || n === titleName.toLowerCase())));
   };
+  /** A cell's unit: its formula's (worked out), its column's, or what its text says ("12 €"). */
+  const unitIn = (row: Row | undefined, p: Property | undefined, value: () => unknown): string | null => {
+    if (!row || !p) return null;
+    const v = value();
+    const own = row.cells[`${p.id}~`];
+    if (typeof own === "string" && own) return own;
+    return columnUnit(p) ?? (typeof v === "string" ? numberWithUnit(v)?.label || null : null);
+  };
   const ownSheet = (rowAt: number): FormulaSheet => ({
     rows: out.length,
     cols: columns.length,
     cell: (c, r) => (out[r] && columns[c] ? valueOf(out[r], columns[c]) : null),
+    unit: (c, r) => unitIn(out[r], columns[c], () => (out[r] && columns[c] ? valueOf(out[r], columns[c]) : null)),
     colIndex: colIndexIn(columns, schema.titleName),
     row: rowAt,
   });
@@ -1381,7 +1395,8 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
       if (d) {
         const theirs = computeRows(d.schema, d.rows, lookup, id, depth + 1, now, byName);
         const cols = sheetColumns(d.schema).map((x) => (x === TITLE ? ({ id: TITLE, name: d.schema.titleName, type: "text" } as Property) : propById(d.schema.properties, x))).filter((p): p is Property => !!p);
-        sheet = { rows: theirs.length, cols: cols.length, cell: (c, r) => (!theirs[r] || !cols[c] ? null : cols[c].id === TITLE ? theirs[r].title : theirs[r].cells[cols[c].id]), colIndex: colIndexIn(cols, d.schema.titleName) };
+        const at = (c: number, r: number) => (!theirs[r] || !cols[c] ? null : cols[c].id === TITLE ? theirs[r].title : theirs[r].cells[cols[c].id]);
+        sheet = { rows: theirs.length, cols: cols.length, cell: at, unit: (c, r) => unitIn(theirs[r], cols[c], () => at(c, r)), colIndex: colIndexIn(cols, d.schema.titleName) };
       }
     }
     shared.set(key, sheet);
@@ -1411,7 +1426,7 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
       } else if (cellFormula(row, p.id)) {
         // A cell's own formula: its table as cells, the shared tables by name, the Kennzahlen.
         const at = out.indexOf(row);
-        const res = evalFormula(cellFormula(row, p.id)!.trim().replace(/^=/, ""), {
+        const res = evalWithUnits(cellFormula(row, p.id)!.trim().replace(/^=/, ""), {
           now,
           prop: (name) => {
             const q = props.find((x) => x.name.toLowerCase() === name.toLowerCase());
@@ -1424,6 +1439,15 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
           row.cells[p.id] = null;
           row.cells[`${p.id}!`] = res.error;
         } else {
+          // Its unit: into the column's (converted — min into h), or said when it doesn't fit; a column without one shows the result's.
+          const warnings = [...res.warnings];
+          const colUnit = columnUnit(p);
+          if (res.unit && colUnit) {
+            const f = conversion(parseUnit(res.unit), parseUnit(colUnit));
+            if (f === null) warnings.push(`The column is in ${colUnit} — the formula gives ${res.unit}`);
+            else if (f !== 1 && typeof res.value === "number") res.value = res.value * f;
+          } else if (res.unit) row.cells[`${p.id}~`] = res.unit;
+          if (warnings.length) row.cells[`${p.id}?`] = warnings.join("; ");
           const v = formulaToStored(res.value as FormulaValue);
           if (p.type === "number" && Array.isArray(v)) {
             row.cells[p.id] = null;

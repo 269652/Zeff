@@ -4,7 +4,7 @@ import type { Node as PmNode } from "@tiptap/pm/model";
 import { Plugin, PluginKey, TextSelection, type EditorState } from "@tiptap/pm/state";
 import { Decoration, DecorationSet } from "@tiptap/pm/view";
 import { refToken, type RefKind } from "../formula";
-import { evaluatePageTables, formatCellValue, type FormulaData, type PageTable } from "../page-sheet";
+import { evaluatePageTables, formatCellValue, PENDING, type FormulaData, type PageTable, type PendingCall } from "../page-sheet";
 
 /**
  * Formulas in a page's tables (/Tabelle), in the editor: a cell that starts with "=" shows what it works out to (page-sheet.ts);
@@ -78,7 +78,7 @@ export function cellAt(state: EditorState): { table: PageTable; row: number; col
   return null;
 }
 
-type Options = { getData: () => FormulaData | null; requestData: () => void; locale: () => string | undefined };
+type Options = { getData: () => FormulaData | null; requestData: () => void; requestCalls: (calls: PendingCall[]) => void; locale: () => string | undefined };
 
 function decorate(state: EditorState, opts: Options): DecorationSet {
   const tables = pageTables(state.doc);
@@ -86,20 +86,27 @@ function decorate(state: EditorState, opts: Options): DecorationSet {
   if (!formulaCells.length) return DecorationSet.empty;
   const data = opts.getData();
   if (!data) opts.requestData();
-  const results = evaluatePageTables(tables, data ?? { metrics: {}, sheets: {} });
+  const pending: PendingCall[] = [];
+  const results = evaluatePageTables(tables, data ?? { metrics: {}, sheets: {} }, pending);
+  if (data && pending.length) opts.requestCalls(pending);
   const head = state.selection.head;
   const decos: Decoration[] = [];
   for (const cell of formulaCells) {
     const r = results.get(cell.pos) ?? { value: null };
-    const shown = r.error ? `⚠ ${data || !/Kennzahl|No table/.test(r.error) ? r.error : "…"}` : formatCellValue(r.value, opts.locale());
+    // (its unit after it; units that don't go together: a ⚠ after it, what didn't fit in its title)
+    const warned = !r.error && !!r.warnings?.length;
+    // (still asked of the server — the Kennzahlen, a plugin's function: "…", no error)
+    const waiting = r.error === PENDING || (!data && !!r.error);
+    if (waiting) r.error = undefined;
+    const shown = waiting ? PENDING : r.error ? `⚠ ${r.error}` : `${formatCellValue(r.value, opts.locale(), r.unit)}${warned ? " ⚠" : ""}`;
     const inside = head > cell.pos && head < cell.pos + cell.size;
     if (inside) {
       // Being written: the formula as it is, its value beside it.
       decos.push(Decoration.node(cell.pos, cell.pos + cell.size, { class: "ws-formula-editing" }));
-      decos.push(Decoration.widget(cell.pos + cell.size - 1, () => Object.assign(document.createElement("span"), { className: `ws-formula-preview ${r.error ? "is-error" : ""}`, textContent: `= ${shown}` }), { side: 1, ignoreSelection: true }));
+      decos.push(Decoration.widget(cell.pos + cell.size - 1, () => Object.assign(document.createElement("span"), { className: `ws-formula-preview ${r.error ? "is-error" : ""}`, textContent: `= ${shown}${warned ? ` ${r.warnings!.join("; ")}` : ""}` }), { side: 1, ignoreSelection: true }));
       continue;
     }
-    decos.push(Decoration.node(cell.pos, cell.pos + cell.size, { class: `ws-formula-cell ${r.error ? "is-error" : ""}`, title: r.error ? `${cell.text}\n${r.error}` : cell.text }));
+    decos.push(Decoration.node(cell.pos, cell.pos + cell.size, { class: `ws-formula-cell ${r.error ? "is-error" : ""} ${warned ? "has-warning" : ""}`, title: [cell.text, r.error, ...(warned ? r.warnings! : [])].filter(Boolean).join("\n") }));
     decos.push(
       Decoration.widget(
         cell.pos + 1,
@@ -125,7 +132,7 @@ function decorate(state: EditorState, opts: Options): DecorationSet {
 export const TableFormulas = Extension.create<Options>({
   name: "tableFormulas",
   addOptions() {
-    return { getData: () => null, requestData: () => undefined, locale: () => undefined };
+    return { getData: () => null, requestData: () => undefined, requestCalls: () => undefined, locale: () => undefined };
   },
   addProseMirrorPlugins() {
     const opts = this.options;
