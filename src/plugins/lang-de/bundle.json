@@ -7980,5 +7980,8 @@
   "Widget for {name}": "Widget für {name}",
   "overlaps {what}": "überschneidet sich mit {what}",
   "{n} questions — answer them, then Continue.": "{n} Fragen — beantworten, dann Weiter.",
-  "{n} set up": "{n} angelegt"
+  "{n} set up": "{n} angelegt",
+  "Show the checklist here too": "Die Checkliste auch hier zeigen",
+  "{n} todos of this checklist — in the todos widget": "{n} Todos dieser Checkliste – im Todo-Widget",
+  "Fold into the widget again": "Wieder ins Widget einklappen"
 }

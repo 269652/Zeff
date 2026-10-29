@@ -50,7 +50,7 @@ test("a person's widgets: todos naming them, all about them, promises both ways 
   assert.match(String(nobody.empty), /Name a person/);
 });
 
-test("the todos widget leaves out the todos that are a checklist on the same page (shown there, ticked there) — once, not twice", async () => {
+test("the todos widget shows Zeff's todos — also those that are a checklist of the same page (the list goes into it there)", async () => {
   const { setInstalled } = await import("@/plugins/state");
   for (const p of ["workspace", "people", "todos"]) setInstalled(p, true);
   const people = await import("@/plugins/people/store");
@@ -59,12 +59,9 @@ test("the todos widget leaves out the todos that are a checklist on the same pag
   const content = { type: "doc", content: [{ type: "taskList", attrs: { listId: "tdora", title: "", engine: true }, content: [{ type: "taskItem", attrs: { checked: false, itemId: "idora1" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Dora wegen Hamburg fragen" }] }] }] }] };
   const pageId = w.createPage({ title: "Dora", content });
   (await import("@/plugins/workspace/task-lists")).syncPageLists(pageId);
-  const other = w.createPage({ title: "Elsewhere" });
   const { addAgentTodo } = await import("@/lib/boards/store");
   addAgentTodo({ ticket: "", text: "Dora das Buch zurückgeben" });
   const { widgetData } = await import("@/plugins/workspace/widgets");
   const on = await widgetData("people.todos", { person: "Dora Klein", __page: pageId });
-  assert.deepEqual(on.kind === "list" && on.items.map((i) => i.text), ["Dora das Buch zurückgeben"], "the page's own checklist item isn't listed again");
-  const off = await widgetData("people.todos", { person: "Dora Klein", __page: other });
-  assert.deepEqual(off.kind === "list" && off.items.map((i) => i.text).sort(), ["Dora das Buch zurückgeben", "Dora wegen Hamburg fragen"], "on another page: all of them");
+  assert.deepEqual(on.kind === "list" && on.items.map((i) => i.text).sort(), ["Dora das Buch zurückgeben", "Dora wegen Hamburg fragen"]);
 });

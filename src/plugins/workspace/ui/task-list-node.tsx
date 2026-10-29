@@ -93,6 +93,12 @@ function TaskListView({ node, editor, getPos, updateAttributes, extension }: Nod
   const nested = pos !== undefined && editor.state.doc.resolve(pos).parent.type.name === "taskItem";
   const items = node.content.content.filter((n) => n.type.name === "taskItem");
   const done = items.filter((n) => n.attrs.checked).length;
+  // Feeding the engine on a page that shows its todos in a widget: folded into a line — the todos are in the widget (Zeff's
+  // todos count; the same once, not twice). Unfolded on demand.
+  const [unfold, setUnfold] = useState(false);
+  let widget = false;
+  if (node.attrs.engine === true) editor.state.doc.descendants((n) => (widget ||= n.type.name === "zeffWidget" && n.attrs.widget === "people.todos", !widget));
+  const fold = widget && !unfold;
   const listId = String(node.attrs.listId ?? "");
   const [busy, setBusy] = useState(false);
   const head = useCollapsibleHead();
@@ -116,8 +122,18 @@ function TaskListView({ node, editor, getPos, updateAttributes, extension }: Nod
   };
 
   return (
-    <NodeViewWrapper className={`ws-todo-block ${head.visible ? "" : "is-headless"}`} data-todo-block {...head.frame}>
-      {head.visible && (
+    <NodeViewWrapper className={`ws-todo-block ${head.visible ? "" : "is-headless"} ${fold ? "ws-list-merged" : ""}`} data-todo-block {...head.frame}>
+      {fold && (
+        <button type="button" contentEditable={false} className="ws-list-merged-note" onClick={() => setUnfold(true)} title={t("Show the checklist here too")}>
+          ☐ {t("{n} todos of this checklist — in the todos widget", { n: items.length - done })}
+        </button>
+      )}
+      {unfold && widget && (
+        <button type="button" contentEditable={false} className="ws-list-merged-note" onClick={() => setUnfold(false)}>
+          {t("Fold into the widget again")}
+        </button>
+      )}
+      {head.visible && !fold && (
       <TodoHeader
         onHide={head.hide}
         title={String(node.attrs.title ?? "")}

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { SEED, editor, focusEditorEnd, newPage, rx, withPage } from "./helpers.mjs";
+import { SEED, editor, focusEditorEnd, newPage, open, rx, withPage } from "./helpers.mjs";
 
 test("person widget: its person setting suggests people as you type, and a pick writes the full name", (t) =>
   withPage(t, async (page) => {
@@ -74,4 +74,18 @@ test("person widget: its todos are ticked by a checkbox (done) and dismissed by 
     await widget.getByText(book).waitFor({ state: "detached", timeout: 10_000 }).catch(() => {
       throw new Error(`Dismissing "${book}" didn't take it off the list.`);
     });
+  }));
+
+test("a page's checklist goes into its todos widget: the item shows once (in the widget), the list folded to a note", (t) =>
+  withPage(t, async (page) => {
+    await open(page, `/workspace/${SEED.mergePage}`);
+    const widget = editor(page).locator(".node-zeffWidget").first();
+    await widget.getByRole("checkbox", { name: SEED.mergeItem }).waitFor({ timeout: 15_000 }).catch(async () => {
+      throw new Error(`The widget doesn't show the checklist's todo "${SEED.mergeItem}" (it shows: ${await widget.innerText()}).`);
+    });
+    const list = editor(page).locator('ul[data-type="taskList"]').first();
+    assert.equal(await list.isVisible(), false, "the checklist itself is folded (its todo is in the widget)");
+    await editor(page).locator(".ws-list-merged-note").first().waitFor({ timeout: 5000 });
+    const shown = await editor(page).getByText(SEED.mergeItem).evaluateAll((els) => els.filter((el) => el.checkVisibility()).length);
+    assert.equal(shown, 1, "the todo's text once on the screen");
   }));

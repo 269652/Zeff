@@ -1331,6 +1331,22 @@
   color: rgb(217 119 6);
 }
 
+/* A checklist folded into the todos widget of its page (task-list-node.tsx): only its line shows */
+.ws-list-merged > :not(.ws-list-merged-note) {
+  display: none;
+}
+.ws-list-merged-note {
+  display: block;
+  font-size: 0.8rem;
+  color: var(--color-zinc-500, #71717a);
+  padding: 0.1rem 0.25rem;
+  border-radius: 0.3rem;
+  cursor: pointer;
+}
+.ws-list-merged-note:hover {
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 8%, transparent);
+}
+
 /* "✨ Think along": its card (assist-node.tsx) — in the page's style, violet like the AI block */
 .ws-assist {
   margin: 0.5rem 0;

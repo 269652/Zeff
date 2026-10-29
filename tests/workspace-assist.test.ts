@@ -283,3 +283,17 @@ test("a text with checklist lines: those lines are todos (the page's one checkli
     ["text:Freitag bis Sonntag = 2 Nächte.", "todo:Karla fragen", "todo:Zug buchen", "todo:Nur ein Todo"],
   );
 });
+
+test("a page with a todos widget: Think along's todos are Zeff's todos (shown in the widget), no checklist beside it", async () => {
+  await setup();
+  const w = await import("@/plugins/workspace/store");
+  const pageId = w.createPage({ title: "Mit Widget", content: { type: "doc", content: [{ type: "zeffWidget", attrs: { widget: "people.todos", config: "{}", title: "", header: "" } }] } });
+  const { applyAssist } = await import("@/plugins/workspace/assist");
+  const { newAssistState } = await import("@/plugins/workspace/assist-shared");
+  const state = { ...newAssistState(), status: "proposing" as const, actions: [{ id: "a1", kind: "todo" as const, label: "Karla", text: "Karla wegen Hamburg fragen", due: "2026-12-01" }] };
+  const r = await applyAssist(pageId, state, ["a1"]);
+  assert.deepEqual(r.nodes, [], "nothing put into the page — the widget shows it");
+  const { getTodo } = await import("@/lib/boards/store");
+  const made = r.created.find((c) => c.kind === "todo")!;
+  assert.deepEqual([getTodo(made.id)!.text, getTodo(made.id)!.due, getTodo(made.id)!.status], ["Karla wegen Hamburg fragen", "2026-12-01", "open"]);
+});

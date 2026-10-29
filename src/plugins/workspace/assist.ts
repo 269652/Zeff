@@ -280,6 +280,12 @@ function widgetsOn(doc: DocNode | null): Set<string> {
   return out;
 }
 
+/** The page shows todos in a widget (a person's): its todos go there, not into a checklist of their own. */
+export const todosWidgetOn = (doc: DocNode | null): boolean => {
+  const walk = (n: DocNode): boolean => (n.type === "zeffWidget" && n.attrs?.widget === "people.todos") || (n.content ?? []).some(walk);
+  return !!doc && walk(doc);
+};
+
 /** What this card set up before (asked again): its plan calendars with their days, its todos — to update, not to make twice. */
 async function madeBefore(created: AssistCreated[]): Promise<string[]> {
   const out: string[] = [];
@@ -414,10 +420,19 @@ export async function applyAssist(pageId: number, state: AssistState, ids: strin
   const chosen = state.actions.filter((a) => ids.includes(a.id)).map((a) => cleanAction(a, check)).filter((a): a is AssistActionBody => !!a);
   if (!chosen.length) throw new ValidationError(t("Choose at least one thing to set up."));
   const out: Made = { nodes: [], created: [] };
-  // The todos: one checklist, where the first of them stands.
+  // The todos: one checklist, where the first of them stands — or, the page showing todos in a widget, Zeff's todos only
+  // (the widget shows them; a checklist beside it would be the same twice).
   let list: DocNode | null = null;
+  const widgetShows = todosWidgetOn(store.getPage(pageId)?.content ?? null);
   try {
     for (const a of chosen) {
+      if (a.kind === "todo" && widgetShows) {
+        const { addManualTodo, setTodoDue } = await import("@/lib/boards/store");
+        const todo = addManualTodo({ ticket: "", text: a.text });
+        if (a.due && !todo.outcome) setTodoDue(todo.id, a.due);
+        if (!todo.outcome) out.created.push({ kind: "todo", id: todo.id, label: todo.text, href: `/t/${todo.id}` });
+        continue;
+      }
       const made = await (EXECUTORS[a.kind] as (x: typeof a) => Promise<Made>)(a);
       if (a.kind === "todo") {
         if (!list) {

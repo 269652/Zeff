@@ -26,6 +26,20 @@ if (!fs.existsSync(out)) {
   (await import("@/plugins/state")).setInstalled("todos", true);
   const { addManualTodo } = await import("@/lib/boards/store");
   const todos = [`${personName} anrufen`, `${personName} das Buch zurückgeben`].map((text) => addManualTodo({ ticket: "", text }).text);
-  fs.writeFileSync(out, JSON.stringify({ personId, personName, dbId, dbTitle, rows, rowTitles: ["Alpha", "Beta"], props: { dose: dose.id, taken: taken.id }, todos }, null, 2));
+  // A page with the person's todos widget and a checklist of the page that feeds the engine (its item a todo about them).
+  const mergeItem = `${personName} wegen Hamburg fragen`;
+  const mergePage = createPage({
+    title: "E2E Merge",
+    content: {
+      type: "doc",
+      content: [
+        { type: "zeffWidget", attrs: { widget: "people.todos", config: JSON.stringify({ person: personName }), title: "", header: "" } },
+        { type: "taskList", attrs: { listId: "te2e", title: "", engine: true }, content: [{ type: "taskItem", attrs: { checked: false, itemId: "ie2e1" }, content: [{ type: "paragraph", content: [{ type: "text", text: mergeItem }] }] }] },
+        { type: "paragraph", content: [{ type: "text", text: "Ende" }] },
+      ],
+    },
+  });
+  (await import("@/plugins/workspace/task-lists")).syncPageLists(mergePage);
+  fs.writeFileSync(out, JSON.stringify({ personId, personName, dbId, dbTitle, rows, rowTitles: ["Alpha", "Beta"], props: { dose: dose.id, taken: taken.id }, todos, mergePage, mergeItem }, null, 2));
 }
 console.log(`e2e seed: ${out}`);
