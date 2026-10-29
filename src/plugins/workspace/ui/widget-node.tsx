@@ -489,7 +489,8 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
                         </option>
                       ))}
                     </select>
-                  ) : s.kind === "person" ? (
+                  ) : s.kind === "person" || (s.key === "person" && s.kind === "text") ? (
+                    // (a "person" text setting too: a server started before the kind existed still sends it as text)
                     <PersonInput value={String(config[s.key] ?? "")} onChange={(name, id) => setConfig(s.key, name, { [`${s.key}Id`]: id ?? null })} />
                   ) : s.kind === "checkbox" ? (
                     <input type="checkbox" className="size-4" checked={config[s.key] === undefined ? !!s.default : config[s.key] === true} onChange={(e) => setConfig(s.key, e.target.checked)} />
