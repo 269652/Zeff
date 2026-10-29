@@ -14,6 +14,12 @@ import { getPerson, listPeople, namesThem, upcoming } from "./store";
 /** The person a widget is about: the one named in its settings (a name, an alias, a first name), else the page's it stands on. */
 export async function personFor(config: WidgetConfig): Promise<Person | null> {
   const name = String(config.person ?? "").trim();
+  // Picked from the suggestions: that one, whatever their name is now.
+  const picked = Number(config.personId);
+  if (name && picked > 0) {
+    const p = getPerson(picked);
+    if (p) return p;
+  }
   if (name) {
     const { peopleOf } = await import("./formulas");
     return peopleOf(name)?.people[0] ?? null;
@@ -25,7 +31,7 @@ export async function personFor(config: WidgetConfig): Promise<Person | null> {
   return m ? getPerson(Number(m[1])) : null;
 }
 
-export const personSetting = (): WidgetSetting => ({ key: "person", label: t("Person (a name; empty: the person whose page this is)"), kind: "text", default: "" });
+export const personSetting = (): WidgetSetting => ({ key: "person", label: t("Person (a name; empty: the person whose page this is)"), kind: "person", default: "" });
 export const nobody = () => ({ kind: "list" as const, items: [], empty: t("Name a person in its settings — or put it on a person's page.") });
 
 /**

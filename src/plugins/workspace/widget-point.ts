@@ -7,7 +7,7 @@ import type { VNode } from "./card-template";
  * data; the Workspace draws every widget alike (a list, or a figure) and keeps the data a moment. Server only.
  */
 
-export type WidgetSetting = { key: string; label: string; kind: "number" | "select" | "text" | "checkbox"; default?: string | number | boolean; min?: number; max?: number; options?: { value: string; label: string }[] };
+export type WidgetSetting = { key: string; label: string; /** person: a name picked from the people (its id kept as `<key>Id`). */ kind: "number" | "select" | "text" | "checkbox" | "person"; default?: string | number | boolean; min?: number; max?: number; options?: { value: string; label: string }[] };
 export type WidgetConfig = Record<string, string | number | boolean>;
 
 export type WidgetItem = {

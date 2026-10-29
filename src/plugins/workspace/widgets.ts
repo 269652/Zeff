@@ -29,6 +29,8 @@ export function checkedConfig(w: WorkspaceWidget, raw: Record<string, unknown>):
     } else if (s.kind === "select") out[s.key] = s.options?.some((o) => o.value === String(v)) ? String(v) : String(s.default ?? s.options?.[0]?.value ?? "");
     else if (s.kind === "checkbox") out[s.key] = v === undefined ? !!s.default : v === true || v === "true";
     else out[s.key] = typeof v === "string" ? v.slice(0, 200) : String(s.default ?? "");
+    // A person picked from the suggestions: their id beside the name.
+    if (s.kind === "person" && Number.isInteger(Number(raw[`${s.key}Id`])) && Number(raw[`${s.key}Id`]) > 0) out[`${s.key}Id`] = Number(raw[`${s.key}Id`]);
   }
   // The page the block stands on (widget-node.tsx): a person's widget on their page takes them.
   const page = Number(raw.__page);
