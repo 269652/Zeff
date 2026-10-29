@@ -25,8 +25,8 @@ export async function personFor(config: WidgetConfig): Promise<Person | null> {
   return m ? getPerson(Number(m[1])) : null;
 }
 
-const personSetting = (): WidgetSetting => ({ key: "person", label: t("Person (a name; empty: the person whose page this is)"), kind: "text", default: "" });
-const nobody = () => ({ kind: "list" as const, items: [], empty: t("Name a person in its settings — or put it on a person's page.") });
+export const personSetting = (): WidgetSetting => ({ key: "person", label: t("Person (a name; empty: the person whose page this is)"), kind: "text", default: "" });
+export const nobody = () => ({ kind: "list" as const, items: [], empty: t("Name a person in its settings — or put it on a person's page.") });
 
 /**
  * A todo names them: their name or an alias, their first name when no one else has it ("Chris anrufen"), or a mention of
