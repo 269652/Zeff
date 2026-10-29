@@ -211,3 +211,52 @@ test("an old form block becomes a form page below its page, asking the title and
   assert.equal(form.def.submitLabel, "Melden");
   assert.deepEqual(form.def.steps[0].items.map((i) => (i.kind === "field" ? `${i.prop}${i.required ? "*" : ""}` : i.kind)), ["title*", "art", "menge"]);
 });
+
+test("rows and columns: kept nested (3 deep at most, empty ones too), their fields checked by the server, conditions on them, their cells collected", async () => {
+  const { normalizeForm, formProps, formFields, flatItems } = await import("@/plugins/workspace/form-spec");
+  const { w, db } = await world();
+  const props = formProps(w.getDatabase(db)!.schema);
+  const box = (dir: string, items: unknown[]) => ({ kind: "flex", dir, items });
+  const deep = normalizeForm({ steps: [{ items: [box("row", [box("col", [box("row", [box("col", [{ kind: "field", prop: "menge" }])])]), box("col", [])]), { kind: "flex", dir: "diagonal", gap: "xl", items: "nope" }] }] }, props);
+  const [row, odd] = deep.steps[0].items as import("@/plugins/workspace/form-spec").FlexItem[];
+  assert.deepEqual([row.dir, odd.dir, odd.gap, odd.items], ["row", "row", undefined, []], "an unknown direction is a row, an unknown gap the default, an empty box kept");
+  assert.deepEqual(flatItems(deep.steps[0].items).map((i) => (i.kind === "flex" ? i.dir : i.kind)), ["row", "col", "row", "col", "row"], "the fourth box (and its field) is too deep");
+  assert.equal(formFields(deep).length, 0);
+
+  const { createForm, submitForm } = await import("@/plugins/workspace/forms");
+  const id = createForm({
+    dbId: db,
+    def: normalizeForm({
+      dbId: db,
+      steps: [{ id: "s1", items: [{ id: "t", kind: "field", prop: "title" }, box("row", [box("col", [{ id: "a", kind: "field", prop: "art", required: true }, { id: "m", kind: "field", prop: "menge" }]), box("col", [{ id: "s", kind: "field", prop: "schritte", required: true, when: { prop: "art", op: "eq", value: "o2" } }])])] }],
+    }),
+  });
+  assert.deepEqual(Object.keys(submitForm(id, { title: "x" }).errors), ["a"], "a required field in a column of a row; the hidden one isn't required");
+  assert.deepEqual(Object.keys(submitForm(id, { title: "x", art: "o2" }).errors), ["s"], "shown by its condition: required");
+  const made = submitForm(id, { title: "x", art: "o1", menge: "4", schritte: "verborgen" });
+  const row2 = w.rawRows(db).find((r) => r.id === made.id)!;
+  assert.deepEqual([row2.cells.art, row2.cells.menge, row2.cells.schritte], ["o1", 4, undefined], "nested fields collected, the hidden one not");
+});
+
+test("the designer's tree: into a box, out of it, no box into itself or too deep, a box removed keeps its parts", async () => {
+  const { normalizeForm } = await import("@/plugins/workspace/form-spec");
+  const tr = await import("@/plugins/workspace/form-tree");
+  let n = 0;
+  const id = () => `n${++n}`;
+  let def = normalizeForm({ steps: [{ id: "s", items: [{ id: "f", kind: "field", prop: "menge" }] }] });
+  const row = tr.newBox("row", id);
+  def = tr.placePart(def, row, "s", 1);
+  const col = (row.items[0] as { id: string }).id;
+  def = tr.placePart(def, tr.findPart(def, "f")!, col, 0);
+  assert.deepEqual(tr.spotOf(def, "f"), { owner: col, index: 0, step: 0 });
+  assert.equal(tr.canPlace(def, tr.findPart(def, row.id)!, col), false, "not into itself");
+  assert.equal(tr.canPlace(def, tr.newBox("row", id), col), false, "a row of columns in a column of a row: four deep, too deep");
+  const inner = tr.newBox("col", id);
+  def = tr.placePart(def, inner, col, 1);
+  assert.equal(tr.partsOf(def, col)!.length, 2, "a column in it: three deep, fine");
+  assert.equal(tr.canPlace(def, tr.newBox("col", id), inner.id), false, "a fourth box is too deep");
+  def = tr.removePart(def, col, true);
+  assert.equal(tr.spotOf(def, "f")!.owner, row.id, "its parts take its place");
+  def = tr.placePart(def, tr.findPart(def, "f")!, "s", 0);
+  assert.deepEqual(tr.spotOf(def, "f"), { owner: "s", index: 0, step: 0 });
+});

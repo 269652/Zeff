@@ -4,7 +4,7 @@ import Link from "next/link";
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { useT } from "@/components/I18nProvider";
 import { cellChoicesAction, formRelationChoicesAction, submitFormAction, type Result } from "../actions";
-import { fieldLabel, formErrors, shownFields, startAnswers, type Answers, type FieldItem, type FormItem } from "../form-spec";
+import { fieldLabel, fieldsIn, formErrors, shownFields, startAnswers, type Answers, type FieldItem, type FlexItem, type FormItem } from "../form-spec";
 import type { FormRun, FormSent } from "../forms";
 import type { Property } from "../model";
 
@@ -183,12 +183,21 @@ function Picker({ kind, prop, dbId, value, onChange, labels, onLabel, inputProps
 }
 
 /** A heading, a text or a divider of a form — as it shows (the designer's canvas too). */
-export function StaticItem({ item, level = 2 }: { item: Exclude<FormItem, FieldItem>; level?: 2 | 3 }) {
+export function StaticItem({ item, level = 2 }: { item: Exclude<FormItem, FieldItem | FlexItem>; level?: 2 | 3 }) {
   if (item.kind === "divider") return <hr className="border-zinc-200 dark:border-zinc-700" />;
   if (item.kind === "text") return <p className="text-sm whitespace-pre-wrap text-zinc-600 dark:text-zinc-300">{item.text}</p>;
   const H = level === 2 ? "h2" : "h3";
   return <H className="pt-2 text-lg font-semibold">{item.text}</H>;
 }
+
+const GAPS = { sm: "gap-2", md: "gap-4", lg: "gap-6" } as const;
+/**
+ * A box's own layout (the designer's canvas draws it the same): a row side by side from a small screen up (stacked below ~640px,
+ * wrapping when its parts get too narrow), a column one under the other.
+ */
+export const flexClass = (box: Pick<FlexItem, "dir" | "gap">): string => `flex flex-col ${GAPS[box.gap ?? "md"]} ${box.dir === "row" ? "sm:flex-row sm:flex-wrap sm:items-start" : ""}`;
+/** A part inside a row shares it with the others (inside a column it is as wide as the column). */
+export const flexChildClass = (box: Pick<FlexItem, "dir">): string => (box.dir === "row" ? "min-w-0 sm:min-w-[12rem] sm:flex-1 sm:basis-0" : "min-w-0");
 
 /** "Step 2 of 3 — Contact": what a wizard says above its fields (a progress bar beside it, the words for screen readers). */
 export function StepProgress({ at, of, title }: { at: number; of: number; title: string }) {
@@ -231,7 +240,9 @@ export function FormRunner({ form, submit, onDone, onCancel, heading = true, hea
   const cur = steps[Math.min(step, steps.length - 1)];
   const shown = shownFields(def, answers, props);
   const last = step >= steps.length - 1;
-  const errorList = cur.items.filter((i): i is FieldItem => i.kind === "field" && !!errors[i.id] && shown.has(i.id));
+  // (The fields of the step, those in rows and columns too — in the order they show.)
+  const curFields = fieldsIn(cur.items);
+  const errorList = curFields.filter((i) => !!errors[i.id] && shown.has(i.id));
 
   // After a failed send or step: the focus on the first field that is wrong (the summary above says them all).
   useEffect(() => {
@@ -252,7 +263,7 @@ export function FormRunner({ form, submit, onDone, onCancel, heading = true, hea
   const set = (prop: string, v: unknown) => {
     setAnswers((a) => ({ ...a, [prop]: v }));
     // A field put right loses its error (the others stay until the next try).
-    const item = cur.items.find((i) => i.kind === "field" && i.prop === prop);
+    const item = curFields.find((i) => i.prop === prop);
     if (item && errors[item.id])
       setErrors((cur) => {
         const rest = { ...cur };
@@ -261,11 +272,11 @@ export function FormRunner({ form, submit, onDone, onCancel, heading = true, hea
       });
   };
   // What is sent: only the fields that show (and those not asked — the server sets their defaults itself).
-  const sendable = () => Object.fromEntries(Object.entries(answers).filter(([k]) => def.steps.some((s) => s.items.some((i) => i.kind === "field" && i.prop === k && shown.has(i.id)))));
+  const sendable = () => Object.fromEntries(Object.entries(answers).filter(([k]) => def.steps.some((s) => fieldsIn(s.items).some((i) => i.prop === k && shown.has(i.id)))));
   const fail = (errs: Record<string, string>) => {
     setErrors(errs);
     // A wrong field on an earlier step (the server's check): back to that step.
-    const at = steps.findIndex((s) => s.items.some((i) => errs[i.id]));
+    const at = steps.findIndex((s) => fieldsIn(s.items).some((i) => errs[i.id]));
     if (at >= 0 && at !== step) setStep(at);
     setFocusFirst((n) => n + 1);
   };
@@ -299,6 +310,35 @@ export function FormRunner({ form, submit, onDone, onCancel, heading = true, hea
     setSaid("");
   };
   const H = headingLevel === 1 ? "h1" : "h2";
+  /** One part of the step: a field, a heading, a text, a divider — or a box with its parts (a plain div: layout only). */
+  const part = (item: FormItem, top: boolean): ReactNode => {
+    if (item.kind === "flex")
+      return (
+        <div key={item.id} className={`${flexClass(item)} ${top ? "sm:col-span-2" : ""}`}>
+          {item.items.map((c) => {
+            const inner = part(c, false);
+            return inner === null ? null : (
+              <div key={c.id} className={flexChildClass(item)}>
+                {inner}
+              </div>
+            );
+          })}
+        </div>
+      );
+    if (item.kind !== "field")
+      return (
+        <div key={item.id} className={top ? "sm:col-span-2" : ""}>
+          <StaticItem item={item} level={headingLevel === 1 ? 2 : 3} />
+        </div>
+      );
+    const prop = props.find((p) => p.id === item.prop);
+    if (!prop || !shown.has(item.id)) return null;
+    return (
+      <div key={item.id} className={!top || item.width === "half" ? "" : "sm:col-span-2"}>
+        <FieldControl item={item} prop={prop} value={answers[item.prop]} onChange={(v) => set(item.prop, v)} uid={uid} error={errors[item.id]} dbId={db.id} labels={labels[item.prop]} onLabel={(id, label) => setLabels((l) => ({ ...l, [item.prop]: { ...l[item.prop], [id]: label } }))} />
+      </div>
+    );
+  };
 
   return (
     <div className="space-y-4">
@@ -364,23 +404,9 @@ export function FormRunner({ form, submit, onDone, onCancel, heading = true, hea
               </ul>
             </div>
           )}
-          {cur.items.some((i) => i.kind === "field" && i.required && shown.has(i.id)) && <p className="text-xs text-zinc-500 dark:text-zinc-400">{t("Fields marked * are required.")}</p>}
+          {curFields.some((i) => i.required && shown.has(i.id)) && <p className="text-xs text-zinc-500 dark:text-zinc-400">{t("Fields marked * are required.")}</p>}
           <div className="grid grid-cols-1 gap-x-4 gap-y-4 sm:grid-cols-2">
-            {cur.items.map((item) => {
-              if (item.kind !== "field")
-                return (
-                  <div key={item.id} className="sm:col-span-2">
-                    <StaticItem item={item} level={headingLevel === 1 ? 2 : 3} />
-                  </div>
-                );
-              const prop = props.find((p) => p.id === item.prop);
-              if (!prop || !shown.has(item.id)) return null;
-              return (
-                <div key={item.id} className={item.width === "half" ? "" : "sm:col-span-2"}>
-                  <FieldControl item={item} prop={prop} value={answers[item.prop]} onChange={(v) => set(item.prop, v)} uid={uid} error={errors[item.id]} dbId={db.id} labels={labels[item.prop]} onLabel={(id, label) => setLabels((l) => ({ ...l, [item.prop]: { ...l[item.prop], [id]: label } }))} />
-                </div>
-              );
-            })}
+            {cur.items.map((item) => part(item, true))}
           </div>
           {failure && (
             <p role="alert" className="alert-error">

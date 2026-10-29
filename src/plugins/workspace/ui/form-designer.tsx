@@ -1,47 +1,29 @@
 "use client";
 
-import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
 import { databasesAction, saveFormAction } from "../actions";
-import { COND_OPS, defaultAnswer, fieldItem, fieldLabel, formItemId, newStep, type CondOp, type FieldItem, type FormDef, type FormItem, type FormStep } from "../form-spec";
+import { COND_OPS, defaultAnswer, fieldItem, fieldLabel, fieldsIn, formItemId, newStep, type CondOp, type FieldItem, type FlexItem, type FormDef, type FormItem, type FormStep } from "../form-spec";
+import { canPlace, findPart, freshIds, newBox, partsOf, patchPart, placePart, removePart, spotOf } from "../form-tree";
 import type { FormRun } from "../forms";
 import { PROP_LABELS, TITLE, type Property } from "../model";
-import { FieldControl, StaticItem, StepProgress } from "./form-runner";
+import { FieldControl, flexChildClass, flexClass, StaticItem, StepProgress } from "./form-runner";
 
 /**
- * The form designer (WYSIWYG): the palette on the left (the database's fields not on the form yet, a heading, a text, a divider —
- * dragged onto the canvas or added with their button), the canvas in the middle drawn as the form will look (its controls inert),
- * the selected part's settings on the right. Steps as tabs above the canvas (a wizard when there are several). Everything works by
- * keyboard too: canvas parts are focusable, Alt+↑/↓ moves one, Delete removes it, Enter selects it; moves are said in a live region.
- * Saved by itself a moment after each change.
+ * The form designer (WYSIWYG): the palette on the left (the database's fields not on the form yet, a heading, a text, a divider, a
+ * row and a column — dragged onto the canvas or added with their button), the canvas in the middle drawn as the form will look (its
+ * controls inert; rows and columns tinted, with a dashed edge), the selected part's settings on the right. Steps as tabs above the
+ * canvas (a wizard when there are several). Everything works by keyboard too: canvas parts are focusable, Alt+↑/↓ moves one within
+ * its box, Alt+→ puts it into the box after it, Alt+← takes it out of its box, Delete removes it, Enter selects it; each move is
+ * said in a live region. Saved by itself a moment after each change.
  */
 
 const MIME = "application/x-zeff-form";
 type Drag = { kind: "move"; id: string } | { kind: "new"; item: FormItem };
 type Sel = { kind: "form" } | { kind: "step" } | { kind: "item"; id: string };
-
-// --- What the designer does to a form (pure) ---
-
-const stepOf = (def: FormDef, id: string) => def.steps.findIndex((s) => s.items.some((i) => i.id === id));
-const findItem = (def: FormDef, id: string): FormItem | undefined => def.steps.flatMap((s) => s.items).find((i) => i.id === id);
-const withSteps = (def: FormDef, fn: (steps: FormStep[]) => FormStep[]): FormDef => ({ ...def, steps: fn(def.steps.map((s) => ({ ...s, items: [...s.items] }))) });
-
-/** The item put at `index` of step `at` (taken from where it was, when it was on the form). */
-function place(def: FormDef, item: FormItem, at: number, index: number): FormDef {
-  return withSteps(def, (steps) => {
-    const from = steps.findIndex((s) => s.items.some((i) => i.id === item.id));
-    if (from >= 0) {
-      const i = steps[from].items.findIndex((x) => x.id === item.id);
-      steps[from].items.splice(i, 1);
-      if (from === at && i < index) index--;
-    }
-    steps[at].items.splice(Math.max(0, Math.min(index, steps[at].items.length)), 0, item);
-    return steps;
-  });
-}
-const removeItem = (def: FormDef, id: string): FormDef => withSteps(def, (steps) => steps.map((s) => ({ ...s, items: s.items.filter((i) => i.id !== id) })));
-const patchItem = (def: FormDef, id: string, patch: Partial<FieldItem> | Partial<FormItem>): FormDef => withSteps(def, (steps) => steps.map((s) => ({ ...s, items: s.items.map((i) => (i.id === id ? ({ ...i, ...patch } as FormItem) : i)) })));
+/** Where a drop would land: the list of `owner` (a step's or a box's id), at `index`. */
+type Over = { owner: string; index: number };
 
 export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told of each change (the page's preview draws it). */ onChange?: (f: FormRun) => void }) {
   const t = useT();
@@ -50,7 +32,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
   const props = form.db?.props ?? [];
   const [at, setAt] = useState(0);
   const [sel, setSel] = useState<Sel>({ kind: "form" });
-  const [over, setOver] = useState<{ step: number; index: number } | null>(null);
+  const [over, setOver] = useState<Over | null>(null);
   const [said, setSaid] = useState("");
   const [status, setStatus] = useState<"" | "saving" | "saved" | "error">("");
   const [databases, setDatabases] = useState<{ id: number; title: string }[]>([]);
@@ -91,55 +73,75 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
     }, 700);
   };
 
-  const used = new Set(def.steps.flatMap((s) => s.items.filter((i): i is FieldItem => i.kind === "field").map((i) => i.prop)));
+  const used = new Set(def.steps.flatMap((s) => fieldsIn(s.items).map((i) => i.prop)));
   const free = props.filter((p) => !used.has(p.id));
   const propOf = (id: string): Property | undefined => props.find((p) => p.id === id);
-  const nameOf = (i: FormItem): string => (i.kind === "field" ? fieldLabel(i, propOf(i.prop)) : i.kind === "heading" ? i.text || t("Heading") : i.kind === "text" ? t("Text") : t("Divider"));
+  const boxName = (b: Pick<FlexItem, "dir">) => (b.dir === "row" ? t("Row") : t("Column"));
+  const nameOf = (i: FormItem): string => (i.kind === "field" ? fieldLabel(i, propOf(i.prop)) : i.kind === "heading" ? i.text || t("Heading") : i.kind === "text" ? t("Text") : i.kind === "flex" ? boxName(i) : t("Divider"));
   const focusItem = (id: string) => requestAnimationFrame(() => canvas.current?.querySelector<HTMLElement>(`[data-item="${id}"]`)?.focus());
+  // A box selected: what is added goes into it; else to the end of the step.
+  const selBox = sel.kind === "item" ? findPart(def, sel.id) : undefined;
+  const target = selBox?.kind === "flex" && spotOf(def, selBox.id)?.step === at ? selBox.id : step.id;
 
-  const add = (item: FormItem, index = step.items.length) => {
-    change(place(def, item, at, index));
+  const add = (item: FormItem) => {
+    const owner = canPlace(def, item, target) ? target : step.id;
+    change(placePart(def, item, owner, partsOf(def, owner)?.length ?? 0));
     setSel({ kind: "item", id: item.id });
-    setSaid(t("{name} added to the form.", { name: nameOf(item) }));
+    setSaid(owner === step.id ? t("{name} added to the form.", { name: nameOf(item) }) : t("{name} added to the {box}.", { name: nameOf(item), box: nameOf(findPart(def, owner)!) }));
     focusItem(item.id);
   };
   const move = (id: string, by: number) => {
-    const s = stepOf(def, id);
-    const i = def.steps[s].items.findIndex((x) => x.id === id);
-    const to = i + by;
-    if (to < 0 || to >= def.steps[s].items.length) return;
-    change(
-      withSteps(def, (steps) => {
-        const [it] = steps[s].items.splice(i, 1);
-        steps[s].items.splice(to, 0, it);
-        return steps;
-      }),
-    );
-    setSaid(t("{name} moved to position {n} of {total}.", { name: nameOf(def.steps[s].items[i]), n: to + 1, total: def.steps[s].items.length }));
+    const s = spotOf(def, id);
+    const list = s && partsOf(def, s.owner);
+    if (!s || !list) return;
+    const to = s.index + by;
+    if (to < 0 || to >= list.length) return;
+    change(placePart(def, list[s.index], s.owner, by > 0 ? to + 1 : to));
+    setSaid(t("{name} moved to position {n} of {total}.", { name: nameOf(list[s.index]), n: to + 1, total: list.length }));
+    focusItem(id);
+  };
+  /** Into the box right after it (Alt+→), at its start — or out of its box (Alt+←), right after that box. */
+  const shift = (id: string, into: boolean) => {
+    const s = spotOf(def, id);
+    const list = s && partsOf(def, s.owner);
+    const item = list?.[s!.index];
+    if (!s || !list || !item) return;
+    if (into) {
+      const box = list.slice(s.index + 1).find((i): i is FlexItem => i.kind === "flex");
+      if (!box || !canPlace(def, item, box.id)) return setSaid(t("No box after {name} to put it in.", { name: nameOf(item) }));
+      change(placePart(def, item, box.id, 0));
+      setSaid(t("{name} moved into the {box}.", { name: nameOf(item), box: nameOf(box) }));
+    } else {
+      const parent = spotOf(def, s.owner);
+      if (!parent) return setSaid(t("{name} is not in a box.", { name: nameOf(item) }));
+      change(placePart(def, item, parent.owner, parent.index + 1));
+      setSaid(t("{name} moved out of the {box}.", { name: nameOf(item), box: nameOf(findPart(def, s.owner)!) }));
+    }
     focusItem(id);
   };
   const remove = (id: string) => {
-    const s = stepOf(def, id);
-    const items = def.steps[s]?.items ?? [];
-    const i = items.findIndex((x) => x.id === id);
-    const item = items[i];
-    if (!item) return;
-    change(removeItem(def, id));
+    const s = spotOf(def, id);
+    const list = s && partsOf(def, s.owner);
+    const item = list?.[s!.index];
+    if (!s || !list || !item) return;
+    // A box goes, what is in it stays — in its place.
+    change(removePart(def, id, true));
     setSel({ kind: "form" });
-    setSaid(t("{name} removed from the form.", { name: nameOf(item) }));
-    const nextId = items[i + 1]?.id ?? items[i - 1]?.id;
+    setSaid(item.kind === "flex" && item.items.length ? t("{name} removed — its parts stay in its place.", { name: nameOf(item) }) : t("{name} removed from the form.", { name: nameOf(item) }));
+    const nextId = (item.kind === "flex" ? item.items[0]?.id : undefined) ?? list[s.index + 1]?.id ?? list[s.index - 1]?.id;
     if (nextId) focusItem(nextId);
   };
-  const toStep = (id: string, target: number) => {
-    const item = findItem(def, id);
+  const toStep = (id: string, targetStep: number) => {
+    const item = findPart(def, id);
     if (!item) return;
-    change(place(def, item, target, def.steps[target].items.length));
-    setAt(target);
-    setSaid(t("{name} moved to step {n}.", { name: nameOf(item), n: target + 1 }));
+    change(placePart(def, item, def.steps[targetStep].id, def.steps[targetStep].items.length));
+    setAt(targetStep);
+    setSaid(t("{name} moved to step {n}.", { name: nameOf(item), n: targetStep + 1 }));
   };
 
-  // --- Drag and drop: the palette's parts and the canvas's, onto the canvas (where the line shows) or onto a step's tab ---
+  // --- Drag and drop: the palette's parts and the canvas's, onto a list (where the line shows) or onto a step's tab ---
   const drag = (d: Drag) => (e: DragEvent) => {
+    e.stopPropagation();
     e.dataTransfer.setData(MIME, JSON.stringify(d));
     e.dataTransfer.effectAllowed = d.kind === "move" ? "move" : "copy";
   };
@@ -150,47 +152,42 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
       return null;
     }
   };
-  const dropAt = (e: DragEvent, stepIndex: number, index: number) => {
+  const dropAt = (e: DragEvent, owner: string, index: number) => {
+    e.stopPropagation();
     const d = read(e);
     setOver(null);
     if (!d) return;
     e.preventDefault();
-    if (d.kind === "new") {
-      // (A new item gets its own id at the drop: the same palette part dropped twice is two items.)
-      const item = { ...d.item, id: formItemId() } as FormItem;
-      if (item.kind === "field" && used.has(item.prop)) return;
-      change(place(def, item, stepIndex, index));
-      setSel({ kind: "item", id: item.id });
-      setSaid(t("{name} added to the form.", { name: nameOf(item) }));
-    } else {
-      const item = findItem(def, d.id);
-      if (!item) return;
-      change(place(def, item, stepIndex, index));
-      setSaid(t("{name} moved.", { name: nameOf(item) }));
-    }
+    // (A new part gets its own ids at the drop: the same palette part dropped twice is two parts.)
+    const item = d.kind === "new" ? freshIds(d.item, formItemId) : findPart(def, d.id);
+    if (!item || (item.kind === "field" && d.kind === "new" && used.has(item.prop))) return;
+    if (!canPlace(def, item, owner)) return setSaid(t("It can't go there (boxes nest {n} deep at most).", { n: 3 }));
+    change(placePart(def, item, owner, index));
+    if (d.kind === "new") setSel({ kind: "item", id: item.id });
+    setSaid(d.kind === "new" ? t("{name} added to the form.", { name: nameOf(item) }) : t("{name} moved.", { name: nameOf(item) }));
   };
-  const overItem = (index: number, half: boolean) => (e: DragEvent) => {
+  const hover = (e: DragEvent, o: Over) => {
     if (!e.dataTransfer.types.includes(MIME)) return;
     e.preventDefault();
     e.stopPropagation();
+    setOver((cur) => (cur && cur.owner === o.owner && cur.index === o.index ? cur : o));
+  };
+  /** Over a part: before or after it in its list (left/right in a row or for a half-width field, else above/below). */
+  const overPart = (owner: string, index: number, across: boolean) => (e: DragEvent) => {
     const r = e.currentTarget.getBoundingClientRect();
-    const after = half ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
-    const target = { step: at, index: index + (after ? 1 : 0) };
-    setOver((o) => (o && o.step === target.step && o.index === target.index ? o : target));
+    const after = across ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2;
+    hover(e, { owner, index: index + (after ? 1 : 0) });
   };
-  /** The insertion line on a canvas part: before it (top, or left for a half), or after the last one. */
-  const line = (index: number, half: boolean): string => {
-    if (over?.step !== at) return "";
-    if (over.index === index) return half ? "shadow-[inset_4px_0_0_0_#6366f1]" : "shadow-[inset_0_4px_0_0_#6366f1]";
-    if (over.index === index + 1 && half) return "shadow-[inset_-4px_0_0_0_#6366f1]";
-    return "";
-  };
+  const line = (owner: string, index: number, across: boolean): string => (over?.owner !== owner || over.index !== index ? "" : across ? "shadow-[inset_4px_0_0_0_#6366f1]" : "shadow-[inset_0_4px_0_0_#6366f1]");
 
-  const keys = (id: string) => (e: KeyboardEvent<HTMLDivElement>) => {
+  const keys = (id: string) => (e: KeyboardEvent<HTMLElement>) => {
     if (e.target !== e.currentTarget) return;
     if (e.altKey && (e.key === "ArrowUp" || e.key === "ArrowDown")) {
       e.preventDefault();
       move(id, e.key === "ArrowUp" ? -1 : 1);
+    } else if (e.altKey && (e.key === "ArrowRight" || e.key === "ArrowLeft")) {
+      e.preventDefault();
+      shift(id, e.key === "ArrowRight");
     } else if (e.key === "Delete" || e.key === "Backspace") {
       e.preventDefault();
       remove(id);
@@ -200,7 +197,92 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
     }
   };
 
+  /** One part on the canvas — a box with its own list inside. `across`: its list lays parts side by side (a row). */
+  const part = (item: FormItem, owner: string, index: number, total: number, inRow: boolean, top: boolean): ReactNode => {
+    const isSel = sel.kind === "item" && sel.id === item.id;
+    const pos = t("position {n} of {total}", { n: index + 1, total });
+    const handle = {
+      "data-item": item.id,
+      role: "button",
+      tabIndex: 0,
+      "aria-pressed": isSel,
+      "aria-keyshortcuts": "Alt+ArrowUp Alt+ArrowDown Alt+ArrowRight Alt+ArrowLeft Delete Enter",
+      draggable: true,
+      onDragStart: drag({ kind: "move", id: item.id }),
+      onDragEnd: () => setOver(null),
+      onClick: (e: { stopPropagation: () => void }) => (e.stopPropagation(), setSel({ kind: "item", id: item.id })),
+      onKeyDown: keys(item.id),
+    } as const;
+    const ring = isSel ? "ring-2 ring-indigo-500" : "";
+    if (item.kind === "flex") {
+      const across = item.dir === "row";
+      return (
+        <div
+          key={item.id}
+          role="group"
+          aria-label={boxName(item)}
+          className={`rounded-md border border-dashed p-2 ${across ? "border-indigo-300 bg-indigo-500/[0.04] dark:border-indigo-800" : "border-zinc-300 bg-zinc-500/[0.05] dark:border-zinc-600"} ${top ? "sm:col-span-2" : ""} ${inRow ? flexChildClass({ dir: "row" }) : ""} ${ring} ${line(owner, index, inRow)}`}
+          onDragOver={overPart(owner, index, inRow)}
+          onDrop={(e) => dropAt(e, owner, over?.owner === owner ? over.index : index)}
+        >
+          <div {...handle} aria-label={`${boxName(item)}, ${t("{n} parts", { n: item.items.length })} — ${pos}`} className="mb-1 flex cursor-grab items-center gap-1 rounded px-1 text-[11px] font-medium text-zinc-500 outline-none select-none focus-visible:ring-2 focus-visible:ring-indigo-500">
+            <span aria-hidden="true">⠿ {across ? "⇢" : "⇣"}</span> {boxName(item)}
+          </div>
+          {list(item.id, item.items, across, false, item)}
+        </div>
+      );
+    }
+    const half = item.kind === "field" && item.width === "half";
+    const prop = item.kind === "field" ? propOf(item.prop) : undefined;
+    const notes = item.kind === "field" ? [item.required ? t("required") : "", item.hidden ? t("not asked") : "", item.when ? t("conditional") : "", form.db && !prop ? t("field is gone") : ""].filter(Boolean) : [];
+    return (
+      <div
+        key={item.id}
+        {...handle}
+        aria-label={`${nameOf(item)}${notes.length ? ` (${notes.join(", ")})` : ""} — ${pos}`}
+        onDragOver={overPart(owner, index, inRow || (top && half))}
+        onDrop={(e) => dropAt(e, owner, over?.owner === owner ? over.index : index)}
+        className={`group relative cursor-grab rounded-md p-2 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${top && !half ? "sm:col-span-2" : ""} ${inRow ? flexChildClass({ dir: "row" }) : ""} ${isSel ? "bg-indigo-50/60 ring-2 ring-indigo-500 dark:bg-indigo-950/40" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"} ${item.kind === "field" && (item.hidden || item.when) ? "border border-dashed border-zinc-300 dark:border-zinc-600" : ""} ${line(owner, index, inRow || (top && half))}`}
+      >
+        {notes.length > 0 && (
+          <span className="absolute top-1 right-2 text-[11px] text-zinc-500" aria-hidden="true">
+            {notes.join(" · ")}
+          </span>
+        )}
+        <div inert className="pointer-events-none">
+          {item.kind !== "field" ? <StaticItem item={item} /> : prop ? <FieldControl item={item} prop={prop} value={defaultAnswer(prop, item.default)} onChange={() => undefined} uid={`fd${form.id}`} /> : <p className="text-sm text-zinc-500">{item.prop}</p>}
+        </div>
+      </div>
+    );
+  };
+
+  /** A list of parts — the step's (a two-column grid) or a box's (its own layout) — with the line where a drop would land at its end. */
+  function list(owner: string, items: FormItem[], across: boolean, top: boolean, box?: FlexItem): ReactNode {
+    const end = over?.owner === owner && over.index === items.length;
+    return (
+      <div
+        ref={top ? canvas : undefined}
+        className={top ? "grid min-h-24 grid-cols-1 gap-3 sm:grid-cols-2" : `${flexClass(box!)} min-h-12`}
+        onDragOver={(e) => e.target === e.currentTarget && hover(e, { owner, index: items.length })}
+        onDragLeave={(e) => top && !e.currentTarget.contains(e.relatedTarget as Node | null) && setOver(null)}
+        onDrop={(e) => dropAt(e, owner, over?.owner === owner ? over.index : items.length)}
+      >
+        {items.map((item, i) => part(item, owner, i, items.length, across, top))}
+        {!items.length &&
+          (top ? (
+            <p className="rounded-md border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 sm:col-span-2 dark:border-zinc-700">{form.db ? t("Drag fields here, or add them with ＋.") : t("Choose the database this form fills first.")}</p>
+          ) : (
+            <p className={`flex-1 rounded p-2 text-center text-xs text-zinc-400 ${end ? "ring-2 ring-indigo-500" : ""}`} onDragOver={(e) => hover(e, { owner, index: 0 })}>
+              {t("Drop parts here")}
+            </p>
+          ))}
+        {end && items.length > 0 && <div className={across ? "w-1 self-stretch rounded bg-indigo-500" : `h-1 rounded bg-indigo-500 ${top ? "sm:col-span-2" : ""}`} aria-hidden="true" />}
+      </div>
+    );
+  }
+
   // --- Steps ---
+  const withSteps = (fn: (steps: FormStep[]) => FormStep[]): FormDef => ({ ...def, steps: fn(def.steps.map((s) => ({ ...s, items: [...s.items] }))) });
   const addStep = () => {
     change({ ...def, steps: [...def.steps, newStep(t("Step {n}", { n: def.steps.length + 1 }))] });
     setAt(def.steps.length);
@@ -210,7 +292,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
     const to = at + by;
     if (to < 0 || to >= def.steps.length) return;
     change(
-      withSteps(def, (steps) => {
+      withSteps((steps) => {
         const [s] = steps.splice(at, 1);
         steps.splice(to, 0, s);
         return steps;
@@ -224,7 +306,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
     if (step.items.length && !confirmAction(t("Delete this step? Its parts move to the step before it."))) return;
     const into = at > 0 ? at - 1 : 1;
     change(
-      withSteps(def, (steps) => {
+      withSteps((steps) => {
         steps[into].items.push(...steps[at].items);
         steps.splice(at, 1);
         return steps;
@@ -236,14 +318,17 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
 
   const chooseDb = (dbId: number | null) => {
     if (dbId === def.dbId) return;
-    if (def.dbId && def.steps.some((s) => s.items.some((i) => i.kind === "field")) && !confirmAction(t("Fill another database? The fields of this one leave the form."))) return;
-    const steps: FormStep[] = def.steps.map((s) => ({ ...s, items: s.items.filter((i) => i.kind !== "field") }));
-    if (dbId) steps[0] = { ...steps[0], items: [fieldItem(TITLE, { required: true }), ...steps[0].items] };
-    change({ ...def, dbId, steps });
+    if (def.dbId && def.steps.some((s) => fieldsIn(s.items).length) && !confirmAction(t("Fill another database? The fields of this one leave the form."))) return;
+    // (The fields go, the layout — headings, texts, rows and columns — stays.)
+    let next = def;
+    for (const f of def.steps.flatMap((s) => fieldsIn(s.items))) next = removePart(next, f.id);
+    if (dbId) next = placePart(next, fieldItem(TITLE, { required: true }), next.steps[0].id, 0);
+    change({ ...next, dbId });
   };
 
-  const selected = sel.kind === "item" ? findItem(def, sel.id) : undefined;
+  const selected = sel.kind === "item" ? findPart(def, sel.id) : undefined;
   const pal = "flex items-center gap-2 rounded-md border border-zinc-200 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900";
+  const targetName = target === step.id ? "" : nameOf(findPart(def, target)!);
 
   return (
     <div className="grid gap-4 lg:grid-cols-[15rem_minmax(0,1fr)_19rem]">
@@ -267,6 +352,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
           </select>
           {def.dbId && !form.db && status !== "saving" && <p className="text-xs text-amber-700 dark:text-amber-400">{t("That database is gone (in the trash?).")}</p>}
         </section>
+        {targetName && <p className="rounded bg-indigo-50 px-2 py-1 text-xs text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{t("＋ adds into the selected {box}.", { box: targetName })}</p>}
         {form.db && (
           <section className="space-y-1.5">
             <h2 className="text-xs font-semibold text-zinc-500 uppercase">{t("Fields")}</h2>
@@ -300,6 +386,8 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
                 ["heading", "H", t("Heading"), (): FormItem => ({ id: formItemId(), kind: "heading", text: t("Heading") })],
                 ["text", "¶", t("Text"), (): FormItem => ({ id: formItemId(), kind: "text", text: t("Some words for the people filling it in.") })],
                 ["divider", "—", t("Divider"), (): FormItem => ({ id: formItemId(), kind: "divider" })],
+                ["row", "⇢", t("Row (two columns side by side)"), (): FormItem => newBox("row", formItemId)],
+                ["col", "⇣", t("Column (parts one under the other)"), (): FormItem => newBox("col", formItemId)],
               ] as const
             ).map(([k, icon, label, make]) => (
               <li key={k} className={`${pal} cursor-grab`} draggable onDragStart={drag({ kind: "new", item: make() })}>
@@ -314,7 +402,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
             ))}
           </ul>
         </section>
-        <p className="text-xs text-zinc-500">{t("Drag parts onto the form, or use ＋. On the form: Alt+↑/↓ moves the selected part, Delete removes it.")}</p>
+        <p className="text-xs text-zinc-500">{t("Drag parts onto the form, or use ＋. On the form: Alt+↑/↓ moves the selected part, Alt+→ puts it into the box after it, Alt+← takes it out of its box, Delete removes it.")}</p>
       </aside>
 
       {/* The canvas */}
@@ -325,14 +413,10 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
               key={s.id}
               type="button"
               aria-current={i === at ? "step" : undefined}
-              className={`rounded-md border px-2.5 py-1 text-sm ${i === at ? "border-indigo-500 bg-indigo-50 font-medium dark:bg-indigo-950" : "border-zinc-200 dark:border-zinc-700"} ${over && over.step === i && i !== at ? "ring-2 ring-indigo-500" : ""}`}
+              className={`rounded-md border px-2.5 py-1 text-sm ${i === at ? "border-indigo-500 bg-indigo-50 font-medium dark:bg-indigo-950" : "border-zinc-200 dark:border-zinc-700"} ${over && over.owner === s.id && i !== at ? "ring-2 ring-indigo-500" : ""}`}
               onClick={() => (setAt(i), setSel({ kind: "step" }))}
-              onDragOver={(e) => {
-                if (!e.dataTransfer.types.includes(MIME)) return;
-                e.preventDefault();
-                setOver({ step: i, index: def.steps[i].items.length });
-              }}
-              onDrop={(e) => dropAt(e, i, def.steps[i].items.length)}
+              onDragOver={(e) => hover(e, { owner: s.id, index: s.items.length })}
+              onDrop={(e) => dropAt(e, s.id, s.items.length)}
             >
               {i + 1}. {s.title || t("Step {n}", { n: i + 1 })}
             </button>
@@ -349,57 +433,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
             {def.intro && <span className="mt-1 block text-sm whitespace-pre-wrap text-zinc-600 dark:text-zinc-300">{def.intro}</span>}
           </button>
           <StepProgress at={at} of={def.steps.length} title={step.title} />
-          <div
-            ref={canvas}
-            className="grid min-h-24 grid-cols-1 gap-3 sm:grid-cols-2"
-            onDragOver={(e) => {
-              if (!e.dataTransfer.types.includes(MIME)) return;
-              e.preventDefault();
-              if (e.target === e.currentTarget) setOver({ step: at, index: step.items.length });
-            }}
-            onDragLeave={(e) => !e.currentTarget.contains(e.relatedTarget as Node | null) && setOver(null)}
-            onDrop={(e) => dropAt(e, at, over?.step === at ? over.index : step.items.length)}
-          >
-            {step.items.map((item, index) => {
-              const half = item.kind === "field" && item.width === "half";
-              const prop = item.kind === "field" ? propOf(item.prop) : undefined;
-              const isSel = sel.kind === "item" && sel.id === item.id;
-              const notes = item.kind === "field" ? [item.required ? t("required") : "", item.hidden ? t("not asked") : "", item.when ? t("conditional") : "", form.db && !prop ? t("field is gone") : ""].filter(Boolean) : [];
-              return (
-                <div
-                  key={item.id}
-                  data-item={item.id}
-                  role="button"
-                  tabIndex={0}
-                  aria-pressed={isSel}
-                  aria-label={`${nameOf(item)}${notes.length ? ` (${notes.join(", ")})` : ""} — ${t("position {n} of {total}", { n: index + 1, total: step.items.length })}`}
-                  aria-keyshortcuts="Alt+ArrowUp Alt+ArrowDown Delete Enter"
-                  draggable
-                  onDragStart={drag({ kind: "move", id: item.id })}
-                  onDragEnd={() => setOver(null)}
-                  onDragOver={overItem(index, half)}
-                  onDrop={(e) => {
-                    e.stopPropagation();
-                    dropAt(e, at, over?.step === at ? over.index : index);
-                  }}
-                  onClick={() => setSel({ kind: "item", id: item.id })}
-                  onKeyDown={keys(item.id)}
-                  className={`group relative cursor-grab rounded-md p-2 outline-none focus-visible:ring-2 focus-visible:ring-indigo-500 ${half ? "" : "sm:col-span-2"} ${isSel ? "bg-indigo-50/60 ring-2 ring-indigo-500 dark:bg-indigo-950/40" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/50"} ${item.kind === "field" && (item.hidden || item.when) ? "border border-dashed border-zinc-300 dark:border-zinc-600" : ""} ${line(index, half)}`}
-                >
-                  {notes.length > 0 && (
-                    <span className="absolute top-1 right-2 text-[11px] text-zinc-500" aria-hidden="true">
-                      {notes.join(" · ")}
-                    </span>
-                  )}
-                  <div inert className="pointer-events-none">
-                    {item.kind !== "field" ? <StaticItem item={item} /> : prop ? <FieldControl item={item} prop={prop} value={defaultAnswer(prop, item.default)} onChange={() => undefined} uid={`fd${form.id}`} /> : <p className="text-sm text-zinc-500">{item.prop}</p>}
-                  </div>
-                </div>
-              );
-            })}
-            {!step.items.length && <p className="rounded-md border border-dashed border-zinc-300 p-6 text-center text-sm text-zinc-500 sm:col-span-2 dark:border-zinc-700">{form.db ? t("Drag fields here, or add them with ＋.") : t("Choose the database this form fills first.")}</p>}
-            {over?.step === at && over.index === step.items.length && step.items.length > 0 && <div className="h-1 rounded bg-indigo-500 sm:col-span-2" aria-hidden="true" />}
-          </div>
+          {list(step.id, step.items, false, true)}
           <div inert className="flex gap-2">
             {at > 0 && <span className="btn">← {t("Back")}</span>}
             <span className="btn btn-primary">{at < def.steps.length - 1 ? `${t("Next")} →` : def.submitLabel || t("Send")}</span>
@@ -422,7 +456,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
         {sel.kind === "step" && (
           <>
             <h2 className="font-semibold">{t("Step {n}", { n: at + 1 })}</h2>
-            <Text label={t("Title of the step")} value={step.title} onChange={(v) => change(withSteps(def, (steps) => ((steps[at] = { ...steps[at], title: v }), steps)))} />
+            <Text label={t("Title of the step")} value={step.title} onChange={(v) => change(withSteps((steps) => ((steps[at] = { ...steps[at], title: v }), steps)))} />
             <div className="flex flex-wrap gap-2">
               <button type="button" className="btn btn-sm" disabled={at === 0} onClick={() => moveStep(-1)}>
                 ← {t("Earlier")}
@@ -443,10 +477,12 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
             item={selected}
             def={def}
             props={props}
-            stepIndex={stepOf(def, selected.id)}
-            onPatch={(p) => change(patchItem(def, selected.id, p))}
+            stepIndex={spotOf(def, selected.id)?.step ?? at}
+            nested={(spotOf(def, selected.id)?.owner ?? step.id) !== def.steps[spotOf(def, selected.id)?.step ?? at]?.id}
+            onPatch={(p) => change(patchPart(def, selected.id, p))}
             onRemove={() => remove(selected.id)}
             onMove={(by) => move(selected.id, by)}
+            onShift={(into) => shift(selected.id, into)}
             onStep={(s) => toStep(selected.id, s)}
           />
         )}
@@ -468,14 +504,41 @@ function Text({ label, value, onChange, placeholder, area = false }: { label: st
 const asDefault = (v: unknown): string => (Array.isArray(v) ? v.join(",") : v === true ? "true" : v === false ? "" : String(v ?? ""));
 
 /** The settings of one part of the form: a field's words, required / not asked (with its value), width, condition, step. */
-function ItemInspector({ item, def, props, stepIndex, onPatch, onRemove, onMove, onStep }: { item: FormItem; def: FormDef; props: Property[]; stepIndex: number; onPatch: (p: Partial<FieldItem> | Partial<FormItem>) => void; onRemove: () => void; onMove: (by: number) => void; onStep: (s: number) => void }) {
+function ItemInspector({ item, def, props, stepIndex, nested, onPatch, onRemove, onMove, onShift, onStep }: { item: FormItem; def: FormDef; props: Property[]; stepIndex: number; /** It sits in a box (a row, a column). */ nested: boolean; onPatch: (p: Partial<FieldItem> | Partial<FlexItem> | Partial<FormItem>) => void; onRemove: () => void; onMove: (by: number) => void; onShift: (into: boolean) => void; onStep: (s: number) => void }) {
   const t = useT();
   const prop = item.kind === "field" ? props.find((p) => p.id === item.prop) : undefined;
-  const others = def.steps.flatMap((s) => s.items).filter((i): i is FieldItem => i.kind === "field" && i.id !== item.id);
+  const others = def.steps.flatMap((s) => fieldsIn(s.items)).filter((i) => i.id !== item.id);
   const opNames: Record<CondOp, string> = { eq: t("is"), neq: t("is not"), contains: t("contains"), filled: t("is filled"), empty: t("is empty") };
   return (
     <>
-      <h2 className="font-semibold">{item.kind === "field" ? (prop?.name ?? item.prop) : item.kind === "heading" ? t("Heading") : item.kind === "text" ? t("Text") : t("Divider")}</h2>
+      <h2 className="font-semibold">{item.kind === "field" ? (prop?.name ?? item.prop) : item.kind === "heading" ? t("Heading") : item.kind === "text" ? t("Text") : item.kind === "flex" ? (item.dir === "row" ? t("Row") : t("Column")) : t("Divider")}</h2>
+      {item.kind === "flex" && (
+        <>
+          <fieldset className="space-y-1">
+            <legend className="text-sm font-medium">{t("Direction")}</legend>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {(["row", "col"] as const).map((d) => (
+                <label key={d} className="flex items-center gap-1.5">
+                  <input type="radio" name={`dir-${item.id}`} className="accent-indigo-600" checked={item.dir === d} onChange={() => onPatch({ dir: d })} />
+                  {d === "row" ? t("Row — side by side") : t("Column — one under the other")}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <fieldset className="space-y-1">
+            <legend className="text-sm font-medium">{t("Space between")}</legend>
+            <div className="flex flex-wrap gap-x-4 gap-y-1">
+              {(["sm", "md", "lg"] as const).map((g) => (
+                <label key={g} className="flex items-center gap-1.5">
+                  <input type="radio" name={`gap-${item.id}`} className="accent-indigo-600" checked={(item.gap ?? "md") === g} onChange={() => onPatch({ gap: g === "md" ? undefined : g })} />
+                  {g === "sm" ? t("Small") : g === "md" ? t("Medium") : t("Large")}
+                </label>
+              ))}
+            </div>
+          </fieldset>
+          <p className="text-xs text-zinc-500">{t("Removing a box keeps what is in it: its parts take its place.")}</p>
+        </>
+      )}
       {(item.kind === "heading" || item.kind === "text") && <Text label={item.kind === "heading" ? t("Heading") : t("Text")} value={item.text} area={item.kind === "text"} onChange={(v) => onPatch({ text: v })} />}
       {item.kind === "field" && (
         <>
@@ -520,6 +583,14 @@ function ItemInspector({ item, def, props, stepIndex, onPatch, onRemove, onMove,
         <button type="button" className="btn btn-sm" onClick={() => onMove(1)} aria-label={t("Move down")} title={t("Move down")}>
           ↓
         </button>
+        <button type="button" className="btn btn-sm" onClick={() => onShift(true)} title={t("Into the box after it (Alt+→)")}>
+          {t("Into the next box")}
+        </button>
+        {nested && (
+          <button type="button" className="btn btn-sm" onClick={() => onShift(false)} title={t("Out of its box (Alt+←)")}>
+            {t("Out of the box")}
+          </button>
+        )}
         {def.steps.length > 1 && (
           <select className="input w-auto py-1 text-xs" value={stepIndex} aria-label={t("Move to step")} onChange={(e) => onStep(Number(e.target.value))}>
             {def.steps.map((s, i) => (

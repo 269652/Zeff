@@ -22,13 +22,20 @@ export type FieldItem = { id: string; kind: "field"; prop: string; label?: strin
 export type HeadingItem = { id: string; kind: "heading"; text: string };
 export type TextItem = { id: string; kind: "text"; text: string };
 export type DividerItem = { id: string; kind: "divider" };
-export type FormItem = FieldItem | HeadingItem | TextItem | DividerItem;
+/**
+ * A box that lays out what is in it: a row side by side (each part sharing the row, stacked on a narrow screen), a column one under
+ * the other. Boxes nest (a row of two columns, each with fields) — FLEX_DEPTH deep at most. Layout only: nothing of it is asked.
+ */
+export type FlexItem = { id: string; kind: "flex"; dir: "row" | "col"; gap?: "sm" | "md" | "lg"; items: FormItem[] };
+export type FormItem = FieldItem | HeadingItem | TextItem | DividerItem | FlexItem;
 export type FormStep = { id: string; title: string; items: FormItem[] };
 /** A form: the database it fills (null: not chosen yet), its words, and its steps (one: a plain form; several: a wizard). */
 export type FormDef = { dbId: number | null; title: string; intro: string; submitLabel: string; thanks: string; steps: FormStep[] };
 /** The answers as the form holds them, by property id (TITLE for the title): texts, a choice's option id, ids of people and rows. */
 export type Answers = Record<string, unknown>;
 
+/** How deep boxes (rows, columns) may nest in a form. */
+export const FLEX_DEPTH = 3;
 export const FORM_LIMITS = { steps: 20, items: 150, title: 200, intro: 2000, submit: 60, thanks: 1000, label: 200, help: 500, placeholder: 200, default: 500, heading: 200, text: 2000, step: 120, value: 200 } as const;
 
 /** Properties a form can't offer although their type would do: what Zeff keeps for itself (a ticket's key, a source's reference). */
@@ -45,6 +52,12 @@ export function formProps(schema: { titleName: string; properties: Property[] })
 export const formItemId = (): string => newId("f");
 export const newStep = (title = ""): FormStep => ({ id: newId("s"), title, items: [] });
 export const fieldItem = (prop: string, extra: Partial<FieldItem> = {}): FieldItem => ({ id: formItemId(), kind: "field", prop, width: "full", ...extra });
+export const flexItem = (dir: "row" | "col", items: FormItem[] = []): FlexItem => ({ id: formItemId(), kind: "flex", dir, items });
+
+/** Every part of these, boxes and what is in them (depth first, in the order they show). */
+export const flatItems = (items: FormItem[]): FormItem[] => items.flatMap((i) => (i.kind === "flex" ? [i, ...flatItems(i.items)] : [i]));
+/** The fields among these parts, those in boxes too. */
+export const fieldsIn = (items: FormItem[]): FieldItem[] => flatItems(items).filter((i): i is FieldItem => i.kind === "field");
 
 /** A new form of a database: one step asking the title (required). */
 export function newFormDef(dbId: number | null): FormDef {
@@ -83,9 +96,15 @@ export function normalizeForm(raw: unknown, props?: Property[]): FormDef {
   let count = 0;
   const steps = (Array.isArray(o.steps) ? o.steps : []).slice(0, FORM_LIMITS.steps).map((s): FormStep => {
     const x = (s && typeof s === "object" ? s : {}) as Record<string, unknown>;
-    const items = (Array.isArray(x.items) ? x.items : []).flatMap((it): FormItem[] => {
+    const list = (raw: unknown, depth: number): FormItem[] => (Array.isArray(raw) ? raw : []).flatMap((it): FormItem[] => {
       if (!it || typeof it !== "object" || ++count > FORM_LIMITS.items) return [];
       const i = it as Record<string, unknown>;
+      if (i.kind === "flex") {
+        // (A box deeper than allowed is left out with what is in it.)
+        if (depth >= FLEX_DEPTH) return [];
+        const id = uid(i.id, formItemId);
+        return [{ id, kind: "flex", dir: i.dir === "col" ? "col" : "row", ...(i.gap === "sm" || i.gap === "lg" ? { gap: i.gap } : {}), items: list(i.items, depth + 1) }];
+      }
       if (i.kind === "heading") return [{ id: uid(i.id, formItemId), kind: "heading", text: str(i.text, FORM_LIMITS.heading) }];
       if (i.kind === "text") return [{ id: uid(i.id, formItemId), kind: "text", text: str(i.text, FORM_LIMITS.text) }];
       if (i.kind === "divider") return [{ id: uid(i.id, formItemId), kind: "divider" }];
@@ -109,14 +128,15 @@ export function normalizeForm(raw: unknown, props?: Property[]): FormDef {
       };
       return [field];
     });
+    const items = list(x.items, 0);
     return { id: uid(x.id, () => newId("s")), title: str(x.title, FORM_LIMITS.step), items };
   });
   // A condition only on another field the form asks (one that is gone, or itself, would hide the field for good).
-  for (const s of steps) for (const it of s.items) if (it.kind === "field" && it.when && (it.when.prop === it.prop || !asked.has(it.when.prop))) delete it.when;
+  for (const s of steps) for (const it of fieldsIn(s.items)) if (it.when && (it.when.prop === it.prop || !asked.has(it.when.prop))) delete it.when;
   return { dbId, title: str(o.title, FORM_LIMITS.title), intro: str(o.intro, FORM_LIMITS.intro), submitLabel: str(o.submitLabel, FORM_LIMITS.submit), thanks: str(o.thanks, FORM_LIMITS.thanks), steps: steps.length ? steps : [newStep()] };
 }
 
-export const formFields = (def: FormDef): FieldItem[] => def.steps.flatMap((s) => s.items.filter((i): i is FieldItem => i.kind === "field"));
+export const formFields = (def: FormDef): FieldItem[] => def.steps.flatMap((s) => fieldsIn(s.items));
 export const fieldLabel = (f: FieldItem, p: Property | undefined): string => f.label || p?.name || f.prop;
 
 const yes = (v: unknown) => v === true || /^(1|true|yes|ja|y|x|✓)$/i.test(String(v ?? "").trim());
@@ -227,8 +247,8 @@ export function formErrors(def: FormDef, answers: Answers, props: Property[], t:
   const out: Record<string, string> = {};
   for (const s of def.steps) {
     if (stepId && s.id !== stepId) continue;
-    for (const f of s.items) {
-      if (f.kind !== "field" || !shown.has(f.id)) continue;
+    for (const f of fieldsIn(s.items)) {
+      if (!shown.has(f.id)) continue;
       const p = props.find((x) => x.id === f.prop);
       if (!p) continue;
       const field = fieldLabel(f, p);
