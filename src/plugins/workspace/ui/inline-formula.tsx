@@ -1,6 +1,6 @@
 "use client";
 
-import { InputRule, mergeAttributes, Node } from "@tiptap/core";
+import { InputRule, mergeAttributes, Node, type EditorEvents } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
@@ -53,7 +53,7 @@ function InlineFormulaView({ node, updateAttributes, deleteNode, editor, selecte
   // Worked out again when the page changes or what the server knows comes in (Kennzahlen, a plugin's function).
   const [tick, setTick] = useState(0);
   useEffect(() => {
-    const on = ({ transaction }: { transaction: { docChanged: boolean; getMeta: (k: unknown) => unknown } }) => {
+    const on = ({ transaction }: EditorEvents["transaction"]) => {
       if (transaction.docChanged || transaction.getMeta(tableFormulasKey)) setTick((x) => x + 1);
     };
     editor.on("transaction", on);
