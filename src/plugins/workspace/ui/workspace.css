@@ -282,7 +282,7 @@
   color: var(--color-teal-700, #0f766e);
 }
 .ws-chip[data-kind="todo"] {
-  background: color-mix(in oklab, var(--color-amber-500, #f59e0b) 16%, transparent);
+  background: color-mix(in oklab, var(--color-amber-500, #f59e0b) 9%, transparent);
   color: var(--color-amber-800, #92400e);
 }
 .ws-chip[data-kind="ticket"] {

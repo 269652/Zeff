@@ -71,7 +71,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       const all = listTodos({ status: "open" }).filter((x) => aboutThem(p, `${x.text} ${x.note ?? ""}`));
       const items: WidgetItem[] = all.slice(0, Number(config.limit ?? 8)).map((x) => ({
         id: String(x.id),
-        icon: x.owner === "other" ? "⏳" : "☑️",
+        icon: x.owner === "other" ? "⏳" : "☐",
         text: x.text,
         detail: [x.ref, x.owner === "other" ? t("waiting on them") : ""].filter(Boolean).join(" · "),
         meta: x.due || undefined,
@@ -152,7 +152,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       if (isInstalled("todos")) {
         const { listTodos } = await import("@/lib/boards/store");
         const todos = listTodos({ status: "open" }).filter((x) => aboutThem(p, `${x.text} ${x.note ?? ""}`));
-        if (todos.length) add("☑️", todos.slice(0, 4).map((x) => x.text).join(" · "), t("Open todos ({n})", { n: todos.length }));
+        if (todos.length) add("☐", todos.slice(0, 4).map((x) => x.text).join(" · "), t("Open todos ({n})", { n: todos.length }));
       }
       // Money: what you owe them, what they owe you (Finances) — and their cases.
       if (isInstalled("finances")) {

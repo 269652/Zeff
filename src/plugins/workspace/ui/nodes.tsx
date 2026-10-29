@@ -208,7 +208,8 @@ function RefView({ node, editor, getPos }: NodeViewProps) {
       alive = false;
     };
   }, [kind, ref]);
-  const icon = state.icon ?? (kind === "person" ? "👤" : kind === "todo" ? (state.done ? "✅" : "☑️") : kind === "ticket" ? "🎫" : kind === "metric" ? "📊" : kind === "circle" ? "👥" : "📄");
+  // (An open todo: an empty box — ☑️ is drawn as a ticked one.)
+  const icon = kind === "todo" ? (state.done ? "✅" : "☐") : state.icon ?? (kind === "person" ? "👤" : kind === "ticket" ? "🎫" : kind === "metric" ? "📊" : kind === "circle" ? "👥" : "📄");
   const text = kind === "todo" || kind === "ticket" ? label : (state.label ?? label);
   const external = /^https?:\/\//.test(href ?? "");
   // A page's chip: shown inline instead (its content in place) — a click on ⤢.
@@ -243,7 +244,7 @@ function RefView({ node, editor, getPos }: NodeViewProps) {
       ) : (
         text
       )}
-      {state.status && kind === "todo" && !state.done ? <span className="opacity-60">· {state.status}</span> : null}
+      {state.status && kind === "todo" && !state.done && !/^(open|offen)$/i.test(state.status) ? <span className="opacity-60">· {state.status}</span> : null}
     </a>
   );
   return (

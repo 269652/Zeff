@@ -228,7 +228,7 @@ function CellValue({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx }) {
 /** A mention in a cell's text as a chip: a page, a todo, a Kennzahl link to theirs. */
 function RefChip({ kind, ref, label }: { kind: string; ref: string; label: string }) {
   const href = kind === "page" ? `/workspace/${ref}` : kind === "todo" ? `/t/${ref}` : kind === "metric" ? `/workspace/metrics#${ref}` : "";
-  const icon = { page: "📄", todo: "☑️", ticket: "🎫", person: "👤", metric: "📊", circle: "👥" }[kind] ?? "";
+  const icon = { page: "📄", todo: "☐", ticket: "🎫", person: "👤", metric: "📊", circle: "👥" }[kind] ?? "";
   const body = `${icon} ${label}`;
   return href ? (
     <Link href={href} onClick={(e) => e.stopPropagation()} className="ws-chip" data-kind={kind}>

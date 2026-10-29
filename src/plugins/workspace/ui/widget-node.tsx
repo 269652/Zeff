@@ -64,12 +64,12 @@ function Lead({ icon, tone }: { icon?: string; tone: Tone }) {
   if (!icon) return <span className={`mt-[0.45rem] size-2 shrink-0 rounded-full ${TONE_DOT[tone]}`} aria-hidden />;
   if (/^[A-ZÄÖÜ]{1,2}$/.test(icon))
     return (
-      <span className={`grid size-8 shrink-0 place-items-center rounded-full text-[11px] font-semibold ${AVATAR[hash(icon) % AVATAR.length]} dark:bg-zinc-800 dark:text-zinc-200`} aria-hidden>
+      <span className={`grid size-7 shrink-0 place-items-center rounded-full text-[11px] font-semibold ${AVATAR[hash(icon) % AVATAR.length]} dark:bg-zinc-800 dark:text-zinc-200`} aria-hidden>
         {icon}
       </span>
     );
   return (
-    <span className="grid size-8 shrink-0 place-items-center rounded-lg bg-zinc-100 text-[15px] leading-none dark:bg-zinc-800" aria-hidden>
+    <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-zinc-100/70 text-[14px] leading-none dark:bg-zinc-800" aria-hidden>
       {icon}
     </span>
   );
@@ -444,7 +444,7 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
       {!id ? (
         <Picker defs={defs} pick={(w) => updateAttributes({ widget: w, config: "{}" })} />
       ) : (
-        <section className={`group/widget relative ${bare ? "" : "rounded-2xl border border-zinc-200/80 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900"}`} data-widget={id}>
+        <section className={`group/widget relative ${bare ? "" : "rounded-xl border border-zinc-200/70 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900"}`} data-widget={id}>
           {/* Without its header: its name shows over the card on hover (it takes no room in the page), the controls top right. */}
           {!showHeader && (
             // (a tab of the card: its colour and border, rounded on top, no border below — set in from the left, over the card's edge by a pixel)

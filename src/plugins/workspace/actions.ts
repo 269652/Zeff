@@ -216,7 +216,7 @@ export async function mentionSearchAction(q: string): Promise<MentionItem[]> {
     }
     if (isInstalled("todos")) {
       const { searchTodos } = await import("@/lib/boards/store");
-      if (w) for (const x of searchTodos(w, 5)) items.push({ kind: "todo", ref: String(x.id), label: `${x.ref} ${x.text}`.slice(0, 90), hint: x.status === "done" ? t("Todo · done") : t("Todo"), icon: x.status === "done" ? "✅" : "☑️", href: `/t/${x.id}` });
+      if (w) for (const x of searchTodos(w, 5)) items.push({ kind: "todo", ref: String(x.id), label: `${x.ref} ${x.text}`.slice(0, 90), hint: x.status === "done" ? t("Todo · done") : t("Todo"), icon: x.status === "done" ? "✅" : "☐", href: `/t/${x.id}` });
     }
     // Tickets: by key (any key is allowed), and the synced ones by words.
     const key = /^[A-Za-z][A-Za-z0-9]+-\d+$/.test(w) ? w.toUpperCase() : null;
