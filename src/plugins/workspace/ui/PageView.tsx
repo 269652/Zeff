@@ -325,6 +325,11 @@ export function PageView({ page, row, database, form, person }: { page: PageView
               ✓ {t("Close")}
             </button>
           ))}
+        {page.kind === "page" && !locked && (
+          <button type="button" className="btn btn-sm" title={t("The AI thinks along about this page: asks what is missing, proposes what to set up — nothing happens until you apply it")} onClick={() => window.dispatchEvent(new CustomEvent("ws:assist"))}>
+            ✨ <span className="max-sm:sr-only">{t("Think along")}</span>
+          </button>
+        )}
         <button type="button" className="btn btn-sm max-sm:hidden" onClick={() => setHistory(true)}>
           🕘 {t("History")}
         </button>

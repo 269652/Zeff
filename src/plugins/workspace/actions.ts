@@ -1140,6 +1140,30 @@ export async function createTodosAction(items: { text: string; ticket?: string }
   });
 }
 
+/** "✨ Think along": one step of a card — the AI on the block before it (`block`, a node as JSON; null: the whole page) with the answers so far. */
+export async function assistAction(pageId: number, block: string | null, state: string) {
+  return run(async () => {
+    if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    const { readAssistState } = await import("./assist-shared");
+    const { runAssist } = await import("./assist");
+    return { state: await runAssist(Number(pageId), typeof block === "string" ? block.slice(0, 40000) : null, readAssistState(state)) };
+  });
+}
+
+/** "✨ Think along": the chosen actions of a card's proposal set up — the blocks for the editor to insert after the card, what was made elsewhere. */
+export async function applyAssistAction(pageId: number, state: string, ids: string[]) {
+  return run(async () => {
+    const { readAssistState } = await import("./assist-shared");
+    const { applyAssist } = await import("./assist");
+    return await applyAssist(Number(pageId), readAssistState(state), (Array.isArray(ids) ? ids : []).map(String));
+  });
+}
+
+/** "✨ Think along": what a card made outside the page taken back (its plan calendars, its todos). */
+export async function undoAssistAction(created: { kind: "calendar" | "todo"; id: number; label: string }[]) {
+  return run(async () => ({ undone: await (await import("./assist")).undoAssist(Array.isArray(created) ? created.slice(0, 50) : []) }));
+}
+
 /** The workspace assistant (the chat in the sidebar): the talk so far, and the page the user is on. */
 export async function workspaceChatAction(messages: { role: "user" | "assistant"; text: string }[], pageId?: number) {
   return run(async () => {
