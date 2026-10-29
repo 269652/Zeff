@@ -227,6 +227,18 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
       return `:::block activity {"limit":${Number(n.attrs?.limit) || 12}}`;
     case "zeffBelongs":
       return ":::block belongs";
+    case "zeffForm": {
+      // A form page shown in the page by its id; an old block (no form page yet) by its database, fields and button text.
+      if (Number(n.attrs?.formId) > 0) return `:::form ${Number(n.attrs!.formId)}`;
+      if (!(Number(n.attrs?.dbId) > 0)) return ":::form";
+      let fields: unknown = [];
+      try {
+        fields = JSON.parse(String(n.attrs?.fields ?? "[]"));
+      } catch {
+        // no fields
+      }
+      return `:::form ${JSON.stringify({ dbId: Number(n.attrs!.dbId), fields, ...(n.attrs?.label ? { label: String(n.attrs.label) } : {}) })}`;
+    }
     case "calendarEmbed":
       return `:::calendar ${Number(n.attrs?.calendarId) || 0} ${["day", "week", "month"].includes(String(n.attrs?.view)) ? String(n.attrs?.view) : "week"}${/^\d{4}-\d{2}-\d{2}$/.test(String(n.attrs?.day ?? "")) ? ` @${String(n.attrs?.day)}` : ""}${/^\d+(,\d+)*$/.test(String(n.attrs?.also ?? "")) ? ` +${String(n.attrs?.also)}` : ""}`;
     case "zeffTimeline":
@@ -391,6 +403,22 @@ export function markdownToDoc(md: string): Doc {
         i++;
         continue;
       }
+      // :::form 12  - the form page 12 filled in right in the page (:::form alone: one to be made; :::form {"dbId":5,…}: an old block)
+      const fm = /^:::form(?:\s+(\d+)|\s+(\{.*\}))?\s*$/.exec(l);
+      if (fm) {
+        let attrs: Record<string, unknown> = { formId: fm[1] ? Number(fm[1]) : null };
+        if (fm[2]) {
+          try {
+            const o = JSON.parse(fm[2]) as { dbId?: unknown; fields?: unknown; label?: unknown };
+            attrs = { formId: null, dbId: Number(o.dbId) || null, fields: JSON.stringify(Array.isArray(o.fields) ? o.fields.filter((x) => typeof x === "string") : []), label: typeof o.label === "string" ? o.label : "" };
+          } catch {
+            // not readable: a block without a form
+          }
+        }
+        out.push({ type: "zeffForm", attrs });
+        i++;
+        continue;
+      }
       // :::database 12 [title]  - a database shown in the page
       const db = /^:::database\s+(\d+)\s*(.*)$/.exec(l);
       if (db) {
@@ -552,7 +580,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   flexBox: ["dir", "gap", "wrap", "span"],
   zeffRoutine: [],
   zeffWidget: ["widget", "config", "title", "header"],
-  zeffForm: ["dbId", "fields", "label"],
+  zeffForm: ["formId", "dbId", "fields", "label"],
   zeffIf: ["field", "op", "value"],
   zeffField: ["prop", "label"],
   zeffRelated: ["dbId", "prop"],
@@ -631,8 +659,14 @@ export function sanitizeDoc(input: unknown): Doc {
         attrs.key = String(attrs.key ?? "").trim().toUpperCase().slice(0, 40);
       }
       if (o.type === "zeffForm") {
+        // A form page it shows (`formId`); else an old block's database and fields; else none yet (the block offers to make one).
+        const formId = Math.floor(Number(attrs.formId));
         const id = Math.floor(Number(attrs.dbId));
-        if (!(id > 0)) return null;
+        if (formId > 0 || !(id > 0)) {
+          out.attrs = formId > 0 ? { formId } : { formId: null };
+          return out;
+        }
+        delete attrs.formId;
         attrs.dbId = id;
         let fields: string[] = [];
         try {

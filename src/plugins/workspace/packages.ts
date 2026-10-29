@@ -1,10 +1,11 @@
 import "@/plugins/contributions";
 import { sanitizeDoc, type DocNode } from "./doc";
-import type { DbSchema } from "./model";
+import { normalizeForm, type FormDef } from "./form-spec";
+import { pageKind, type DbSchema, type PageKind } from "./model";
 import { BUILTIN_PACKAGES } from "./packages-builtin";
 import { workspacePackages } from "./packages-point";
 import { createRoutine, getRoutine, type RoutineConfig, type Step, type Trigger } from "./routines";
-import { addRow, createPage, getPage, rawRows, tree, updatePage, updateSchema } from "./store";
+import { addRow, createPage, getPage, rawRows, setPageProps, tree, updatePage, updateSchema } from "./store";
 
 /**
  * Packages: a whole app — pages, databases with fields and views, the blocks of the pages, the routines — as one JSON thing. It is made
@@ -17,11 +18,13 @@ export type PackageItem = {
   /** Its number inside the package (never a real id). */
   id: string;
   parent?: string;
-  kind: "page" | "database";
+  kind: PageKind;
   title: string;
   icon?: string;
   content?: DocNode;
   schema?: DbSchema;
+  /** A form: what it asks (form-spec.ts) — its database by local number. */
+  form?: FormDef;
   rows?: { title: string; icon?: string; cells: Record<string, unknown> }[];
   routine?: Pick<RoutineConfig, "kind" | "triggers" | "permissions" | "steps"> & { provider?: RoutineConfig["provider"] };
 };
@@ -65,7 +68,7 @@ function mapSchema(schema: DbSchema, f: Mapper): DbSchema {
 function mapDoc(doc: DocNode, f: Mapper): DocNode | null {
   const attrs = doc.attrs ? { ...doc.attrs } : undefined;
   if (attrs) {
-    for (const k of ["dbId", "pageId"]) {
+    for (const k of ["dbId", "pageId", "formId"]) {
       if (attrs[k] === undefined || attrs[k] === null || attrs[k] === "") continue;
       const m = f(attrs[k]);
       if (m === undefined) return null;
@@ -125,6 +128,9 @@ export function exportPackage(rootId: number, opts: { name: string; description?
         const skip = new Set(p.schema.properties.filter((x) => ["relation", "person", "todo", "ticket"].includes(x.type)).map((x) => x.id));
         item.rows = rawRows(id).map((r) => ({ title: r.title, ...(r.icon ? { icon: r.icon } : {}), cells: Object.fromEntries(Object.entries(r.cells).filter(([k]) => !skip.has(k))) }));
       }
+    } else if (p.kind === "form") {
+      const def = normalizeForm(p.props.form);
+      item.form = { ...def, dbId: (f(def.dbId) ?? null) as number | null };
     } else if (p.content) {
       item.content = mapDoc(p.content as DocNode, f) ?? undefined;
     }
@@ -154,13 +160,16 @@ export function installPackage(pkg: WorkspacePackage, parentId: number | null): 
   const made = new Map<string, number>();
   const f: Mapper = (id) => made.get(String(id));
   for (const i of sorted) {
-    made.set(String(i.id), createPage({ parentId: i.parent === undefined ? parentId : made.get(String(i.parent)), title: String(i.title ?? ""), icon: i.icon, kind: i.kind === "database" ? "database" : "page" }));
+    made.set(String(i.id), createPage({ parentId: i.parent === undefined ? parentId : made.get(String(i.parent)), title: String(i.title ?? ""), icon: i.icon, kind: pageKind(i.kind) }));
   }
   for (const i of pkg.items) {
     const id = made.get(String(i.id))!;
     if (i.kind === "database" && i.schema) {
       updateSchema(id, mapSchema(i.schema, f));
       for (const r of i.rows ?? []) addRow(id, { title: r.title, cells: r.cells });
+    } else if (i.kind === "form" && i.form) {
+      // (Its database by the new id — one outside the package: none, chosen again in the designer.)
+      setPageProps(id, { form: normalizeForm({ ...i.form, dbId: f(i.form.dbId) ?? null }) });
     } else if (i.content) {
       const c = mapDoc(i.content, f);
       if (c) updatePage(id, { content: sanitizeDoc(c) });

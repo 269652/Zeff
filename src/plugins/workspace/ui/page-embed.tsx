@@ -6,6 +6,7 @@ import { createContext, lazy, Suspense, useContext, useEffect, useState } from "
 import { useT } from "@/components/I18nProvider";
 import { pageEmbedAction } from "../actions";
 import { DatabaseBlock } from "./DatabaseView";
+import { kindIcon } from "../model";
 
 /**
  * Another page shown in this one (an inline page): its content as a block — written in place (it's that page's editor,
@@ -19,7 +20,7 @@ const Editor = lazy(() => import("./Editor").then((m) => ({ default: m.Editor })
 const Depth = createContext(0);
 const MAX_DEPTH = 2;
 
-type Embedded = { kind: "page" | "database"; title: string; icon: string; content: string; rev: number; children: { id: number; title: string; icon: string; kind: "page" | "database" }[] };
+type Embedded = { kind: "page" | "database"; title: string; icon: string; content: string; rev: number; children: { id: number; title: string; icon: string; kind: string }[] };
 
 /** A page chip as an inline page (replacing its line when the chip is all there is on it), or an inline page back as a chip. */
 export function embedPage(editor: TiptapEditor, pos: number, page: { id: number; title: string }): void {
@@ -74,7 +75,7 @@ function PageEmbedView({ node, editor, getPos, extension }: NodeViewProps) {
             {page.children.map((c) => (
               <li key={c.id}>
                 <Link href={`/workspace/${c.id}`} className="hover:underline">
-                  {c.icon || (c.kind === "database" ? "🗂" : "📄")} {c.title || t("Untitled")}
+                  {c.icon || kindIcon(c.kind)} {c.title || t("Untitled")}
                 </Link>
               </li>
             ))}

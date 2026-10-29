@@ -158,7 +158,7 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
       const walk = (pid: number | null, level: number) => {
         if (level > (depth ?? 4)) return;
         for (const it of items.filter((x) => x.parentId === pid).sort((a, b) => a.position - b.position)) {
-          out.push(`${"  ".repeat(level)}- [${it.id}] ${it.icon} ${it.title || "Untitled"}${it.kind === "database" ? " (database)" : ""}`);
+          out.push(`${"  ".repeat(level)}- [${it.id}] ${it.icon} ${it.title || "Untitled"}${it.kind === "database" ? " (database)" : it.kind === "form" ? " (form)" : ""}`);
           walk(it.id, level + 1);
         }
       };

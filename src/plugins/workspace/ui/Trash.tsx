@@ -6,6 +6,7 @@ import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { deletePageAction, emptyTrashAction, restorePageAction } from "../actions";
+import { kindIcon } from "../model";
 
 type Item = { id: number; title: string; icon: string; kind: string; archivedAt: string; below: number };
 
@@ -36,7 +37,7 @@ export function TrashList({ items }: { items: Item[] }) {
         <ul className="divide-y divide-zinc-200 rounded-lg border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
           {items.map((i) => (
             <li key={i.id} className="flex items-center gap-2 px-3 py-2 text-sm">
-              <span>{i.icon || (i.kind === "database" ? "🗂️" : "📄")}</span>
+              <span>{i.icon || kindIcon(i.kind)}</span>
               <span className="min-w-0 flex-1">
                 <span className="block truncate font-medium">{i.title || t("Untitled")}</span>
                 <span className="text-xs text-zinc-500">

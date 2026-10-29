@@ -137,11 +137,11 @@ export const slashItems = (t: T): SlashItem[] => [
   {
     key: "app-form",
     title: t("Form"),
-    hint: t("Inputs that make a row of a database — routines on new rows go on from there"),
+    hint: t("A new form for a database, or one there is — filled in here, it makes a row (routines on new rows go on from there)"),
     icon: "📝",
     group: t("App blocks"),
-    keywords: ["form", "input", "formular", "submit", "new row", "intake"],
-    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffForm", attrs: { dbId: null, fields: "[]", label: "" } }).run(),
+    keywords: ["form", "formular", "eingabe", "umfrage", "survey", "input", "submit", "new row", "intake", "wizard"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffForm", attrs: { formId: null } }).run(),
   },
   {
     key: "app-if",

@@ -13,15 +13,18 @@ import { archivePageAction, closeRowAction, reopenRowAction, restorePageAction, 
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
 import { DayEntry } from "./day-entry";
+import { FormPageBody } from "./form-page";
+import type { FormRun } from "../forms";
 import { LinkedPanel } from "./linked-panel";
 import { seedPerson } from "@/plugins/people/ui/PersonView";
 import type { PersonBundle } from "@/plugins/people/blocks";
 import { Editor, type SaveState } from "./Editor";
 import { COVERS, coverStyle, Dropdown, EmojiPicker, MenuItem, Modal, pickFile, uploadImage } from "./kit";
+import { kindIcon, type PageKind } from "../model";
 
 export type PageViewData = {
   id: number;
-  kind: "page" | "database";
+  kind: PageKind;
   title: string;
   icon: string;
   cover: string;
@@ -112,7 +115,7 @@ function History({ pageId, onClose }: { pageId: number; onClose: () => void }) {
   );
 }
 
-export function PageView({ page, row, database, person }: { page: PageViewData; row?: { initial: DatabaseData; dbId: number } | null; database?: DatabaseData | null; /** What a person's page shows, as the server read it with the page (no round trip after it). */ person?: PersonBundle | null }) {
+export function PageView({ page, row, database, form, person }: { page: PageViewData; row?: { initial: DatabaseData; dbId: number } | null; database?: DatabaseData | null; /** A form page: what it asks (forms.ts). */ form?: FormRun | null; /** What a person's page shows, as the server read it with the page (no round trip after it). */ person?: PersonBundle | null }) {
   const t = useT();
   const router = useRouter();
   // A person's view starts from what the server read with the page.
@@ -231,7 +234,7 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
 
   const editable = !locked;
   // A database uses the whole width (a board in a narrow column wastes the screen); a page as you set it.
-  const width = fullWidth || page.kind === "database" || !!row?.initial.extras?.rowView ? "max-w-none" : "max-w-3xl";
+  const width = fullWidth || page.kind === "database" || page.kind === "form" || !!row?.initial.extras?.rowView ? "max-w-none" : "max-w-3xl";
 
   return (
     <div className="space-y-3">
@@ -494,7 +497,7 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
                 window.dispatchEvent(new CustomEvent("ws:focus-editor"));
               }
             }}
-            placeholder={page.kind === "database" ? t("Untitled database") : t("Untitled")}
+            placeholder={page.kind === "database" ? t("Untitled database") : page.kind === "form" ? t("Untitled form") : t("Untitled")}
             aria-label={t("Title")}
             className={`min-w-0 flex-1 resize-none overflow-hidden bg-transparent text-4xl leading-tight font-bold outline-none focus:outline-none focus-visible:outline-none placeholder:text-zinc-300 dark:placeholder:text-zinc-700`}
           />
@@ -514,6 +517,8 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
         <SystemPageBar pageId={page.id} />
         {page.kind === "database" ? (
           <DatabaseView initial={database ?? null} dbId={page.id} />
+        ) : page.kind === "form" ? (
+          form && <FormPageBody initial={form} editable={editable} />
         ) : (
           <Editor key={page.id} pageId={page.id} initial={page.content} rev={page.rev} editable={editable} smallText={smallText} onSave={setStatus} />
         )}
@@ -544,7 +549,7 @@ export function PageView({ page, row, database, person }: { page: PageViewData; 
                   {page.children.map((c) => (
                     <li key={c.id}>
                       <Link href={`/workspace/${c.id}`} className="flex items-center gap-2 rounded-md px-2 py-1 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                        <span>{c.icon || (c.kind === "database" ? "🗂️" : "📄")}</span>
+                        <span>{c.icon || kindIcon(c.kind)}</span>
                         <span className="truncate">{c.title || t("Untitled")}</span>
                       </Link>
                     </li>

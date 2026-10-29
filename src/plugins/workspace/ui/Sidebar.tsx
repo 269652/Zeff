@@ -7,7 +7,7 @@ import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, installPackageAction, searchAction, templatesAction, todayPageAction } from "../actions";
-import { moveBefore } from "../model";
+import { kindIcon, moveBefore } from "../model";
 import type { TreeItem } from "../store";
 import type { AppNav } from "../app-nav";
 import { ChatPanel } from "./ChatPanel";
@@ -207,7 +207,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
             {isOpen ? "▾" : "▸"}
           </button>
           <Link href={`/workspace/${item.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
-            <span className="shrink-0">{item.icon || (item.kind === "database" ? "🗂️" : "📄")}</span>
+            <span className="shrink-0">{item.icon || kindIcon(item.kind)}</span>
             <span className="truncate">{item.title || t("Untitled")}</span>
             {/* A mail inbox's unread, as a mail client's folders show it. */}
             {(unread[item.id] ?? 0) > 0 && (
@@ -331,6 +331,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
               <>
                 <MenuItem onClick={() => (close(), void create({}))}>📄 {t("Page")}</MenuItem>
                 <MenuItem onClick={() => (close(), void create({ kind: "database", title: t("Database") }))}>🗂️ {t("Database")}</MenuItem>
+                <MenuItem onClick={() => (close(), void create({ kind: "form", title: t("Form") }))}>📝 {t("Form")}</MenuItem>
                 {((channels && (channels.mail || channels.messages)) || extSources.length > 0) && (
                   <>
                     <div className="px-2 pt-1 text-xs font-semibold text-zinc-500 uppercase">{t("From channels")}</div>
@@ -399,7 +400,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
                 <li key={h.id}>
                   <Link href={`/workspace/${h.id}`} className="block rounded-md px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setQ("")}>
                     <span className="block truncate font-medium">
-                      {h.icon || (h.kind === "database" ? "🗂️" : "📄")} {h.title || t("Untitled")}
+                      {h.icon || kindIcon(h.kind)} {h.title || t("Untitled")}
                     </span>
                     {h.snippet && <span className="line-clamp-2 text-xs text-zinc-500">{h.snippet}</span>}
                     {h.path && <span className="block truncate text-xs text-zinc-400">{h.path}</span>}
@@ -419,7 +420,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
             {favs.map((f) => (
               <li key={f.id} className={favSort.mark(String(f.id))} {...favSort.handle(String(f.id))} {...favSort.target(String(f.id))}>
                 <Link href={`/workspace/${f.id}`} draggable={false} className="ws-tree-row px-1.5" data-active={f.id === current}>
-                  <span>{f.icon || (f.kind === "database" ? "🗂️" : "📄")}</span>
+                  <span>{f.icon || kindIcon(f.kind)}</span>
                   <span className="truncate">{f.title || t("Untitled")}</span>
                 </Link>
               </li>

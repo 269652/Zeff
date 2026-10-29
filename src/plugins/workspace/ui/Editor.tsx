@@ -40,6 +40,7 @@ import { InlineFormula } from "./inline-formula";
 import { TableTools } from "./table-tools";
 import type { FormulaData } from "../page-sheet";
 import "./workspace.css";
+import { kindIcon } from "../model";
 
 const lowlight = createLowlight(common);
 
@@ -341,7 +342,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       ZeffModuleNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffRoutine.configure({ pageId }),
       ZeffWidget.configure({ pageId: contextRowId ?? pageId }),
-      ZeffForm,
+      ZeffForm.configure({ pageId }),
       ZeffIf.configure({ pageId: contextRowId ?? pageId }),
       RowViewNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffField.configure({ pageId: contextRowId ?? pageId }),
@@ -709,7 +710,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
                     {items.slice(0, 60).map((i) => (
                       <li key={i.id}>
                         <button type="button" className="flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => pick(i)}>
-                          <span>{i.icon || (i.kind === "database" ? "🗂️" : "📄")}</span>
+                          <span>{i.icon || kindIcon(i.kind)}</span>
                           <span className="min-w-0 flex-1 truncate">{i.title || t("Untitled")}</span>
                           {i.kind === "database" && <span className="text-xs text-zinc-400">{t("Database")}</span>}
                         </button>

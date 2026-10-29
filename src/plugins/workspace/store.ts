@@ -22,7 +22,7 @@ import { sourceTable } from "./source-table";
 import { t } from "@/lib/i18n/server";
 import { followListRename, isDayList, startDayIfNew, writeDayLog } from "./day-log";
 import { evalAuto, followRenames, withStamps } from "./auto-fill";
-import { cellFormula, cellText, coerceCellValue, computeRows, defaultSchema, formulaKey, isComputed, isFormulaInput, shareOf, SYSTEM_PROPS, newProperty, normalizeSchema, propById, takesCellFormula, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
+import { cellFormula, cellText, coerceCellValue, computeRows, defaultSchema, formulaKey, isComputed, isFormulaInput, shareOf, SYSTEM_PROPS, newProperty, normalizeSchema, pageKind, propById, takesCellFormula, TITLE, type DbSchema, type PageKind, type Labels, type Property, type Row } from "./model";
 import { checkFormula } from "./formula";
 
 function db() {
@@ -55,7 +55,8 @@ export type Page = {
   id: number;
   parentId: number | null;
   dbId: number | null;
-  kind: "page" | "database";
+  /** A form (kind "form") keeps what it asks in `props.form` (forms.ts); a row keeps its cells in `props`. */
+  kind: PageKind;
   title: string;
   icon: string;
   cover: string;
@@ -88,7 +89,7 @@ const toPage = (r: PRow): Page => ({
   id: r.id,
   parentId: r.parent_id,
   dbId: r.db_id,
-  kind: r.kind === "database" ? "database" : "page",
+  kind: pageKind(r.kind),
   title: r.title,
   icon: r.icon,
   cover: r.cover,
@@ -116,7 +117,7 @@ export function getPage(id: number): Page | null {
 // The tree
 // ---------------------------------------------------------------------------
 
-export type TreeItem = { id: number; parentId: number | null; kind: "page" | "database"; title: string; icon: string; favorite: boolean; position: number; /** A system page: stays (not to the trash, not moved away). */ system?: boolean };
+export type TreeItem = { id: number; parentId: number | null; kind: PageKind; title: string; icon: string; favorite: boolean; position: number; /** A system page: stays (not to the trash, not moved away). */ system?: boolean };
 
 /** Every page of the tree (not the rows of databases, not the trash, not templates), in sibling order. */
 export function tree(): TreeItem[] {
@@ -124,7 +125,7 @@ export function tree(): TreeItem[] {
   return (db().prepare("select id, parent_id, kind, title, icon, favorite, position from ws_pages where db_id is null and archived_at is null and template = 0 order by position, id").all() as { id: number; parent_id: number | null; kind: string; title: string; icon: string; favorite: number; position: number }[]).map((r) => ({
     id: r.id,
     parentId: r.parent_id,
-    kind: r.kind === "database" ? "database" : "page",
+    kind: pageKind(r.kind),
     title: r.title,
     icon: r.icon,
     favorite: !!r.favorite,
@@ -149,7 +150,7 @@ export function breadcrumbs(id: number): { id: number; title: string; icon: stri
 
 const maxPosition = (parentId: number | null): number => ((db().prepare("select max(position) m from ws_pages where db_id is null and template = 0 and parent_id is ?").get(parentId) as { m: number | null }).m ?? 0) + 1;
 
-export type NewPage = { parentId?: number | null; title?: string; icon?: string; kind?: "page" | "database"; dbId?: number | null; content?: unknown; props?: Record<string, unknown>; schema?: DbSchema; template?: boolean };
+export type NewPage = { parentId?: number | null; title?: string; icon?: string; kind?: PageKind; dbId?: number | null; content?: unknown; props?: Record<string, unknown>; schema?: DbSchema; template?: boolean };
 
 /** Whether a value is already another row's in a field that may not repeat (`TITLE`: the title). Empty values never clash. */
 function clashes(dbId: number, propId: string, text: string, exceptRow?: number): boolean {
@@ -183,7 +184,7 @@ export function createPage(v: NewPage = {}): number {
     protectCheck(v.dbId, "add", Object.fromEntries((schema.protect?.unique ?? []).map((id) => [id, id === TITLE ? (v.title ?? "") : cellText(schema.properties.find((p) => p.id === id)!, props[id])])));
   }
   const d = db();
-  const kind = v.kind === "database" ? "database" : "page";
+  const kind = pageKind(v.kind);
   if (v.dbId) {
     const parent = getPage(v.dbId);
     if (!parent || parent.kind !== "database") throw new Error("No such database.");
@@ -327,6 +328,17 @@ export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResu
   // A page with to-do lists that feed the Todo engine (or did): the engine follows (task-lists.ts).
   if (doc && (cur.content.includes('"engine":true') || JSON.stringify(doc).includes('"engine":true'))) void import("./task-lists").then((m) => m.syncPageLists(id)).catch(() => undefined);
   return { ok: true, rev: newRev, updatedAt: editing ? at : cur.updated_at };
+}
+
+/** What a page that is no row keeps beside its text (a form: what it asks, under `form`) — replaced whole. Not for rows: their cells are set one by one (setCell). */
+export function setPageProps(id: number, props: Record<string, unknown>): void {
+  noAgentOnSystem(id);
+  const cur = getPage(id);
+  if (!cur) throw new Error("No such page.");
+  if (cur.dbId) throw new Error("A row's cells are set one by one.");
+  touch(id);
+  db().prepare("update ws_pages set props = ?, updated_at = ? where id = ?").run(JSON.stringify(props), now(), id);
+  changed();
 }
 
 export const touchOpened = (id: number) => void db().prepare("update ws_pages set opened_at = ? where id = ?").run(now(), id);
