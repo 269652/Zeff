@@ -7,8 +7,9 @@ import { useT } from "@/components/I18nProvider";
 import { Markdown } from "@/components/Markdown";
 import { PersonHover } from "@/plugins/people/PersonMention";
 import { aiFillCellAction, cellChoicesAction, type DatabaseData } from "../actions";
-import { choiceColor, COLORS, dateRange, formatNumber, isComputed, newId, type Option, type Property, type Row } from "../model";
+import { cellFormula, choiceColor, COLORS, dateRange, formatNumber, isComputed, newId, takesCellFormula, type Option, type Property, type Row } from "../model";
 import { FormulaEditor } from "./formula-editor";
+import { FormulaHelp } from "./sheet";
 import { Dropdown, useDismiss } from "./kit";
 
 /** The cells of a database: how each property type is shown, and edited in place. */
@@ -254,7 +255,7 @@ export function Cell({ p, row, ctx, className = "", empty }: { p: Property; row:
   if (!editing || needsRoom(p))
     return (
       <>
-        <button ref={anchor} type="button" className={`ws-cell ${className} ${faded} ${editing ? "ws-cell-active" : ""}`} onClick={() => setEditing(true)} aria-label={p.name} aria-expanded={needsRoom(p) ? editing : undefined}>
+        <button ref={anchor} type="button" className={`ws-cell ${className} ${faded} ${editing ? "ws-cell-active" : ""}`} onClick={() => setEditing(true)} aria-label={p.name} aria-expanded={needsRoom(p) ? editing : undefined} title={cellFormula(row, p.id) ?? undefined} data-formula={cellFormula(row, p.id) ? "" : undefined}>
           {empty && (row.cells[p.id] === undefined || row.cells[p.id] === null || row.cells[p.id] === "") ? empty : <CellView p={p} row={row} ctx={ctx} />}
         </button>
         {editing && (
@@ -271,17 +272,37 @@ function TextEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx
   const t = useT();
   const ft = p.type === "custom" ? ctx.data.extras?.fieldTypes?.find((f) => f.id === p.custom) : undefined;
   const v = row.cells[p.id];
-  const [text, setText] = useState(Array.isArray(v) ? v.join(", ") : typeof v === "string" || typeof v === "number" ? String(v) : "");
+  const [text, setText] = useState(cellFormula(row, p.id) ?? (Array.isArray(v) ? v.join(", ") : typeof v === "string" || typeof v === "number" ? String(v) : ""));
+  const box = useRef<HTMLInputElement & HTMLTextAreaElement>(null);
+  const formula = takesCellFormula(p) && text.trimStart().startsWith("=");
+  const rowNumber = ctx.data.rows.findIndex((r) => r.id === row.id) + 1;
+  const help = formula ? (
+    <CellPanel anchor={box}>
+      <div className="w-[min(26rem,calc(100vw-32px))]">
+        <FormulaHelp
+          schema={ctx.data.schema}
+          row={rowNumber || undefined}
+          text={text}
+          onPick={(next) => {
+            setText(next);
+            box.current?.focus();
+          }}
+        />
+      </div>
+    </CellPanel>
+  ) : null;
   const commit = () => {
     const raw = text.trim();
-    ctx.set(row.id, p.id, p.type === "number" ? (raw === "" ? null : raw) : p.type === "ticket" ? raw.split(/[\s,;]+/).filter(Boolean) : raw || null);
+    // (a formula goes as it is typed: the server keeps it and works its value out)
+    ctx.set(row.id, p.id, formula ? raw : p.type === "number" ? (raw === "" ? null : raw) : p.type === "ticket" ? raw.split(/[\s,;]+/).filter(Boolean) : raw || null);
     done();
   };
   const multiline = p.type === "text" || p.type === "markdown" || p.type === "ai";
   const props = {
+    ref: box,
     autoFocus: true,
     value: text,
-    className: "ws-cell-input",
+    className: `ws-cell-input ${formula ? "font-mono" : ""}`,
     onChange: (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) => setText(e.target.value),
     onBlur: commit,
     onKeyDown: (e: React.KeyboardEvent) => {
@@ -294,11 +315,18 @@ function TextEditor({ p, row, ctx, done }: { p: Property; row: Row; ctx: CellCtx
     "aria-label": p.name,
     placeholder: p.type === "ticket" ? t("PROJ-339, …") : undefined,
   };
-  if (multiline) return <textarea rows={p.type === "markdown" ? 6 : 2} {...props} />;
+  if (multiline)
+    return (
+      <>
+        <textarea rows={p.type === "markdown" ? 6 : 2} {...props} />
+        {help}
+      </>
+    );
   const listId = ft?.suggestions.length ? `ft-${p.id}-${row.id}` : undefined;
   return (
     <>
-      <input inputMode={p.type === "number" || ft?.display === "rating" || ft?.display === "progress" ? "decimal" : undefined} list={listId} {...props} />
+      <input inputMode={(p.type === "number" && !formula) || ft?.display === "rating" || ft?.display === "progress" ? "decimal" : undefined} list={listId} {...props} />
+      {help}
       {listId && (
         <datalist id={listId}>
           {ft!.suggestions.map((s) => (

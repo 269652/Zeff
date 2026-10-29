@@ -28,6 +28,7 @@ import { ViewCode } from "./view-code";
 import { viewAppMeta, TEMPLATE_VIEW } from "../view-apps";
 import type { TplError } from "../view-template";
 import { CalcCell, usePublished } from "./calc-row";
+import { ShareDialog } from "./sheet";
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
 
@@ -167,7 +168,7 @@ function useDatabase(initial: DatabaseData | null, dbId: number) {
           toast(r.error || t("Could not save."), { tone: "error" });
           const now = dataRef.current;
           if (now) setData({ ...now, rows: withCell(now.rows, now.schema.properties, rowId, propId, before ?? null) });
-        } else if (cur.schema.properties.some(isComputed)) reloadSoon();
+        } else if (cur.schema.properties.some(isComputed) || typeof value === "string" && value.trim().startsWith("=") || cur.rows.some((r) => Object.keys(r.cells).some((k) => k.endsWith("=")))) reloadSoon();
         return r;
       };
       schemaSaving.current = schemaSaving.current
@@ -311,6 +312,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const [formOpen, setFormOpen] = useState(false);
   const [repeatOpen, setRepeatOpen] = useState(false);
   const [protectOpen, setProtectOpen] = useState(false);
+  const [shareOpen, setShareOpen] = useState(false);
   const [asking, setAsking] = useState<{ id: number; title: string; names: string[] } | null>(null);
   // Rows ticked in the table (shift-click: a range): what the bulk bar acts on.
   const [picked, setPicked] = useState<Set<number>>(new Set());
@@ -785,6 +787,10 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
               <MenuItem onClick={() => (close(), setFormOpen(true))}>📝 {t("Form …")}</MenuItem>
               <MenuItem onClick={() => (close(), setRepeatOpen(true))}>🔁 {t("Repeating rows …")}</MenuItem>
               <MenuItem onClick={() => (close(), setProtectOpen(true))}>🛡 {t("Protection …")}</MenuItem>
+              <MenuItem checked={!!schema.share} onClick={() => (close(), setShareOpen(true))}>
+                ƒ {t("Share for formulas …")}
+                {schema.share ? ` (${schema.share.name})` : ""}
+              </MenuItem>
               <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
               <MenuItem onClick={() => (close(), setReceiveOpen(true))}>➜ {t("Receive tickets …")}</MenuItem>
               {schema.jobs && <MenuItem onClick={() => (close(), setAgentsOpen(true))}>🤖 {t("Agents …")}</MenuItem>}
@@ -1031,6 +1037,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         </Modal>
       )}
       {protectOpen && <ProtectDialog schema={schema} onSave={api.saveSchema} onClose={() => setProtectOpen(false)} />}
+      {shareOpen && <ShareDialog dbId={dbId} schema={schema} title={data.title} onDone={() => void api.reload()} onClose={() => setShareOpen(false)} />}
       {repeatOpen && <RecurringDialog dbId={dbId} schema={schema} templates={data.templates} onClose={() => setRepeatOpen(false)} />}
       {formOpen && <FormDesigner schema={schema} dbId={dbId} onSave={api.saveSchema} onClose={() => setFormOpen(false)} />}
       {cardOpen && <CardEditor view={view} schema={schema} rows={rows} data={data} keys={data.extras?.keys ?? {}} onSave={(card) => setView({ ...view, card })} onClose={() => setCardOpen(false)} />}

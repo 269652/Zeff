@@ -4,7 +4,7 @@
  * matching, sorting, grouping, and the computed properties (formulas, rollups through relations, back
  * relations, created/edited times). Pure functions over plain data; client-safe.
  */
-import { evalFormula, formulaToStored, type FormulaValue } from "./formula";
+import { evalFormula, formulaToStored, type FormulaSheet, type FormulaValue } from "./formula";
 
 export const PROP_TYPES = ["text", "markdown", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone", "person", "relation", "custom", "rollup", "formula", "created_time", "updated_time", "todo", "ticket", "ai", "button"] as const;
 export type PropType = (typeof PROP_TYPES)[number];
@@ -162,6 +162,8 @@ export type DbSchema = {
   titleName: string;
   properties: Property[];
   views: View[];
+  /** Shared for formulas: other tables' cells read it under this name (Kosten!B2, Kosten[Betrag]) — see sheet.ts. */
+  share?: { name: string };
   /** The property that says whose a row is (person filter, "mine"); unset: the first person property, else a text "Assignee". */
   personProp?: string;
   /** What a row's detail view (the panel over the database) shows, in order; unset: what fits the database (detailModules). */
@@ -558,7 +560,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [], card: typeof v.card === "string" && v.card.trim() ? v.card.slice(0, 8000) : undefined, nav: (v.nav === "workspace" || v.nav === "off") && v.app ? v.nav : undefined, navHidden: Array.isArray(v.navHidden) && v.navHidden.length ? v.navHidden.filter((x): x is string => typeof x === "string").slice(0, 100) : undefined }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}), ...(shareOf(o.share) ? { share: shareOf(o.share)! } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);
@@ -652,11 +654,49 @@ export function dropBetween(ids: number[], from: number, to: number, after: bool
   return { after: slot > 0 ? rest[slot - 1] : null, before: slot < rest.length ? rest[slot] : null };
 }
 
+// ---------------------------------------------------------------------------
+// A cell's own formula (a spreadsheet's "=SUMME(B1:B3)")
+// ---------------------------------------------------------------------------
+
+/** Where a cell keeps its formula: beside its value, under its column's id with "=" (the value is worked out when read). */
+export const formulaKey = (propId: string) => `${propId}=`;
+/** The columns whose cells may hold a formula: numbers and texts. */
+export const takesCellFormula = (p: Pick<Property, "type">): boolean => p.type === "number" || p.type === "text";
+/** What was typed is a formula: it starts with "=" (and has more). */
+export const isFormulaInput = (v: unknown): v is string => typeof v === "string" && /^=\s*\S/.test(v.trim());
+/** A cell's formula ("=…"), or null. */
+export const cellFormula = (row: Pick<Row, "cells">, propId: string): string | null => {
+  const f = row.cells[formulaKey(propId)];
+  return typeof f === "string" && f.trim() ? f : null;
+};
+/** Whether any cell of these rows holds a formula. */
+export const hasCellFormulas = (rows: Pick<Row, "cells">[]): boolean => rows.some((r) => Object.keys(r.cells).some((k) => k.endsWith("=")));
+
+/**
+ * The columns of a table as a spreadsheet counts them (A = the first): the order its first table view shows (hidden ones keep
+ * their letter), the title among them.
+ */
+export function sheetColumns(schema: Pick<DbSchema, "properties" | "views">): string[] {
+  const view = schema.views.find((v) => v.type === "table") ?? schema.views[0];
+  return view ? columnOrder(view, schema) : [TITLE, ...schema.properties.map((p) => p.id)];
+}
+
+/** A name a table is shared under for formulas: letters, digits, spaces, _ and - (60 at most) — anything else: not shared. */
+export function shareOf(v: unknown): { name: string } | null {
+  const name = v && typeof v === "object" && typeof (v as { name?: unknown }).name === "string" ? (v as { name: string }).name.replace(/\s+/g, " ").trim().slice(0, 60) : "";
+  return name && /^[\p{L}\p{N}_ -]+$/u.test(name) ? { name } : null;
+}
+
+/** How a shared table is named in a formula: plain when it is one word (Kosten!B2), else in quotes ('Meine Kosten'!B2). */
+export const sheetRef = (name: string): string => (/^[\p{L}_][\p{L}\p{N}_]*$/u.test(name) ? name : `'${name.replace(/'/g, "")}'`);
+
 /** The rows with one cell (or the title) changed — as it will be stored, so a table shows an edit at once and as it comes back. */
 export function withCell(rows: Row[], props: Property[], rowId: number, propId: string, value: unknown): Row[] {
   const p = propId === TITLE ? undefined : propById(props, propId);
+  // A formula typed in: kept as the formula, its value comes when the table is read again.
+  if (p && takesCellFormula(p) && isFormulaInput(value)) return rows.map((r) => (r.id !== rowId ? r : { ...r, cells: { ...r.cells, [propId]: undefined, [formulaKey(propId)]: value.trim() } }));
   const v = p ? coerceCellValue(p, value) : value;
-  return rows.map((r) => (r.id !== rowId ? r : propId === TITLE ? { ...r, title: String(value ?? "") } : { ...r, cells: { ...r.cells, [propId]: v === null || v === "" ? undefined : v } }));
+  return rows.map((r) => (r.id !== rowId ? r : propId === TITLE ? { ...r, title: String(value ?? "") } : { ...r, cells: { ...r.cells, [propId]: v === null || v === "" ? undefined : v, [formulaKey(propId)]: undefined, [`${propId}!`]: undefined } }));
 }
 
 export function isEmptyValue(p: Property | undefined, v: unknown): boolean {
@@ -1258,9 +1298,10 @@ export function rollup(fn: RollupFn, target: Property | undefined, values: unkno
  * here), rollups through relations, formulas (which may use the others), created/edited times. Stored
  * values are left as they are. A formula that fails gets its message in `cells[id + "!"]`.
  */
-export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, selfId: number, depth = 0, now = new Date()): Row[] {
+export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, selfId: number, depth = 0, now = new Date(), byName?: (name: string) => number | null): Row[] {
   const props = schema.properties;
-  if (!props.some(isComputed)) return rows;
+  const cellFormulas = hasCellFormulas(rows);
+  if (!props.some(isComputed) && !cellFormulas) return rows;
   const byRow = new Map<number, Row>();
   const out = rows.map((r) => {
     const copy: Row = { ...r, cells: { ...r.cells } };
@@ -1311,8 +1352,40 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
     if (p.id === TITLE) return row.title;
     if (p.type === "created_time") return row.createdAt;
     if (p.type === "updated_time") return row.updatedAt;
-    if (p.type === "formula" || p.type === "rollup") ensure(row, p);
+    if (p.type === "formula" || p.type === "rollup" || cellFormula(row, p.id)) ensure(row, p);
     return row.cells[p.id];
+  };
+  // The table as a spreadsheet (a cell's formula: A1, B:B, [Betrag]) — and the tables shared for formulas, by their name.
+  const columns = sheetColumns(schema).map((id) => (id === TITLE ? ({ id: TITLE, name: schema.titleName, type: "text" } as Property) : propById(props, id))).filter((p): p is Property => !!p);
+  const colIndexIn = (cols: Property[], titleName: string) => (name: string) => {
+    const n = name.trim().toLowerCase();
+    return cols.findIndex((p) => p.name.toLowerCase() === n || (p.id === TITLE && (n === "title" || n === titleName.toLowerCase())));
+  };
+  const ownSheet = (rowAt: number): FormulaSheet => ({
+    rows: out.length,
+    cols: columns.length,
+    cell: (c, r) => (out[r] && columns[c] ? valueOf(out[r], columns[c]) : null),
+    colIndex: colIndexIn(columns, schema.titleName),
+    row: rowAt,
+  });
+  const shared = new Map<string, FormulaSheet | null>();
+  const sheetNamed = (name: string): FormulaSheet | null => {
+    const key = name.trim().toLowerCase();
+    if (shared.has(key)) return shared.get(key)!;
+    shared.set(key, null);
+    const id = byName?.(name) ?? null;
+    let sheet: FormulaSheet | null = null;
+    if (id === selfId) sheet = { ...ownSheet(0), row: undefined };
+    else if (id !== null && depth < 2) {
+      const d = lookup(id);
+      if (d) {
+        const theirs = computeRows(d.schema, d.rows, lookup, id, depth + 1, now, byName);
+        const cols = sheetColumns(d.schema).map((x) => (x === TITLE ? ({ id: TITLE, name: d.schema.titleName, type: "text" } as Property) : propById(d.schema.properties, x))).filter((p): p is Property => !!p);
+        sheet = { rows: theirs.length, cols: cols.length, cell: (c, r) => (!theirs[r] || !cols[c] ? null : cols[c].id === TITLE ? theirs[r].title : theirs[r].cells[cols[c].id]), colIndex: colIndexIn(cols, d.schema.titleName) };
+      }
+    }
+    shared.set(key, sheet);
+    return sheet;
   };
   const ensure = (row: Row, p: Property) => {
     const key = `${row.id}:${p.id}`;
@@ -1335,9 +1408,38 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
         const picked = ids.map((id) => pool.find((x) => x.id === id)).filter((x): x is Row => !!x);
         const cellsOf = picked.map((x) => (p.rollup!.property === TITLE ? x.title : x.cells[p.rollup!.property]));
         row.cells[p.id] = rollup(p.rollup.fn, p.rollup.property === TITLE ? { id: TITLE, name: "Title", type: "text" } : target, cellsOf);
+      } else if (cellFormula(row, p.id)) {
+        // A cell's own formula: its table as cells, the shared tables by name, the Kennzahlen.
+        const at = out.indexOf(row);
+        const res = evalFormula(cellFormula(row, p.id)!.trim().replace(/^=/, ""), {
+          now,
+          prop: (name) => {
+            const q = props.find((x) => x.name.toLowerCase() === name.toLowerCase());
+            if (!q) throw new Error(`No property "${name}"`);
+            return valueOf(row, q);
+          },
+          sheet: (name) => (name === null ? ownSheet(at) : sheetNamed(name)),
+        });
+        if ("error" in res) {
+          row.cells[p.id] = null;
+          row.cells[`${p.id}!`] = res.error;
+        } else {
+          const v = formulaToStored(res.value as FormulaValue);
+          if (p.type === "number" && Array.isArray(v)) {
+            row.cells[p.id] = null;
+            row.cells[`${p.id}!`] = "A range gives many values — sum it: SUMME(…)";
+          } else if (p.type === "number" && v !== null && typeof v !== "number") {
+            // (a number column shows numbers: a text or yes/no is said — a text column can show it)
+            row.cells[p.id] = null;
+            row.cells[`${p.id}!`] = `Gives “${String(v)}” — not a number`;
+          } else row.cells[p.id] = Array.isArray(v) ? v.join(", ") : v;
+        }
       } else if (p.type === "formula") {
+        const at = out.indexOf(row);
         const res = evalFormula(p.formula ?? "", {
           now,
+          // (a column's formula reads the table as cells too: [Betrag] * 2, SUMME(B:B), Kosten!B2)
+          sheet: (name) => (name === null ? ownSheet(at) : sheetNamed(name)),
           prop: (name) => {
             const q = props.find((x) => x.name.toLowerCase() === name.toLowerCase()) ?? (name.toLowerCase() === schema.titleName.toLowerCase() || name.toLowerCase() === "title" ? { id: TITLE, name, type: "text" as const } : undefined);
             if (!q) throw new Error(`No property "${name}"`);
@@ -1356,6 +1458,7 @@ export function computeRows(schema: DbSchema, rows: Row[], lookup: DbLookup, sel
   };
   for (const p of props) if (p.type === "rollup") for (const r of out) ensure(r, p);
   for (const p of props) if (p.type === "formula") for (const r of out) ensure(r, p);
+  if (cellFormulas) for (const p of props) for (const r of out) if (cellFormula(r, p.id)) ensure(r, p);
   for (const p of props) {
     if (p.type === "created_time") for (const r of out) r.cells[p.id] = r.createdAt;
     if (p.type === "updated_time") for (const r of out) r.cells[p.id] = r.updatedAt;

@@ -22,7 +22,8 @@ import { sourceTable } from "./source-table";
 import { t } from "@/lib/i18n/server";
 import { followListRename, isDayList, startDayIfNew, writeDayLog } from "./day-log";
 import { evalAuto, followRenames, withStamps } from "./auto-fill";
-import { cellText, coerceCellValue, computeRows, defaultSchema, isComputed, SYSTEM_PROPS, newProperty, normalizeSchema, propById, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
+import { cellFormula, cellText, coerceCellValue, computeRows, defaultSchema, formulaKey, isComputed, isFormulaInput, shareOf, SYSTEM_PROPS, newProperty, normalizeSchema, propById, takesCellFormula, TITLE, type DbSchema, type Labels, type Property, type Row } from "./model";
+import { checkFormula } from "./formula";
 
 function db() {
   const d = getSqlite();
@@ -695,7 +696,34 @@ export function rowsOf(dbId: number): { schema: DbSchema; rows: Row[] } | null {
     const o = getDatabase(id);
     return o ? { schema: o.schema, rows: rawRows(id) } : null;
   };
-  return { schema: d.schema, rows: computeRows(d.schema, rawRows(dbId), lookup, dbId) };
+  return { schema: d.schema, rows: computeRows(d.schema, rawRows(dbId), lookup, dbId, 0, new Date(), sharedTableId) };
+}
+
+/** The tables shared for formulas (their ⋯ menu): id, name, title. */
+export function sharedTables(): { id: number; name: string; title: string }[] {
+  return (db().prepare("select id, title, schema from ws_pages where kind = 'database' and archived_at is null and schema like '%\"share\":%'").all() as { id: number; title: string; schema: string }[]).flatMap((r) => {
+    const s = shareOf(parse<{ share?: unknown }>(r.schema, {}).share);
+    return s ? [{ id: r.id, name: s.name, title: r.title }] : [];
+  });
+}
+
+/** A shared table by its name (case doesn't matter) — what Kosten!B2 reads. */
+export const sharedTableId = (name: string): number | null => sharedTables().find((x) => x.name.toLowerCase() === name.trim().toLowerCase())?.id ?? null;
+
+/** A table shared for formulas under a name (null: not any more). The name is the table's own — another table's is refused. */
+export function setTableShare(dbId: number, name: string | null): DbSchema {
+  const d = getDatabase(dbId);
+  if (!d) throw new Error("No such database.");
+  if (name === null || !name.trim()) {
+    const { share: _, ...rest } = d.schema;
+    void _;
+    return updateSchema(dbId, rest);
+  }
+  const share = shareOf({ name });
+  if (!share) throw new Error(t("A name of letters, digits, spaces, _ or -, please."));
+  const other = sharedTables().find((x) => x.id !== dbId && x.name.toLowerCase() === share.name.toLowerCase());
+  if (other) throw new Error(t("“{name}” is shared already — by {title}.", { name: share.name, title: other.title || t("Untitled") }));
+  return updateSchema(dbId, { ...d.schema, share });
 }
 
 /** What the views show for the ids in cells: the people, pages and todos by name. */
@@ -813,12 +841,21 @@ export function setCell(rowId: number, propId: string, value: unknown, opts: { q
   // A field the source keeps, on a row it brought: the source's (what it says is what its record says).
   if (row.props.srcref && !isViaSource() && sourceLocked(row.dbId).includes(propId)) throw new Error(`"${p.name}" comes from the source (${String(row.props.srcref).split(":")[0]}) — it isn't changed here.`);
   const props = { ...row.props };
-  const v = coerceCell(p, value);
-  protectCheck(row.dbId, "set", { [p.id]: cellText(p, v) }, rowId);
-  const was = cellText(p, props[propId]);
+  // "=…" in a number or text cell: the cell's own formula (kept beside it, its value worked out when the table is read).
+  const formula = takesCellFormula(p) && isFormulaInput(value) ? value.trim() : null;
+  if (formula) {
+    const bad = checkFormula(formula.slice(1));
+    if (bad) throw new Error(t("The formula: {error}", { error: bad }));
+  }
+  const v = formula ? null : coerceCell(p, value);
+  const textOf = (x: unknown) => formula ?? cellText(p, x);
+  protectCheck(row.dbId, "set", { [p.id]: textOf(v) }, rowId);
+  const was = cellFormula({ cells: props }, propId) ?? cellText(p, props[propId]);
   if (v === null) delete props[propId];
   else props[propId] = v;
-  logChange(rowId, p.name, was, cellText(p, v));
+  if (formula) props[formulaKey(propId)] = formula;
+  else delete props[formulaKey(propId)];
+  logChange(rowId, p.name, was, textOf(v));
   touch(rowId);
   db().prepare("update ws_pages set props = ?, updated_at = ? where id = ?").run(JSON.stringify(props), now(), rowId);
   index(rowId); // (what a cell says is searchable)

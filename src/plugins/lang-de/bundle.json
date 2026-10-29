@@ -7653,5 +7653,19 @@
   "What was spent a month — the last three whole months of your bank statements, on average; money only moved (pockets, savings, the accounts you marked as yours) left out": "Was im Monat ausgegeben wurde – die letzten drei ganzen Monate deiner Kontoauszüge im Schnitt; nur verschobenes Geld (Pockets, Sparkonten, als eigene markierte Konten) ausgenommen",
   "What went to the accounts you marked as credit accounts a month — the last three whole months on average": "Was im Monat auf die als Kreditkonten markierten Konten ging – die letzten drei ganzen Monate im Schnitt",
   "Unread mails in your inboxes (archive, sent and chats left out)": "Ungelesene Mails in deinen Posteingängen (Archiv, Gesendet und Chats ausgenommen)",
-  "The hours of this week's meetings in your calendars — set up by someone else (or online), two at once counted once; todos planned in and day blocks left out": "Die Stunden der Meetings dieser Woche in deinen Kalendern – von jemand anderem angesetzt (oder online), zwei gleichzeitig zählen einmal; eingeplante Todos und Tagesblöcke ausgenommen"
+  "The hours of this week's meetings in your calendars — set up by someone else (or online), two at once counted once; todos planned in and day blocks left out": "Die Stunden der Meetings dieser Woche in deinen Kalendern – von jemand anderem angesetzt (oder online), zwei gleichzeitig zählen einmal; eingeplante Todos und Tagesblöcke ausgenommen",
+  "A name of letters, digits, spaces, _ or -, please.": "Bitte einen Namen aus Buchstaben, Ziffern, Leerzeichen, _ oder -.",
+  "“{name}” is shared already — by {title}.": "„{name}“ ist schon freigegeben – von {title}.",
+  "The formula: {error}": "Die Formel: {error}",
+  "Share for formulas …": "Für Formeln freigeben …",
+  "Shared — other tables read it as {ref}": "Freigegeben – andere Tabellen lesen sie als {ref}",
+  "Not shared any more.": "Nicht mehr freigegeben.",
+  "Share for formulas": "Für Formeln freigeben",
+  "Other tables may read this one": "Andere Tabellen dürfen diese lesen",
+  "A cell of another table that starts with = can then name its cells, columns and ranges — like a sheet of a workbook.": "Eine Zelle einer anderen Tabelle, die mit = beginnt, kann dann ihre Zellen, Spalten und Bereiche nennen – wie ein Blatt einer Arbeitsmappe.",
+  "Its name in formulas": "Ihr Name in Formeln",
+  "Read it from another table like this": "So liest du sie aus einer anderen Tabelle",
+  "this row": "diese Zeile",
+  "No Kennzahl like that": "Keine passende Kennzahl",
+  "A1 · A1:B3 · B:B · [Column] · @Kennzahl · SUMME(…) · WENN(…; …; …)": "A1 · A1:B3 · B:B · [Spalte] · @Kennzahl · SUMME(…) · WENN(…; …; …)"
 }

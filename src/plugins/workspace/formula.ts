@@ -3,6 +3,11 @@
  * numbers, "text", true/false, + - * / %, comparisons, and / or / not, a ? b : c, and functions
  * (if, prop, concat, round, dateBetween …). No eval: the text is parsed and walked here. An error is a
  * result, never a throw. Client-safe.
+ *
+ * And what a spreadsheet has (a cell of a table that starts with "=", sheet.ts): cells A1 ($A$1 the same), ranges A1:B3,
+ * whole columns B:B and rows 3:3, a column of this row by its name [Betrag] (also [@Betrag]), another table's — shared for
+ * formulas under its name — Kosten!B2, 'Meine Tabelle'!A1:A5, Kosten[Betrag] (its whole column); Kennzahlen as @Sparrate or
+ * @[Frei im Monat]; Excel's spelling too: = and <> to compare, & to join, ; between arguments, SUMME / MITTELWERT / WENN …
  */
 
 export type FormulaValue = number | string | boolean | null | Date | FormulaValue[];
@@ -14,6 +19,20 @@ export type FormulaContext = {
   now?: Date;
   /** A Kennzahl's value by its name (kennzahl("Sparrate")) — none given: the server's (setMetricReader). */
   metric?: (name: string) => unknown;
+  /** A table as cells (A1, B:B, [Betrag]): `null` this formula's own, else one shared under that name — none: no references. */
+  sheet?: (name: string | null) => FormulaSheet | null;
+};
+
+/** A table as a spreadsheet sees it: columns (A = the first) by rows (1 = the first), 0-based here. */
+export type FormulaSheet = {
+  rows: number;
+  cols: number;
+  /** A cell's value (computed). */
+  cell: (col: number, row: number) => unknown;
+  /** A column by its name (-1: none). */
+  colIndex: (name: string) => number;
+  /** The row the formula stands in (its own table only). */
+  row?: number;
 };
 
 /**
@@ -29,28 +48,59 @@ export const setMetricReader = (fn: (name: string) => unknown): void => {
 // Parsing
 // ---------------------------------------------------------------------------
 
-type Tok = { t: "num" | "str" | "id" | "op" | "eof"; v: string; at: number };
+/** A token; `end` is where it stops (A1:B3 and Kosten!A1 are told by their parts touching). */
+type Tok = { t: "num" | "str" | "id" | "op" | "br" | "eof"; v: string; at: number; end: number };
+/** A cell reference's end: a column and a row (0-based), either left out for a whole row / column. */
+type Pt = { c: number | null; r: number | null };
 type Node =
   | { k: "lit"; v: FormulaValue }
   | { k: "call"; name: string; args: Node[] }
   | { k: "un"; op: string; a: Node }
   | { k: "bin"; op: string; a: Node; b: Node }
-  | { k: "cond"; c: Node; a: Node; b: Node };
+  | { k: "cond"; c: Node; a: Node; b: Node }
+  | { k: "ref"; sheet: string | null; a: Pt; b: Pt | null }
+  | { k: "field"; sheet: string | null; name: string }
+  | { k: "metric"; name: string };
 
-const OPS = ["==", "!=", "<=", ">=", "&&", "||", "+", "-", "*", "/", "%", "<", ">", "!", "(", ")", ",", "?", ":"];
+const OPS = ["==", "!=", "<=", ">=", "<>", "&&", "||", "+", "-", "*", "/", "%", "<", ">", "=", "&", "!", "(", ")", ",", ";", "?", ":", "@"];
+
+/** "A" → 0, "Z" → 25, "AA" → 26. */
+export const colNumber = (letters: string): number => [...letters.toUpperCase()].reduce((n, ch) => n * 26 + ch.charCodeAt(0) - 64, 0) - 1;
+/** 0 → "A", 26 → "AA". */
+export function colLetters(i: number): string {
+  let s = "";
+  for (let n = i + 1; n > 0; n = Math.floor((n - 1) / 26)) s = String.fromCharCode(65 + ((n - 1) % 26)) + s;
+  return s;
+}
+const CELL = /^([A-Za-z]{1,3})(\d+)$/;
+const COLUMN = /^[A-Za-z]{1,3}$/;
 
 function tokenize(src: string): Tok[] {
   const out: Tok[] = [];
   let i = 0;
   while (i < src.length) {
     const c = src[i];
-    if (/\s/.test(c)) {
+    // $A$1 is A1: a formula isn't copied about, so fixed and moving references are the same here.
+    const fixed = c === "$" || /[A-Za-z]/.test(c) ? /^\$?([A-Za-z]{1,3})\$?(\d+)(?![\p{L}\p{N}_])/u.exec(src.slice(i)) : null;
+    if (fixed && fixed[0].includes("$")) {
+      out.push({ t: "id", v: `${fixed[1]}${fixed[2]}`, at: i, end: i + fixed[0].length });
+      i += fixed[0].length;
+      continue;
+    }
+    if (/\s/.test(c) || c === "$") {
       i++;
+      continue;
+    }
+    if (c === "[") {
+      const j = src.indexOf("]", i);
+      if (j < 0) throw new Error("Unclosed [");
+      out.push({ t: "br", v: src.slice(i + 1, j).replace(/^@/, "").trim(), at: i, end: j + 1 });
+      i = j + 1;
       continue;
     }
     if (/[0-9]/.test(c) || (c === "." && /[0-9]/.test(src[i + 1] ?? ""))) {
       const m = /^(?:\d+\.?\d*|\.\d+)(?:[eE][+-]?\d+)?/.exec(src.slice(i))!;
-      out.push({ t: "num", v: m[0], at: i });
+      out.push({ t: "num", v: m[0], at: i, end: i + m[0].length });
       i += m[0].length;
       continue;
     }
@@ -65,22 +115,22 @@ function tokenize(src: string): Tok[] {
         } else s += src[j++];
       }
       if (j >= src.length) throw new Error("Unclosed text");
-      out.push({ t: "str", v: s, at: i });
+      out.push({ t: "str", v: s, at: i, end: j + 1 });
       i = j + 1;
       continue;
     }
     if (/[\p{L}_]/u.test(c)) {
       const m = /^[\p{L}\p{N}_]+/u.exec(src.slice(i))!;
-      out.push({ t: "id", v: m[0], at: i });
+      out.push({ t: "id", v: m[0], at: i, end: i + m[0].length });
       i += m[0].length;
       continue;
     }
     const op = OPS.find((o) => src.startsWith(o, i));
     if (!op) throw new Error(`Unexpected "${c}"`);
-    out.push({ t: "op", v: op, at: i });
+    out.push({ t: "op", v: op, at: i, end: i + op.length });
     i += op.length;
   }
-  out.push({ t: "eof", v: "", at: src.length });
+  out.push({ t: "eof", v: "", at: src.length, end: src.length });
   return out;
 }
 
@@ -133,12 +183,24 @@ class Parser {
   }
   private eq(): Node {
     let a = this.cmp();
-    while (this.is("==", "!=")) a = { k: "bin", op: this.eat().v, a, b: this.cmp() };
+    while (this.is("==", "!=", "=", "<>")) {
+      const op = this.eat().v;
+      a = { k: "bin", op: op === "=" ? "==" : op === "<>" ? "!=" : op, a, b: this.cmp() };
+    }
     return a;
   }
   private cmp(): Node {
+    let a = this.cat();
+    while (this.is("<", ">", "<=", ">=")) a = { k: "bin", op: this.eat().v, a, b: this.cat() };
+    return a;
+  }
+  /** Excel's & joins texts (below + and -: =A1&" "&B1+1). */
+  private cat(): Node {
     let a = this.add();
-    while (this.is("<", ">", "<=", ">=")) a = { k: "bin", op: this.eat().v, a, b: this.add() };
+    while (this.is("&")) {
+      this.eat();
+      a = { k: "call", name: "concat", args: [a, this.add()] };
+    }
     return a;
   }
   private add(): Node {
@@ -158,10 +220,64 @@ class Parser {
     }
     return this.primary();
   }
+  /** The token after the current one touches it (no space between): A1:B3, Kosten!A1, Kosten[Betrag]. */
+  private touching(k = 0): boolean {
+    const a = this.toks[this.i + k];
+    const b = this.toks[this.i + k + 1];
+    return !!a && !!b && a.end === b.at;
+  }
+  /** An end of a reference at the current token: A1, B (a column), 3 (a row) — null when it is none. */
+  private point(): Pt | null {
+    const t = this.cur;
+    if (t.t === "id") {
+      const m = CELL.exec(t.v);
+      if (m) return this.eat(), { c: colNumber(m[1]), r: Number(m[2]) - 1 };
+      if (COLUMN.test(t.v)) return this.eat(), { c: colNumber(t.v), r: null };
+    }
+    if (t.t === "num" && /^\d+$/.test(t.v)) return this.eat(), { c: null, r: Number(t.v) - 1 };
+    return null;
+  }
+  /** A reference (the sheet's name read already, or null): A1, A1:B3, B:B, 3:3, [Betrag] — on another sheet Kosten[Betrag] is its whole column. */
+  private reference(sheet: string | null): Node {
+    if (this.cur.t === "br") return { k: "field", sheet, name: this.eat().v };
+    const at = this.cur;
+    const a = this.point();
+    if (!a) throw new Error(`Expected a cell (A1) after ${sheet ? `${sheet}!` : `"${at.v}"`}`);
+    if (this.is(":") && this.toks[this.i - 1].end === this.cur.at && this.touching()) {
+      this.eat(":");
+      const b = this.point();
+      if (!b || (a.c === null) !== (b.c === null) || (a.r === null) !== (b.r === null)) throw new Error("A range is A1:B3, B:B or 3:3");
+      return { k: "ref", sheet, a, b };
+    }
+    if (a.c === null || a.r === null) throw new Error(a.c === null ? "A row is 3:3" : `A column is ${colLetters(a.c)}:${colLetters(a.c)}`);
+    return { k: "ref", sheet, a, b: null };
+  }
   private primary(): Node {
     const t = this.cur;
+    // A row range (3:5) before a number.
+    if (t.t === "num" && /^\d+$/.test(t.v) && this.toks[this.i + 1]?.t === "op" && this.toks[this.i + 1].v === ":" && this.touching() && this.touching(1) && this.toks[this.i + 2]?.t === "num") return this.reference(null);
     if (t.t === "num") return this.eat(), { k: "lit", v: Number(t.v) };
+    // 'Meine Tabelle'!A1
+    if (t.t === "str" && this.toks[this.i + 1]?.v === "!" && this.touching()) {
+      this.eat();
+      this.eat("!");
+      return this.reference(t.v);
+    }
+    // 'Meine Kosten'[Betrag]
+    if (t.t === "str" && this.toks[this.i + 1]?.t === "br" && this.touching()) {
+      this.eat();
+      return this.reference(t.v);
+    }
     if (t.t === "str") return this.eat(), { k: "lit", v: t.v };
+    if (t.t === "br") return this.reference(null);
+    // @Sparrate, @[Frei im Monat], @"Frei im Monat"
+    if (this.is("@")) {
+      this.eat("@");
+      const n = this.cur;
+      if (n.t !== "id" && n.t !== "str" && n.t !== "br") throw new Error("A Kennzahl after @: @Sparrate or @[Frei im Monat]");
+      this.eat();
+      return { k: "metric", name: n.v };
+    }
     if (this.is("(")) {
       this.eat("(");
       const n = this.ternary();
@@ -169,24 +285,36 @@ class Parser {
       return n;
     }
     if (t.t === "id") {
-      this.eat();
+      const next = this.toks[this.i + 1];
+      // Kosten!A1, Kosten[Betrag]
+      if (next?.v === "!" && next.t === "op" && this.touching() && this.touching(1)) {
+        this.eat();
+        this.eat("!");
+        return this.reference(t.v);
+      }
+      if (next?.t === "br" && this.touching()) {
+        this.eat();
+        return this.reference(t.v);
+      }
       const low = t.v.toLowerCase();
-      if (low === "true") return { k: "lit", v: true };
-      if (low === "false") return { k: "lit", v: false };
-      if (this.is("(")) {
+      if (next?.v === "(" && next.t === "op") {
+        this.eat();
         this.eat("(");
         const args: Node[] = [];
         if (!this.is(")")) {
           args.push(this.ternary());
-          while (this.is(",")) {
-            this.eat(",");
+          while (this.is(",", ";")) {
+            this.eat();
             args.push(this.ternary());
           }
         }
         this.eat(")");
         return { k: "call", name: t.v, args };
       }
-      throw new Error(`"${t.v}" is not a function — write prop("${t.v}") for a property`);
+      if (low === "true" || low === "wahr") return this.eat(), { k: "lit", v: true };
+      if (low === "false" || low === "falsch") return this.eat(), { k: "lit", v: false };
+      if (CELL.test(t.v) || (COLUMN.test(t.v) && next?.v === ":" && this.touching())) return this.reference(null);
+      throw new Error(`"${t.v}" is not a function — write prop("${t.v}") for a property, or a cell like A1`);
     }
     throw new Error(t.t === "eof" ? "The formula ends too soon" : `Unexpected "${t.v}"`);
   }
@@ -278,7 +406,9 @@ type Fn = (args: FormulaValue[], ctx: FormulaContext) => FormulaValue;
 const need = (name: string, args: FormulaValue[], min: number, max = min) => {
   if (args.length < min || args.length > max) throw new Error(`${name}() takes ${min === max ? min : `${min}–${max}`} argument${max === 1 ? "" : "s"}`);
 };
-const nums = (args: FormulaValue[]) => args.flatMap((a) => (Array.isArray(a) ? a : [a])).map(num);
+const flat = (args: FormulaValue[]): FormulaValue[] => args.flatMap((a) => (Array.isArray(a) ? flat(a) : [a]));
+/** The numbers of the arguments, lists and ranges spread — empty cells and texts left out (as Excel's SUM, AVERAGE, MIN do). */
+const nums = (args: FormulaValue[]) => flat(args).filter((v) => v !== null && v !== "" && !(typeof v === "string" && Number.isNaN(Number(v.replace(",", "."))))).map(num);
 
 const FUNCTIONS: Record<string, Fn> = {
   concat: (a) => a.map(str).join(""),
@@ -301,6 +431,13 @@ const FUNCTIONS: Record<string, Fn> = {
   max: (a) => (need("max", a, 1, 99), Math.max(...nums(a))),
   sum: (a) => (need("sum", a, 1, 99), nums(a).reduce((x, y) => x + y, 0)),
   mean: (a) => (need("mean", a, 1, 99), nums(a).reduce((x, y) => x + y, 0) / Math.max(1, nums(a).length)),
+  product: (a) => (need("product", a, 1, 99), nums(a).reduce((x, y) => x * y, 1)),
+  /** The numbers among the values (Excel's COUNT). */
+  count: (a) => flat(a).filter((v) => typeof v === "number" || (typeof v === "string" && v.trim() !== "" && !Number.isNaN(Number(v.replace(",", "."))))).length,
+  /** The values that aren't empty (COUNTA). */
+  counta: (a) => flat(a).filter((v) => v !== null && v !== "").length,
+  and: (a) => (need("and", a, 1, 99), flat(a).every(bool)),
+  or: (a) => (need("or", a, 1, 99), flat(a).some(bool)),
   toNumber: (a) => (need("toNumber", a, 1), num(a[0])),
   text: (a) => (need("text", a, 1), str(a[0])),
   now: (a, c) => (need("now", a, 0), c.now ?? new Date()),
@@ -333,10 +470,79 @@ const FUNCTIONS: Record<string, Fn> = {
   },
 };
 
+/** Excel's names (German and English) for the functions — =SUMME(A1:A3), =MITTELWERT(B:B), =WENN(A1>0; "ja"; "nein"). */
+const ALIASES: Record<string, string> = {
+  summe: "sum",
+  average: "mean",
+  mittelwert: "mean",
+  avg: "mean",
+  anzahl: "count",
+  anzahl2: "counta",
+  produkt: "product",
+  runden: "round",
+  aufrunden: "ceil",
+  abrunden: "floor",
+  wurzel: "sqrt",
+  potenz: "pow",
+  wenn: "if",
+  wennfehler: "iferror",
+  und: "and",
+  oder: "or",
+  heute: "today",
+  jetzt: "now",
+  verketten: "concat",
+  länge: "length",
+  laenge: "length",
+  klein: "lower",
+  gross: "upper",
+  groß: "upper",
+  glätten: "trim",
+  jahr: "year",
+  monat: "month",
+  tag: "day",
+  wochentag: "weekday",
+};
+const canonical = (name: string) => ALIASES[name.toLowerCase()] ?? name;
+
+/** A cell's value as a formula takes it. */
+const cellValue = (v: unknown): FormulaValue => (typeof v === "string" && v.trim() !== "" && /^-?\d+(?:[.,]\d+)?$/.test(v.trim()) ? Number(v.trim().replace(",", ".")) : toFormulaValue(v));
+
+function sheetOf(ctx: FormulaContext, name: string | null): FormulaSheet {
+  const s = ctx.sheet?.(name);
+  if (s) return s;
+  if (!ctx.sheet) throw new Error("Cell references (A1, [Column]) work in a table's cells");
+  throw new Error(`No table "${name}" shared for formulas (its ⋯ menu: Share for formulas)`);
+}
+
 function run(n: Node, ctx: FormulaContext): FormulaValue {
   switch (n.k) {
     case "lit":
       return n.v;
+    case "metric": {
+      const read = ctx.metric ?? reader.__zeffMetricReader;
+      if (!read) throw new Error("Kennzahlen are read on the server — saved, the value shows");
+      return toFormulaValue(read(n.name));
+    }
+    case "field": {
+      const s = sheetOf(ctx, n.sheet);
+      const c = s.colIndex(n.name);
+      if (c < 0) throw new Error(`No column "${n.name}"${n.sheet ? ` in ${n.sheet}` : ""}`);
+      // [Betrag] is this row's; another table's Kosten[Betrag] is its whole column.
+      if (n.sheet === null && s.row !== undefined) return cellValue(s.cell(c, s.row));
+      return Array.from({ length: s.rows }, (_, r) => cellValue(s.cell(c, r)));
+    }
+    case "ref": {
+      const s = sheetOf(ctx, n.sheet);
+      if (!n.b) {
+        if (n.a.c! >= s.cols || n.a.r! >= s.rows) return null;
+        return cellValue(s.cell(n.a.c!, n.a.r!));
+      }
+      const [c1, c2] = n.a.c === null ? [0, s.cols - 1] : [Math.min(n.a.c, n.b.c!), Math.min(s.cols - 1, Math.max(n.a.c, n.b.c!))];
+      const [r1, r2] = n.a.r === null ? [0, s.rows - 1] : [Math.min(n.a.r, n.b.r!), Math.min(s.rows - 1, Math.max(n.a.r, n.b.r!))];
+      const out: FormulaValue[] = [];
+      for (let r = r1; r <= r2; r++) for (let c = c1; c <= c2; c++) out.push(cellValue(s.cell(c, r)));
+      return out;
+    }
     case "un": {
       const v = run(n.a, ctx);
       return n.op === "-" ? -num(v) : !bool(v);
@@ -383,7 +589,16 @@ function run(n: Node, ctx: FormulaContext): FormulaValue {
       }
     }
     case "call": {
-      const name = n.name;
+      const name = canonical(n.name).toLowerCase() === "if" ? "if" : canonical(n.name).toLowerCase() === "iferror" ? "iferror" : canonical(n.name);
+      // A value, or — when it fails (a division by zero, a cell that has none) — the other.
+      if (name === "iferror") {
+        if (n.args.length !== 2) throw new Error("iferror() takes 2 arguments");
+        try {
+          return run(n.args[0], ctx);
+        } catch {
+          return run(n.args[1], ctx);
+        }
+      }
       // Lazily: only the branch taken (so a division by zero in the other isn't an error).
       if (name === "if") {
         if (n.args.length < 2 || n.args.length > 3) throw new Error("if() takes 2–3 arguments");
@@ -414,7 +629,7 @@ function run(n: Node, ctx: FormulaContext): FormulaValue {
 }
 
 /** The function names, for the editor's help. */
-export const FORMULA_FUNCTIONS = ["if", "ifs", "prop", "kennzahl", ...Object.keys(FUNCTIONS)].sort();
+export const FORMULA_FUNCTIONS = ["if", "ifs", "iferror", "prop", "kennzahl", ...Object.keys(FUNCTIONS)].sort();
 
 /** How each function is called — the editor shows it beside the name. */
 export const FORMULA_SIGNATURES: Record<string, string> = {
@@ -442,6 +657,12 @@ export const FORMULA_SIGNATURES: Record<string, string> = {
   max: "max(number, …)",
   sum: "sum(number, …)",
   mean: "mean(number, …)",
+  product: "product(number, …)",
+  count: "count(A1:A9) — the numbers",
+  counta: "counta(A1:A9) — the values not empty",
+  and: "and(condition, …)",
+  or: "or(condition, …)",
+  iferror: "iferror(value, else)",
   toNumber: "toNumber(value)",
   text: "text(value)",
   now: "now()",

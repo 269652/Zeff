@@ -1645,3 +1645,19 @@ export async function releasePaymentAction(paymentId: number, ref: string) {
     return {};
   });
 }
+
+/** A table shared for formulas under a name (other tables' cells read it: Kosten!B2), or not any more (null). */
+export async function setTableShareAction(dbId: number, name: string | null) {
+  return run(() => {
+    store.setTableShare(Number(dbId), name === null ? null : String(name));
+    return {};
+  });
+}
+
+/** What a cell's formula can name: the Kennzahlen (@Sparrate) and the tables shared for formulas (Kosten!B2). */
+export async function formulaNamesAction() {
+  return run(async () => ({
+    metrics: (await import("./metrics")).listMetrics().map((m) => m.label),
+    tables: store.sharedTables().map((x) => ({ name: x.name, title: x.title })),
+  }));
+}
