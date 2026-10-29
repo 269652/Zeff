@@ -33,6 +33,8 @@ export type Item = {
   event?: CalendarEventView;
   calendar?: CalendarView;
   proposed?: ProposedEvent;
+  /** An appointment of a shadow calendar, shown in the main calendar as a suggestion (accept / dismiss). */
+  shadow?: boolean;
   /** A Done item that matches this meeting, merged into it (see mergeDone). */
   merged?: Item;
 };
@@ -51,15 +53,18 @@ export function calendarItems(
   shown: (c: CalendarView) => boolean,
   showProposed: boolean,
   moved: Record<string, { start: string; end: string }> = {},
+  /** A shadow calendar's appointments as suggestions (the main calendar), or as they are (the block it is embedded in). */
+  shadowAsProposal = true,
 ): Item[] {
   const byId = new Map(calendars.map((c) => [c.id, c]));
+  const suggestion = (calendarId: number) => shadowAsProposal && !!byId.get(calendarId)?.shadow;
   return [
     ...events
-      .filter((e) => !e.cancelled && byId.has(e.calendarId) && shown(byId.get(e.calendarId)!))
+      .filter((e) => !e.cancelled && byId.has(e.calendarId) && shown(byId.get(e.calendarId)!) && (showProposed || !suggestion(e.calendarId)))
       .map((e): Item => {
         const id = e.occurrence ? `e${e.id}@${e.occurrence}` : `e${e.id}`;
         const cal = byId.get(e.calendarId);
-        return { id, title: e.title, start: moved[id]?.start ?? e.start, end: moved[id]?.end ?? e.end, allDay: e.allDay, color: cal?.color ?? "#7A869A", editable: cal?.source === "zeff" || (!!cal?.writable && (!e.response || e.response === "organizer")), event: e, calendar: cal };
+        return { id, title: e.title, start: moved[id]?.start ?? e.start, end: moved[id]?.end ?? e.end, allDay: e.allDay, color: cal?.color ?? "#7A869A", editable: cal?.source === "zeff" || (!!cal?.writable && (!e.response || e.response === "organizer")), event: e, calendar: cal, ...(suggestion(e.calendarId) ? { shadow: true } : {}) };
       }),
     // An appointment a todo proposes can be dragged like one of Zeff's own: its action gets the new time.
     ...(showProposed ? proposed.map((p, i): Item => ({ id: `p${i}`, title: p.title, start: moved[`p${i}`]?.start ?? p.start, end: moved[`p${i}`]?.end ?? p.end, allDay: false, color: "#6366F1", editable: MOVABLE_PROPOSALS.has(p.type), proposed: p })) : []),

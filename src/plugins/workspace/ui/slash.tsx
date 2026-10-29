@@ -133,6 +133,15 @@ export const slashItems = (t: T): SlashItem[] => [
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffIf", attrs: { field: "", op: "is", value: "" }, content: [{ type: "paragraph" }] }).run(),
   },
   {
+    key: "calendar",
+    title: t("Calendar (day, week, month)"),
+    hint: t("A calendar in the page — a shadow calendar's appointments are suggestions in your main calendar"),
+    icon: "📅",
+    group: t("App blocks"),
+    keywords: ["calendar", "kalender", "schattenkalender", "shadow", "day", "week", "month", "tag", "woche", "monat", "plan"],
+    run: ({ editor, range }) => chain(editor, range).insertContent({ type: "calendarEmbed", attrs: { calendarId: 0, view: "week", day: "" } }).run(),
+  },
+  {
     key: "widget",
     title: t("Widget"),
     hint: t("What a plugin shows live — unread, dates coming up, workers, news — with its buttons"),

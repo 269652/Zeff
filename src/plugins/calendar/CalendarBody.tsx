@@ -39,6 +39,8 @@ export function useCalendarBody({
   showProposed,
   go,
   onChanged,
+  shadowAsProposal = true,
+  defaultCalendarId,
 }: {
   view: ViewKind;
   day: string;
@@ -50,6 +52,10 @@ export function useCalendarBody({
   showProposed: boolean;
   go: (view: ViewKind, day: string) => void;
   onChanged?: () => void;
+  /** A shadow calendar's appointments as suggestions (the main calendar) — false in the block it is embedded in. */
+  shadowAsProposal?: boolean;
+  /** Where a new appointment goes (the embedded calendar's) — else the first of Zeff's own. */
+  defaultCalendarId?: number;
 }): { items: Item[]; days: string[]; today: string; pending: boolean; start: TransitionStartFunction; done: (r: Result, undo?: () => unknown) => boolean; newNow: () => void; grid: ReactNode; overlays: ReactNode } {
   const t = useT();
   const locale = LANGUAGES[useLang()].locale;
@@ -77,7 +83,7 @@ export function useCalendarBody({
     return () => clearInterval(timer);
   }, []);
 
-  const items: Item[] = useMemo(() => calendarItems(events, proposed, calendars, shown, showProposed, moved), [events, proposed, calendars, shown, showProposed, moved]);
+  const items: Item[] = useMemo(() => calendarItems(events, proposed, calendars, shown, showProposed, moved, shadowAsProposal), [events, proposed, calendars, shown, showProposed, moved, shadowAsProposal]);
 
   const done = useCallback(
     (r: Result, undo?: () => unknown) => {
@@ -92,9 +98,9 @@ export function useCalendarBody({
   const create = useCallback(
     (v: { start: string; end: string; allDay: boolean }) => {
       setPicked(null);
-      setEditor({ calendarId: own.find((c) => c.source === "zeff")?.id ?? 0, title: "", start: v.start, end: v.end, allDay: v.allDay, location: "", description: "", recurrence: null });
+      setEditor({ calendarId: defaultCalendarId ?? own.find((c) => c.source === "zeff" && !c.shadow)?.id ?? own.find((c) => c.source === "zeff")?.id ?? 0, title: "", start: v.start, end: v.end, allDay: v.allDay, location: "", description: "", recurrence: null });
     },
-    [own],
+    [own, defaultCalendarId],
   );
   const newNow = useCallback(() => {
     const at = Math.ceil((minutesOf(now) + 1) / 30) * 30;

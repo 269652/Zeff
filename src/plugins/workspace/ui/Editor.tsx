@@ -29,6 +29,7 @@ import { ZeffButton, ZeffField, ZeffRelated } from "./app-nodes";
 import { DATA_BLOCKS } from "./block-nodes";
 import { ROW_BLOCKS, ZeffActivity, ZeffBelongs } from "./row-blocks";
 import { ZeffTimeline } from "@/plugins/timeline/ui/node";
+import { CalendarEmbedNode } from "@/plugins/calendar/ui/calendar-embed";
 import { ZeffRoutine } from "./routine-node";
 import { ZeffWidget } from "./widget-node";
 import { ZeffForm, ZeffIf } from "./form-nodes";
@@ -348,6 +349,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       ZeffActivity.configure({ pageId: contextRowId ?? pageId }),
       ZeffBelongs.configure({ pageId: contextRowId ?? pageId }),
       ZeffTimeline.configure({ pageId: contextRowId ?? pageId }),
+      CalendarEmbedNode,
       PageEmbedNode.configure({ pageId }),
       AiBlockNode.configure({ pageId }),
       // eslint-disable-next-line react-hooks/refs -- read when a command runs, not while rendering

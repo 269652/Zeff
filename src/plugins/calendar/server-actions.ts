@@ -266,3 +266,31 @@ export async function calendarDataAction(view: string, day: string): Promise<{ o
     return { ok: false, error: errorMessage(e) };
   }
 }
+
+/** A shadow calendar made (a page's embedded calendar: its appointments are suggestions in the main calendar). Its id. */
+export async function createShadowCalendarAction(name: string): Promise<{ ok: true; id: number } | { ok: false; error: string }> {
+  try {
+    const no = await off();
+    if (no) return { ok: false, error: no };
+    const c = (await import("@/lib/calendar/ir")).createShadowCalendar(String(name ?? "").trim() || t("Shadow calendar"));
+    changed();
+    return { ok: true, id: c.id };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
+/** A shadow calendar's appointment accepted: entered in your own calendar (Zeff's), taken out of the shadow calendar. */
+export async function acceptShadowEventAction(id: number): Promise<ActionState> {
+  const ir = await import("@/lib/calendar/ir");
+  const e = ir.eventById(Number(id));
+  if (!e) return { ok: false, error: t("That appointment is gone.") };
+  if (!e.calendar.shadow) return { ok: false, error: t("It isn't a suggestion — it is in a real calendar already.") };
+  const target = ir.zeffCalendar();
+  const r = await saveEventAction({ calendarId: target.id, title: e.title, start: e.start, end: e.end, allDay: e.allDay, location: e.location, description: e.description, ...(e.recurrence ? { recurrence: e.recurrence } : {}) });
+  if (!r?.ok) return r;
+  return run(async () => {
+    ir.deleteEvent(e.id);
+    return t("In {calendar} now.", { calendar: target.name });
+  });
+}

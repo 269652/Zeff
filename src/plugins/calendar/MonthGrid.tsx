@@ -141,8 +141,8 @@ export function MonthGrid({
                       onClick={(e) => e.detail === 0 && onOpen(it, e.currentTarget.getBoundingClientRect())}
                       onKeyDown={(e) => onItemKey(e, it)}
                       aria-label={itemLabel(it, t)}
-                      className={`flex w-full min-w-0 items-center gap-1 truncate rounded px-1 text-left text-xs leading-5 ${it.allDay ? "font-medium" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"} ${it.editable ? "cursor-grab" : "cursor-pointer"} ${drag?.moved && drag.item.id === it.id ? "opacity-60" : ""} ${it.proposed ? "border border-dashed" : ""}`}
-                      style={it.allDay ? { background: it.color, color: textOn(it.color) } : it.proposed ? { borderColor: it.color } : undefined}
+                      className={`flex w-full min-w-0 items-center gap-1 truncate rounded px-1 text-left text-xs leading-5 ${it.allDay ? "font-medium" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"} ${it.editable ? "cursor-grab" : "cursor-pointer"} ${drag?.moved && drag.item.id === it.id ? "opacity-60" : ""} ${it.proposed || it.shadow ? "border border-dashed" : ""}`}
+                      style={it.allDay && !it.shadow ? { background: it.color, color: textOn(it.color) } : it.proposed || it.shadow ? { borderColor: it.color } : undefined}
                       title={`${it.allDay ? "" : `${timeText(it.start)} `}${it.title}${it.merged ? ` ✓ ${it.merged.title}` : ""}`}
                     >
                       {!it.allDay && <span className="size-1.5 shrink-0 rounded-full" style={{ background: it.color }} />}

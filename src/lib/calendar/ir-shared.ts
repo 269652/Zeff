@@ -25,6 +25,8 @@ export type CalendarView = {
   todos: boolean;
   /** A Google calendar Zeff may write to (you own it or may write; Google holds Calendar's write access) — set by the calendar app's data. */
   writable?: boolean;
+  /** A shadow calendar (one of Zeff's own, embedded in a page): its appointments are suggestions in the main calendar — accepted into a real one, or dismissed. */
+  shadow?: boolean;
 };
 
 export type CalendarEventView = {

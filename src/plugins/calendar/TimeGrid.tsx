@@ -342,7 +342,7 @@ export function TimeGrid({
                       onClick={(e) => onItemClick(e, it)}
                       onKeyDown={(e) => onItemKey(e, it, false)}
                       aria-label={itemLabel(it, t)}
-                      className={`group absolute overflow-hidden rounded-md px-1.5 py-0.5 text-left text-xs leading-tight transition-shadow ${it.proposed ? "border-2 border-dashed" : "border-l-[3px]"} ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragged ? "z-30 shadow-xl ring-2 ring-indigo-400/60" : "hover:z-10 hover:shadow-md"} ${faint ? "opacity-50" : past && !isDragged ? "opacity-75" : ""}`}
+                      className={`group absolute overflow-hidden rounded-md px-1.5 py-0.5 text-left text-xs leading-tight transition-shadow ${it.proposed || it.shadow ? "border-2 border-dashed" : "border-l-[3px]"} ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragged ? "z-30 shadow-xl ring-2 ring-indigo-400/60" : "hover:z-10 hover:shadow-md"} ${faint ? "opacity-50" : past && !isDragged ? "opacity-75" : ""}`}
                       style={{
                         top: (from / 60) * HOUR + 1,
                         height: Math.max(18, h - 2),
@@ -367,7 +367,7 @@ export function TimeGrid({
                           <>
                             <span className="block truncate font-semibold">
                               {it.event?.recurrence ? "↻ " : ""}
-                              {it.proposed ? t("Proposed: {title}", { title: it.title }) : it.title}
+                              {it.proposed || it.shadow ? t("Proposed: {title}", { title: it.title }) : it.title}
                             </span>
                             <span className="block truncate text-zinc-600 dark:text-zinc-400">
                               {timeText(it.start)} – {timeText(it.end)}

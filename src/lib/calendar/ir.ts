@@ -45,7 +45,9 @@ export type EventInput = {
 };
 
 const now = () => new Date().toISOString();
-const toView = (c: typeof calendars.$inferSelect): CalendarView => ({ id: c.id, key: c.key, source: c.source, name: c.name, color: c.color, visible: c.visible, busy: c.busy, book: c.book, todos: c.todos });
+/** A shadow calendar's key: one of Zeff's own, marked so (no column of its own — the key says it). */
+export const SHADOW_PREFIX = "zeff:shadow-";
+const toView = (c: typeof calendars.$inferSelect): CalendarView => ({ id: c.id, key: c.key, source: c.source, name: c.name, color: c.color, visible: c.visible, busy: c.busy, book: c.book, todos: c.todos, ...(c.key.startsWith(SHADOW_PREFIX) ? { shadow: true } : {}) });
 const eventView = (e: typeof calendarEvents.$inferSelect): CalendarEventView => ({
   id: e.id,
   calendarId: e.calendarId,
@@ -147,6 +149,17 @@ export function createCalendar(name: string, color?: string): CalendarView {
   const n = name.trim().slice(0, 80);
   if (!n) throw new Error(t("A name, please."));
   return ensureCalendar(`zeff:${randomUUID()}`, { source: "zeff", name: n, color });
+}
+
+/**
+ * A shadow calendar: one of Zeff's own whose appointments are suggestions — embedded in a page (a day, a week, a month planned
+ * there), shown dashed in the main calendar until accepted into a real one. It blocks no time, isn't offered for booking and
+ * makes no todos.
+ */
+export function createShadowCalendar(name: string, color?: string): CalendarView {
+  const n = name.trim().slice(0, 80);
+  if (!n) throw new Error(t("A name, please."));
+  return ensureCalendar(`${SHADOW_PREFIX}${randomUUID()}`, { source: "zeff", name: n, color, busy: false, book: false, todos: false });
 }
 
 /** One of Zeff's own calendars, with its appointments (a source's comes back with its next sync). */
@@ -367,7 +380,8 @@ export function deleteOccurrence(id: number, occurrence: string, scope: SeriesSc
 
 /** Zeff's own calendar by name (else the first of them — made when there is none). */
 export function zeffCalendar(name = ""): CalendarView {
-  const own = listCalendars().filter((c) => c.source === "zeff");
+  // (a shadow calendar's appointments are suggestions: never where something is entered for real)
+  const own = listCalendars().filter((c) => c.source === "zeff" && !c.shadow);
   return own.find((c) => c.name.toLowerCase() === name.trim().toLowerCase()) ?? own[0] ?? createCalendar("Mein Kalender");
 }
 

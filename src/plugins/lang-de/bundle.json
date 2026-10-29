@@ -7723,5 +7723,20 @@
   "next {day}": "nächste am {day}",
   "Case": "Vorgang",
   "No open promises with {name}.": "Keine offenen Versprechen mit {name}.",
-  "No open promises.": "Keine offenen Versprechen."
+  "No open promises.": "Keine offenen Versprechen.",
+  "Enters it in your own calendar and takes it out of the shadow calendar": "Trägt ihn in deinen eigenen Kalender ein und nimmt ihn aus dem Schattenkalender",
+  "Takes it out of the shadow calendar": "Nimmt ihn aus dem Schattenkalender",
+  "Shadow calendar": "Schattenkalender",
+  "That appointment is gone.": "Diesen Termin gibt es nicht mehr.",
+  "It isn't a suggestion — it is in a real calendar already.": "Das ist kein Vorschlag – der Termin steht schon in einem echten Kalender.",
+  "In {calendar} now.": "Jetzt in {calendar}.",
+  "A calendar in this page": "Ein Kalender in dieser Seite",
+  "A shadow calendar is a plan: what you put in it shows in your main calendar as suggestions — accept them into it, or dismiss them. It blocks no time until then.": "Ein Schattenkalender ist ein Plan: Was du dort einträgst, erscheint in deinem Hauptkalender als Vorschlag – übernimm es oder verwirf es. Bis dahin blockiert es keine Zeit.",
+  "Its name": "Sein Name",
+  "New shadow calendar": "Neuer Schattenkalender",
+  "or show one there is:": "oder einen vorhandenen zeigen:",
+  "shadow": "Schatten",
+  "Its appointments show in your main calendar as suggestions": "Seine Termine erscheinen in deinem Hauptkalender als Vorschläge",
+  "Calendar (day, week, month)": "Kalender (Tag, Woche, Monat)",
+  "A calendar in the page — a shadow calendar's appointments are suggestions in your main calendar": "Ein Kalender in der Seite – die Termine eines Schattenkalenders sind Vorschläge in deinem Hauptkalender"
 }

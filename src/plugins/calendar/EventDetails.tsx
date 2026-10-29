@@ -9,7 +9,7 @@ import { describeRecurrence } from "@/lib/calendar/recurrence";
 import type { T } from "@/lib/i18n/shared";
 import { ScopeChoice } from "./EventEditor";
 import { doneBrowserOpAction, removeTodoOpAction } from "@/plugins/todos/server-actions";
-import { acceptProposedEventAction, deleteEventAction, respondEventAction, saveEventAction } from "./server-actions";
+import { acceptProposedEventAction, acceptShadowEventAction, deleteEventAction, respondEventAction, saveEventAction } from "./server-actions";
 import { whenText, type Item } from "./view-shared";
 import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 
@@ -87,6 +87,9 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
   };
   const respond = (answer: "accepted" | "tentative" | "declined") => e && start(async () => onDone(await respondEventAction(e.id, answer)));
   const dismiss = () => p && start(async () => onDone(await removeTodoOpAction(p.todoId, p.index)));
+  // A shadow calendar's appointment (a suggestion planned in a page): into your own calendar, or away.
+  const acceptShadow = () => e && start(async () => onDone(await acceptShadowEventAction(e.id)));
+  const dismissShadow = () => e && start(async () => onDone(await deleteEventAction(e.id)));
 
   const remove = (scope?: SeriesScope) =>
     start(async () =>
@@ -114,7 +117,7 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
           <div className="flex items-start gap-2">
             <span className={`mt-1.5 size-3 shrink-0 rounded ${item.proposed ? "border-2 border-dashed" : ""}`} style={item.proposed ? { borderColor: item.color } : { background: item.color }} />
             <div className="min-w-0 flex-1">
-              <p className="text-base leading-snug font-semibold break-words">{item.proposed ? t("Proposed: {title}", { title: item.title }) : item.title}</p>
+              <p className="text-base leading-snug font-semibold break-words">{item.proposed || item.shadow ? t("Proposed: {title}", { title: item.title }) : item.title}</p>
               <p className="text-zinc-600 dark:text-zinc-300">{whenText(item, t)}</p>
               {e?.recurrence && <p className="text-xs text-zinc-500">↻ {describeRecurrence(e.recurrence, e.start, t)}</p>}
             </div>
@@ -163,6 +166,16 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
             </p>
           )}
           <div className="flex flex-wrap gap-2 pt-1">
+            {item.shadow && e && (
+              <>
+                <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={acceptShadow} title={t("Enters it in your own calendar and takes it out of the shadow calendar")}>
+                  {pending ? "…" : t("Accept")}
+                </button>
+                <button type="button" className="btn btn-sm" disabled={pending} onClick={dismissShadow} title={t("Takes it out of the shadow calendar")}>
+                  {t("Dismiss")}
+                </button>
+              </>
+            )}
             {p && (
               <>
                 <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={accept} title={p.href && !viaApi ? t("Opens {target}'s form, filled in — save it there; it's noted on {ref}", { target: p.target, ref: p.todoRef }) : t("Enters it in {target} now", { target: p.target })}>

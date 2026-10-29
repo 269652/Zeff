@@ -223,6 +223,8 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
       return `:::block activity {"limit":${Number(n.attrs?.limit) || 12}}`;
     case "zeffBelongs":
       return ":::block belongs";
+    case "calendarEmbed":
+      return `:::calendar ${Number(n.attrs?.calendarId) || 0} ${["day", "week", "month"].includes(String(n.attrs?.view)) ? String(n.attrs?.view) : "week"}`;
     case "zeffTimeline":
       return `:::block timeline ${JSON.stringify({ ...(n.attrs?.ref ? { ref: String(n.attrs.ref) } : {}), limit: Number(n.attrs?.limit) || 20 })}`;
     case "zeffTabs":
@@ -374,6 +376,13 @@ export function markdownToDoc(md: string): Doc {
       const pg = /^:::page\s+(\d+)\s*(.*)$/.exec(l);
       if (pg) {
         out.push({ type: "pageEmbed", attrs: { pageId: Number(pg[1]), title: pg[2].trim() } });
+        i++;
+        continue;
+      }
+      // :::calendar 7 week  - a calendar shown in the page (a day, a week, a month of it)
+      const cal = /^:::calendar\s+(\d+)(?:\s+(day|week|month))?\s*$/.exec(l);
+      if (cal) {
+        out.push({ type: "calendarEmbed", attrs: { calendarId: Number(cal[1]), view: cal[2] ?? "week", day: "" } });
         i++;
         continue;
       }
@@ -551,6 +560,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffActivity: ["limit"],
   zeffBelongs: [],
   zeffTimeline: ["ref", "limit"],
+  calendarEmbed: ["calendarId", "view", "day"],
   zeffTabs: ["active"],
   zeffTab: ["title"],
   zeffPeople: ["ids", "q", "limit", "title"],

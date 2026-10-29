@@ -29,11 +29,11 @@ export function AgendaList({ days, items, today, onOpen }: { days: string[]; ite
                   className={`flex w-full items-baseline gap-3 rounded-md px-2 py-1 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800 ${it.event?.response === "declined" ? "opacity-50" : ""}`}
                 >
                   <span className="w-24 shrink-0 text-xs text-zinc-500 tabular-nums">{it.allDay ? t("All day") : `${it.start.slice(0, 10) < d ? "…" : timeText(it.start)} – ${it.end.slice(0, 10) > d ? "…" : timeText(it.end)}`}</span>
-                  <span className={`size-2.5 shrink-0 translate-y-[1px] rounded-full ${it.proposed ? "border-2 border-dashed bg-transparent" : ""}`} style={it.proposed ? { borderColor: it.color } : { background: it.color }} />
+                  <span className={`size-2.5 shrink-0 translate-y-[1px] rounded-full ${it.proposed || it.shadow ? "border-2 border-dashed bg-transparent" : ""}`} style={it.proposed || it.shadow ? { borderColor: it.color } : { background: it.color }} />
                   <span className="min-w-0 flex-1">
                     <span className="font-medium">
                       {it.event?.recurrence ? "↻ " : ""}
-                      {it.proposed ? t("Proposed: {title}", { title: it.title }) : it.title}
+                      {it.proposed || it.shadow ? t("Proposed: {title}", { title: it.title }) : it.title}
                       {it.merged && (
                         <span className="ml-1 font-normal text-emerald-600 dark:text-emerald-400" title={it.merged.title}>
                           ✓
