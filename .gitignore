@@ -20,6 +20,8 @@
 /.next-old*/
 # the disposable test servers' builds (scripts/test-server.mjs)
 /.next-e2e*/
+# the e2e suite's screenshots of failures
+/e2e/artifacts/
 # the sync host's own build (npm run deploy: .next-sync, the next one waiting in .next-sync-build, the previous in .next-sync-old) —
 # compiled and compressed output: ignored, or Tailwind scans it and builds a class out of the bytes ("Parsing CSS source code failed")
 /.next-sync/
