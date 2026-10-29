@@ -141,11 +141,12 @@ export function evalInline(editor: { state: EditorState; extensionManager: { ext
   const opts = editor.extensionManager.extensions.find((e) => e.name === "tableFormulas")?.options as Options | undefined;
   if (!src.trim()) return { shown: "", warned: false };
   const data = opts?.getData() ?? null;
-  if (opts && !data) opts.requestData();
+  // (Asked after this render — a request while React renders the box would update the page during it.)
+  if (opts && !data) setTimeout(() => opts.requestData(), 0);
   const pending: PendingCall[] = [];
   const own: PageTable = { name: "", pos: -1, rows: [[{ text: `=${src}`, pos: -1, size: 0, header: false }]] };
   const r = evaluatePageTables([...pageTables(editor.state.doc), own], data ?? { metrics: {}, sheets: {} }, pending).get(-1) ?? { value: null };
-  if (opts && data && pending.length) opts.requestCalls(pending);
+  if (opts && data && pending.length) setTimeout(() => opts.requestCalls(pending), 0);
   const waiting = r.error === PENDING || (!data && !!r.error);
   const error = waiting ? undefined : r.error;
   const warned = !error && !!r.warnings?.length;

@@ -1,6 +1,7 @@
 "use client";
 
 import { InputRule, mergeAttributes, Node, type EditorEvents } from "@tiptap/core";
+import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
@@ -17,8 +18,21 @@ import { evalInline, tableFormulasKey } from "./table-formulas";
 
 // A formula just put in opens to be written (the node view that mounts next takes it).
 let openNext = false;
+// What is typed between "{=" and its box taking the focus (the node view mounts a moment later): kept for the box, not
+// written into the page — so "{=1+2" typed fast arrives whole. null: no box on its way.
+let typedAhead: string | null = null;
+let aheadTimer: ReturnType<typeof setTimeout> | null = null;
 export const openNextFormula = () => {
   openNext = true;
+  typedAhead = "";
+  if (aheadTimer) clearTimeout(aheadTimer);
+  aheadTimer = setTimeout(() => (typedAhead = null), 3000);
+};
+/** What was typed ahead for the box now open (once). */
+const takeTypedAhead = (): string => {
+  const s = typedAhead ?? "";
+  typedAhead = null;
+  return s;
 };
 
 type Suggestion = { key: string; icon: string; label: string; hint: string; insert: string };
@@ -114,10 +128,16 @@ function FormulaPopover({ draft, setDraft, res, commit, cancel, remove, t }: { d
   const [active, setActive] = useState(0);
   useEffect(() => {
     void loadNames().then(setNames);
+    const ahead = takeTypedAhead();
+    const text = draft + ahead;
+    if (ahead) {
+      setDraft(text);
+      setCaret(text.length);
+    }
     const el = input.current;
     if (el) {
       el.focus();
-      el.setSelectionRange(draft.length, draft.length);
+      requestAnimationFrame(() => el.setSelectionRange(text.length, text.length));
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once, when it opens
   }, []);
@@ -245,6 +265,21 @@ export const InlineFormula = Node.create({
   },
   addNodeView() {
     return ReactNodeViewRenderer(InlineFormulaView);
+  },
+  addProseMirrorPlugins() {
+    // Typed while the box is on its way: into the box, not the page.
+    return [
+      new Plugin({
+        key: new PluginKey("inlineFormulaTypeAhead"),
+        props: {
+          handleTextInput: (_view, _from, _to, text) => {
+            if (typedAhead === null) return false;
+            typedAhead += text;
+            return true;
+          },
+        },
+      }),
+    ];
   },
   addInputRules() {
     // "{=" or "{{" typed: a formula, open to be written (it is one piece — nothing to close).
