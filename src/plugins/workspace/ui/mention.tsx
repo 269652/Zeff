@@ -10,7 +10,7 @@ import { suggestionRender, type MenuProps } from "./popup";
 
 export function MentionMenu({ items, selected, onPick, onHover }: MenuProps<MentionItem>) {
   const t = useT();
-  const KIND_LABEL: Record<MentionItem["kind"], string> = { metric: t("Metrics"), page: t("Pages"), person: t("People"), todo: t("Todos"), ticket: t("Tickets") };
+  const KIND_LABEL: Record<MentionItem["kind"], string> = { metric: t("Metrics"), page: t("Pages"), circle: t("Circles"), person: t("People"), todo: t("Todos"), ticket: t("Tickets") };
   if (!items.length) return <div className="px-2 py-1.5 text-zinc-500">{t("Type a name, a page, a todo or a ticket key")}</div>;
   return (
     <>

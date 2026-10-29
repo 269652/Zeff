@@ -20,7 +20,7 @@ export type FormulaValue = number | string | boolean | null | Date | EntityRef |
  */
 export class EntityRef {
   constructor(
-    readonly kind: "person" | "page" | "todo" | "ticket" | "name",
+    readonly kind: "person" | "page" | "todo" | "ticket" | "circle" | "name",
     readonly id: string,
     readonly label: string,
   ) {}
@@ -109,15 +109,15 @@ export function colLetters(i: number): string {
 }
 const CELL = /^([A-Za-z]{1,3})(\d+)$/;
 /** A mention's inside: kind:ref|Label. */
-const REF = /^(page|todo|ticket|person|metric):([^|\]]+)(?:\|(.*))?$/;
-export type RefKind = "page" | "todo" | "ticket" | "person" | "metric";
+const REF = /^(page|todo|ticket|person|metric|circle):([^|\]]+)(?:\|(.*))?$/;
+export type RefKind = "page" | "todo" | "ticket" | "person" | "metric" | "circle";
 /** A mention as text (as a page writes it): [[page:12|Titel]]. */
 export const refToken = (kind: RefKind, ref: string, label: string): string => `[[${kind}:${ref}${label ? `|${label.replace(/[\]|]/g, "")}` : ""}]]`;
 /** A text's mentions and the text between them, for showing them as chips. */
 export function splitRefs(text: string): ({ text: string } | { kind: RefKind; ref: string; label: string })[] {
   const out: ({ text: string } | { kind: RefKind; ref: string; label: string })[] = [];
   let at = 0;
-  for (const m of text.matchAll(/\[\[(page|todo|ticket|person|metric):([^|\]]+)(?:\|([^\]]*))?\]\]/g)) {
+  for (const m of text.matchAll(/\[\[(page|todo|ticket|person|metric|circle):([^|\]]+)(?:\|([^\]]*))?\]\]/g)) {
     if (m.index > at) out.push({ text: text.slice(at, m.index) });
     out.push({ kind: m[1] as RefKind, ref: m[2], label: (m[3] ?? "").trim() || m[2] });
     at = m.index + m[0].length;

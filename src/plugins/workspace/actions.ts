@@ -209,6 +209,8 @@ export async function mentionSearchAction(q: string): Promise<MentionItem[]> {
     }
     for (const p of store.suggestPages(w, 6)) items.push({ kind: "page", ref: String(p.id), label: p.title || t("Untitled"), hint: p.kind === "database" ? t("Database") : t("Page"), icon: p.icon || (p.kind === "database" ? "🗂️" : "📄"), href: `/workspace/${p.id}` });
     if (isInstalled("people")) {
+      // The circles (Familie, Freunde, Arbeit, Behörden & Gläubiger, Dienste): a whole group at once — Schulden(@Freunde).
+      for (const c of (await import("@/plugins/people/formulas")).circlesFor(w)) items.push({ kind: "circle", ref: c.key, label: c.label, hint: c.count === 1 ? t("Circle · 1 person") : t("Circle · {n} people", { n: c.count }), icon: "👥", href: "" });
       const { searchPeopleAction } = await import("@/plugins/todos/server-actions");
       for (const p of await searchPeopleAction(w)) items.push({ kind: "person", ref: String(p.id), label: p.name, hint: t("Person"), icon: "👤", href: (await import("./people-database")).personHref(p.id) });
     }
@@ -260,6 +262,9 @@ export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: stri
         const { getTicketCards } = await import("@/lib/jira/store");
         const c = getTicketCards([r.ref])[r.ref.toUpperCase()];
         out[key] = c ? { label: c.summary ? `${c.key} ${c.summary}`.slice(0, 80) : c.key, status: c.synced ? c.status : undefined, done: c.statusCategory === "done" } : {};
+      } else if (r.kind === "circle" && isInstalled("people")) {
+        const c = (await import("@/plugins/people/formulas")).circlesFor("").find((x) => x.key === r.ref);
+        out[key] = c ? { label: c.label, icon: "👥", status: t("{n} people", { n: c.count }) } : { missing: true };
       } else if (r.kind === "person" && isInstalled("people")) {
         const { getPerson } = await import("@/plugins/people/store");
         const p = getPerson(Number(r.ref));

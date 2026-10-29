@@ -187,7 +187,7 @@ function RefView({ node, editor, getPos }: NodeViewProps) {
       alive = false;
     };
   }, [kind, ref]);
-  const icon = state.icon ?? (kind === "person" ? "👤" : kind === "todo" ? (state.done ? "✅" : "☑️") : kind === "ticket" ? "🎫" : kind === "metric" ? "📊" : "📄");
+  const icon = state.icon ?? (kind === "person" ? "👤" : kind === "todo" ? (state.done ? "✅" : "☑️") : kind === "ticket" ? "🎫" : kind === "metric" ? "📊" : kind === "circle" ? "👥" : "📄");
   const text = kind === "todo" || kind === "ticket" ? label : (state.label ?? label);
   const external = /^https?:\/\//.test(href ?? "");
   // A page's chip: shown inline instead (its content in place) — a click on ⤢.

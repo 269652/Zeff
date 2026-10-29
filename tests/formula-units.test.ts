@@ -116,3 +116,19 @@ test("the plugins' functions in a table's cells: Schulden(@Chris) and SUMME(Schu
   assert.match(String((store.setCell(row, plain.id, "=Testschulden(@Niemand)"), cells())[`${plain.id}!`]), /No person or circle "Niemand"/);
   assert.match(String((store.setCell(row, plain.id, "=@Chris + 1"), cells())[`${plain.id}!`]), /no Kennzahl and no number/);
 });
+
+test("circles in the @ menu: offered by their name and the words they go by (Freunde, Banken), picked one is the whole circle in a formula, kept in a page", async () => {
+  const { circlesFor, peopleOf } = await import("@/plugins/people/formulas");
+  assert.deepEqual(circlesFor("freu").map((c) => c.key), ["friends"]);
+  assert.deepEqual(circlesFor("bank").map((c) => c.key), ["authorities"], "a bank is a creditor");
+  const friends = circlesFor("friends")[0];
+  assert.ok(friends.count >= 2, "the two friends of the test before");
+  const { EntityRef, evalFormula } = await import("@/plugins/workspace/formula");
+  assert.equal(peopleOf(new EntityRef("circle", "friends", "Freunde"))?.people.length, friends.count);
+  const r = evalFormula("ANZAHL2(Personen([[circle:friends|Freunde]]))", { prop: () => null });
+  assert.deepEqual(r, { value: friends.count });
+  const { docToMarkdown, markdownToDoc } = await import("@/plugins/workspace/doc");
+  const doc = markdownToDoc("Schulden bei [[circle:friends|Freunde]]");
+  assert.match(JSON.stringify(doc), /"kind":"circle","ref":"friends"/);
+  assert.match(docToMarkdown(doc), /\[\[circle:friends\|Freunde\]\]/);
+});

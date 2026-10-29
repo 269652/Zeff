@@ -14,7 +14,7 @@ const CIRCLE_WORDS: Record<Circle, string[]> = {
   family: ["family", "familie", "familia", "verwandte"],
   friends: ["friends", "freunde", "freundinnen", "freundeskreis", "amigos"],
   work: ["work", "arbeit", "job", "kollegen", "kolleginnen", "trabajo"],
-  authorities: ["authorities", "behörden", "behoerden", "gläubiger", "glaeubiger", "autoridades"],
+  authorities: ["authorities", "creditors", "behörden", "behoerden", "gläubiger", "glaeubiger", "banken", "bank", "autoridades", "bancos"],
   services: ["services", "dienste", "dienstleister", "servicios"],
 };
 
@@ -34,6 +34,11 @@ export function peopleOf(v: FormulaValue): { people: Person[]; group: boolean; l
     const each = v.map(peopleOf).filter((x): x is NonNullable<typeof x> => !!x);
     return { people: [...new Map(each.flatMap((x) => x.people).map((p) => [p.id, p])).values()], group: true, label: each.map((x) => x.label).join(", ") };
   }
+  // A circle picked from the @ menu ([[circle:friends|Freunde]]).
+  if (v instanceof EntityRef && v.kind === "circle") {
+    const circle = (Object.keys(CIRCLE_WORDS) as Circle[]).includes(v.id as Circle) ? (v.id as Circle) : circleOf(v.label);
+    return { people: circle ? all.filter((p) => p.circle === circle) : [], group: true, label: v.label };
+  }
   if (v instanceof EntityRef && v.kind === "person") {
     const p = all.find((x) => x.id === Number(v.id));
     return { people: p ? [p] : [], group: false, label: v.label };
@@ -48,6 +53,16 @@ export function peopleOf(v: FormulaValue): { people: Person[]; group: boolean; l
   const first = all.filter((p) => p.name.toLowerCase().split(/\s+/)[0] === low);
   if (first.length === 1) return { people: first, group: false, label: first[0].name };
   return { people: [], group: false, label: name };
+}
+
+/** The circles as the @ menu offers them: their key, their name, how many are in each — those matching `q` (by name or a word they go by). */
+export function circlesFor(q: string): { key: Circle; label: string; count: number }[] {
+  const w = q.trim().toLowerCase();
+  const labels = circleLabels(t);
+  const all = listPeople();
+  return (Object.keys(CIRCLE_WORDS) as Circle[])
+    .filter((k) => !w || labels[k].toLowerCase().includes(w) || CIRCLE_WORDS[k].some((x) => x.startsWith(w)))
+    .map((k) => ({ key: k, label: labels[k], count: all.filter((p) => p.circle === k).length }));
 }
 
 /** Who a function's argument names — or why not. */
