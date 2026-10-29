@@ -78,13 +78,17 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
         tone: x.due && x.due < today ? ("bad" as const) : undefined,
         href: `/t/${x.id}`,
         done: false,
-        actions: [{ id: "toggle", label: t("Done"), icon: "✓" }],
+        actions: [
+          { id: "toggle", label: t("Done"), icon: "✓" },
+          { id: "dismiss", label: t("Dismiss"), icon: "✕" },
+        ],
       }));
       return { kind: "list", title: p.name, items, count: all.length || undefined, empty: t("No open todos with {name}.", { name: p.name }) };
     },
     act: async (action, payload) => {
-      if (action !== "toggle") throw new Error("unknown action");
-      (await import("@/lib/boards/store")).setTodoStatus(Number(payload.id), "done");
+      // Ticked: done; ✕: dismissed (not to be done) — either way off the list.
+      if (action !== "toggle" && action !== "dismiss") throw new Error("unknown action");
+      (await import("@/lib/boards/store")).setTodoStatus(Number(payload.id), action === "toggle" ? "done" : "dismissed");
     },
   },
   {

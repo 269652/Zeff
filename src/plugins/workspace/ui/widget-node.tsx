@@ -101,10 +101,22 @@ function ItemRow({ item, busy, act }: { item: WidgetItem; busy: boolean; act: (a
   const tick = item.done !== undefined && !!item.actions?.some((a) => a.id === "toggle");
   const actions = tick ? item.actions!.filter((a) => a.id !== "toggle") : item.actions;
   const big = !!item.icon && !tick;
+  // Ticked at once (the row goes when the widget's data comes back).
+  const [ticked, setTicked] = useState(!!item.done);
   return (
     <li className={`group/item relative flex items-start gap-3 rounded-xl px-2 ${big ? "py-1.5" : "py-1"} transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50`}>
       {tick ? (
-        <input type="checkbox" className="mt-0.5 size-4 shrink-0 cursor-pointer accent-indigo-600" checked={!!item.done} disabled={busy} aria-label={item.text} onChange={() => act("toggle", item.id)} />
+        <input
+          type="checkbox"
+          className="mt-0.5 size-4 shrink-0 cursor-pointer accent-indigo-600"
+          checked={ticked}
+          disabled={busy}
+          aria-label={item.text}
+          onChange={() => {
+            setTicked(!ticked);
+            act("toggle", item.id);
+          }}
+        />
       ) : (
         <Lead icon={item.icon} tone={tone} />
       )}

@@ -22,6 +22,10 @@ if (!fs.existsSync(out)) {
   const dbTitle = "E2E Medikamente";
   const dbId = createPage({ kind: "database", title: dbTitle, schema: { titleName: "Name", properties: [dose, taken], views: [newView("Table", "table")] } });
   const rows = [addRow(dbId, { title: "Alpha", cells: { [dose.id]: 10 } }), addRow(dbId, { title: "Beta", cells: { [dose.id]: 20 } })];
-  fs.writeFileSync(out, JSON.stringify({ personId, personName, dbId, dbTitle, rows, rowTitles: ["Alpha", "Beta"], props: { dose: dose.id, taken: taken.id } }, null, 2));
+  // Todos about the person (the person widgets tick and dismiss them).
+  (await import("@/plugins/state")).setInstalled("todos", true);
+  const { addManualTodo } = await import("@/lib/boards/store");
+  const todos = [`${personName} anrufen`, `${personName} das Buch zurückgeben`].map((text) => addManualTodo({ ticket: "", text }).text);
+  fs.writeFileSync(out, JSON.stringify({ personId, personName, dbId, dbTitle, rows, rowTitles: ["Alpha", "Beta"], props: { dose: dose.id, taken: taken.id }, todos }, null, 2));
 }
 console.log(`e2e seed: ${out}`);
