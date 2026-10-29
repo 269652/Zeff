@@ -7769,5 +7769,22 @@
   "Remove this block": "Diesen Block entfernen",
   "A value worked out in the text: {=@Kennzahl * 12}": "Ein im Text berechneter Wert: {=@Kennzahl * 12}",
   "Date from a duration": "Datum aus einer Dauer",
-  "{=Datum(@Schuldenfrei in)} — the day a duration from today ends": "{=Datum(@Schuldenfrei in)} – der Tag, an dem eine Dauer ab heute endet"
+  "{=Datum(@Schuldenfrei in)} — the day a duration from today ends": "{=Datum(@Schuldenfrei in)} – der Tag, an dem eine Dauer ab heute endet",
+  "Remove the formula": "Formel entfernen",
+  "Datum(@Schuldenfrei in), @Kennzahl * 12 …": "Datum(@Schuldenfrei in), @Kennzahl * 12 …",
+  "Functions, @Kennzahlen, people and tables are offered as you type. Enter keeps it, Esc goes back.": "Funktionen, @Kennzahlen, Personen und Tabellen werden beim Tippen vorgeschlagen. Enter übernimmt, Esc bricht ab.",
+  "Kennzahl": "Kennzahl",
+  "The day a duration from today ends — or a date as it is": "Der Tag, an dem eine Dauer ab heute endet – oder ein Datum, wie es ist",
+  "The sum": "Die Summe",
+  "The mean": "Der Mittelwert",
+  "The smallest": "Der kleinste Wert",
+  "The largest": "Der größte Wert",
+  "Rounded": "Gerundet",
+  "One value or the other": "Der eine oder der andere Wert",
+  "How many numbers": "Wie viele Zahlen",
+  "The year of a date": "Das Jahr eines Datums",
+  "The month of a date": "Der Monat eines Datums",
+  "The day of a date": "Der Tag eines Datums",
+  "The time between two dates": "Die Zeit zwischen zwei Daten",
+  "A date written as you like": "Ein Datum im gewünschten Format"
 }

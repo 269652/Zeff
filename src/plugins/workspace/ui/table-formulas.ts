@@ -46,37 +46,6 @@ function cellText(cell: PmNode): string {
   return parts.join(" ");
 }
 
-/**
- * Formulas in running text: {=Datum(@Schuldenfrei in)} in a paragraph, a heading, a list (not in a table — a cell starts
- * with "=") — each as a table of one cell (Name!A1 reads the page's tables), where it stands from "{" to "}".
- */
-export function inlineFormulas(doc: PmNode): PageTable[] {
-  const out: PageTable[] = [];
-  doc.descendants((node, pos) => {
-    if (node.type.name === "table") return false;
-    if (!node.isTextblock) return true;
-    if (!node.textContent.includes("{=")) return false;
-    // The block's text as a formula reads it (a mention as its token), each character's position in the document.
-    let s = "";
-    const at: number[] = [];
-    node.forEach((child, off) => {
-      const p = pos + 1 + off;
-      const text = child.isText ? (child.text ?? "") : child.type.name === "zeffRef" ? refToken(String(child.attrs.kind) as RefKind, String(child.attrs.ref ?? ""), String(child.attrs.label ?? "")) : " ";
-      for (let i = 0; i < text.length; i++) {
-        s += text[i];
-        at.push(child.isText ? p + i : p);
-      }
-    });
-    for (const m of s.matchAll(/\{=([^{}\n]*)\}/g)) {
-      const from = at[m.index];
-      const to = at[m.index + m[0].length - 1] + 1;
-      out.push({ name: "", pos: from, rows: [[{ text: `=${m[1]}`, pos: from, size: to - from, header: false }]] });
-    }
-    return false;
-  });
-  return out;
-}
-
 /** The page's tables as grids (cells with where they stand). */
 export function pageTables(doc: PmNode): PageTable[] {
   const out: PageTable[] = [];
@@ -118,12 +87,11 @@ function decorate(state: EditorState, opts: Options): DecorationSet {
   // A number written in a cell ("12", "1.200,50 €", "5 h", "20 %") stands right, its digits aligned — as in a spreadsheet.
   const numbers = all.filter((c) => !c.header && !c.text.trimStart().startsWith("=") && numberWithUnit(c.text)).map((c) => Decoration.node(c.pos, c.pos + c.size, { class: "ws-num-cell" }));
   const formulaCells = all.filter((c) => c.text.trimStart().startsWith("="));
-  const inline = inlineFormulas(state.doc);
-  if (!formulaCells.length && !inline.length) return numbers.length ? DecorationSet.create(state.doc, numbers) : DecorationSet.empty;
+  if (!formulaCells.length) return numbers.length ? DecorationSet.create(state.doc, numbers) : DecorationSet.empty;
   const data = opts.getData();
   if (!data) opts.requestData();
   const pending: PendingCall[] = [];
-  const results = evaluatePageTables([...tables, ...inline], data ?? { metrics: {}, sheets: {} }, pending);
+  const results = evaluatePageTables(tables, data ?? { metrics: {}, sheets: {} }, pending);
   if (data && pending.length) opts.requestCalls(pending);
   const head = state.selection.head;
   const decos: Decoration[] = [...numbers];
@@ -162,41 +130,27 @@ function decorate(state: EditorState, opts: Options): DecorationSet {
       ),
     );
   }
-  for (const { rows } of inline) {
-    const f = rows[0][0];
-    const from = f.pos;
-    const to = f.pos + f.size;
-    const r = results.get(from) ?? { value: null };
-    const warned = !r.error && !!r.warnings?.length;
-    const waiting = r.error === PENDING || (!data && !!r.error);
-    if (waiting) r.error = undefined;
-    const shown = waiting ? PENDING : r.error ? `⚠ ${r.error}` : `${formatCellValue(r.value, opts.locale(), r.unit)}${warned ? " ⚠" : ""}`;
-    if (head > from && head < to) {
-      // Being written: the formula as it is, its value after it.
-      decos.push(Decoration.inline(from, to, { class: "ws-iformula-editing" }));
-      decos.push(Decoration.widget(to, () => Object.assign(document.createElement("span"), { className: `ws-iformula-preview ${r.error ? "is-error" : ""}`, textContent: `= ${shown}` }), { side: 1, ignoreSelection: true }));
-      continue;
-    }
-    // Else its value in the text (the formula hidden; a click on the value goes into it).
-    decos.push(Decoration.inline(from, to, { class: "ws-iformula-src" }));
-    decos.push(
-      Decoration.widget(
-        from,
-        (view) => {
-          const el = Object.assign(document.createElement("span"), { className: `ws-iformula-value ${r.error ? "is-error" : ""} ${warned ? "has-warning" : ""}`, textContent: shown || "\u00a0", title: [f.text, r.error, ...(warned ? r.warnings! : [])].filter(Boolean).join("\n") });
-          el.contentEditable = "false";
-          el.addEventListener("mousedown", (e) => {
-            e.preventDefault();
-            view.dispatch(view.state.tr.setSelection(TextSelection.create(view.state.doc, Math.max(from + 1, to - 1))));
-            view.focus();
-          });
-          return el;
-        },
-        { side: -1, key: `i${from}:${shown}` },
-      ),
-    );
-  }
   return DecorationSet.create(state.doc, decos);
+}
+
+/**
+ * A formula in running text (inline-formula.tsx) worked out as the page's table cells are: the Kennzahlen, the plugins'
+ * functions, the page's tables by name (Name!A1) — what the server still has to say asked, "…" meanwhile.
+ */
+export function evalInline(editor: { state: EditorState; extensionManager: { extensions: { name: string; options: unknown }[] } }, src: string): { shown: string; error?: string; warned: boolean; warnings?: string[] } {
+  const opts = editor.extensionManager.extensions.find((e) => e.name === "tableFormulas")?.options as Options | undefined;
+  if (!src.trim()) return { shown: "", warned: false };
+  const data = opts?.getData() ?? null;
+  if (opts && !data) opts.requestData();
+  const pending: PendingCall[] = [];
+  const own: PageTable = { name: "", pos: -1, rows: [[{ text: `=${src}`, pos: -1, size: 0, header: false }]] };
+  const r = evaluatePageTables([...pageTables(editor.state.doc), own], data ?? { metrics: {}, sheets: {} }, pending).get(-1) ?? { value: null };
+  if (opts && data && pending.length) opts.requestCalls(pending);
+  const waiting = r.error === PENDING || (!data && !!r.error);
+  const error = waiting ? undefined : r.error;
+  const warned = !error && !!r.warnings?.length;
+  const shown = waiting ? PENDING : error ? `⚠ ${error}` : `${formatCellValue(r.value, opts?.locale(), r.unit)}${warned ? " ⚠" : ""}`;
+  return { shown, error, warned, warnings: r.warnings };
 }
 
 export const TableFormulas = Extension.create<Options>({

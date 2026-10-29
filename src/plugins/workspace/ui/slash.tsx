@@ -2,7 +2,8 @@
 
 import { Extension, type Editor, type Range } from "@tiptap/react";
 import { useT } from "@/components/I18nProvider";
-import { PluginKey, TextSelection } from "@tiptap/pm/state";
+import { PluginKey } from "@tiptap/pm/state";
+import { openNextFormula } from "./inline-formula";
 import Suggestion from "@tiptap/suggestion";
 import type { Lang, T } from "@/lib/i18n/shared";
 import type { MenuProps } from "./popup";
@@ -84,17 +85,16 @@ export const slashItems = (t: T): SlashItem[] => [
   },
   // A formula in the text ({=…}): its value shows where it stands — the caret put where the formula is written.
   ...[
-    { key: "formula", title: t("Formula"), hint: t("A value worked out in the text: {=@Kennzahl * 12}"), icon: "=", text: "{=}", back: 1, keywords: ["formula", "formel", "rechnen", "calc", "=", "berechnen"] },
-    { key: "formula-date", title: t("Date from a duration"), hint: t("{=Datum(@Schuldenfrei in)} — the day a duration from today ends"), icon: "📅", text: "{=Datum()}", back: 2, keywords: ["datum", "date", "formel", "formula", "wann", "when"] },
+    { key: "formula", title: t("Formula"), hint: t("A value worked out in the text: {=@Kennzahl * 12}"), icon: "=", src: "", keywords: ["formula", "formel", "rechnen", "calc", "=", "berechnen"] },
+    { key: "formula-date", title: t("Date from a duration"), hint: t("{=Datum(@Schuldenfrei in)} — the day a duration from today ends"), icon: "📅", src: "Datum(", keywords: ["datum", "date", "formel", "formula", "wann", "when"] },
   ].map(
-    ({ text, back, ...item }): SlashItem => ({
+    ({ src, ...item }): SlashItem => ({
       ...item,
       group: t("Basic blocks"),
-      run: ({ editor, range }) =>
-        chain(editor, range)
-          .insertContent(text)
-          .command(({ tr }) => (tr.setSelection(TextSelection.create(tr.doc, tr.selection.from - back)), true))
-          .run(),
+      run: ({ editor, range }) => {
+        openNextFormula();
+        chain(editor, range).insertContent({ type: "inlineFormula", attrs: { src } }).run();
+      },
     }),
   ),
   { key: "divider", title: t("Divider"), hint: t("A line between blocks"), icon: "—", group: t("Basic blocks"), keywords: ["divider", "line", "hr", "rule", "---"], run: ({ editor, range }) => chain(editor, range).setHorizontalRule().run() },

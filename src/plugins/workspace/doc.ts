@@ -137,6 +137,10 @@ function inline(nodes: DocNode[] | undefined): string {
       else out += label;
       continue;
     }
+    if (n.type === "inlineFormula") {
+      out += `{=${String(n.attrs?.src ?? "").replace(/[{}\n]/g, "")}}`;
+      continue;
+    }
     if (n.type === "image") {
       out += `![${String(n.attrs?.alt ?? "")}](${String(n.attrs?.src ?? "")})`;
       continue;
@@ -265,7 +269,7 @@ export function docToMarkdown(doc: DocNode | null | undefined): string {
 
 function parseInline(src: string): DocNode[] {
   const out: DocNode[] = [];
-  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(~~[^~]+~~)|(==[^=]+==)|(\*[^*\s][^*]*\*)|(_[^_\s][^_]*_)|(\[\[(?:page|todo|ticket|person|metric|circle):[^\]|]+(?:\|[^\]]*)?\]\])|(!?\[[^\]]*\]\([^)\s]+\))/g;
+  const re = /(`[^`]+`)|(\*\*[^*]+\*\*)|(~~[^~]+~~)|(==[^=]+==)|(\*[^*\s][^*]*\*)|(_[^_\s][^_]*_)|(\[\[(?:page|todo|ticket|person|metric|circle):[^\]|]+(?:\|[^\]]*)?\]\])|(\{=[^{}\n]*\})|(!?\[[^\]]*\]\([^)\s]+\))/g;
   let at = 0;
   const text = (t: string, marks: Mark[] = []) => {
     if (t) out.push(marks.length ? { type: "text", text: t.replace(/\\([\\`*_[\]<>])/g, "$1"), marks } : { type: "text", text: t.replace(/\\([\\`*_[\]<>])/g, "$1") });
@@ -279,6 +283,7 @@ function parseInline(src: string): DocNode[] {
     else if (s.startsWith("~~")) text(s.slice(2, -2), [{ type: "strike" }]);
     else if (s.startsWith("==")) text(s.slice(2, -2), [{ type: "highlight" }]);
     else if (s.startsWith("*") || s.startsWith("_")) text(s.slice(1, -1), [{ type: "italic" }]);
+    else if (s.startsWith("{=")) out.push({ type: "inlineFormula", attrs: { src: s.slice(2, -1).trim() } });
     else if (s.startsWith("[[")) {
       const r = /^\[\[(page|todo|ticket|person|metric|circle):([^\]|]+)(?:\|([^\]]*))?\]\]$/.exec(s)!;
       const ref = r[2].trim();
@@ -565,6 +570,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffTab: ["title"],
   zeffPeople: ["ids", "q", "limit", "title"],
   zeffRef: ["kind", "ref", "label", "href"],
+  inlineFormula: ["src"],
   databaseView: ["dbId", "viewId", "title"],
   pageEmbed: ["pageId", "title"],
   todoListEmbed: ["pageId", "listId"],

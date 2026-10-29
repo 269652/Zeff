@@ -7769,5 +7769,22 @@
   "Remove this block": "Quitar este bloque",
   "A value worked out in the text: {=@Kennzahl * 12}": "Un valor calculado en el texto: {=@Kennzahl * 12}",
   "Date from a duration": "Fecha a partir de una duración",
-  "{=Datum(@Schuldenfrei in)} — the day a duration from today ends": "{=Datum(@Schuldenfrei in)}: el día en que termina una duración desde hoy"
+  "{=Datum(@Schuldenfrei in)} — the day a duration from today ends": "{=Datum(@Schuldenfrei in)}: el día en que termina una duración desde hoy",
+  "Remove the formula": "Quitar la fórmula",
+  "Datum(@Schuldenfrei in), @Kennzahl * 12 …": "Datum(@Schuldenfrei in), @Kennzahl * 12 …",
+  "Functions, @Kennzahlen, people and tables are offered as you type. Enter keeps it, Esc goes back.": "Funciones, @Kennzahlen, personas y tablas se sugieren al escribir. Enter guarda, Esc vuelve.",
+  "Kennzahl": "Indicador",
+  "The day a duration from today ends — or a date as it is": "El día en que termina una duración desde hoy, o una fecha tal cual",
+  "The sum": "La suma",
+  "The mean": "La media",
+  "The smallest": "El menor",
+  "The largest": "El mayor",
+  "Rounded": "Redondeado",
+  "One value or the other": "Un valor u otro",
+  "How many numbers": "Cuántos números",
+  "The year of a date": "El año de una fecha",
+  "The month of a date": "El mes de una fecha",
+  "The day of a date": "El día de una fecha",
+  "The time between two dates": "El tiempo entre dos fechas",
+  "A date written as you like": "Una fecha con el formato que quieras"
 }

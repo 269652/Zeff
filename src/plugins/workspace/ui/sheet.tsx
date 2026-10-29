@@ -100,10 +100,10 @@ export function ColumnLegend({ schema, row }: { schema: DbSchema; row?: number }
   );
 }
 
-type Names = { metrics: string[]; tables: { name: string; title: string }[]; functions: { name: string; signature: string; what: string; unit: string }[] };
+export type Names = { metrics: string[]; tables: { name: string; title: string }[]; functions: { name: string; signature: string; what: string; unit: string }[] };
 /** The Kennzahlen, shared tables and the plugins' functions, read once per page (what @, Name! and Schulden(…) can name). */
 let names: Promise<Names> | null = null;
-const loadNames = () => (names ??= formulaNamesAction().then((r): Names => (r.ok ? { metrics: r.metrics, tables: r.tables, functions: r.functions } : { metrics: [], tables: [], functions: [] }), (): Names => ({ metrics: [], tables: [], functions: [] })));
+export const loadNames = () => (names ??= formulaNamesAction().then((r): Names => (r.ok ? { metrics: r.metrics, tables: r.tables, functions: r.functions } : { metrics: [], tables: [], functions: [] }), (): Names => ({ metrics: [], tables: [], functions: [] })));
 
 /** @Sparrate, or @[Frei im Monat] when the name has more than a word. */
 export const metricRef = (name: string) => (/^[\p{L}_][\p{L}\p{N}_]*$/u.test(name) ? `@${name}` : `@[${name}]`);

@@ -1285,10 +1285,7 @@
   text-align: right;
   font-variant-numeric: tabular-nums;
 }
-/* A formula in running text ({=…}): its value as a chip; the formula itself while the caret is in it. */
-.ws-iformula-src {
-  display: none;
-}
+/* A formula in running text ({=…}, inline-formula.tsx): its value as a chip, written in a box under it. */
 .ws-iformula-value {
   cursor: text;
   border-radius: 0.3rem;
@@ -1306,20 +1303,8 @@
 .ws-iformula-value.has-warning {
   color: rgb(217 119 6);
 }
-.ws-iformula-editing {
-  font-family: ui-monospace, SFMono-Regular, Menlo, monospace;
-  font-size: 0.9em;
-  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 10%, transparent);
-  border-radius: 0.2rem;
-}
-.ws-iformula-preview {
-  margin-left: 0.35rem;
-  font-size: 0.8em;
-  color: rgb(113 113 122);
-  user-select: none;
-}
-.ws-iformula-preview.is-error {
-  color: rgb(220 38 38);
+.ws-iformula-value.is-selected {
+  outline: 2px solid color-mix(in oklab, var(--color-indigo-500, #6366f1) 45%, transparent);
 }
 .ws-formula-value.is-num {
   text-align: right;

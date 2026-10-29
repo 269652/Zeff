@@ -36,6 +36,7 @@ import { ZeffForm, ZeffIf } from "./form-nodes";
 import { PageEmbedNode } from "./page-embed";
 import { SlashCommand, type SlashContext } from "./slash";
 import { SheetTable, TableFormulas, tableFormulasKey } from "./table-formulas";
+import { InlineFormula } from "./inline-formula";
 import { TableTools } from "./table-tools";
 import type { FormulaData } from "../page-sheet";
 import "./workspace.css";
@@ -334,6 +335,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       Callout,
       FlexBox,
       BlockGaps,
+      InlineFormula,
       ZeffRef,
       DatabaseViewNode,
       ZeffModuleNode.configure({ pageId: contextRowId ?? pageId }),
