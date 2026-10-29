@@ -10,7 +10,11 @@ import type { ChatStep } from "../agent";
 /** Tell this to the editors and databases on screen: the workspace was changed by the assistant - read it again. */
 export const WS_CHANGED = "ws-changed";
 
-type Msg = { role: "user" | "assistant"; text: string; steps?: ChatStep[]; error?: boolean; /** The history entry of what this answer changed (Undo). */ undoId?: number | null; undone?: boolean };
+export type Msg = { role: "user" | "assistant"; text: string; steps?: ChatStep[]; error?: boolean; /** The history entry of what this answer changed (Undo). */ undoId?: number | null; undone?: boolean };
+
+/** A talk begun in the page's ✨ composer (ai-composer.tsx) goes on here: the panel opens with it. */
+const WS_CHAT = "ws-chat";
+export const handToChat = (msgs: Msg[]) => window.dispatchEvent(new CustomEvent<Msg[]>(WS_CHAT, { detail: msgs }));
 
 const KEY = "zeff.workspace.chat";
 const OPEN = "zeff.workspace.chat.open";
@@ -53,14 +57,26 @@ export function ChatPanel() {
     end.current?.scrollIntoView({ block: "end" });
   }, [msgs, busy]);
 
-  const toggle = () => {
-    setOpen(!open);
+  const show = (v: boolean) => {
+    setOpen(v);
     try {
-      localStorage.setItem(OPEN, JSON.stringify(!open));
+      localStorage.setItem(OPEN, JSON.stringify(v));
     } catch {
       // not remembered
     }
   };
+  const toggle = () => show(!open);
+
+  useEffect(() => {
+    const take = (e: Event) => {
+      const more = (e as CustomEvent<Msg[]>).detail;
+      if (!Array.isArray(more)) return;
+      setMsgs((cur) => [...cur, ...more]);
+      show(true);
+    };
+    window.addEventListener(WS_CHAT, take);
+    return () => window.removeEventListener(WS_CHAT, take);
+  }, []);
 
   const send = async (said: string) => {
     const v = said.trim();

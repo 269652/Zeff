@@ -11,4 +11,9 @@ const { setInstalled } = await import("@/plugins/state");
 
 updateAppSettings({ setupDoneAt: new Date().toISOString() });
 for (const id of ["workspace", "people"] as const) setInstalled(id, true);
-console.log("seeded: setup done, Workspace + People installed");
+// --fake-ai (scripts/test-server.mjs): the AI plugins on, Claude as the backend — its CLAUDE_CLI is the fake one.
+if (process.env.ZEFF_FAKE_AI) {
+  for (const id of ["llm", "claude-cli"] as const) setInstalled(id, true);
+  updateAppSettings({ aiProvider: "claude" });
+}
+console.log(`seeded: setup done, Workspace + People installed${process.env.ZEFF_FAKE_AI ? ", the fake AI" : ""}`);

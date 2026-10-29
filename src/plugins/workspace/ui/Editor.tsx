@@ -37,7 +37,10 @@ import { PageEmbedNode } from "./page-embed";
 import { SlashCommand, type SlashContext } from "./slash";
 import { SheetTable, TableFormulas, tableFormulasKey } from "./table-formulas";
 import { InlineFormula } from "./inline-formula";
-import { AssistCardNode, startAssist } from "./assist-node";
+import { AssistCardNode, startAssist, type AiTarget } from "./assist-node";
+import { AiComposer } from "./ai-composer";
+import type { AiChip } from "../ai-entry";
+import { TextSelection } from "@tiptap/pm/state";
 import { TableTools } from "./table-tools";
 import type { FormulaData } from "../page-sheet";
 import "./workspace.css";
@@ -101,7 +104,12 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       // without storage: for this page only
     }
   };
-  const [askAi, setAskAi] = useState(false);
+  // The page's one ✨ entry, open: where its card or text goes, the chip it opened with.
+  const [composer, setComposer] = useState<(AiTarget & { chip?: AiChip }) | null>(null);
+  const openComposer = useRef<(t: AiTarget) => void>(() => {});
+  useEffect(() => {
+    openComposer.current = (target) => setComposer(target);
+  });
   const [dbPicker, setDbPicker] = useState<{ id: number; title: string; icon: string }[] | null>(null);
   const [embedPicker, setEmbedPicker] = useState<TreeItem[] | null>(null);
   const [embedQuery, setEmbedQuery] = useState("");
@@ -202,6 +210,31 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
     [pageId, t],
   );
 
+  /** Where the cursor is: its top-level block (the composer opened from an empty line or the slash menu), else the page. */
+  const here = (): AiTarget => {
+    const $from = editorRef.current?.state.selection.$from;
+    return $from && $from.depth > 0 ? { at: $from.after(1), scope: "block", block: { from: $from.before(1), to: $from.after(1) } } : { at: 0, scope: "page" };
+  };
+
+  // The composer's Write about a block the cursor isn't in: the caret goes to its end (continue, as told) or its text is selected
+  // (improve, shorter …) first — the cursor or selection in it stays as it is. About the page: where the cursor is.
+  const writeFor = (target: AiTarget, mode: AiMode, instruction?: string) => {
+    const ed = editorRef.current;
+    const b = target.block;
+    if (ed && b) {
+      const doc = ed.state.doc;
+      const end = Math.min(b.to, doc.content.size);
+      const start = Math.min(b.from, end);
+      const { from } = ed.state.selection;
+      if (from < start || from > end) {
+        const caret = mode === "continue" || mode === "custom" || mode === "summarize" || mode === "actions";
+        const sel = caret ? TextSelection.near(doc.resolve(end), -1) : TextSelection.between(doc.resolve(start), doc.resolve(end));
+        ed.view.dispatch(ed.state.tr.setSelection(sel));
+      }
+    }
+    void runAi(mode, instruction);
+  };
+
   const insertImage = useCallback(async (file: File, pos?: number) => {
     const ed = editorRef.current;
     if (!ed) return;
@@ -269,7 +302,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       });
     },
     linkDatabase: () => void databasesAction().then((r) => (r.ok ? setDbPicker(r.databases) : toast(r.error, { tone: "error" }))),
-    ai: (mode) => (mode === "custom" ? setAskAi(true) : void runAi(mode)),
+    ai: (mode) => (mode === "custom" ? setComposer({ ...here(), chip: "write" }) : void runAi(mode)),
     todosFromPage: () => {
       setTodosBusy(true);
       setTodos([]);
@@ -357,7 +390,8 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       CalendarEmbedNode,
       PageEmbedNode.configure({ pageId }),
       AiBlockNode.configure({ pageId }),
-      AssistCardNode.configure({ pageId }),
+      // eslint-disable-next-line react-hooks/refs -- read when the shortcut is pressed, not while the editor is set up
+      AssistCardNode.configure({ pageId, open: (target) => openComposer.current(target) }),
       // eslint-disable-next-line react-hooks/refs -- read when a command runs, not while rendering
       SlashCommand.configure({ getContext: () => ctxRef.current! }),
       MentionCommand.configure({ getLang: () => lang }),
@@ -412,10 +446,9 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
   useEffect(() => {
     const todosEv = () => ctxRef.current?.todosFromPage();
     const focus = () => void editorRef.current?.commands.focus("start");
-    // The page's "✨ Think along": a card at the top, about the whole page.
+    // The page's ✨ (top bar): the composer, about the whole page (a Think along card goes at the top).
     const assist = () => {
-      const ed = editorRef.current;
-      if (ed?.isEditable) startAssist(ed, 0, "page");
+      if (editorRef.current?.isEditable) setComposer({ at: 0, scope: "page" });
     };
     window.addEventListener("ws:assist", assist);
     window.addEventListener("ws:todos", todosEv);
@@ -528,11 +561,11 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
             </button>
             <button
               type="button"
-              title={t("Think along about this block (Ctrl+Shift+Space)")}
-              aria-label={t("Think along about this block")}
+              title={t("Zeff on this block: think along, write, ask (Ctrl+Shift+Space)")}
+              aria-label={t("Zeff on this block")}
               onClick={() => {
                 const h = handleNode.current;
-                if (h) startAssist(editor, h.pos + h.size, "block");
+                if (h) setComposer({ at: h.pos + h.size, scope: "block", block: { from: h.pos, to: h.pos + h.size } });
               }}
             >
               ✨
@@ -546,7 +579,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       {editable && (
         // On an empty line, at the cursor: write there with the AI.
         <FloatingMenu editor={editor} options={{ placement: "top-start", offset: 6 }}>
-          <button type="button" disabled={aiBusy} className="ws-ai-inline" title={t("Tell the AI what to write — it has what Zeff knows")} onMouseDown={(e) => e.preventDefault()} onClick={() => setAskAi(true)}>
+          <button type="button" disabled={aiBusy} className="ws-ai-inline" title={t("Tell the AI what to write — it has what Zeff knows")} onMouseDown={(e) => e.preventDefault()} onClick={() => setComposer({ ...here(), chip: "write" })}>
             ✨ {t("Write with AI")}
           </button>
         </FloatingMenu>
@@ -631,13 +664,6 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
           </div>
         </BubbleMenu>
       )}
-      {editable && (
-        <div className="mb-1 flex justify-end">
-          <button type="button" disabled={aiBusy} className="btn btn-sm text-violet-700 dark:text-violet-300" title={t("Tell the AI what to write — it has what Zeff knows")} onClick={() => setAskAi(true)}>
-            ✨ {aiBusy ? t("The AI is working …") : t("Write with AI")}
-          </button>
-        </div>
-      )}
       <EditorContent editor={editor} />
       <TableTools editor={editor} />
 
@@ -662,28 +688,21 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
         </div>
       )}
 
-      {askAi && (
-        <Modal title={`✨ ${t("Write with AI")}`} onClose={() => setAskAi(false)}>
-          <form
-            className="space-y-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              const v = String(new FormData(e.currentTarget).get("q") ?? "").trim();
-              if (!v) return;
-              setAskAi(false);
-              void runAi("custom", v);
-            }}
-          >
-            <textarea name="q" autoFocus rows={3} aria-label={t("What should it write?")} className="input w-full" placeholder={t("What should it write? (e.g. “An agenda for a 30-minute kickoff”)")} />
-            <p className="text-xs text-zinc-500">{t("It sees the text before the cursor, or the selection — and looks through what Zeff knows: mails, tickets, Teams messages, notes, the knowledge base, your pages.")}</p>
-            <div className="flex justify-end gap-2">
-              <button type="button" className="btn btn-sm" onClick={() => setAskAi(false)}>
-                {t("Cancel")}
-              </button>
-              <button className="btn btn-primary btn-sm">{t("Write")}</button>
-            </div>
-          </form>
-        </Modal>
+      {composer && (
+        <AiComposer
+          pageId={pageId}
+          scope={composer.scope}
+          chip={composer.chip}
+          onClose={() => setComposer(null)}
+          onThink={(wish) => {
+            setComposer(null);
+            if (editorRef.current) startAssist(editorRef.current, Math.min(composer.at, editorRef.current.state.doc.content.size), composer.scope, wish);
+          }}
+          onWrite={(mode, instruction) => {
+            setComposer(null);
+            writeFor(composer, mode, instruction);
+          }}
+        />
       )}
 
       {listPicker && (

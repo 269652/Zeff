@@ -1160,7 +1160,7 @@ export async function applyAssistAction(pageId: number, state: string, ids: stri
 }
 
 /** "✨ Think along": what a card made outside the page taken back (its plan calendars, its todos). */
-export async function undoAssistAction(created: { kind: "calendar" | "todo"; id: number; label: string }[]) {
+export async function undoAssistAction(created: import("./assist-shared").AssistCreated[]) {
   return run(async () => ({ undone: await (await import("./assist")).undoAssist(Array.isArray(created) ? created.slice(0, 50) : []) }));
 }
 

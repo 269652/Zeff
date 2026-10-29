@@ -297,3 +297,19 @@ test("a page with a todos widget: Think along's todos are Zeff's todos (shown in
   const made = r.created.find((c) => c.kind === "todo")!;
   assert.deepEqual([getTodo(made.id)!.text, getTodo(made.id)!.due, getTodo(made.id)!.status], ["Karla wegen Hamburg fragen", "2026-12-01", "open"]);
 });
+
+test("asked through the ✨ composer with a wish: the card keeps it and the AI is told what the user wants", async () => {
+  await setup();
+  const { readAssistState, newAssistState } = await import("@/plugins/workspace/assist-shared");
+  assert.equal(readAssistState(JSON.stringify({ status: "thinking", wish: "Plan the packing" })).wish, "Plan the packing");
+  assert.equal(readAssistState(JSON.stringify({ status: "thinking", wish: 3 })).wish, undefined, "no wish: none");
+  const w = await import("@/plugins/workspace/store");
+  const pageId = w.createPage({ title: "Hamburg", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Reise nach Hamburg" }] }] } });
+  const { runAssist } = await import("@/plugins/workspace/assist");
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ intent: "Packen", summary: "Packliste", questions: [], actions: [{ kind: "text", label: "Packliste", markdown: "Schal" }] });
+  const next = await runAssist(pageId, null, { ...newAssistState("page"), wish: "Eine Packliste, bitte" }, new Date(2026, 9, 29));
+  assert.match(fs.readFileSync(promptFile, "utf8"), /Was der Nutzer möchte[\s\S]*Eine Packliste, bitte/);
+  assert.equal(next.wish, "Eine Packliste, bitte", "kept for the next step");
+  await runAssist(pageId, null, newAssistState("page"), new Date(2026, 9, 29));
+  assert.doesNotMatch(fs.readFileSync(promptFile, "utf8"), /Was der Nutzer möchte/, "without a wish: no such part");
+});

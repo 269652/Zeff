@@ -18,21 +18,22 @@ import { newAssistState, readAssistState, type AssistAction, type AssistEvent, t
 // The cards just made by the button or the shortcut: those (and only those) ask the AI as they appear — never one loaded with the page.
 const startNow = new Set<string>();
 
-/** A card put in at `at` that starts thinking at once: about the block before it, or the whole page. */
-export function startAssist(editor: Editor, at: number, scope: AssistState["scope"]): void {
+/** A card put in at `at` that starts thinking at once: about the block before it, or the whole page — with what the user typed (`wish`). */
+export function startAssist(editor: Editor, at: number, scope: AssistState["scope"], wish = ""): void {
+  const w = wish.trim() ? { wish: wish.trim() } : {};
   // Asked again (the button pressed twice): the card that is there thinks again — with what it understood, was told and set up
   // before, so it updates that instead of making it twice.
   const there = cardFor(editor, at, scope);
   if (there) {
     const prev = readAssistState(there.node.attrs.state);
-    const again: AssistState = { ...newAssistState(scope), intent: prev.intent, summary: prev.summary, history: prev.history, created: prev.created };
+    const again: AssistState = { ...newAssistState(scope), intent: prev.intent, summary: prev.summary, history: prev.history, created: prev.created, ...(prev.wish ? { wish: prev.wish } : {}), ...w };
     startNow.add(String(there.node.attrs.id));
     editor.view.dispatch(editor.state.tr.setNodeMarkup(there.pos, undefined, { ...there.node.attrs, state: JSON.stringify(again) }));
     return;
   }
   const id = Math.random().toString(36).slice(2, 12);
   startNow.add(id);
-  editor.chain().insertContentAt(at, { type: "assistCard", attrs: { id, state: JSON.stringify(newAssistState(scope)) } }).run();
+  editor.chain().insertContentAt(at, { type: "assistCard", attrs: { id, state: JSON.stringify({ ...newAssistState(scope), ...w }) } }).run();
 }
 
 /** The card already there for this: right after the block (a block's), anywhere (the page's). */
@@ -399,8 +400,11 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
   );
 }
 
-/** The card (doc.ts: assistCard), and Ctrl+Shift+Space: think along about the block the cursor is in. */
-export const AssistCardNode = Node.create<{ pageId: number }>({
+/** Where the page's ✨ entry is opened: the card goes at `at`, about the block before it (`block`: its range) or the whole page. */
+export type AiTarget = { at: number; scope: AssistState["scope"]; block?: { from: number; to: number } };
+
+/** The card (doc.ts: assistCard), and Ctrl+Shift+Space: the ✨ composer (`open`) about the block the cursor is in — without one, think along at once. */
+export const AssistCardNode = Node.create<{ pageId: number; open?: (target: AiTarget) => void }>({
   name: "assistCard",
   group: "block",
   atom: true,
@@ -422,7 +426,9 @@ export const AssistCardNode = Node.create<{ pageId: number }>({
       "Mod-Shift-Space": () => {
         const { $from } = this.editor.state.selection;
         if (!this.editor.isEditable) return false;
-        startAssist(this.editor, $from.depth > 0 ? $from.after(1) : $from.pos, $from.depth > 0 ? "block" : "page");
+        const target: AiTarget = $from.depth > 0 ? { at: $from.after(1), scope: "block", block: { from: $from.before(1), to: $from.after(1) } } : { at: $from.pos, scope: "page" };
+        if (this.options.open) this.options.open(target);
+        else startAssist(this.editor, target.at, target.scope);
         return true;
       },
     };

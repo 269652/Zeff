@@ -93,3 +93,13 @@ export async function waitSaved(page) {
       throw new Error(`Not saved: the status says "${(await page.locator("main [role=status]").allInnerTexts()).join(" | ")}".`);
     });
 }
+
+/**
+ * What the fake AI answers next (the test server is started with --fake-ai: scripts/test-server.mjs — e2e/run.mjs does): the
+ * JSON every AI call gets as its structured output until the next fakeAi. Without a fake AI the test is skipped (`t.skip`).
+ */
+export const FAKE_AI = process.env.ZEFF_E2E_FAKE_AI ?? "";
+export function fakeAi(output) {
+  if (!FAKE_AI) throw new Error("This test server has no fake AI (start it with npm run test:server -- --fake-ai).");
+  fs.writeFileSync(FAKE_AI, JSON.stringify(output));
+}

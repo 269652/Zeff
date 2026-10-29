@@ -326,8 +326,9 @@ export function PageView({ page, row, database, form, person }: { page: PageView
             </button>
           ))}
         {page.kind === "page" && !locked && (
-          <button type="button" className="btn btn-sm" title={t("The AI thinks along about this page: asks what is missing, proposes what to set up — nothing happens until you apply it")} onClick={() => window.dispatchEvent(new CustomEvent("ws:assist"))}>
-            ✨ <span className="max-sm:sr-only">{t("Think along")}</span>
+          // The page's one ✨ entry: think along, write, ask about this page (the composer in the editor).
+          <button type="button" className="btn btn-sm" aria-haspopup="dialog" aria-label={t("Zeff on this page")} title={t("Zeff on this page: think along, write, ask (Ctrl+Shift+Space)")} onClick={() => window.dispatchEvent(new CustomEvent("ws:assist"))}>
+            ✨ <span aria-hidden className="max-sm:hidden">{t("AI")}</span>
           </button>
         )}
         <button type="button" className="btn btn-sm max-sm:hidden" onClick={() => setHistory(true)}>

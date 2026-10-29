@@ -43,6 +43,8 @@ export type AssistState = {
   round: number;
   actions: AssistAction[];
   created: AssistCreated[];
+  /** What the user typed into the ✨ composer with "Think along" (ui/ai-composer.tsx): what they want of it. */
+  wish?: string;
   error?: string;
 };
 
@@ -75,6 +77,7 @@ export function readAssistState(raw: unknown): AssistState {
     round: Number.isInteger(o.round) ? Number(o.round) : 0,
     actions: Array.isArray(o.actions) ? o.actions : [],
     created: Array.isArray(o.created) ? o.created : [],
+    ...(typeof o.wish === "string" && o.wish.trim() ? { wish: o.wish.trim().slice(0, 1000) } : {}),
     ...(typeof o.error === "string" && o.error ? { error: o.error } : {}),
   };
 }
