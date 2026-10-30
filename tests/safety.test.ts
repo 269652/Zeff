@@ -44,11 +44,13 @@ const WRITES: Record<string, string[]> = {
   // The Chrono/Punch exports belong to a mounted integration (integrations/booking): nothing of Zeff itself calls them — the integration's own safety test names its callers.
   chrono_export: [],
   punch_export: [],
-  keep_write: ["src/plugins/keep-write/write.ts"],
+  // Keep write went with the retired Keep views: nothing calls it anymore.
+  keep_write: [],
   // The MCP tools an agent you started uses to answer review comments (they ask for it in their own words: the todo or you).
-  mr_reply: ["src/mcp/server.ts"],
-  mr_resolve: ["src/mcp/server.ts"],
-  mr_comment: ["src/mcp/server.ts"],
+  // agent-tools.ts only names them in its permission catalog (merge.write, off by default) — it calls nothing.
+  mr_reply: ["src/mcp/server.ts", "src/plugins/workspace/agent-tools.ts"],
+  mr_resolve: ["src/mcp/server.ts", "src/plugins/workspace/agent-tools.ts"],
+  mr_comment: ["src/mcp/server.ts", "src/plugins/workspace/agent-tools.ts"],
 };
 
 for (const [tool, allowed] of Object.entries(WRITES))
@@ -57,7 +59,8 @@ for (const [tool, allowed] of Object.entries(WRITES))
   });
 
 test("a todo's actions are run only from a click (or a worker you started)", () => {
-  assert.deepEqual(using("runTodoOpsNow("), ["src/lib/ops.ts", "src/plugins/todos/server-actions.ts"]);
+  // workspace/actions.ts: runJobDeliveryAction, the job card's "run the delivery" button.
+  assert.deepEqual(using("runTodoOpsNow("), ["src/lib/ops.ts", "src/plugins/todos/server-actions.ts", "src/plugins/workspace/actions.ts"]);
   assert.deepEqual(using("runTodoOps("), ["src/lib/ops.ts", "src/lib/work/runner.ts"]);
   assert.deepEqual(using("RUNNERS"), ["src/lib/ops.ts", "src/plugins/actions/run.ts"]);
 });
