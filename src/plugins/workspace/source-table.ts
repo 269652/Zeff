@@ -28,6 +28,9 @@ export function relationSourceHelp(): string {
   ].join("\n");
 }
 
+/** Whether a source with a table is there (its plugin installed) — without reading its rows. */
+export const hasSource = (id: string): boolean => !!impl(id);
+
 export function sourceTable(id: string): SourceTable | null {
   const s = impl(id);
   if (!s?.table) return null;

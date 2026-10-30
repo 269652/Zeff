@@ -102,7 +102,7 @@ export const CORE_METRICS: MetricProvider[] = [
     href: () => "/entries",
   },
   { label: "Offene Todos", unit: "", what: "Your open todos (yours to do, not waiting on others)", read: () => listTodos({ status: "open" }).filter((t) => t.owner !== "other").length, href: () => "/todos" },
-  { label: "Überfällige Todos", unit: "", what: "Your open todos past their due day", read: () => listTodos({ status: "open" }).filter((t) => t.owner !== "other" && t.due && t.due < today()).length, href: () => "/todos" },
+  { label: "Überfällige Todos", unit: "", what: "Your open todos past their due day", read: () => listTodos({ status: "open" }).filter((t) => t.owner !== "other" && t.due && t.due < today()).length, href: () => "/todos", tone: (v) => (v > 0 ? "bad" : undefined) },
   { label: "Wartet auf andere", unit: "", what: "Open todos where you wait on someone", read: () => listTodos({ status: "open" }).filter((t) => t.owner === "other").length, href: () => "/todos" },
   {
     label: "Ungelesene Mails",

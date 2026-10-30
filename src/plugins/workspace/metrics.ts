@@ -24,7 +24,8 @@ export type MetricKind = "formula" | "aggregate" | "plugin";
 export type MetricGoal = { target: number; dir: "atLeast" | "atMost"; by?: string };
 export type MetricAlert = { below?: number; above?: number };
 /** What is kept per Kennzahl (by key): a formula one's formula, and for any kind its unit, line, goal and thresholds. */
-type Meta = { label?: string; formula?: string; unit?: string; what?: string; goal?: MetricGoal; alert?: MetricAlert };
+type Meta = { label?: string; formula?: string; unit?: string; what?: string; goal?: MetricGoal; alert?: MetricAlert; /** Shown on Today (its Kennzahlen strip). */ today?: boolean };
+export type MetricTone = "good" | "warn" | "bad";
 
 export type Metric = {
   key: string;
@@ -44,6 +45,10 @@ export type Metric = {
   href?: string;
   goal?: MetricGoal;
   alert?: MetricAlert;
+  /** What its value says by itself (the plugin's reading: an overdue count above zero is bad). */
+  tone?: MetricTone;
+  /** Shown on Today. */
+  today?: boolean;
 };
 
 const META = "workspace.metrics";
@@ -57,7 +62,7 @@ const saveMetas = (m: Record<string, Meta>) => setPref(META, m);
 /** The plugins' Kennzahlen (installed plugins only), by key. */
 function providers(): Map<string, MetricProvider & { plugin: string }> {
   const out = new Map<string, MetricProvider & { plugin: string }>();
-  for (const c of workspaceMetrics.list()) for (const p of c.impl) out.set(valueKey(p.label), { ...p, plugin: c.plugin });
+  for (const c of workspaceMetrics.list()) for (const p of c.impl) if (p.available?.() !== false) out.set(valueKey(p.label), { ...p, plugin: c.plugin });
   return out;
 }
 
@@ -160,28 +165,44 @@ setFunctionReader((name): FormulaFn | null => {
 /** Forget the values read a moment ago (after a change to what they're made of). */
 export const forgetMetricValues = () => cache.clear();
 
-/** Every Kennzahl of this account, read now: yours (formula, aggregate), then the plugins' — sorted by name. */
-export function listMetrics(): Metric[] {
+/**
+ * Every Kennzahl of this account, read now: yours (formula, aggregate), then the plugins' — sorted by name. `only`: just
+ * these (names or keys) — the others are not read at all (a widget's few, Today's).
+ */
+export function listMetrics(only?: string[]): Metric[] {
   const m = metas();
+  const want = only ? new Set(only.map(valueKey)) : null;
+  const take = (key: string) => !want || want.has(key);
   const out = new Map<string, Metric>();
   for (const [key, p] of providers()) {
+    if (!take(key)) continue;
     const v = metricValue(key);
-    out.set(key, { key, label: p.label, kind: "plugin", unit: m[key]?.unit ?? p.unit, what: m[key]?.what ?? t(p.what), value: v.value, error: v.error, plugin: p.plugin, href: p.href?.(), goal: m[key]?.goal, alert: m[key]?.alert });
+    const tone = v.value !== null ? p.tone?.(v.value) : undefined;
+    out.set(key, { key, label: p.label, kind: "plugin", unit: m[key]?.unit ?? p.unit, what: m[key]?.what ?? t(p.what), value: v.value, error: v.error, plugin: p.plugin, href: p.href?.(), goal: m[key]?.goal, alert: m[key]?.alert, ...(tone ? { tone } : {}), ...(m[key]?.today ? { today: true } : {}) });
   }
   for (const nv of listNamedValues()) {
+    if (!take(nv.key)) continue;
     const meta = m[nv.key];
-    out.set(nv.key, { key: nv.key, label: nv.label, kind: "aggregate", unit: meta?.unit || valueUnit(nv.key), what: meta?.what ?? "", value: nv.value, sources: nv.sources, agg: nv.agg, goal: meta?.goal, alert: meta?.alert });
+    out.set(nv.key, { key: nv.key, label: nv.label, kind: "aggregate", unit: meta?.unit || valueUnit(nv.key), what: meta?.what ?? "", value: nv.value, sources: nv.sources, agg: nv.agg, goal: meta?.goal, alert: meta?.alert, ...(meta?.today ? { today: true } : {}) });
   }
   for (const [key, meta] of Object.entries(m)) {
-    if (!meta.formula) continue;
+    if (!meta.formula || !take(key)) continue;
     const v = metricValue(key);
-    out.set(key, { key, label: meta.label ?? key, kind: "formula", unit: meta.unit || v.unit || "", what: meta.what ?? "", value: v.value, error: v.error, formula: meta.formula, goal: meta.goal, alert: meta.alert });
+    out.set(key, { key, label: meta.label ?? key, kind: "formula", unit: meta.unit || v.unit || "", what: meta.what ?? "", value: v.value, error: v.error, formula: meta.formula, goal: meta.goal, alert: meta.alert, ...(meta.today ? { today: true } : {}) });
   }
   return [...out.values()].sort((a, b) => a.label.localeCompare(b.label, "de"));
 }
 
+/** The Kennzahlen shown on Today (each marked so on the Kennzahlen page), read now. */
+export function todayMetrics(): Metric[] {
+  const keys = Object.entries(metas())
+    .filter(([, meta]) => meta.today)
+    .map(([key]) => key);
+  return keys.length ? listMetrics(keys) : [];
+}
+
 /** One Kennzahl by its name or key (null: none). */
-export const getMetric = (name: string): Metric | null => listMetrics().find((x) => x.key === valueKey(name)) ?? null;
+export const getMetric = (name: string): Metric | null => listMetrics([name]).find((x) => x.key === valueKey(name)) ?? null;
 
 // ---------------------------------------------------------------------------
 // Making and changing
@@ -213,7 +234,7 @@ export function defineFormulaMetric(v: { label: string; formula: string; unit?: 
 }
 
 /** What is kept with any Kennzahl: its unit, its line, its goal, its thresholds (null clears one). */
-export function setMetricMeta(name: string, patch: { unit?: string; what?: string; goal?: MetricGoal | null; alert?: MetricAlert | null }): void {
+export function setMetricMeta(name: string, patch: { unit?: string; what?: string; goal?: MetricGoal | null; alert?: MetricAlert | null; today?: boolean }): void {
   const key = valueKey(name);
   if (!getMetric(key)) throw new ValidationError(`No Kennzahl "${name}".`);
   if (patch.goal && (!Number.isFinite(patch.goal.target) || !["atLeast", "atMost"].includes(patch.goal.dir))) throw new ValidationError("A goal: a number and at least / at most.");
@@ -224,6 +245,7 @@ export function setMetricMeta(name: string, patch: { unit?: string; what?: strin
   if (patch.what !== undefined) next.what = patch.what.trim();
   if (patch.goal !== undefined) patch.goal ? (next.goal = patch.goal) : delete next.goal;
   if (patch.alert !== undefined) patch.alert && (patch.alert.below !== undefined || patch.alert.above !== undefined) ? (next.alert = patch.alert) : delete next.alert;
+  if (patch.today !== undefined) patch.today ? (next.today = true) : delete next.today;
   m[key] = next;
   saveMetas(m);
 }

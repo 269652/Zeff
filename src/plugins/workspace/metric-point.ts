@@ -17,6 +17,10 @@ export type MetricProvider = {
   read: () => number | null;
   /** Where the user sees what it is made of (read when shown). */
   href?: () => string | undefined;
+  /** What a value says by itself (an overdue count above zero: wrong) — a goal or threshold set on it decides first. */
+  tone?: (value: number) => "good" | "warn" | "bad" | undefined;
+  /** Whether it is there at all, cheap to ask (the merge requests: only with a source of them) — false: not listed. */
+  available?: () => boolean;
 };
 
 export const workspaceMetrics = extensionPoint<MetricProvider[]>("workspace.metrics");

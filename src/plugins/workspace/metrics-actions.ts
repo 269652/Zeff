@@ -37,10 +37,11 @@ export async function defineMetricAction(v: { name: string; formula: string; uni
   });
 }
 
-export async function setMetricMetaAction(name: string, patch: { unit?: string; what?: string; goal?: MetricGoal | null; alert?: MetricAlert | null }): Promise<Res> {
+export async function setMetricMetaAction(name: string, patch: { unit?: string; what?: string; goal?: MetricGoal | null; alert?: MetricAlert | null; today?: boolean }): Promise<Res> {
   return run(() => {
     setMetricMeta(String(name), patch);
     revalidatePath("/workspace/metrics");
+    if (patch.today !== undefined) revalidatePath("/heute");
     return {};
   });
 }

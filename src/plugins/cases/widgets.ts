@@ -1,9 +1,10 @@
 import { t } from "@/lib/i18n/server";
 import type { WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
 import { caseHref } from "./database";
-import { caseTitle, type Case } from "./shared";
+import { metricStats, namesSetting } from "@/plugins/workspace/widgets-metrics";
+import { caseTitle } from "./shared";
 import { openOf } from "./bank";
-import { listCases } from "./store";
+import { runningCases } from "./metrics";
 import { localDay } from "@/lib/dates";
 
 /**
@@ -19,8 +20,7 @@ const whenText = (day: string) => {
   return n < 0 ? t("{n} d overdue", { n: -n }) : n === 0 ? t("today") : n === 1 ? t("tomorrow") : t("in {n} d", { n });
 };
 
-/** The cases still running (not closed, not done by what the AI read). */
-const running = (): Case[] => listCases().filter((c) => c.status === "open" && !c.compiled?.done);
+const running = runningCases;
 
 export const CASES_WIDGETS: WorkspaceWidget[] = [
   {
@@ -32,24 +32,18 @@ export const CASES_WIDGETS: WorkspaceWidget[] = [
     get description() {
       return t("What is open in all your cases, what is due in the next 30 days, how many are running and how many are overdue.");
     },
+    get settings(): WidgetSetting[] {
+      return [namesSetting()];
+    },
     size: "full",
     ttl: 60,
-    data: () => {
-      const all = running();
-      const open = all.reduce((sum, c) => sum + (openOf(c) ?? 0), 0);
-      const soon = all.filter((c) => c.compiled?.nextDue && inDays(c.compiled.nextDue) >= 0 && inDays(c.compiled.nextDue) <= 30);
-      const dueSoon = soon.reduce((sum, c) => sum + (c.compiled?.installment ?? c.compiled?.open ?? 0), 0);
-      const overdue = all.filter((c) => c.compiled?.nextDue && inDays(c.compiled.nextDue) < 0).length;
-      return {
-        kind: "stats",
-        tiles: [
-          { label: t("Open in all"), value: euro(open) },
-          { label: t("Due in 30 days"), value: euro(dueSoon), detail: t("{n} payments", { n: soon.length }) },
-          { label: t("Running cases"), value: String(all.length) },
-          { label: t("Overdue"), value: String(overdue), tone: overdue ? ("bad" as const) : ("good" as const) },
-        ],
-      };
-    },
+    // Its figures are the Cases Kennzahlen (metrics.ts) — the same numbers as @Offen in Vorgängen in a page.
+    data: (config) =>
+      metricStats(
+        config.names,
+        [{ name: "Offen in Vorgängen" }, { name: "Fällig in 30 Tagen", detail: "Zahlungen in 30 Tagen" }, { name: "Laufende Vorgänge" }, { name: "Überfällige Vorgänge" }],
+        t("No metrics yet — Workspace → Metrics."),
+      ),
   },
   {
     id: "cases.due",

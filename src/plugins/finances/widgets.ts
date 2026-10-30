@@ -1,8 +1,7 @@
 import { t } from "@/lib/i18n/server";
 import type { WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
+import { metricStats, namesSetting } from "@/plugins/workspace/widgets-metrics";
 import { debtPlans, debtsDbId } from "./debts";
-import { fixedCosts } from "./fixed";
-import { monthlyIncome } from "./income";
 import type { Direction } from "./own";
 import type { Rhythm } from "./recurring";
 import { localDay } from "@/lib/dates";
@@ -39,10 +38,6 @@ const typedAmount = (v: unknown) => {
   const n = Number(/,\d{1,2}$/.test(s) ? s.replace(/\./g, "").replace(",", ".") : s.replace(/,/g, ""));
   return s && Number.isFinite(n) ? n : null;
 };
-const href = () => {
-  const db = debtsDbId();
-  return db ? `/workspace/${db}` : undefined;
-};
 
 export const FINANCES_WIDGETS: WorkspaceWidget[] = [
   {
@@ -55,41 +50,24 @@ export const FINANCES_WIDGETS: WorkspaceWidget[] = [
       return t("What is open, the instalments a month, when you are debt-free and what is left of your income after the instalments and fixed costs — or the same for what you are owed.");
     },
     get settings() {
-      return [dirSetting()];
+      return [dirSetting(), namesSetting()];
     },
     size: "full",
     ttl: 60,
-    data: (config) => {
-      const dir = dirOf(config.dir);
-      const { debts, summary } = debtPlans(today(), dir);
-      const open = debts.reduce((s, d) => s + d.open, 0);
-      const link = href();
-      const tiles = [
-        { label: dir === "owe" ? t("Open in all") : t("Owed to you in all"), value: euro(open), detail: t("{n} open", { n: debts.length }), href: link },
-        { label: dir === "owe" ? t("Instalments a month") : t("Coming back a month"), value: euro(summary.monthlyRates), detail: t("running now"), href: link },
-        {
-          label: dir === "owe" ? t("Debt-free") : t("All back"),
-          value: summary.debtFree ? monthYear(summary.debtFree) : "—",
-          detail: summary.unplanned > 0 ? t("{amount} without a plan not in it", { amount: euro(summary.unplanned) }) : summary.debtFree ? "" : t("no plan yet"),
-          href: link,
-        },
-      ];
-      if (dir === "owe") {
-        const income = monthlyIncome().amount;
-        const fixed = fixedCosts().amount ?? 0;
-        if (income != null) {
-          const left = income - summary.monthlyRates - fixed;
-          tiles.push({
-            label: t("Left a month"),
-            value: euro(left),
-            detail: fixed ? t("of {income} income, after instalments and {fixed} fixed costs", { income: euro(income), fixed: euro(fixed) }) : t("of {amount} income a month", { amount: euro(income) }),
-            href: link,
-            ...{ tone: left < 0 ? ("bad" as const) : ("good" as const) },
-          });
-        } else tiles.push({ label: t("Left a month"), value: "—", detail: t("income not known yet"), href: link });
-      }
-      return { kind: "stats", tiles };
-    },
+    // Its figures are the Finances Kennzahlen (metrics.ts) — the same numbers as @Schuldenstand, kennzahl("Tilgungsrate").
+    data: (config) =>
+      metricStats(
+        config.names,
+        dirOf(config.dir) === "owe"
+          ? [
+              { name: "Schuldenstand", detail: "Offene Schulden" },
+              { name: "Tilgungsrate" },
+              { name: "Schuldenfrei in", detail: "Schulden ohne Plan" },
+              { name: "Frei im Monat", detail: "Fixkosten" },
+            ]
+          : [{ name: "Forderungen", detail: "Offene Forderungen" }, { name: "Rückzahlungen" }, { name: "Alles zurück in", detail: "Forderungen ohne Plan" }],
+        t("No metrics yet — Workspace → Metrics."),
+      ),
   },
   {
     id: "finances.payments",
