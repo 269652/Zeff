@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, searchAction, setTemplateAction, templatesAction, todayPageAction } from "../actions";
+import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, searchAction, setTemplateAction, templatesAction } from "../actions";
 import { kindIcon, moveBefore } from "../model";
 import type { TreeItem } from "../store";
 import type { AppNav } from "../app-nav";
@@ -365,19 +365,10 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
           <Link href="/workspace" className="flex-1 text-lg font-semibold hover:underline">
             {t("Workspace")}
           </Link>
-          <button
-            type="button"
-            className="btn btn-sm"
-            title={t("Today's page — made at the first use, with your todos that are due")}
-            onClick={async () => {
-              const r = await todayPageAction();
-              if (!r.ok) return toast(r.error, { tone: "error" });
-              router.push(`/workspace/${r.id}`);
-              router.refresh();
-            }}
-          >
+          {/* Today is the one daily place (its "Open today's note" makes the daily note). */}
+          <Link href="/heute" className="btn btn-sm" title={t("Today: appointments, todos due, review, open loops")}>
             📅 {t("Today")}
-          </button>
+          </Link>
           <Dropdown
             label="+"
             title={t("New")}

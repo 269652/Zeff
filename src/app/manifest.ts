@@ -16,7 +16,7 @@ export default function manifest(): MetadataRoute.Manifest {
     theme_color: "#4f46e5",
     // Long-press on the icon: straight to what waits for your yes (the review queue) and to the todos.
     shortcuts: [
-      { name: "Review", short_name: "Review", url: "/review" },
+      { name: "Review", short_name: "Review", url: "/heute#review" },
       { name: "Todos", short_name: "Todos", url: "/todos" },
     ],
     icons: [
