@@ -127,8 +127,9 @@ async function settle(n: DocNode, changed: { yes: boolean }): Promise<DocNode | 
     const name = await defineBlockMetric(spec);
     if (!name) return n;
     changed.yes = true;
-    const { define: _, ...rest } = config;
-    return { ...n, attrs: { ...n.attrs, config: JSON.stringify({ ...rest, names: name }) } };
+    const rest: Record<string, unknown> = { ...config, names: name };
+    delete rest.define;
+    return { ...n, attrs: { ...n.attrs, config: JSON.stringify(rest) } };
   }
   if (n.type === "databaseView") {
     const spec = parseChartMarker(String(n.attrs?.viewId ?? ""));
