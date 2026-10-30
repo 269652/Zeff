@@ -91,7 +91,9 @@ export function SiteHeader({
 }) {
   const t = useT();
   // The menu: the apps, the installed plugins' pages (a group each), then Zeff's own.
-  const zeff = inOrder(menuEntries(t), (l) => l.href, order).filter((l) => !(settingsGroup && l.href === "/preferences"));
+  // (An entry a group already has - Settings' /settings/mail, /settings/connections … - is not listed twice.)
+  const grouped = new Set([...pluginGroups, ...(settingsGroup ? [settingsGroup] : [])].flatMap((g) => g.items.map((i) => i.href.split("#")[0])));
+  const zeff = inOrder(menuEntries(t), (l) => l.href, order).filter((l) => !(settingsGroup && l.href === "/preferences") && !grouped.has(l.href.split("#")[0]));
   const menu = [...apps.filter((a) => a.place === "menu"), ...pluginGroups.flatMap((g) => g.items), ...(settingsGroup?.items ?? []), ...zeff];
   // The command palette finds every page the menu has (the hidden ones too).
   const palettePages = [...apps, ...pluginGroups.flatMap((g) => g.items), ...(settingsGroup?.items ?? []), ...menuEntries(t)]
