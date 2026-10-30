@@ -4,6 +4,7 @@ import { getDb, schema } from "@/db";
 import type { BoardTicket } from "@/lib/boards/shared";
 import { addAccount, listPeople } from "./store";
 import type { Person } from "./shared";
+import { escapeRegExp } from "@/lib/text";
 
 /**
  * Linked accounts of people (the People plugin): who is which Jira user — so a note that tags
@@ -205,7 +206,6 @@ export function jiraNoteBody(raw: string, people?: Person[]): { text: string; ha
   return { text, hash: createHash("sha1").update(text).digest("hex"), noAccount };
 }
 
-const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /** Everything someone is tagged by: their name, aliases and Jira usernames — a form two people share names neither. */
 function tagForms(people: Person[]): Map<string, Person> {
@@ -227,7 +227,7 @@ export function mentionsToJira(text: string, people: Person[] = listPeople()): {
   const mentioned = new Set<string>();
   const noAccount = new Set<string>();
   if (!forms.size) return { text, mentioned: [], noAccount: [] };
-  const re = new RegExp(String.raw`(?<![\p{L}\p{N}_.@])@(${[...forms.keys()].sort((a, b) => b.length - a.length).map(esc).join("|")})(?![\p{L}\p{N}_])`, "giu");
+  const re = new RegExp(String.raw`(?<![\p{L}\p{N}_.@])@(${[...forms.keys()].sort((a, b) => b.length - a.length).map(escapeRegExp).join("|")})(?![\p{L}\p{N}_])`, "giu");
   const out = text.replace(re, (_all, form: string) => {
     const person = forms.get(form.toLowerCase())!;
     const jira = person.accounts.find((a) => a.kind === "jira");

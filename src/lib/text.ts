@@ -19,3 +19,21 @@ export function clip(s: string | null | undefined, n: number): string {
 export function truncate(s: string, n: number): string {
   return s.length > n ? `${s.slice(0, n - 1).trimEnd()}…` : s;
 }
+
+/** Whitespace flattened to single spaces and trimmed. Null → "". */
+export const flatten = (s: unknown): string => String(s ?? "").replace(/\s+/g, " ").trim();
+
+/** flatten, then the first n characters — no mark of a cut. */
+export const flatSlice = (s: unknown, n: number): string => flatten(s).slice(0, n);
+
+/** flatten, then at most n characters including the "…" that marks a cut (unlike truncate, not trimmed before it). */
+export function flatTruncate(s: unknown, n: number): string {
+  const v = flatten(s);
+  return v.length > n ? `${v.slice(0, n - 1)}…` : v;
+}
+
+/** Trimmed, then the first n characters (whitespace inside kept). Null → "". */
+export const trimSlice = (s: unknown, n: number): string => String(s ?? "").trim().slice(0, n);
+
+/** A text to match as it is in a RegExp: its special characters escaped. */
+export const escapeRegExp = (s: string): string => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");

@@ -10,6 +10,7 @@ import { getPerson, listPeople } from "@/plugins/people/store";
 import { myNames } from "@/plugins/people/pulse";
 import { makeResolver, type Resolver } from "@/plugins/timeline/refs";
 import { addressedTo, isOverdue, isQuestion, isRequest, type Loop, type LoopDirection, type LoopKind } from "./shared";
+import { flatSlice } from "@/lib/text";
 
 /** How far back the rules read. */
 export const WINDOW_DAYS = 21;
@@ -34,7 +35,6 @@ export function whoAmI(): { names: string[]; handles: string[] } {
   return { names, handles };
 }
 
-const clip = (s: string, n: number) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
 type Draft = Omit<Loop, "overdue" | "state" | "closedBy" | "closedAt" | "closeQuote" | "closeRef" | "proposal" | "snoozedUntil" | "origin" | "confirmed" | "confidence" | "due">;
 
@@ -84,7 +84,7 @@ function fromMail(r: Resolver, since: string, now: Date): Loop[] {
       const text = chat ? m.preview : `${m.subject} — ${m.preview}`;
       const kind = kindOf(text, null);
       if (!kind) continue;
-      asked.push(finish({ ref: `q:mail:${m.key}`, kind, direction: "mine", personId, who: nameOf(r, personId, (chat && !group ? chatName : m.from_name) || chatName || "?"), text: clip(text, 300), quote: clip(m.preview, 300), at: m.at, sourceRef: `mail:${m.key}`, source, href: href(m) }, now));
+      asked.push(finish({ ref: `q:mail:${m.key}`, kind, direction: "mine", personId, who: nameOf(r, personId, (chat && !group ? chatName : m.from_name) || chatName || "?"), text: flatSlice(text, 300), quote: flatSlice(m.preview, 300), at: m.at, sourceRef: `mail:${m.key}`, source, href: href(m) }, now));
     }
     out.push(...asked.slice(-PER_THREAD));
     // Your question as the last word of a conversation (not in a group: anyone may answer there).
@@ -94,7 +94,7 @@ function fromMail(r: Resolver, since: string, now: Date): Loop[] {
       const personId = chat ? r.person(chatName) : other ? (r.person(other.from_email) ?? r.person(other.from_name)) : null;
       if (chat || personId || other) {
         const kind = kindOf(last.preview, "question")!;
-        out.push(finish({ ref: `q:mail:${last.key}`, kind, direction: "theirs", personId, who: nameOf(r, personId, chatName || other?.from_name || last.subject), text: clip(chat ? last.preview : `${last.subject} — ${last.preview}`, 300), quote: clip(last.preview, 300), at: last.at, sourceRef: `mail:${last.key}`, source, href: href(last) }, now));
+        out.push(finish({ ref: `q:mail:${last.key}`, kind, direction: "theirs", personId, who: nameOf(r, personId, chatName || other?.from_name || last.subject), text: flatSlice(chat ? last.preview : `${last.subject} — ${last.preview}`, 300), quote: flatSlice(last.preview, 300), at: last.at, sourceRef: `mail:${last.key}`, source, href: href(last) }, now));
       }
     }
   }
@@ -126,14 +126,14 @@ function fromTeams(r: Resolver, since: string, now: Date, me: Set<string>): Loop
       const kind = kindOf(m.text, null);
       if (!kind) continue;
       const personId = r.person(m.sender_name);
-      asked.push(finish({ ref: `q:teams:${m.key}`, kind, direction: "mine", personId, who: nameOf(r, personId, m.sender_name ?? "Teams"), text: clip(m.text, 300), quote: clip(m.text, 300), at: m.at, sourceRef: `teams:${m.key}`, source: "teams", href: m.link }, now));
+      asked.push(finish({ ref: `q:teams:${m.key}`, kind, direction: "mine", personId, who: nameOf(r, personId, m.sender_name ?? "Teams"), text: flatSlice(m.text, 300), quote: flatSlice(m.text, 300), at: m.at, sourceRef: `teams:${m.key}`, source: "teams", href: m.link }, now));
     }
     out.push(...asked.slice(-PER_THREAD));
     const last = msgs[msgs.length - 1];
     if (last && mine(last) && (isQuestion(last.text) || isRequest(last.text)) && msgs.some((m) => m.kind === "pm")) {
       const other = [...msgs].reverse().find((m) => !mine(m));
       const personId = r.person(other?.sender_name);
-      out.push(finish({ ref: `q:teams:${last.key}`, kind: kindOf(last.text, "question")!, direction: "theirs", personId, who: nameOf(r, personId, other?.sender_name ?? (last.place ?? "Teams").replace(/^Chat with /, "")), text: clip(last.text, 300), quote: clip(last.text, 300), at: last.at, sourceRef: `teams:${last.key}`, source: "teams", href: last.link }, now));
+      out.push(finish({ ref: `q:teams:${last.key}`, kind: kindOf(last.text, "question")!, direction: "theirs", personId, who: nameOf(r, personId, other?.sender_name ?? (last.place ?? "Teams").replace(/^Chat with /, "")), text: flatSlice(last.text, 300), quote: flatSlice(last.text, 300), at: last.at, sourceRef: `teams:${last.key}`, source: "teams", href: last.link }, now));
     }
   }
   return out;
@@ -165,14 +165,14 @@ function fromJira(r: Resolver, since: string, now: Date, me: { names: string[]; 
       const kind = kindOf(c.body, to ? "mention" : null);
       if (!kind || !(to || c.mine)) continue;
       const personId = r.person(c.author);
-      asked.push(finish({ ref: `q:jira:${c.id}`, kind, direction: "mine", personId, who: nameOf(r, personId, c.author), text: clip(`${ticket}: ${c.body}`, 300), quote: clip(c.body, 300), at: c.at, sourceRef: `jira-comment:${c.id}`, source: "jira", href }, now));
+      asked.push(finish({ ref: `q:jira:${c.id}`, kind, direction: "mine", personId, who: nameOf(r, personId, c.author), text: flatSlice(`${ticket}: ${c.body}`, 300), quote: flatSlice(c.body, 300), at: c.at, sourceRef: `jira-comment:${c.id}`, source: "jira", href }, now));
     }
     out.push(...asked.slice(-PER_THREAD));
     const last = cs[cs.length - 1];
     if (last && isMe(last.author) && isQuestion(last.body)) {
       const other = [...cs].reverse().find((c) => !isMe(c.author));
       const personId = other ? r.person(other.author) : null;
-      out.push(finish({ ref: `q:jira:${last.id}`, kind: kindOf(last.body, "question")!, direction: "theirs", personId, who: nameOf(r, personId, other?.author ?? ticket), text: clip(`${ticket}: ${last.body}`, 300), quote: clip(last.body, 300), at: last.at, sourceRef: `jira-comment:${last.id}`, source: "jira", href }, now));
+      out.push(finish({ ref: `q:jira:${last.id}`, kind: kindOf(last.body, "question")!, direction: "theirs", personId, who: nameOf(r, personId, other?.author ?? ticket), text: flatSlice(`${ticket}: ${last.body}`, 300), quote: flatSlice(last.body, 300), at: last.at, sourceRef: `jira-comment:${last.id}`, source: "jira", href }, now));
     }
   }
   return out;

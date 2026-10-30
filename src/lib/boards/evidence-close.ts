@@ -8,6 +8,7 @@
 import { getPref, setPref } from "@/lib/prefs";
 import { attributed } from "./activity";
 import { listTodos, setTodoStatus, suggestDone } from "./store";
+import { flatTruncate } from "@/lib/text";
 
 /** The kinds a message of yours in their thread settles: answering is the todo. */
 const CLOSE_KINDS = new Set(["reply", "comment"]);
@@ -32,10 +33,6 @@ const read = (): Ledger => {
 
 export type EvidenceVerdict = { todoId: number; action: "close" | "propose"; ref: string; at: string; quote: string; source: string };
 
-const clip = (s: string, n: number) => {
-  const v = String(s ?? "").replace(/\s+/g, " ").trim();
-  return v.length > n ? `${v.slice(0, n - 1)}…` : v;
-};
 /** A stored time ("2026-10-26 08:17:54" from SQLite, or ISO) as ISO — to compare with the messages' times. */
 const isoOf = (v: string) => (/^\d{4}-\d{2}-\d{2} \d/.test(v) ? `${v.replace(" ", "T")}Z` : v);
 const SOURCE_NAME: Record<string, string> = { teams: "Teams", mail: "the mail thread", jira: "Jira" };
@@ -97,7 +94,7 @@ export async function evidenceVerdicts(): Promise<EvidenceVerdict[]> {
     const sure = CLOSE_KINDS.has(t.kind) && !isDeferral(answer.text) && (answer.prompt || topic);
     // A chat goes on about anything: there only a prompt answer or one on the topic counts at all (a mail thread is about its subject).
     if (!sure && answer.chat && !answer.prompt && !topic) continue;
-    out.push({ todoId: t.id, action: sure ? "close" : "propose", ref: answer.ref, at: answer.at, quote: clip(answer.text, 140), source: SOURCE_NAME[answer.kind] ?? answer.kind });
+    out.push({ todoId: t.id, action: sure ? "close" : "propose", ref: answer.ref, at: answer.at, quote: flatTruncate(answer.text, 140), source: SOURCE_NAME[answer.kind] ?? answer.kind });
   }
   return out;
 }

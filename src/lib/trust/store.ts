@@ -2,6 +2,7 @@ import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { attributeSpec, normalizeValue, sameValue, shelfLife } from "./normalize";
 import { localDay } from "@/lib/dates";
+import { trimSlice } from "@/lib/text";
 
 /**
  * Trust in facts (server only): every value Zeff keeps about someone or something — a person's IBAN or address,
@@ -114,7 +115,6 @@ const toVersion = (r: Row): FactVersion => ({
   byUser: !!r.by_user,
 });
 
-const clip = (s: unknown, n: number) => String(s ?? "").trim().slice(0, n);
 const expiry = (attribute: string, from: Date) => {
   const days = shelfLife(attribute);
   return days == null ? null : new Date(from.getTime() + days * 864e5).toISOString();
@@ -153,8 +153,8 @@ export function versionFor(subject: string, attribute: string, value: string): F
 export function recordFact(v: FactInput, now = new Date()): { outcome: RecordOutcome; version: FactVersion; current: FactVersion[] } {
   const d = db();
   const at = now.toISOString();
-  const value = clip(v.value, 500);
-  const source = clip(v.sourceRef, 160) || (v.byUser ? "you" : "");
+  const value = trimSlice(v.value, 500);
+  const source = trimSlice(v.sourceRef, 160) || (v.byUser ? "you" : "");
   const all = versionsOf(v.subject, v.attribute);
   const match = all.find((x) => sameValue(v.attribute, x.value, value));
   if (match) {
@@ -169,7 +169,7 @@ export function recordFact(v: FactInput, now = new Date()): { outcome: RecordOut
       JSON.stringify(sources),
       confirmed ? at : match.confirmedAt,
       confirmed ? expiry(v.attribute, now) : match.expiresAt,
-      clip(v.subjectLabel, 120),
+      trimSlice(v.subjectLabel, 120),
       match.id,
     );
     if (v.byUser && match.status !== "current") {
@@ -187,17 +187,17 @@ export function recordFact(v: FactInput, now = new Date()): { outcome: RecordOut
     )
     .run(
       v.subject,
-      clip(v.subjectLabel, 120),
+      trimSlice(v.subjectLabel, 120),
       v.attribute,
       value,
       normalizeValue(v.attribute, value),
       v.writer,
-      clip(v.target, 120),
+      trimSlice(v.target, 120),
       JSON.stringify(v.payload ?? {}),
       source,
       JSON.stringify(source ? [source] : []),
-      clip(v.quote, 300),
-      clip(v.link, 300),
+      trimSlice(v.quote, 300),
+      trimSlice(v.link, 300),
       Math.max(0, Math.min(1, v.confidence ?? (v.byUser ? 1 : 0.7))),
       disputed ? "disputed" : "current",
       at,

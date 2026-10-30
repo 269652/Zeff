@@ -20,6 +20,7 @@ import { whoAmI } from "./detect";
 import { isDeferral, isQuestion, isSendPromise, sharesTopic } from "./shared";
 import { laterMessages, sourceMessage, threadSenders, ticketDoneSince, type LaterMessage } from "./source";
 import { allStates, putState, stateOf } from "./state";
+import { flatSlice } from "@/lib/text";
 
 type CRow = { id: number; person_id: number; text: string; evidence: string; source_ref: string; direction: string; created_at: string };
 
@@ -31,7 +32,6 @@ const openClaims = (): CRow[] => {
   }
 };
 
-const clip = (s: string, n: number) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
 /**
  * A promise kept: its claim ticked off, its state with what closed it — and, with the Timeline plugin, an event "loop closed" on the
@@ -43,7 +43,7 @@ export function closeClaim(id: number, by: "rule" | "ai", closeRef: string, quot
   const c = d.prepare("select person_id, text, source_ref from people_claims where id = ?").get(id) as { person_id: number; text: string; source_ref: string } | undefined;
   if (!c) return;
   d.prepare("update people_claims set done_at = ? where id = ? and done_at is null").run(at, id);
-  putState(`claim:${id}`, { state: "closed", closedBy: by, closeRef, closeQuote: clip(quote, 400), closedAt: at, proposal: null });
+  putState(`claim:${id}`, { state: "closed", closedBy: by, closeRef, closeQuote: flatSlice(quote, 400), closedAt: at, proposal: null });
   emitChange("todos");
   if (isInstalled("timeline")) {
     void import("@/plugins/timeline/store")
@@ -115,7 +115,7 @@ export function closeByRule(): { closed: number; proposed: number } {
     }
     const maybe = verdicts.find((x) => x.v === "propose");
     if (maybe && !st?.proposal) {
-      putState(`claim:${c.id}`, { proposal: { ref: maybe.m.ref, quote: clip(maybe.m.text, 400), href: src.href, at: maybe.m.at, by: "rule" } });
+      putState(`claim:${c.id}`, { proposal: { ref: maybe.m.ref, quote: flatSlice(maybe.m.text, 400), href: src.href, at: maybe.m.at, by: "rule" } });
       proposed++;
     }
   }
@@ -205,10 +205,10 @@ export async function closeByAi(opts: { ask?: CloseDeps["ask"] } = {}): Promise<
       promptText("loops-close", CLOSE_INSTRUCTIONS),
       "",
       "# Zusagen",
-      ...loops.map((l) => `[${l.id}] ${l.claim.direction === "mine" ? "ich schulde" : "schuldet mir"} ${getPerson(l.claim.person_id)?.name ?? "?"}: ${clip(l.claim.text, 200)} — „${clip(l.claim.evidence, 200)}“ (seit ${(sourceMessage(l.claim.source_ref).at ?? l.claim.created_at).slice(0, 10)})`),
+      ...loops.map((l) => `[${l.id}] ${l.claim.direction === "mine" ? "ich schulde" : "schuldet mir"} ${getPerson(l.claim.person_id)?.name ?? "?"}: ${flatSlice(l.claim.text, 200)} — „${flatSlice(l.claim.evidence, 200)}“ (seit ${(sourceMessage(l.claim.source_ref).at ?? l.claim.created_at).slice(0, 10)})`),
       "",
       "# Nachrichten",
-      ...[...events.entries()].map(([id, e]) => `[${id}] ${e.at.slice(0, 10)} ${e.kind} · ${clip(e.title, 120)}: ${clip(e.summary, 400)}  (zu: ${e.loops.join(", ")})`),
+      ...[...events.entries()].map(([id, e]) => `[${id}] ${e.at.slice(0, 10)} ${e.kind} · ${flatSlice(e.title, 120)}: ${flatSlice(e.summary, 400)}  (zu: ${e.loops.join(", ")})`),
     ].join("\n");
     const answer = await (opts.ask ?? realAsk())(prompt, SCHEMA);
     let proposed = 0;
@@ -216,7 +216,7 @@ export async function closeByAi(opts: { ask?: CloseDeps["ask"] } = {}): Promise<
     for (const x of answer.closes ?? []) {
       const loop = loops.find((l) => l.id === String(x.loop ?? ""));
       const ev = events.get(String(x.event ?? ""));
-      const quote = clip(String(x.quote ?? ""), 400);
+      const quote = flatSlice(String(x.quote ?? ""), 400);
       if (!loop || !ev || done.has(loop.id) || !ev.loops.includes(loop.id) || norm(quote).length < 6) continue;
       if (!norm(`${ev.title} ${ev.summary}`).includes(norm(quote))) continue;
       const ref = `claim:${loop.claim.id}`;
