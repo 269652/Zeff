@@ -2,11 +2,12 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useMenuKeys } from "@/components/useMenuKeys";
 import { switchAccountAction } from "@/plugins/accounts/server-actions";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
+import { useDismiss } from "@/components/useDismiss";
 
 export type AccountChip = { id: string; name: string; color: string; /** Its own address (Settings → Accounts): switching opens it there — the other tab keeps the one before. */ host?: string };
 
@@ -38,19 +39,7 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
   const menu = useRef<HTMLDivElement>(null);
   useMenuKeys(open, menu, button, () => setOpen(false));
 
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => {
-      if (!box.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
+  useDismiss(box, open, () => setOpen(false));
 
   const go = (id: string) => {
     // An account at its own address: the same page there (both run side by side — this one stays as it is).

@@ -10,6 +10,7 @@ import { toast } from "@/components/Toaster";
 import { setSpanModeAction, ungroupSpanAction } from "@/app/parallel-actions";
 import { modeText } from "./ParallelControls";
 import type { GroupOption } from "@/lib/entry-parallel";
+import { useDismiss } from "@/components/useDismiss";
 
 const GroupIcon = ({ filled }: { filled: boolean }) =>
   filled ? (
@@ -44,20 +45,15 @@ export function GroupMenu({ entryId, currentSpanId, headOfSpan, options }: { ent
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   useMenuKeys(open, menu, button, () => setOpen(false));
+  useDismiss(box, open, () => setOpen(false));
   useEffect(() => {
     if (!open) return;
-    const away = (e: MouseEvent) => !box.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
     const close = () => setOpen(false);
     // (the page scrolling away from the icon closes it; the menu's own list scrolling does not)
     const scrolled = (e: Event) => !box.current?.contains(e.target as Node) && setOpen(false);
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
     window.addEventListener("resize", close);
     window.addEventListener("scroll", scrolled, true);
     return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", esc);
       window.removeEventListener("resize", close);
       window.removeEventListener("scroll", scrolled, true);
     };

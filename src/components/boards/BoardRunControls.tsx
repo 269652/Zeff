@@ -11,6 +11,7 @@ import { ChevronIcon } from "../icons";
 import { SyncStepRow } from "../SyncMenu";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
+import { useDismiss } from "@/components/useDismiss";
 
 /** What "Jetzt auswerten" does, in order — each a step of its own, as in the Sync menu. */
 /** After the syncs it runs first (the Auswerten settings): the Lage and its steps. */
@@ -91,21 +92,12 @@ export function BoardRunControls({
     };
     void poll();
     const timer = setInterval(poll, 2000);
-    const onDown = (e: MouseEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") setOpen(false);
-    };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
     return () => {
       alive = false;
       clearInterval(timer);
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
     };
   }, [open]);
+  useDismiss(root, open, () => setOpen(false));
   const runStep = (key: SyncKey) =>
     start(async () => {
       setError(null);

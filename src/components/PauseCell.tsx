@@ -6,6 +6,7 @@ import { formatHours } from "@/lib/format";
 import { formatPauses, parsePauses, parseTime, totalPauseHours, type PauseRange } from "@/lib/pauses-shared";
 import { useLockedBreakText } from "./useLockedBreakText";
 import { useT } from "@/components/I18nProvider";
+import { useDismiss } from "@/components/useDismiss";
 
 const PRESET_MINUTES = [30, 45, 60];
 const WIDTH = 300;
@@ -68,20 +69,15 @@ export function PauseCell({
 
   useEffect(() => {
     if (!open) return;
-    const onDown = (e: MouseEvent) => {
-      const target = e.target as Node;
-      if (!popRef.current?.contains(target) && !cellRef.current?.contains(target)) setOpen(false);
-    };
     const onMove = () => setPos(popoverPosition(cellRef.current));
-    document.addEventListener("mousedown", onDown);
     window.addEventListener("scroll", onMove, true);
     window.addEventListener("resize", onMove);
     return () => {
-      document.removeEventListener("mousedown", onDown);
       window.removeEventListener("scroll", onMove, true);
       window.removeEventListener("resize", onMove);
     };
   }, [open]);
+  useDismiss([popRef, cellRef], open, () => setOpen(false), { escape: false });
 
   function openEditor() {
     draftField.reset(noBreak ? "none" : formatPauses(pauses.length ? pauses : offer));

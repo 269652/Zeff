@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useLayoutEffect, useRef, useState, useTransition } from "react";
+import { useLayoutEffect, useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { useOverlayFocus } from "@/components/Overlay";
 import { useGrant } from "@/components/PluginFlags";
@@ -13,6 +13,7 @@ import { doneBrowserOpAction, removeTodoOpAction } from "@/plugins/todos/server-
 import { acceptProposedEventAction, acceptShadowEventAction, deleteEventAction, respondEventAction, saveEventAction } from "./server-actions";
 import { whenText, type Item } from "./view-shared";
 import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
+import { useDismiss } from "@/components/useDismiss";
 
 type Result = { ok: boolean; message?: string; error?: string } | null;
 
@@ -66,17 +67,7 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
     Object.assign(el.style, { left: `${left}px`, top: `${top}px`, right: "auto", bottom: "auto" });
   }, [anchor, item, asking]);
 
-  useEffect(() => {
-    const key = (ev: KeyboardEvent) => ev.key === "Escape" && onClose();
-    const away = (ev: PointerEvent) => box.current && !box.current.contains(ev.target as Node) && onClose();
-    window.addEventListener("keydown", key);
-    const timer = setTimeout(() => window.addEventListener("pointerdown", away), 0);
-    return () => {
-      clearTimeout(timer);
-      window.removeEventListener("keydown", key);
-      window.removeEventListener("pointerdown", away);
-    };
-  }, [onClose]);
+  useDismiss(box, true, onClose, { event: "pointerdown", defer: true });
 
   // A todo's proposed appointment: accepted (entered in Zeff's calendar — or Google's / Outlook's form
   // opened, filled in, and noted on the todo) or dismissed; only that action of the todo.

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { FormError } from "@/components/FormError";
 import { toast } from "@/components/Toaster";
 import { switchSessionBranchAction } from "@/plugins/work/server-actions";
+import { useDismiss } from "@/components/useDismiss";
 
 type Branches = { ok: true; root: string; current: string | null; branches: { name: string; remote: boolean; current: boolean; worktree: string | null }[] } | { ok: false; error: string };
 
@@ -29,15 +30,11 @@ export function SessionBranch({ runId, repo, cwd, branch, worktree, idle }: { ru
       .then((r) => r.json())
       .then((j: Branches) => live && setLoaded({ cwd, data: j }))
       .catch(() => live && setLoaded({ cwd, data: { ok: false, error: "Couldn't read the branches." } }));
-    const away = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", away);
     return () => {
       live = false;
-      document.removeEventListener("mousedown", away);
     };
   }, [open, cwd]);
+  useDismiss(ref, open && !!cwd, () => setOpen(false), { escape: false });
   if (!repo && !branch) return null;
   const switchTo = (name: string) =>
     start(async () => {

@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { stopSyncAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { minutesText } from "@/plugins/sync-settings";
@@ -10,6 +10,7 @@ import { SyncIcon } from "./icons";
 import { toast } from "./Toaster";
 import { formatFull } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
+import { useDismiss } from "@/components/useDismiss";
 
 export type SyncSource = {
   /** The sync's key on the Sync settings page. */
@@ -33,17 +34,7 @@ export function SyncSplitButton({ sources }: { sources: SyncSource[] }) {
   const [pending, start] = useTransition();
   const root = useRef<HTMLDivElement>(null);
 
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => !root.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
-    return () => {
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", esc);
-    };
-  }, [open]);
+  useDismiss(root, open, () => setOpen(false));
 
   const stopped = useRef(false);
   const run = (list: SyncSource[]) =>

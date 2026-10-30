@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
+import { useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { useMenuKeys } from "@/components/useMenuKeys";
 import type { SessionItem, SessionTicket } from "@/lib/work/sessions";
 import { archiveSessionAction, deleteSessionAction } from "@/plugins/work/server-actions";
@@ -11,6 +11,7 @@ import { toast } from "../Toaster";
 import { WORK_STATUS_LABELS } from "@/lib/work/shared";
 import { formatAgo } from "@/lib/format";
 import { groupSessions, isSort, stamp, type Group, type SortKey } from "./session-groups";
+import { useDismiss } from "@/components/useDismiss";
 
 /** How long ago, as short as a list row wants it: "now", "48m", "2h", "5d", "3w" (the full words are in the row's tooltip). */
 const ago = (iso: string) => {
@@ -45,14 +46,7 @@ function SessionMenu({ s, active }: { s: SessionItem; active: boolean }) {
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
   useMenuKeys(open, menu, button, () => setOpen(false));
-  useEffect(() => {
-    if (!open) return;
-    const away = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", away);
-    return () => document.removeEventListener("mousedown", away);
-  }, [open]);
+  useDismiss(ref, open, () => setOpen(false), { escape: false });
   const act = (fn: () => Promise<{ ok: boolean; error?: string } | null>) =>
     start(async () => {
       const r = await fn();
