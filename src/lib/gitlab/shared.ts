@@ -7,7 +7,6 @@ import { type T, translator } from "@/lib/i18n/shared";
 /** A merge request, a comment on one, or a branch. */
 export type GitlabKind = "mr" | "comment" | "branch";
 
-export const GITLAB_KIND_LABELS: Record<GitlabKind, string> = { mr: "MR", comment: "Comment", branch: "Branch" };
 export const gitlabKindLabels = (t: T): Record<GitlabKind, string> => ({ mr: t("MR"), comment: t("Comment"), branch: t("Branch") });
 
 export type GitlabItemView = {

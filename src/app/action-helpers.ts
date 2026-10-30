@@ -1,7 +1,6 @@
 /** What the server actions share: reading a form, refreshing the pages, an action's answer. Server-only (not "use server": its helpers aren't actions). */
 
 import { revalidatePath } from "next/cache";
-import { errorMessage } from "@/lib/errors";
 import type { EntryType } from "@/db/schema";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
@@ -40,25 +39,6 @@ export function revalidateAll() {
     revalidatePath("/", "layout");
   } catch {
     // outside a request (a script, a test): there is no page to refresh
-  }
-}
-
-/**
- * A call to a service in the automation Chrome, watched for "sign in first": then you're asked
- * (a request on every page, a notification) — Zeff never signs in itself; once it works again,
- * the request goes.
- */
-export async function watchSignIn(service: string, fn: () => Promise<string>): Promise<string> {
-  const { clearAttention, needsSignIn, raiseLogin } = await import("@/lib/attention");
-  try {
-    const out = await fn();
-    if (/not signed in/i.test(out)) raiseLogin(service, out);
-    else clearAttention(`login:${service}`);
-    return out;
-  } catch (e) {
-    const message = errorMessage(e);
-    if (needsSignIn(message)) raiseLogin(service, message);
-    throw e;
   }
 }
 

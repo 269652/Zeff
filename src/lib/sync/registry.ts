@@ -33,8 +33,6 @@ const { syncState, jiraTickets } = schema;
 export type LiveSyncs = { running: Set<SyncKey>; all: SyncKey | null | undefined; stops?: Map<string, AbortController>; allStopped?: boolean };
 const state = globalThis as { __zeffSyncsByAccount?: Record<string, LiveSyncs> };
 const live = (account = currentAccountId()) => ((state.__zeffSyncsByAccount ??= {})[account] ??= { running: new Set(), all: undefined });
-/** Every account's running syncs (a deploy waits for all; the mirror copies all). */
-export const liveSyncsAll = (): [string, LiveSyncs][] => Object.entries(state.__zeffSyncsByAccount ?? {});
 /** The running syncs' stop handles, by step (the menu's, the scheduler's, a page's button). */
 const stops = () => (live().stops ??= new Map());
 
@@ -132,13 +130,6 @@ export type SyncStep = {
 };
 
 type Step = SyncStep;
-
-/** The Monday ISO dates of the last and the current month's weeks. */
-export async function lastAndCurrentWeeks(): Promise<string[]> {
-  const { lastAndCurrentMonth } = await import("@/lib/month");
-  const { last, current } = lastAndCurrentMonth();
-  return [...last.weeks, ...current.weeks].map((w) => w.startIso);
-}
 
 
 /** When Jira last synced — through the menu, its page, or by itself. */

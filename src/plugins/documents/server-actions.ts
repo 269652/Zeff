@@ -4,7 +4,7 @@ import { revalidateAll, type ActionState } from "@/app/action-helpers";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { docRef, type DocView } from "./shared";
+import { type DocView } from "./shared";
 import { pluginAction } from "@/lib/action-result";
 
 /** The Documents plugin's server actions (each answers an ActionState unless it says otherwise). */
@@ -75,19 +75,6 @@ export async function attachDocumentAction(todoId: number, docId: number): Promi
     if (!doc) throw new Error(t("This document doesn't exist (any more)."));
     if (!addTodoContext(Number(todoId), [doc.ref], "", "Document")) throw new Error(t("This todo doesn't exist (any more)."));
     return t("“{name}” attached.", { name: doc.name });
-  });
-}
-
-/** A document taken off a todo (it stays in the store). */
-export async function detachDocumentAction(todoId: number, docId: number): Promise<ActionState> {
-  return run(async () => {
-    const { getDb, schema } = await import("@/db");
-    const { eq } = await import("drizzle-orm");
-    const row = getDb().select({ refs: schema.todos.refs }).from(schema.todos).where(eq(schema.todos.id, Number(todoId))).get();
-    if (!row) throw new Error(t("This todo doesn't exist (any more)."));
-    const refs = (JSON.parse(row.refs) as string[]).filter((r) => r !== docRef(Number(docId)));
-    getDb().update(schema.todos).set({ refs: JSON.stringify(refs), updatedAt: new Date().toISOString() }).where(eq(schema.todos.id, Number(todoId))).run();
-    return t("Detached.");
   });
 }
 

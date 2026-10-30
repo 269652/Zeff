@@ -269,6 +269,4 @@ export function monthlyChoices(firstStart: string, t: T = translator("en")): { b
   ];
 }
 
-/** The weekdays, short (Mon … Sun), in English — weekdayShort(t) in the language of `t`. */
-export const WEEKDAY_SHORT = SHORT;
 export const weekdayShort = (t: T) => [t("Mon"), t("Tue"), t("Wed"), t("Thu"), t("Fri"), t("Sat"), t("Sun")];

@@ -118,9 +118,3 @@ export function confirmByBank(paymentId: number, tx: string, label: string): voi
   d.prepare("update ledger_payments set tx = ?, label = ? where id = ?").run(tx, p.label.includes(label) ? p.label : `${p.label} · ${label}`, paymentId);
 }
 
-/** Whether a booking is in the ledger already (as its own payment, or confirming one). */
-export const knowsBooking = (tx: string): boolean => !!db().prepare("select 1 from ledger_payments where tx = ? or key = ?").get(tx, `tx:${tx}`);
-
-/** The things a payment is for. */
-export const allocationsOfPayment = (paymentId: number): { ref: string; amount: number }[] =>
-  (db().prepare("select ref, amount from ledger_allocations where payment_id = ? order by id").all(paymentId) as { ref: string; amount: number }[]).map((r) => ({ ...r }));

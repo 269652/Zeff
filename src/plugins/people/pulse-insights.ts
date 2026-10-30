@@ -56,8 +56,6 @@ const MAX_REPLY = 7 * DAY;
  * at least (someone you write daily isn't drifting after two quiet days).
  */
 export const DRIFT = { minDays: 4, factor: 2, minSilence: 7 };
-/** The window the insights look at. */
-export const PULSE_MONTHS = 12;
 
 /** A moment's local day ("YYYY-MM-DD"). */
 export const dayOf = (at: string | Date): string => (typeof at === "string" ? new Date(at) : at).toLocaleDateString("sv-SE");

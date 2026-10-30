@@ -267,9 +267,6 @@ export function scoreItem(item: { title: string; summary: string; publishedAt: s
   return { score: Math.round(score * 100) / 100, reasons };
 }
 
-/** A feed's "summary" that is only a stub (Hacker News: "Article URL: … Comments URL: … Points: 8"): no summary at all. */
-export const isStubSummary = (s: string): boolean => /^\s*Article URL:/i.test(s) || /^\s*Comments URL:/i.test(s);
-
 /** The opening of an article as a card's summary: its first paragraphs, about 320 characters, cut at a word. */
 export function snippetOf(text: string, max = 320): string {
   let out = "";

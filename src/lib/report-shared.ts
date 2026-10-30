@@ -60,8 +60,6 @@ export const ruleFieldLabels = (t: T): Record<RuleField, string> => ({
   job: t("Job is"),
   project: t("Project is"),
 });
-/** In English (shown through t() — or use ruleFieldLabels(t)). */
-export const RULE_FIELD_LABELS: Record<RuleField, string> = ruleFieldLabels(en);
 
 export const RULE_FIELDS: RuleField[] = ["type", "title", "tag", "ticket", "job", "project"];
 

@@ -156,11 +156,6 @@ export function runsForTodos(todoIds: number[]): Map<number, WorkRunView[]> {
   return out;
 }
 
-/** The runs of one Claude conversation (going on resumes it: the same session id), oldest first. */
-export function runsOfSession(sessionId: string): WorkRunView[] {
-  return getDb().select().from(workRuns).where(eq(workRuns.sessionId, sessionId)).orderBy(asc(workRuns.id)).all().map(toRunView);
-}
-
 /** The newest runs (all of them, for the history). */
 export function recentRuns(limit = 50): WorkRunView[] {
   return getDb().select().from(workRuns).orderBy(desc(workRuns.id)).limit(limit).all().map(toRunView);

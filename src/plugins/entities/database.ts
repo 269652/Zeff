@@ -36,13 +36,3 @@ export async function ensureEntityDatabases(): Promise<void> {
   }
 }
 
-/** Where an entity's page is: its row in its kind's database — the database without one, the Workspace without a database. */
-export async function entityHref(ref: string): Promise<string> {
-  const kind = ref.split(":")[0] as EntityKind;
-  if (!(kind in PREF)) return "/workspace";
-  const db = await entityDatabase(kind);
-  if (!db) return "/workspace";
-  const { rawRows } = await import("@/plugins/workspace/store");
-  const row = rawRows(db).find((r) => r.cells.srcref === ref);
-  return row ? `/workspace/${row.id}` : `/workspace/${db}`;
-}

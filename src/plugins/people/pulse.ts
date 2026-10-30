@@ -4,7 +4,7 @@ import { isInstalled } from "@/plugins/state";
 import { withThem } from "./appointments";
 import { claimsOf, openCommitments, proposedClaims, proposedLinks, reviewClaim, reviewLink } from "./graph";
 import type { Person } from "./shared";
-import { contactsOf, getPerson, listPeople, namesOf, relationsOf } from "./store";
+import { contactsOf, listPeople, namesOf, relationsOf } from "./store";
 import { localStamp } from "@/lib/dates";
 
 /**
@@ -230,9 +230,6 @@ export async function meetingBriefs(now = new Date()): Promise<MeetingBrief[]> {
   }
   return out.sort((a, b) => a.start.localeCompare(b.start));
 }
-
-/** A person as the pulse needs them (for the actions). */
-export const personForPulse = (id: number) => getPerson(id);
 
 /**
  * After each briefing (the People matching step), with the LLM plugin: the contacts not placed yet — person or organisation,

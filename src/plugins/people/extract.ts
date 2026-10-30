@@ -112,7 +112,6 @@ const markOfSaved = (source: string, fallback: string): string => (stateDb().pre
 const setMark = (source: string, mark: string) => stateDb().prepare("insert into people_extract_state (source, mark) values (?, ?) on conflict(source) do update set mark = excluded.mark").run(source, mark);
 
 const flag = globalThis as { __zeffPeopleExtract?: boolean };
-export const peopleExtracting = () => !!flag.__zeffPeopleExtract;
 
 /** How much of a letter is read: its summary and the start of its text, where the sender's details stand (account, file number). */
 const DOC_CHARS = 1800;

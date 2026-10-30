@@ -31,13 +31,6 @@ export async function caseOpAction(rowId: number, op: CaseOperation): Promise<Re
   });
 }
 
-/** The overview of the debts (the printable page). */
-export async function debtOverviewAction(): Promise<Result<{ overview: import("./bank").DebtOverview }>> {
-  return run(async () => {
-    return { overview: (await import("./bank")).debtOverview() };
-  });
-}
-
 export type CasesOverview = {
   figures: { open: number; dueSoon: number; overdue: number; running: number };
   cases: { id: number; rowId: number | null; title: string; label: string; person: string; /** Who it is owed to, who collects it (contacts' names). */ creditor: string; collector: string; open: number | null; nextDue: string | null; nextWhat: string; payment: import("./payments").CasePayment | null; summed: boolean }[];

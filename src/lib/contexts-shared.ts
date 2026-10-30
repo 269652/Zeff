@@ -20,8 +20,6 @@ export const contextKindLabels = (t: T): Record<ContextKind, string> => ({
   email: t("Email"),
   note: t("Note"),
 });
-/** In English (shown through t() — or use contextKindLabels(t)). */
-export const CONTEXT_KIND_LABELS: Record<ContextKind, string> = contextKindLabels(en);
 
 export const isContextKind = (v: unknown): v is ContextKind => (CONTEXT_KINDS as readonly unknown[]).includes(v);
 

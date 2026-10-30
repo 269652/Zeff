@@ -287,11 +287,6 @@ export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: stri
   return out;
 }
 
-/** Pages of this workspace that name something (a person, a todo, a ticket) — for the other pages of Zeff. */
-export async function pagesMentioningAction(kind: DocRef["kind"], ref: string) {
-  return run(() => ({ pages: store.pagesMentioning(kind, ref) }));
-}
-
 // ---------------------------------------------------------------------------
 // Databases
 // ---------------------------------------------------------------------------

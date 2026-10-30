@@ -42,7 +42,5 @@ export const pluginById = (id: PluginId) => PLUGINS.find((p) => p.id === id)!;
 export const STEP_NEEDS: Record<string, (PluginId | PluginId[])[]> = { boards: ["llm", ["jira", "kanban"]], recap: ["llm"], mailtodos: ["todos", "llm"], relations: ["todos", "llm"], boardlage: ["jira", "llm"], peoplenorm: ["llm"] };
 /** All the plugins that bring a step (Mail: Outlook Mail and Gmail) — any of them installed makes it there. */
 export const pluginsOfStep = (key: string) => PLUGINS.filter((p) => p.syncSteps?.includes(key)).map((p) => p.id);
-/** All the plugins that own a page. */
-export const pluginsOfRoute = (path: string) => PLUGINS.filter((p) => p.routes?.some((r) => path === r || (r !== "/" && path.startsWith(`${r}/`)))).map((p) => p.id);
 export const pluginsOfService = (service: string) => PLUGINS.filter((p) => p.services?.includes(service)).map((p) => p.id);
 export const pluginOfProvider = (provider: string) => PLUGINS.find((p) => p.aiProvider === provider)?.id ?? null;

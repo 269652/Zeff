@@ -4,8 +4,6 @@ export const SYNC_KEYS = ["jira", "teams", "mail", "whatsapp", "signal", "keep",
 /** A step: one of Zeff's own (SYNC_KEYS), or one a mounted integration brings (its syncStep key). */
 export type SyncKey = (typeof SYNC_KEYS)[number] | (string & {});
 
-export const isCoreSyncKey = (v: unknown): v is (typeof SYNC_KEYS)[number] => (SYNC_KEYS as readonly unknown[]).includes(v);
-
 /** One step: where it is, how it last went, whether and when it runs by itself. */
 export type SyncView = {
   key: SyncKey;

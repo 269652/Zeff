@@ -136,9 +136,6 @@ export function isOverdue(l: { due: string; at: string }, now = new Date()): boo
   return Number.isFinite(at) && now.getTime() - at >= OVERDUE_DAYS * 864e5;
 }
 
-/** Who owes, as a label. */
-export const directionLabel = (t: T, d: LoopDirection): string => (d === "mine" ? t("I owe") : t("They owe"));
-
 export function kindLabel(t: T, k: LoopKind): string {
   switch (k) {
     case "commitment":

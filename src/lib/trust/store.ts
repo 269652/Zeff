@@ -338,7 +338,3 @@ export function setStatus(id: number, status: VersionStatus): void {
   db().prepare("update fact_versions set status = ?, decided_at = ? where id = ?").run(status, new Date().toISOString(), id);
 }
 
-/** A subject's versions moved to another (a person merged into one). */
-export function moveSubject(from: string, to: string): void {
-  db().prepare("update or ignore fact_versions set subject = ? where subject = ?").run(to, from);
-}
