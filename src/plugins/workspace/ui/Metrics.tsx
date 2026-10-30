@@ -95,6 +95,22 @@ function MetricCard({ m, onChanged, onInsert }: { m: MetricView; onChanged: () =
         <button type="button" className="btn btn-sm" onClick={() => setEditing(!editing)}>
           {t("Goal & thresholds")}
         </button>
+        <button
+          type="button"
+          className="btn btn-sm"
+          aria-pressed={!!m.today}
+          disabled={pending}
+          title={m.today ? t("Shown on Today — click to take it off") : t("Show it in the metrics strip on Today")}
+          onClick={() =>
+            start(async () => {
+              const r = await setMetricMetaAction(m.key, { today: !m.today });
+              if (!r.ok) return void toast(r.error, { tone: "error" });
+              onChanged();
+            })
+          }
+        >
+          {m.today ? `★ ${t("On Today")}` : `☆ ${t("Show on Today")}`}
+        </button>
         {m.href && (
           <Link href={m.href} className="btn btn-sm">
             {t("Open")}

@@ -3,9 +3,10 @@ import { t } from "@/lib/i18n/server";
 import { cardScope, parsedTemplate, renderTemplate, starterTemplate, type VNode } from "./card-template";
 import { jobsNeedingYou } from "./jobs";
 import { filterRows, noLabels, sortRows, type Row } from "./model";
-import { sourceTable } from "./source-table";
+import { daysBetween, sourceRows, WAITING_DAYS } from "./metrics-overview";
+import { metricStats, namesSetting } from "./widgets-metrics";
 import { getDatabase, labelsFor, rowsOf } from "./store";
-import type { WidgetCard, WidgetData, WidgetItem, WidgetTile, WorkspaceWidget, WidgetSetting } from "./widget-point";
+import type { WidgetCard, WidgetData, WidgetItem, WorkspaceWidget, WidgetSetting } from "./widget-point";
 import { deadlines } from "./deadlines";
 
 
@@ -15,55 +16,21 @@ import { deadlines } from "./deadlines";
  */
 
 const iso = (d: Date) => d.toLocaleDateString("sv-SE");
-const round = (n: number) => Math.round(n * 100) / 100;
-const daysBetween = (from: string, to: string) => Math.round((new Date(`${to}T00:00:00`).getTime() - new Date(`${from}T00:00:00`).getTime()) / 864e5);
+const table = sourceRows;
 
-/** A source's rows with their cells by property name (empty when the source isn't there — its plugin isn't installed). */
-function table(id: string): Record<string, unknown>[] {
-  const s = sourceTable(id);
-  if (!s) return [];
-  const names = new Map(s.schema.properties.map((p) => [p.id, p.name]));
-  return s.rows.map((r) => ({ title: r.title, ...Object.fromEntries(Object.entries(r.cells).map(([k, v]) => [names.get(k) ?? k, v])) }));
-}
-const has = (id: string) => !!sourceTable(id);
-
-const WAITING_DAYS = 3;
-
-function overview(): WidgetData {
-  const today = iso(new Date());
-  const monday = new Date();
-  monday.setDate(monday.getDate() - ((monday.getDay() + 6) % 7));
-  const weekStart = iso(monday);
-  const tiles: WidgetTile[] = [];
-
-  if (has("time")) {
-    const rows = table("time");
-    const sum = (from: string) => round(rows.filter((r) => String(r.Date ?? "") >= from && String(r.Date ?? "") <= today).reduce((a, r) => a + (Number(r.Hours) || 0), 0));
-    tiles.push({ label: t("Hours today"), value: `${sum(today)} h`, detail: t("{n} h this week", { n: sum(weekStart) }) });
-  }
-  if (has("todos")) {
-    const open = table("todos").filter((r) => r.Status === "open");
-    const overdue = open.filter((r) => r.Due && String(r.Due) < today).length;
-    tiles.push({ label: t("Open todos"), value: String(open.length), detail: overdue ? t("{n} overdue", { n: overdue }) : t("none overdue"), tone: overdue ? "bad" : undefined, href: "/todos" });
-  }
-  if (has("mrs")) {
-    const open = table("mrs").filter((r) => /opened/i.test(String(r.State ?? "")));
-    const waiting = open.filter((r) => r.Updated && daysBetween(String(r.Updated), today) >= WAITING_DAYS).length;
-    tiles.push({ label: t("Open merge requests"), value: String(open.length), detail: waiting ? t("{n} without movement for {days}+ days", { n: waiting, days: WAITING_DAYS }) : t("all moving"), tone: waiting ? "warn" : undefined });
-  }
-  if (has("runs")) {
-    const runs = table("runs");
-    const running = runs.filter((r) => r.Status === "running").length;
-    const queued = runs.filter((r) => r.Status === "queued").length;
-    tiles.push({ label: t("Workers at work"), value: String(running), detail: queued ? t("{n} waiting in the queue", { n: queued }) : running ? t("busy") : t("idle"), tone: running ? "good" : undefined });
-  }
-  const jobs = jobsNeedingYou();
-  if (jobs.length) {
-    const asking = jobs.filter((j) => j.state === "Rückfrage").length;
-    tiles.push({ label: t("Agent jobs for you"), value: String(jobs.length), detail: asking ? t("{n} with a question", { n: asking }) : t("to check"), tone: asking ? "warn" : undefined, href: `/workspace/${jobs[0].dbId}` });
-  }
-  return { kind: "stats", tiles };
-}
+/** Your day in figures — Kennzahlen each (metrics-core.ts, metrics-overview.ts): one only when its source is there and, for the agent jobs, when there are any. */
+const overview = (names: unknown): Promise<WidgetData> =>
+  metricStats(
+    names,
+    [
+      { name: "Stunden heute", detail: "Stunden diese Woche" },
+      { name: "Offene Todos", detail: "Überfällige Todos" },
+      { name: "Offene Merge Requests", detail: "Wartende Merge Requests", hide: "empty" },
+      { name: "Worker aktiv", detail: "Worker in Warteschlange", hide: "empty" },
+      { name: "Agent-Jobs für dich", detail: "Agent-Rückfragen", hide: "zero" },
+    ],
+    t("No metrics yet — Workspace → Metrics."),
+  );
 
 const URGENCY: Record<string, number> = { question: 0, overdue: 1, failed: 2, "due today": 3, deadline: 4, "to check": 5, "MR waiting": 6 };
 const ICON: Record<string, string> = { question: "❓", overdue: "⏰", failed: "⚠️", "due today": "📌", deadline: "📅", "to check": "👀", "MR waiting": "🔀" };
@@ -148,9 +115,12 @@ export const OVERVIEW_WIDGETS: WorkspaceWidget[] = [
     get description() {
       return t("Your day in figures: hours booked, open todos, merge requests, workers and agent jobs — what to look at first.");
     },
+    get settings(): WidgetSetting[] {
+      return [namesSetting()];
+    },
     size: "full",
     ttl: 20,
-    data: () => overview(),
+    data: (config) => overview(config.names),
   },
   {
     id: "workspace.attention",

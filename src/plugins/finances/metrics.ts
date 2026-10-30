@@ -36,6 +36,7 @@ export function monthlySpending(day = today(), marked: Record<string, AccountKin
 
 const open = (dir: "owe" | "owed") => debtPlans(today(), dir).debts.reduce((s, d) => s + d.open, 0);
 const rates = () => debtPlans(today(), "owe").summary.monthlyRates;
+const plans = (dir: "owe" | "owed") => debtPlans(today(), dir);
 const income = () => monthlyIncome().amount;
 
 /** Months from now to a day (whole, rounded up) — null without one. */
@@ -47,9 +48,15 @@ const monthsUntil = (iso: string | null): number | null => {
 
 export const FINANCES_METRICS: MetricProvider[] = [
   { label: "Schuldenstand", unit: "€", what: "What you owe in all, still open", read: () => open("owe"), href },
+  { label: "Offene Schulden", unit: "", what: "How many debts are still open", read: () => plans("owe").debts.length, href },
   { label: "Tilgungsrate", unit: "€/Monat", what: "The instalments you pay a month (the plans running now)", read: rates, href },
-  { label: "Schuldenfrei in", unit: "Monate", what: "Months until the last debt with a plan is paid off", read: () => monthsUntil(debtPlans(today(), "owe").summary.debtFree), href },
+  { label: "Schuldenfrei in", unit: "Monate", what: "Months until the last debt with a plan is paid off", read: () => monthsUntil(plans("owe").summary.debtFree), href },
+  { label: "Schulden ohne Plan", unit: "€", what: "What you owe without a payment plan (not in the months until debt-free)", read: () => plans("owe").summary.unplanned, href, tone: (v) => (v > 0 ? "warn" : undefined) },
   { label: "Forderungen", unit: "€", what: "What others owe you, still open", read: () => open("owed"), href },
+  { label: "Offene Forderungen", unit: "", what: "How many debts others have with you, still open", read: () => plans("owed").debts.length, href },
+  { label: "Rückzahlungen", unit: "€/Monat", what: "What comes back to you a month (the plans of what you are owed)", read: () => plans("owed").summary.monthlyRates, href },
+  { label: "Alles zurück in", unit: "Monate", what: "Months until the last debt to you with a plan is paid back", read: () => monthsUntil(plans("owed").summary.debtFree), href },
+  { label: "Forderungen ohne Plan", unit: "€", what: "What you are owed without a payment plan", read: () => plans("owed").summary.unplanned, href },
   { label: "Nettoeinkommen", unit: "€/Monat", what: "Your net income a month (set by hand, or read off your statements)", read: income, href },
   { label: "Ausgaben", unit: "€/Monat", what: "What was spent a month — the last three whole months of your bank statements, on average; money only moved (pockets, savings, the accounts you marked as yours) left out", read: () => monthlySpending(), href: accountsHref },
   { label: "Auf Kreditkonten", unit: "€/Monat", what: "What went to the accounts you marked as credit accounts a month — the last three whole months on average", read: () => creditPayments(today(), markedAccounts()), href: accountsHref },
@@ -62,6 +69,7 @@ export const FINANCES_METRICS: MetricProvider[] = [
       return i === null ? null : i - rates() - (fixedCosts().amount ?? 0);
     },
     href,
+    tone: (v) => (v < 0 ? "bad" : "good"),
   },
   {
     label: "Sparquote",

@@ -22,6 +22,7 @@ import { LoopsList } from "@/plugins/loops/ui/LoopsList";
 import { reviewItems } from "@/lib/review";
 import { ReviewList } from "@/app/review/ReviewList";
 import { TodayNoteLink } from "./TodayNoteLink";
+import { TodayMetrics } from "./TodayMetrics";
 import { peopleHome, personHref } from "@/plugins/workspace/people-database";
 import { inDaysText, upcomingTitle } from "@/plugins/people/shared";
 import { isInstalled } from "@/plugins/state";
@@ -410,6 +411,9 @@ export default async function HeutePage({ searchParams }: { searchParams: Promis
         </div>
         {hours && <DayRing booked={hours.booked} target={hours.target} progress={dayProgress(now, work)} label={t("Hours today")} />}
       </section>
+
+      {/* The Kennzahlen you put on Today (Workspace → Metrics: "Show on Today"). */}
+      <TodayMetrics />
 
       {/* A meeting about to start: what you should know before it (the know plugin). */}
       <MeetingSoon now={now} />
