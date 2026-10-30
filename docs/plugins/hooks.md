@@ -22,7 +22,6 @@ Events are brought by plugins, like API methods and permissions: the table lists
 | `work.run.finished` | a run ended — done, failed, stopped or interrupted (also one taken out of the queue) | `{ run }` |
 | `work.changed` | something in Work changed (a message, a state …) | `{}` — at most one per half second |
 | `todos.changed` | something in the todos changed | `{}` — at most one per half second |
-| `kanban.changed` | something on your Kanban boards changed (needs the Kanban plugin) | `{}` — at most one per half second |
 
 `run` is the same object as the API's `Run` ([api](api.md)): `id`, `ref`, `ticket`, `todoId`, `status`, `mode`,
 `provider`, `model`, `outcome`, `summary`, `error`, `branch`, `startedAt`, `finishedAt`, `durationMs`, `costUsd`.

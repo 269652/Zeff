@@ -10,14 +10,14 @@ const external = (plugin: string, ...perms: string[]) => ({ plugin, source: "ext
 test("the API follows the installed plugins", async () => {
   const { callApi, apiMethods, knownPermissions } = await import("@/lib/plugins/api");
   const { setInstalled } = await import("@/plugins/state");
-  const caller = external("x", "kanban.read", "todos.read");
-  setInstalled("kanban", false);
-  const off = await callApi(caller, "kanban.boards.list", {});
+  const caller = external("x", "work.read", "todos.read");
+  setInstalled("todos", false);
+  const off = await callApi(caller, "todos.list", {});
   assert.ok(!off.ok && off.error.code === "not_found");
-  assert.ok(!("kanban.read" in knownPermissions()), "its permissions go with it");
-  setInstalled("kanban", true);
-  assert.ok((await callApi(caller, "kanban.boards.list", {})).ok);
-  assert.ok("kanban.read" in knownPermissions());
+  assert.ok(!("todos.read" in knownPermissions()), "its permissions go with it");
+  setInstalled("todos", true);
+  assert.ok((await callApi(caller, "todos.list", {})).ok);
+  assert.ok("todos.read" in knownPermissions());
   assert.ok("hello" in apiMethods() && "storage.get" in apiMethods(), "Zeff's own are always there");
 });
 
@@ -25,7 +25,7 @@ test("the API follows the installed plugins", async () => {
 test("every API method is described and its permission exists", async () => {
   const { apiPoint, apiMethods, knownPermissions } = await import("@/lib/plugins/api");
   const { setInstalled } = await import("@/plugins/state");
-  for (const id of ["kanban", "todos", "work"] as const) setInstalled(id, true);
+  for (const id of ["workspace", "todos", "work"] as const) setInstalled(id, true);
   const names = apiPoint.list().flatMap((c) => Object.keys(c.impl.methods));
   assert.equal(new Set(names).size, names.length, "a method name is brought twice");
   const known = knownPermissions();
