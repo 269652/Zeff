@@ -4,17 +4,18 @@ import { CONTRACT } from "@/plugins/workspace/contract-fields";
 import type { SourceRecord } from "@/plugins/workspace/pipeline";
 import { markedAccounts } from "./accounts";
 import { detectRecurring, type Rhythm } from "./recurring";
+import { addDays, localDay } from "@/lib/dates";
 
 /**
  * The recurring payments as records of the Workspace (the Finances plugin's source "recurring"): each running contract or
  * subscription your statements show — a row of a contracts database, its figures what the bank says (locked there), the rest
  * of the row yours. Server only.
  */
-export function recurringRecords(today = new Date().toISOString().slice(0, 10)): SourceRecord[] {
+export function recurringRecords(today = localDay()): SourceRecord[] {
   let rows: { date: string; amount: number; text: string; counterparty: string }[] = [];
   try {
     // The last two years and a bit — enough for a yearly one to show twice.
-    const from = new Date(Date.parse(today) - 800 * 864e5).toISOString().slice(0, 10);
+    const from = addDays(today, -800);
     rows = getSqlite().prepare("select date, amount, text, counterparty from bank_transactions where amount < 0 and date >= ? order by date").all(from) as typeof rows;
   } catch {
     return [];

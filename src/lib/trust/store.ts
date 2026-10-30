@@ -1,6 +1,7 @@
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { attributeSpec, normalizeValue, sameValue, shelfLife } from "./normalize";
+import { localDay } from "@/lib/dates";
 
 /**
  * Trust in facts (server only): every value Zeff keeps about someone or something — a person's IBAN or address,
@@ -304,7 +305,7 @@ export const STALE_PER_DAY = 5;
  */
 export function dailyBatch<T>(kind: string, items: T[], idOf: (t: T) => string, opts: { cap?: number; now?: Date } = {}): T[] {
   const cap = opts.cap ?? STALE_PER_DAY;
-  const day = (opts.now ?? new Date()).toISOString().slice(0, 10);
+  const day = localDay(opts.now ?? new Date());
   const d = db();
   const ids = new Set(items.map(idOf));
   const asked = d.prepare("select item, day from review_batches where kind = ?").all(kind) as { item: string; day: string }[];

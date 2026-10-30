@@ -5,6 +5,7 @@ import { absenceIn } from "./absence";
 import { claimsOf, openCommitments, type Claim } from "./graph";
 import { buildPeopleIndex, mentionMatcher, splitMentions } from "./mentions";
 import { listPeople } from "./store";
+import { localDay } from "@/lib/dates";
 
 /**
  * Who is away, and what others owe you (the People plugin): an absence read off what was said about them ("Urlaub bis
@@ -72,7 +73,7 @@ export async function decideFollowUp(claimId: number, yes: boolean): Promise<{ m
     const store = await import("@/lib/boards/store");
     // In German, like the todos Zeff makes from your mails.
     const text = `Bei ${c.personName} nachfassen: ${c.text}`;
-    const v = { ticket: "", text, kind: "clarify", refs: [c.sourceRef], runId: null, due: new Date().toISOString().slice(0, 10) };
+    const v = { ticket: "", text, kind: "clarify", refs: [c.sourceRef], runId: null, due: localDay() };
     const made = c.sourceRef.startsWith("doc:") ? store.addDocTodo(v) : store.addMailTodo(v);
     todoId = made.id;
   }

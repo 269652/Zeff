@@ -1,6 +1,7 @@
 import { isoDay } from "@/lib/text";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
+import { localDay } from "@/lib/dates";
 
 /**
  * What's worth a desktop notification right now (the launcher polls it and shows each id once):
@@ -47,7 +48,7 @@ export async function GET() {
     const { openCommitments } = await import("@/plugins/people/graph");
     const { personHref } = await import("@/plugins/workspace/people-database");
     const now = new Date();
-    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const day = localDay(now);
     for (const c of openCommitments().filter((x) => x.due && x.due <= day).slice(0, 5))
       items.push({
         id: `commitment:${c.id}:${day}`,

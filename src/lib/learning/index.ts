@@ -4,6 +4,7 @@ import { backfillFeedback } from "./backfill";
 import { STEPS } from "./ledger";
 import { qualityReport, type QualityReport } from "./quality";
 import { learnedRules, proposeRules, type LearnedRule } from "./rules";
+import { localDay } from "@/lib/dates";
 
 /**
  * The learning loop as the pages, the review queue, the MCP tool and the API read it (server only): the past backfilled
@@ -37,7 +38,7 @@ export function stepLabel(step: string): string {
 
 /** The past decisions into the ledger, at most once a day (or now, `force`). How many were new. */
 export function ensureBackfilled(force = false, now = Date.now()): number {
-  const day = new Date(now).toISOString().slice(0, 10);
+  const day = localDay(new Date(now));
   if (!force && getPref<string>("learning:backfilled", "") === day) return 0;
   const n = Object.values(backfillFeedback(now)).reduce((a, b) => a + b, 0);
   setPref("learning:backfilled", day);

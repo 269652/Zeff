@@ -16,6 +16,7 @@ import { inboxWrittenAt, readInbox } from "./inbox";
 import { CALENDAR_COLORS, type CalendarEventView, type CalendarSourceKind, type CalendarView, type SeriesScope } from "./ir-shared";
 import { addDays, expand, occurrenceDays, onDay, parseRecurrence, type Recurrence } from "./recurrence";
 import type { GraphEvent } from "./meetings";
+import { localDay, localStamp } from "@/lib/dates";
 
 const { calendars, calendarEvents } = schema;
 
@@ -256,7 +257,7 @@ export function eventById(id: number, occurrence?: string): (CalendarEventView &
   const day = occurrence.slice(0, 10);
   const next = new Date(`${day}T12:00:00`);
   next.setDate(next.getDate() + 1);
-  const to = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, "0")}-${String(next.getDate()).padStart(2, "0")}`;
+  const to = localDay(next);
   return eventsBetween(day, to).find((x) => x.id === id && x.occurrence === occurrence) ?? null;
 }
 
@@ -310,7 +311,7 @@ const minutesBetween = (a: string, b: string) => Math.round((new Date(`${b.lengt
 const plus = (s: string, minutes: number) => {
   const d = new Date(`${s.length === 10 ? `${s}T00:00` : s.slice(0, 16)}:00`);
   d.setMinutes(d.getMinutes() + minutes);
-  const day = `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+  const day = localDay(d);
   return s.length === 10 ? day : `${day}T${two(d.getHours())}:${two(d.getMinutes())}`;
 };
 
@@ -462,8 +463,7 @@ export function bookableGraphEvents(): GraphEvent[] {
 
 /** The busy times between two moments: timed appointments of busy calendars, not cancelled, not "free". */
 export function busyBetween(from: Date, to: Date): { start: Date; end: Date; title: string }[] {
-  const stamp = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
-  return eventsBetween(stamp(from), stamp(to), { busy: true })
+  return eventsBetween(localStamp(from), localStamp(to), { busy: true })
     .filter((e) => !e.allDay && !e.cancelled && e.showAs !== "free" && e.response !== "declined")
     .map((e) => ({ start: new Date(`${e.start}:00`), end: new Date(`${e.end}:00`), title: e.title }));
 }

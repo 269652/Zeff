@@ -1,4 +1,5 @@
 import { addMonths, detectRecurring, recipientKey, STRICT, type Booking, type Recurring } from "./recurring";
+import { addDays } from "@/lib/dates";
 
 /**
  * Money insights (the Finances plugin): what the bank's bookings say beyond the debts — the subscriptions and contracts that go
@@ -114,8 +115,7 @@ export type Flow = { date: string; amount: number; label: string; kind: FlowKind
 /** A debt's (or a claim's) payment ahead, as the plans have it (debts.ts) — with whom, for matching what the bank shows. */
 export type PlannedPayment = { date: string; amount: number; label: string; dir: "owe" | "owed" };
 
-const DAY = 864e5;
-const plusDays = (iso: string, n: number) => new Date(Date.parse(`${iso.slice(0, 10)}T00:00:00Z`) + n * DAY).toISOString().slice(0, 10);
+const plusDays = addDays;
 const cents = (v: number) => Math.round(v * 100) / 100;
 const MONTHS = { monthly: 1, quarterly: 3, yearly: 12 } as const;
 

@@ -6,6 +6,7 @@
  */
 import { evalFormula, evalWithUnits, formulaToStored, type FormulaSheet, type FormulaValue } from "./formula";
 import { conversion, numberWithUnit, parseUnit } from "./units";
+import { localDay } from "@/lib/dates";
 
 export const PROP_TYPES = ["text", "markdown", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone", "person", "relation", "custom", "rollup", "formula", "created_time", "updated_time", "todo", "ticket", "ai", "button"] as const;
 export type PropType = (typeof PROP_TYPES)[number];
@@ -854,7 +855,6 @@ export function sortRows(rows: Row[], sorts: Sort[], props: Property[]): Row[] {
 
 const startOfDay = (d: Date) => new Date(d.getFullYear(), d.getMonth(), d.getDate());
 const addDays = (d: Date, n: number) => new Date(d.getFullYear(), d.getMonth(), d.getDate() + n);
-const dayText = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 /** Monday of the week of d. */
 const weekStart = (d: Date) => addDays(startOfDay(d), -((d.getDay() + 6) % 7));
 
@@ -956,7 +956,7 @@ function matchDate(r: { start: string; end?: string } | null, cond: Cond, want: 
   const start = r.start.slice(0, 10);
   const end = (r.end ?? r.start).slice(0, 10);
   const today = startOfDay(now);
-  const within = (from: Date, to: Date) => end >= dayText(from) && start <= dayText(to);
+  const within = (from: Date, to: Date) => end >= localDay(from) && start <= localDay(to);
   const w = typeof want === "string" ? want.slice(0, 10) : "";
   switch (cond) {
     case "is":

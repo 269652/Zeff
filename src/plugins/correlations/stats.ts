@@ -1,3 +1,5 @@
+import { addDays } from "@/lib/dates";
+
 /**
  * The statistics behind the correlations — plain code, no AI, no library: Pearson and Spearman, a seeded permutation test, the
  * rank-biserial effect of a group comparison, a split-half check that a link points the same way in both halves of the period,
@@ -7,11 +9,7 @@
 export type Daily = Map<string, number>;
 
 /** The day `n` days after (before, negative) this one — calendar days, no time zone in the way. */
-export function addDays(day: string, n: number): string {
-  const d = new Date(`${day}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + n);
-  return d.toISOString().slice(0, 10);
-}
+export { addDays };
 
 /** The ranks of the values (1 = smallest); ties share the average of their ranks. */
 export function ranks(xs: number[]): number[] {

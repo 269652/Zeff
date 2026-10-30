@@ -6,6 +6,7 @@ import { pendingSuggestions } from "./identity";
 import { dateKindLabels, dateText } from "./shared";
 import { listPeople, proposedDates } from "./store";
 import { linkText, peopleTool, suggestionText, type PeopleTool } from "./tools";
+import { localDay } from "@/lib/dates";
 
 /**
  * What People has you confirm, for the review queue: the names that may be one person, what the AI read about
@@ -103,7 +104,7 @@ export const PEOPLE_REVIEW: ReviewSource[] = [
       return t("Follow up?");
     },
     list: async () =>
-      (await import("./away")).followUps(new Date().toISOString().slice(0, 10)).map((c) => ({
+      (await import("./away")).followUps(localDay()).map((c) => ({
         id: String(c.id),
         title: `${c.personName}: ${c.text}`,
         detail: c.due ? t("Due {date} — not kept yet", { date: c.due }) : t("Promised a week ago or more — not kept yet"),

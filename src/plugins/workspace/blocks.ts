@@ -2,6 +2,7 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { cellText, dateRange, filterRows, formatNumber, groupRows, isComputed, noLabels, propById, type Labels, type Property, type Row } from "./model";
 import { getDatabase, rowsOf } from "./store";
+import { localDay } from "@/lib/dates";
 
 /**
  * What the data blocks of a page show - a figure, a chart, the next appointments, a list of todos, a document, people - computed from
@@ -82,7 +83,7 @@ export const PALETTE = ["#6366f1", "#22c55e", "#f97316", "#ec4899", "#0ea5e9", "
 const startOfWeek = (day: string) => {
   const d = new Date(`${day}T12:00:00`);
   d.setDate(d.getDate() - ((d.getDay() + 6) % 7));
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return localDay(d);
 };
 const bucketKey = (day: string, b: NonNullable<ChartSpec["bucket"]>) => (b === "year" ? day.slice(0, 4) : b === "month" ? day.slice(0, 7) : b === "week" ? startOfWeek(day) : day);
 

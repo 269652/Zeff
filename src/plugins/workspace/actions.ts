@@ -15,6 +15,7 @@ import { rowKey } from "./collections";
 import { kindIcon, rowsToCsv, subtaskCounts, type DbSchema, type Row } from "./model";
 import * as store from "./store";
 import "./metrics"; // (kennzahl() in the databases' formulas reads the Kennzahlen)
+import { localDay } from "@/lib/dates";
 
 /** The Workspace plugin's server actions: what its pages and editors call. Each says what came of it; none throws at the page. */
 
@@ -105,7 +106,7 @@ export async function createPageAction(v: { parentId?: number | null; kind?: "pa
 export async function todayPageAction() {
   return run(async () => {
     const d = new Date();
-    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const day = localDay(d);
     const topTitle = t("Daily notes");
     const top = store.tree().find((x) => x.parentId === null && x.title === topTitle) ?? null;
     const parentId = top ? top.id : store.createPage({ title: topTitle, icon: "🗓️" });

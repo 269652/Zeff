@@ -4,6 +4,7 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { caseBundle, caseOp, type CaseBundle, type CaseOperation } from "./blocks";
+import { localDay } from "@/lib/dates";
 
 /** What a case's page calls: its bundle, an operation. None throws at the page. */
 
@@ -71,8 +72,8 @@ export async function casesOverviewAction(): Promise<Result<{ overview: CasesOve
     if (db) for (const r of (await import("@/plugins/workspace/store")).rawRows(db)) rows.set(String(r.cells.srcref ?? ""), r.id);
     const names = new Map<number, string>();
     if (isInstalled("people")) for (const p of (await import("@/plugins/people/store")).listPeople()) names.set(p.id, p.name);
-    const today = new Date().toISOString().slice(0, 10);
-    const in30 = new Date(Date.now() + 30 * 864e5).toISOString().slice(0, 10);
+    const today = localDay();
+    const in30 = localDay(new Date(Date.now() + 30 * 864e5));
     const { openOf } = await import("./bank");
     const cases = listCases()
       .filter((c) => c.status === "open" && !c.compiled?.done && !c.compiled?.manual)
@@ -125,7 +126,7 @@ export async function syncBankAction(): Promise<Result<{ message: string }>> {
     const r = await (await import("./bank-sync")).syncBank();
     const bank = await import("./bank");
     const m = bank.matchPayments();
-    const w = bank.overdueWarnings(new Date().toISOString().slice(0, 10));
+    const w = bank.overdueWarnings(localDay());
     return { message: t("{added} new bookings of {total} — {matched} payments matched, {warned} warnings", { added: r.added, total: r.total, matched: m.matched, warned: w }) };
   });
 }

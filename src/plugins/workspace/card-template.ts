@@ -12,6 +12,7 @@
  */
 import { evalFormula } from "./formula";
 import { cellText, COLORS, noLabels, type Labels, type Property, type Row } from "./model";
+import { localDay } from "@/lib/dates";
 
 export type VNode = string | { t: string; a: Record<string, string>; c: VNode[] };
 export type TplError = { line: number; message: string };
@@ -393,7 +394,7 @@ function first(expr: string, ctx: Ctx, line: number): unknown {
     return null;
   }
   const v = evaluate(expr, ctx, line);
-  return v instanceof Date ? v.toISOString().slice(0, 10) : v;
+  return v instanceof Date ? localDay(v) : v;
 }
 
 // ---------------------------------------------------------------------------

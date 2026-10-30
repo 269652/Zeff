@@ -7,6 +7,7 @@ import type { DebtPlan } from "./debts";
 import type { MonthlyIncome } from "./income";
 import type { DebtSuggestion, Direction } from "./own";
 import type { PlanSummary } from "./plans";
+import { localDay } from "@/lib/dates";
 
 /** What the Finances plugin's pages call. None throws at the page. */
 
@@ -45,7 +46,7 @@ export async function financesOverviewAction(dir: Direction): Promise<Result<{ o
     const db = (await import("./debts")).debtsDbId();
     // The cases' debts read in now (their bank payments counted).
     if (db) await (await import("@/plugins/workspace/pipeline")).runPipeline(db, { ai: false });
-    const today = new Date().toISOString().slice(0, 10);
+    const today = localDay();
     const plans = (await import("./debts")).debtPlans(today, d);
     const income = await import("./income");
     await income.refreshIncome();
