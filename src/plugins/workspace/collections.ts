@@ -54,11 +54,16 @@ export function setDatabaseSource(dbId: number, source: string | null): void {
 }
 /** The sync that keeps a database (jira, google-keep …); null: its own. */
 export const databaseSource = (dbId: number): string | null => sources()[dbId] ?? null;
-const named = (icon: string, title: string) => [icon, title || "Untitled"].filter(Boolean).join(" ");
+const named = (icon: string, title: string) => [icon, title || t("Untitled")].filter(Boolean).join(" ");
 
 /** Properties that are a row's bookkeeping (its ref, colour, where it came from), not what it says. */
 const INTERNAL = new Set([KEY_PROP, NOTE_PROP, COLOR_PROP, PINNED_PROP, "srcref", "srcedited", "srcurl"]);
-const labels: Labels = { person: (id) => getPerson(id)?.name ?? `#${id}`, page: (id) => getPage(id)?.title || `#${id}`, todo: (id) => `T-${id}` };
+// A missing target says so ("(deleted)"), an untitled page "Untitled" — never its id.
+const pageLabel = (id: number) => {
+  const p = getPage(id);
+  return p ? p.title || t("Untitled") : t("(deleted)");
+};
+const labels: Labels = { person: (id) => getPerson(id)?.name ?? t("(deleted)"), page: pageLabel, todo: (id) => `T-${id}` };
 
 function itemsOf(dbId: number, schema: DbSchema, rows: Row[]): Item[] {
   const first = (type: string) => schema.properties.find((p) => p.type === type);

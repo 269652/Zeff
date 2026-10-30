@@ -94,13 +94,13 @@ export function ensureChartView(dbId: number, spec: LegacyChartSpec, title = "")
 
 /** What an old document block becomes: its row of the document inbox in the page, else a link to it. */
 async function documentNode(docId: number): Promise<DocNode> {
-  if (!isInstalled("documents")) return documentLink(docId);
+  if (!isInstalled("documents")) return documentLink(docId, "", t("Document"));
   const { documentInbox } = await import("./document-databases");
   const inbox = documentInbox();
   const row = inbox ? rawRows(inbox).find((r) => r.cells.srcref === `doc:${docId}`) : undefined;
   if (row) return { type: "pageEmbed", attrs: { pageId: row.id, title: row.title } };
   const { getDocument } = await import("@/plugins/documents/store");
-  return documentLink(docId, getDocument(docId)?.name ?? "");
+  return documentLink(docId, getDocument(docId)?.name ?? "", t("Document"));
 }
 
 /** A node (and what is in it) with the old blocks and the markers settled — `changed` tells whether anything was. */

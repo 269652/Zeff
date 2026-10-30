@@ -8145,5 +8145,6 @@
   "Choose a widget …": "Widget wählen …",
   "How the ticket stands: feedback (a question open), active (being worked on), check (test/review/acceptance), spec (requirement unclear), blocked (waiting for others), ready (ready), stale (no movement for weeks).": "Wie das Ticket steht: feedback (Rückfrage offen), active (in Arbeit), check (Test/Review/Abnahme), spec (Anforderung unklar), blocked (wartet auf andere), ready (bereit), stale (seit Wochen ohne Bewegung).",
   "ONE sentence — how it stands, what has to happen next and whose turn it is. Sober, concrete, invent nothing.": "EIN Satz — wie es steht, was als Nächstes passieren muss und wer dran ist. Nüchtern, konkret, nichts erfinden.",
-  "The overall picture: what is burning right now, what comes next, what I'm waiting for — in a few sentences, the most important tickets with their key.": "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel."
+  "The overall picture: what is burning right now, what comes next, what I'm waiting for — in a few sentences, the most important tickets with their key.": "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel.",
+  "(deleted)": "(gelöscht)"
 }

@@ -148,9 +148,9 @@ function CellValue({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx }) {
       return (
         <>
           {asArr(v).map((id) => (
-            <PersonHover key={String(id)} id={Number(id)} name={labels.people[Number(id)] ?? `#${id}`}>
+            <PersonHover key={String(id)} id={Number(id)} name={labels.people[Number(id)] ?? t("(deleted)")}>
               <Link href={labels.personHref?.[Number(id)] ?? "/workspace"} onClick={(e) => e.stopPropagation()} className="ws-chip" data-kind="person">
-                👤 {labels.people[Number(id)] ?? `#${id}`}
+                👤 {labels.people[Number(id)] ?? t("(deleted)")}
               </Link>
             </PersonHover>
           ))}
@@ -197,7 +197,7 @@ function CellValue({ p, row, ctx }: { p: Property; row: Row; ctx: CellCtx }) {
                 className="ws-chip"
                 data-kind="page"
               >
-                {pg?.icon || "📄"} {pg?.title ?? `#${id}`}
+                {pg?.icon || "📄"} {pg ? pg.title || t("Untitled") : t("(deleted)")}
               </Link>
             );
           })}

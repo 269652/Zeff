@@ -138,12 +138,14 @@ function Picker({ kind, prop, dbId, value, onChange, labels, onLabel, inputProps
   useEffect(() => {
     if (!unnamed || !dbId) return;
     let live = true;
-    void pickedLabelsAction(dbId, prop.id, unnamed.split(",").map(Number)).then((r) => live && r.ok && setNames((n) => ({ ...n, ...r.labels })));
+    const ids = unnamed.split(",").map(Number);
+    // One the server has no name for is gone: it says so (not its id).
+    void pickedLabelsAction(dbId, prop.id, ids).then((r) => live && r.ok && setNames((n) => ({ ...n, ...Object.fromEntries(ids.map((id) => [id, t("(deleted)")])), ...r.labels })));
     return () => {
       live = false;
     };
   }, [unnamed, dbId, prop.id]);
-  const nameOf = (id: number) => labels[id] ?? names[id] ?? `#${id}`;
+  const nameOf = (id: number) => labels[id] ?? names[id] ?? "…";
   useEffect(() => {
     if (!open || inputProps.disabled) return;
     let live = true;

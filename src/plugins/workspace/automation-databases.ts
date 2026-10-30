@@ -28,7 +28,10 @@ function triggerText(tr: Trigger, dbName: (id: number) => string): string {
   return `${tr.event}${tr.db ? ` · ${dbName(tr.db)}` : ""}`;
 }
 
-const dbName = (id: number) => getDatabase(id)?.page.title || `#${id}`;
+const dbName = (id: number) => {
+  const d = getDatabase(id);
+  return d ? d.page.title || t("Untitled") : t("(deleted)");
+};
 
 export function routineRecords() {
   return listRoutines().map((r) => {

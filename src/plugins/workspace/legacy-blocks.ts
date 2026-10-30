@@ -48,8 +48,8 @@ export function parseMetricDefine(raw: unknown): LegacyMetricSpec | null {
   }
 }
 
-/** The link an old document block becomes (without the server: its row is not known here). */
-export const documentLink = (docId: number, name = ""): Node => ({ type: "paragraph", content: [{ type: "text", text: `📎 ${name || `Document ${docId}`}`, marks: [{ type: "link", attrs: { href: `/documents?doc=${docId}` } }] }] });
+/** The link an old document block becomes (without the server: its row is not known here) — named by the document's name, else `fallback` (the server's translated "Document"). */
+export const documentLink = (docId: number, name = "", fallback = "Document"): Node => ({ type: "paragraph", content: [{ type: "text", text: `📎 ${name || fallback}`, marks: [{ type: "link", attrs: { href: `/documents?doc=${docId}` } }] }] });
 
 /** An old data block as what replaced it — null: one never set up (nothing to show). */
 export function legacyDataBlock(type: string, a: Record<string, unknown> = {}): Node | null {

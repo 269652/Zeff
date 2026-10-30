@@ -204,7 +204,7 @@ function InstructionPicker({ chosen, all, set, reload }: { chosen: number[]; all
         return (
           <span key={id} className="ws-chip inline-flex items-center gap-1">
             <a href={`/workspace/${id}`} target="_blank" rel="noreferrer" className="hover:underline" title={t("Open to write it")}>
-              {x?.icon || "📋"} {x?.title ?? `#${id}`}
+              {x?.icon || "📋"} {x ? x.title || t("Untitled") : t("(deleted)")}
             </a>
             <button type="button" className="text-zinc-400 hover:text-zinc-700" aria-label={t("Remove")} onClick={() => set(chosen.filter((c) => c !== id))}>
               ✕
