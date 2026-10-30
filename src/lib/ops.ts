@@ -178,16 +178,27 @@ export async function runRowOp(rowId: number, raw: Record<string, unknown>, mode
  * — checked as a row's would be; a Gmail mail sent or saved through Gmail's API into that conversation.
  */
 export async function runConvOp(conv: string, mailKey: string, raw: Record<string, unknown>, mode?: "send" | "draft"): Promise<{ href?: string; what?: string }> {
+  // Only a reply goes from here (the client names the op): a mail (Gmail, Outlook) or a message (Teams, WhatsApp, Signal) —
+  // never another action (a Jira transition, a worker, one that needs its todo).
+  const type = String(raw.type ?? "");
+  if (!CONV_REPLY_OPS.has(type)) throw new Error(t("Only a reply (a mail or a message) can be sent from a conversation."));
   const { checkAction } = await import("@/plugins/workspace/row-actions");
   const { op, href } = await checkAction(raw);
+  if (op.type !== type) throw new Error(t("Unknown action."));
   if (mode && op.type === "gmail-compose") {
     const { runGmailCompose } = await import("@/plugins/gmail/run");
     const r = await runGmailCompose(op as unknown as Extract<TodoOp, { type: "gmail-compose" }>, { mode: mode === "draft" ? "draft" : "send", thread: conv.startsWith("gmail:") ? conv : null, refs: mailKey ? [`mail:${mailKey}`] : [] });
     return { what: r.what };
   }
   if (href) return { href };
+  // The message senders need no todo (ctx.todo stays unread); the mail drafts have an href and never get here.
+  if (!CONV_RUN_OPS.has(op.type)) throw new Error(t("Unknown action."));
   const runner = RUNNERS[op.type as TodoOp["type"]];
   if (!runner) throw new Error(t("Unknown action."));
   const r = await runner(op as unknown as TodoOp, { todo: null as never, note: () => {} });
   return { what: r.what };
 }
+
+/** What the inbox's reply may send: the mail drafts (they open for you, or go through Gmail's API) and the messages. */
+const CONV_RUN_OPS = new Set(["teams-message", "whatsapp-message", "signal-message"]);
+const CONV_REPLY_OPS = new Set(["gmail-compose", "mail-compose", ...CONV_RUN_OPS]);
