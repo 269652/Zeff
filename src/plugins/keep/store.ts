@@ -88,52 +88,10 @@ function linkedFilter(): string {
   }
 }
 
-/** How many Google Keep notes are synced with your boards (and so shown there). */
-export function linkedKeepCount(): number {
-  const f = linkedFilter();
-  if (!f) return 0;
-  return (db().prepare(`select count(*) n from keep_notes where not (${f})`).get() as { n: number }).n;
-}
-
-/** The notes — pinned first, then the latest edited; a search through title, text and labels. Those synced with your boards left out. */
-export function listKeepNotes({ q = "", label = "", archived = false, limit = 2000 }: { q?: string; label?: string; archived?: boolean; limit?: number } = {}): KeepNote[] {
-  const like = (s: string) => `%${s.replace(/[\\%_]/g, (c) => `\\${c}`)}%`;
-  const where = ["archived = ?"];
-  const linked = linkedFilter();
-  if (linked) where.push(linked);
-  const args: unknown[] = [archived ? 1 : 0];
-  if (q) {
-    where.push("(title like ? escape '\\' or text like ? escape '\\' or labels like ? escape '\\')");
-    args.push(like(q), like(q), like(q));
-  }
-  if (label) {
-    where.push("labels like ? escape '\\'");
-    args.push(like(JSON.stringify(label)));
-  }
-  const sql = `select * from keep_notes where ${where.join(" and ")} order by pinned desc, coalesce(updated_at, created_at) desc limit ?`;
-  return (db().prepare(sql).all(...args, limit) as Row[]).map(toNote);
-}
-
-/** One note, by Google's id. */
-export function getKeepNote(id: string): KeepNote | null {
-  const r = db().prepare("select * from keep_notes where id = ?").get(id) as Row | undefined;
-  return r ? toNote(r) : null;
-}
-
-/** A note gone from Keep (put in its trash from Zeff): out of Zeff's copy too. */
-export const removeKeepNote = (id: string): boolean => db().prepare("delete from keep_notes where id = ?").run(id).changes > 0;
-
 /** All notes, archived ones too (the knowledge export, the Lage) — those synced with your boards only with `linked`. */
 export function allKeepNotes({ linked = false }: { linked?: boolean } = {}): KeepNote[] {
   const f = linked ? "" : linkedFilter();
   return (db().prepare(`select * from keep_notes ${f ? `where ${f}` : ""} order by coalesce(updated_at, created_at) desc`).all() as Row[]).map(toNote);
-}
-
-/** The labels in use, most used first. */
-export function keepLabels(): { label: string; count: number }[] {
-  const counts = new Map<string, number>();
-  for (const n of listKeepNotes({ limit: 100000 })) for (const l of n.labels) counts.set(l, (counts.get(l) ?? 0) + 1);
-  return [...counts].map(([label, count]) => ({ label, count })).sort((a, b) => b.count - a.count || a.label.localeCompare(b.label));
 }
 
 export const keepCount = (): number => (db().prepare("select count(*) n from keep_notes").get() as { n: number }).n;

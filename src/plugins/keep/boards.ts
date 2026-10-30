@@ -117,26 +117,6 @@ export function updateKeepBoard(id: number, patch: { name?: string; description?
   changed();
 }
 
-export function moveKeepBoard(id: number, dir: -1 | 1): void {
-  const boards = listKeepBoards({ archived: true }).filter((b) => !b.archived);
-  const i = boards.findIndex((b) => b.id === id);
-  const j = i + dir;
-  if (i < 0 || j < 0 || j >= boards.length) return;
-  [boards[i], boards[j]] = [boards[j], boards[i]];
-  const d = db();
-  const set = d.prepare("update keep_boards set sort = ? where id = ?");
-  d.transaction(() => boards.forEach((b, k) => set.run(k + 1, b.id)))();
-}
-
-export function deleteKeepBoard(id: number): void {
-  const d = db();
-  d.transaction(() => {
-    d.prepare("delete from keep_own_notes where board_id = ?").run(id);
-    d.prepare("delete from keep_boards where id = ?").run(id);
-  })();
-  changed();
-}
-
 // ---------------------------------------------------------------------------
 // Your notes
 // ---------------------------------------------------------------------------
@@ -149,22 +129,6 @@ export function listOwnNotes(boardId: number, { q = "", archived = false }: { q?
     .prepare(`select * from keep_own_notes where board_id = ? and archived = ? ${q ? "and (title like ? escape '\\' or text like ? escape '\\' or labels like ? escape '\\')" : ""} order by pinned desc, updated_at desc`)
     .all(...[boardId, archived ? 1 : 0, ...(q ? [like, like, like] : [])]) as OwnRow[];
   return rows.map((r) => toOwn(r, board?.name ?? null));
-}
-
-/** Your notes on the boards that go into the knowledge (archived notes too — as Google Keep's do; not those of archived boards). */
-export function knowledgeOwnNotes(): NoteView[] {
-  const rows = db()
-    .prepare("select n.*, b.name board_name from keep_own_notes n join keep_boards b on b.id = n.board_id where b.archived = 0 and b.in_knowledge = 1 order by n.updated_at desc")
-    .all() as (OwnRow & { board_name: string })[];
-  return rows.map((r) => toOwn(r, r.board_name));
-}
-
-/** All your notes on the boards in the Lage (not archived) — the Lage's and the Durchsicht's. */
-export function lageOwnNotes(): NoteView[] {
-  const rows = db()
-    .prepare("select n.*, b.name board_name from keep_own_notes n join keep_boards b on b.id = n.board_id where n.archived = 0 and b.archived = 0 and b.in_lage = 1 order by n.updated_at desc")
-    .all() as (OwnRow & { board_name: string })[];
-  return rows.map((r) => toOwn(r, r.board_name));
 }
 
 function cleanNote(v: { title?: string; text?: string; color?: string | null; labels?: string[] }) {
@@ -216,69 +180,9 @@ export function updateOwnNote(id: number, patch: { title?: string; text?: string
   changed();
 }
 
-export function deleteOwnNote(id: number): void {
-  const d = db();
-  // Synced to Google Keep: there too, with the board's next sync (to Keep's trash).
-  const g = d.prepare("select google_id from keep_own_notes where id = ?").get(id) as { google_id: string | null } | undefined;
-  if (g?.google_id) d.prepare("insert or ignore into keep_own_deleted (google_id, deleted_at) values (?, ?)").run(g.google_id, new Date().toISOString());
-  d.prepare("delete from keep_own_notes where id = ?").run(id);
-  changed();
-}
-
 // ---------------------------------------------------------------------------
 // Synced with Google Keep (the Google Keep schreiben plugin's board sync)
 // ---------------------------------------------------------------------------
-
-/** A board's note with its link to Google Keep. */
-export type SyncedNote = { id: number; title: string; text: string; labels: string[]; color: string | null; pinned: boolean; archived: boolean; updatedAt: string; googleId: string | null; sync: { local: string; google: string; at: string } | null };
-
-/** A board's notes (archived ones too), with their links to Google Keep. */
-export function boardNotesForSync(boardId: number): SyncedNote[] {
-  type R = OwnRow & { google_id: string | null; google_sync: string | null };
-  return (db().prepare("select * from keep_own_notes where board_id = ? order by id").all(boardId) as R[]).map((r) => ({
-    id: r.id,
-    title: r.title,
-    text: r.text,
-    labels: parseLabels(r.labels),
-    color: r.color,
-    pinned: !!r.pinned,
-    archived: !!r.archived,
-    updatedAt: r.updated_at,
-    googleId: r.google_id,
-    sync: (() => {
-      try {
-        return r.google_sync ? (JSON.parse(r.google_sync) as SyncedNote["sync"]) : null;
-      } catch {
-        return null;
-      }
-    })(),
-  }));
-}
-
-/** A note linked to its Google Keep note (null: unlinked), with both sides' state at this sync. */
-export function linkOwnNote(id: number, googleId: string | null, sync: { local: string; google: string } | null): void {
-  db()
-    .prepare("update keep_own_notes set google_id = ?, google_sync = ? where id = ?")
-    .run(googleId, sync ? JSON.stringify({ ...sync, at: new Date().toISOString() }) : null, id);
-}
-
-/** A note from Google Keep into a board (the board's label on a note there), linked to it. Its id. */
-export function importOwnNote(boardId: number, v: { title: string; text: string; labels: string[]; color: string | null; pinned: boolean; archived: boolean }, googleId: string): number {
-  const n = createOwnNote(boardId, { title: v.title || (v.text ? "" : "(ohne Titel)"), text: v.text, labels: v.labels, color: v.color });
-  const id = Number(n.id.slice(1));
-  if (v.pinned || v.archived) updateOwnNote(id, { pinned: v.pinned, archived: v.archived });
-  db().prepare("update keep_own_notes set google_id = ? where id = ?").run(googleId, id);
-  return id;
-}
-
-/** Synced notes deleted here, waiting to go to Keep's trash. */
-export const deletedForSync = (): string[] => (db().prepare("select google_id from keep_own_deleted").all() as { google_id: string }[]).map((r) => r.google_id);
-export const forgetDeleted = (googleId: string) => void db().prepare("delete from keep_own_deleted where google_id = ?").run(googleId);
-
-/** The Google Keep notes linked to one of your notes (by Google's id → your note) — shown there, not twice. */
-export function googleLinks(): Map<string, { id: number; boardId: number }> {
-  return new Map((db().prepare("select id, board_id, google_id from keep_own_notes where google_id is not null").all() as { id: number; board_id: number; google_id: string }[]).map((r) => [r.google_id, { id: r.id, boardId: r.board_id }]));
-}
 
 // ---------------------------------------------------------------------------
 // Notes by ref — Google Keep's and yours
@@ -298,11 +202,6 @@ export function notesByRefs(refs: string[]): NoteView[] {
   }
   if (wanted.length > own.length) for (const n of allKeepNotes({ linked: true })) if (wanted.includes(`keep:${n.id}`)) out.set(`keep:${n.id}`, googleView(n));
   return wanted.flatMap((r) => (out.has(r) ? [out.get(r)!] : []));
-}
-
-/** Every note the Lage may read: your boards in the Lage, and Google Keep's (not archived). */
-export function lageNotes(): NoteView[] {
-  return [...lageOwnNotes(), ...allKeepNotes().filter((n) => !n.archived).map(googleView)];
 }
 
 /** A note as a todo's source (client-safe brief). */

@@ -13,20 +13,5 @@ export const KEEP_COLORS: Record<string, string> = {
   gray: "border-zinc-300 bg-zinc-100 dark:border-zinc-700 dark:bg-zinc-800/60",
 };
 
-/** The colour swatches (for picking one). */
-export const KEEP_SWATCH: Record<string, string> = {
-  red: "bg-red-300",
-  orange: "bg-orange-300",
-  yellow: "bg-yellow-300",
-  green: "bg-green-300",
-  teal: "bg-teal-300",
-  blue: "bg-sky-300",
-  cerulean: "bg-blue-300",
-  purple: "bg-purple-300",
-  pink: "bg-pink-300",
-  brown: "bg-amber-400",
-  gray: "bg-zinc-300",
-};
-
 export const isKeepColor = (c: string) => c in KEEP_COLORS;
 export const keepNoteClass = (c: string | null) => (c ? (KEEP_COLORS[c] ?? "") : "");
