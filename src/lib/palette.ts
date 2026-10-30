@@ -1,4 +1,4 @@
-/** The command palette's pure part: what a typed text finds among the pages, and in which order. */
+/** The search's scoring and its keys (lib/search, components/Search): what a typed text finds among entries, and in which order. */
 export type PaletteItem = { id: string; label: string; hint?: string; href: string; group: string; /** Extra words that find it (the old name, a ticket key). */ keywords?: string };
 
 const norm = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "");

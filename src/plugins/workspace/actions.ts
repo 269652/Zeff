@@ -184,10 +184,6 @@ export async function duplicatePageAction(id: number) {
   return run(() => ({ id: store.duplicatePage(Number(id)) }));
 }
 
-export async function searchAction(q: string) {
-  return run(() => ({ hits: store.search(String(q ?? ""), 20) }));
-}
-
 export async function historyAction(pageId: number) {
   return run(() => ({ versions: store.versions(Number(pageId)) }));
 }

@@ -7,7 +7,7 @@ import { listPeople, namesOf } from "./store";
  * People found by what Zeff learned about them (the People plugin): the claims read from messages
  * (confirmed or proposed — not the rejected ones) and their details (IBAN, address, phone …), with
  * their names — "IBAN Wagner", "Dienstkonto", "Musterstraße". A name alone isn't a hit: this
- * searches what is known of them. For the context search (rag.ts) and the command palette. Server only.
+ * searches what is known of them. For the context search (rag.ts) and the one search (lib/search). Server only.
  */
 
 export type PersonHit = { personId: number; name: string; /** The claims and details that matched, as lines. */ text: string; /** How many of the words are in their names, claims and details. */ score: number };
@@ -31,7 +31,7 @@ export function searchPeople(words: string[], opts: { dated?: boolean } = {}): P
   return hits.sort((a, b) => b.score - a.score || a.name.localeCompare(b.name));
 }
 
-/** The command palette's people: those with every word of the query in their names, claims or details — linked to their page. */
+/** The search's people: those with every word of the query in their names, claims or details — linked to their page. */
 export async function peoplePaletteItems(q: string, limit = 5): Promise<PaletteItem[]> {
   const words = [...new Set(q.toLowerCase().split(/\s+/).filter((w) => w.length >= 2))].slice(0, 6);
   const hits = words.length ? searchPeople(words).filter((h) => h.score >= words.length) : [];

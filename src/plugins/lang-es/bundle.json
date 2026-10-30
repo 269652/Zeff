@@ -8082,5 +8082,16 @@
   "Booking your time: jobs and projects, working hours and absences, the analysis of your entries — with the weekly and the monthly report as its parts. The time-sheet systems build on it.": "Registrar tu tiempo: trabajos y proyectos, horario laboral y ausencias, el análisis de tus entradas — con el informe semanal y el mensual como partes. Los sistemas de hojas de horas se basan en él.",
   "What Zeff knows, three ways: what you should know right now (before a meeting, beside a mail, a ticket or a person), questions about numbers and dates answered from your own data, and Confluence's pages as a searchable knowledge graph. Each part is switched on or off by itself.": "Lo que Zeff sabe, de tres maneras: lo que deberías saber ahora mismo (antes de una reunión, junto a un correo, un ticket o una persona), preguntas sobre cifras y fechas respondidas con tus propios datos, y las páginas de Confluence como un grafo de conocimiento consultable. Cada parte se activa o desactiva por separado.",
   "Confluence knowledge": "Conocimiento de Confluence",
-  "Your Jira boards as Workspace boards — the columns as in Jira, each card with its ticket's briefing from the briefing run: where it stands, what happened last, open todos, flags and suggested actions. Plus “My briefing”: the run's tickets.": "Tus tableros de Jira como tableros del Workspace — las columnas como en Jira, cada tarjeta con el resumen de su ticket de la ejecución del resumen: en qué punto está, qué pasó por último, tareas abiertas, marcas y acciones sugeridas. Además «Mi resumen»: los tickets de la ejecución."
+  "Your Jira boards as Workspace boards — the columns as in Jira, each card with its ticket's briefing from the briefing run: where it stands, what happened last, open todos, flags and suggested actions. Plus “My briefing”: the run's tickets.": "Tus tableros de Jira como tableros del Workspace — las columnas como en Jira, cada tarjeta con el resumen de su ticket de la ejecución del resumen: en qué punto está, qué pasó por último, tareas abiertas, marcas y acciones sugeridas. Además «Mi resumen»: los tickets de la ejecución.",
+  "Your template": "Tu plantilla",
+  "Built-in template": "Plantilla incluida",
+  "Go to": "Ir a",
+  "Search everything": "Buscar en todo",
+  "Search everything (outside a text field)": "Buscar en todo (fuera de un campo de texto)",
+  "In the search, first: only the commands": "En la búsqueda, como primer carácter: solo los comandos",
+  "In the search: choose a result and open it": "En la búsqueda: elegir un resultado y abrirlo",
+  "Search pages, rows, people, todos, mails … (> for commands)": "Buscar páginas, filas, personas, tareas, correos … (> para comandos)",
+  "Search in": "Buscar en",
+  "Type two letters or more.": "Escribe dos letras o más.",
+  "Search everything: pages, rows, people, todos, mails, commands (Ctrl+K or /)": "Buscar en todo: páginas, filas, personas, tareas, correos, comandos (Ctrl+K o /)"
 }

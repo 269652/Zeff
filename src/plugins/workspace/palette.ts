@@ -6,8 +6,8 @@ import { listRoutines } from "./routines";
 import { getDatabase, rawRows, tree } from "./store";
 
 /**
- * What the command palette (Ctrl/⌘+K) can do in the Workspace: a new page or database, a pipeline refreshed. Their href is
- * "zeff:<what>" — the palette runs it instead of opening a page. Server only (the route filters them with the pages).
+ * What the search's commands (">", Ctrl/⌘+Shift+K) can do in the Workspace: a new page or database, a pipeline refreshed. Their href is
+ * "zeff:<what>" — the search runs it instead of opening a page. Server only (lib/search filters them).
  */
 export function workspacePaletteItems(): PaletteItem[] {
   const group = "Actions";
@@ -24,7 +24,7 @@ export function workspacePaletteItems(): PaletteItem[] {
 }
 
 /**
- * Everything of the Workspace the commands palette (Ctrl/⌘+Shift+K) runs by hand: the actions above, every routine (an agent
+ * Everything of the Workspace the search's commands (">", Ctrl/⌘+Shift+K) run by hand: the actions above, every routine (an agent
  * or an automation — on or off, a manual run is always yours), each waiting job of a jobs database and "all open jobs" of it.
  */
 export function workspaceCommandItems(): PaletteItem[] {

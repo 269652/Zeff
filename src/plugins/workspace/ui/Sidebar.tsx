@@ -1,12 +1,13 @@
 "use client";
 
 import Link from "next/link";
+import { openSearch } from "@/lib/search/shared";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, searchAction, setTemplateAction, templatesAction } from "../actions";
+import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, setTemplateAction, templatesAction } from "../actions";
 import { kindIcon, moveBefore } from "../model";
 import type { TreeItem } from "../store";
 import type { AppNav } from "../app-nav";
@@ -16,7 +17,6 @@ import { AutomationChooser } from "./AutomationChooser";
 import { TemplateGallery } from "./TemplateGallery";
 import "./workspace.css";
 
-type Hit = { id: number; title: string; icon: string; kind: string; snippet: string; path: string };
 type Meta = import("../templates").TemplateMeta;
 
 const OPEN_KEY = "zeff.workspace.open";
@@ -57,10 +57,8 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
   const current = Number(/^\/workspace\/(\d+)/.exec(path)?.[1] ?? 0) || null;
   const builtinOpen = path.startsWith("/workspace/templates/") ? decodeURIComponent(path.slice("/workspace/templates/".length)) : null;
   const [open, toggle] = useOpen();
-  const [q, setQ] = useState("");
   const [showHidden, setShowHidden] = useState<Set<number>>(new Set());
   const navParam = useSearchParams().get("nav");
-  const [hits, setHits] = useState<Hit[] | null>(null);
   const [templates, setTemplates] = useState<Meta[] | null>(null);
   const [automation, setAutomation] = useState(false);
   const [making, setMaking] = useState<string | null>(null);
@@ -105,20 +103,6 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [current, byId, tplById, builtinOpen]);
-
-  useEffect(() => {
-    if (!q.trim()) {
-      // eslint-disable-next-line react-hooks/set-state-in-effect -- the results follow the words typed
-      setHits(null);
-      return;
-    }
-    let live = true;
-    const timer = setTimeout(() => void searchAction(q).then((r) => live && setHits(r.ok ? r.hits : [])), 200);
-    return () => {
-      live = false;
-      clearTimeout(timer);
-    };
-  }, [q]);
 
   const create = async (v: Parameters<typeof createPageAction>[0]) => {
     const r = await createPageAction(v);
@@ -441,25 +425,20 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
           </Dropdown>
         </div>
 
-        <div className="relative">
-          <input type="search" value={q} onChange={(e) => setQ(e.target.value)} placeholder={t("Search pages …")} aria-label={t("Search pages")} className="input w-full text-sm" />
-          {hits && (
-            <ul className="absolute z-40 mt-1 max-h-80 w-[min(24rem,90vw)] overflow-y-auto rounded-lg border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-              {hits.map((h) => (
-                <li key={h.id}>
-                  <Link href={`/workspace/${h.id}`} className="block rounded-md px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => setQ("")}>
-                    <span className="block truncate font-medium">
-                      {h.icon || kindIcon(h.kind)} {h.title || t("Untitled")}
-                    </span>
-                    {h.snippet && <span className="line-clamp-2 text-xs text-zinc-500">{h.snippet}</span>}
-                    {h.path && <span className="block truncate text-xs text-zinc-400">{h.path}</span>}
-                  </Link>
-                </li>
-              ))}
-              {!hits.length && <li className="px-2 py-1.5 text-zinc-500">{t("Nothing found")}</li>}
-            </ul>
-          )}
-        </div>
+        {/* The one search, on the Workspace: its pages, rows, templates and Kennzahlen (the filter is a click away from everything). */}
+        <button
+          type="button"
+          onClick={() => openSearch({ filter: "workspace" })}
+          aria-label={t("Search pages")}
+          aria-keyshortcuts="Control+K Meta+K"
+          aria-haspopup="dialog"
+          className="input flex w-full items-center justify-between gap-2 text-left text-sm text-zinc-500 dark:text-zinc-400"
+        >
+          <span className="truncate">{t("Search pages …")}</span>
+          <kbd className="shrink-0 rounded border border-zinc-300 px-1 font-mono text-[10px] dark:border-zinc-600" aria-hidden>
+            Ctrl K
+          </kbd>
+        </button>
       </div>
 
       <div className="ws-side-tree min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">

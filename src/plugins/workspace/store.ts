@@ -649,8 +649,8 @@ export const recent = (limit = 12): PageRef[] =>
 
 export type Hit = PageRef & { snippet: string; path: string };
 
-/** Pages by what they say and what they are called — words by their beginnings, titles first. */
-export function search(q: string, limit = 20): Hit[] {
+/** Pages by what they say and what they are called — words by their beginnings, titles first. `templates`: your templates' top pages too. */
+export function search(q: string, limit = 20, { templates = false }: { templates?: boolean } = {}): Hit[] {
   const words = q.toLowerCase().match(/[\p{L}\p{N}]+/gu) ?? [];
   if (!words.length) return [];
   const match = words.map((w) => `"${w}"*`).join(" ");
@@ -658,9 +658,9 @@ export function search(q: string, limit = 20): Hit[] {
   try {
     rows = db()
       .prepare(
-        "select p.id, p.title, p.icon, p.kind, p.updated_at, p.db_id, snippet(ws_fts, 1, '', '', '…', 14) snip from ws_fts join ws_pages p on p.id = ws_fts.rowid where ws_fts match ? and p.archived_at is null and p.template = 0 order by bm25(ws_fts, 8.0, 1.0) limit ?",
+        "select p.id, p.title, p.icon, p.kind, p.updated_at, p.db_id, snippet(ws_fts, 1, '', '', '…', 14) snip from ws_fts join ws_pages p on p.id = ws_fts.rowid where ws_fts match ? and p.archived_at is null and (p.template = 0 or ?) order by bm25(ws_fts, 8.0, 1.0) limit ?",
       )
-      .all(match, limit) as typeof rows;
+      .all(match, templates ? 1 : 0, limit) as typeof rows;
   } catch {
     rows = [];
   }

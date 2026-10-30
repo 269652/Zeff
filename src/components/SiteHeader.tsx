@@ -8,7 +8,8 @@ import { saveMenuAction } from "@/app/actions";
 import { inOrder, type Placement } from "@/lib/layout-shared";
 import { UnseenActivityBadge } from "./boards/ActivitySeen";
 import { SyncMenu } from "./SyncMenu";
-import { CommandPalette } from "./CommandPalette";
+import { Search } from "./Search";
+import { openSearch } from "@/lib/search/shared";
 import { TabSplit } from "./TabSplit";
 import { LastTabLink } from "./LastTabLink";
 import { LinkPending } from "./LinkPending";
@@ -89,7 +90,7 @@ export function SiteHeader({
   const grouped = new Set([...pluginGroups, ...(settingsGroup ? [settingsGroup] : [])].flatMap((g) => g.items.map((i) => i.href.split("#")[0])));
   const zeff = inOrder(menuEntries(t), (l) => l.href, order).filter((l) => !grouped.has(l.href.split("#")[0]));
   const menu = [...apps.filter((a) => a.place === "menu"), ...pluginGroups.flatMap((g) => g.items), ...(settingsGroup?.items ?? []), ...zeff];
-  // The command palette finds every page the menu has (the hidden ones too) — each once (a section's link counts as its page).
+  // The search finds every page the menu has (the hidden ones too) — each once (a section's link counts as its page).
   const palettePages = [...apps, ...pluginGroups.flatMap((g) => g.items), ...(settingsGroup?.items ?? []), ...menuEntries(t)]
     .filter((l, i, all) => all.findIndex((x) => x.href.split("#")[0] === l.href.split("#")[0]) === i)
     .map((l) => ({ id: l.href, label: l.label, hint: l.hint, href: l.href, group: "Pages" }));
@@ -397,8 +398,8 @@ export function SiteHeader({
                 type="button"
                 className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-zinc-300 dark:hover:bg-zinc-800"
                 aria-label={t("Search")} aria-keyshortcuts="Control+K Meta+K /"
-                title={t("Search pages, settings and todos (Ctrl+K or /)")}
-                onClick={() => window.dispatchEvent(new Event("zeff:palette"))}
+                title={t("Search everything: pages, rows, people, todos, mails, commands (Ctrl+K or /)")}
+                onClick={() => openSearch()}
               >
                 <svg viewBox="0 0 20 20" className="size-4" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" aria-hidden>
                   <circle cx="9" cy="9" r="5.5" />
@@ -428,7 +429,7 @@ export function SiteHeader({
           })}
         </nav>
       )}
-      {!bare && <CommandPalette pages={palettePages} />}
+      {!bare && <Search pages={palettePages} />}
       {/* The menu drawer (not while setting up: the assistant leads). */}
       {!bare && (
         <>
