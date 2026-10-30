@@ -61,8 +61,9 @@ export function suggestionRender<T>(Menu: ComponentType<MenuProps<T>>, getLang: 
         draw();
       },
       onUpdate(p: SuggestionProps<T, T>) {
+        // Another query (a picker opened: "/ticket "): from the top again.
+        index = p.query !== props?.query ? 0 : Math.min(index, Math.max(0, p.items.length - 1));
         props = p;
-        index = Math.min(index, Math.max(0, p.items.length - 1));
         draw();
       },
       onKeyDown({ event }: SuggestionKeyDownProps) {

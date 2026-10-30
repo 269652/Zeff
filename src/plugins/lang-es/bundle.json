@@ -8038,5 +8038,16 @@
   "Top level": "Nivel superior",
   "{n} example rows": "{n} filas de ejemplo",
   "Below it": "Debajo",
-  "My templates": "Mis plantillas"
+  "My templates": "Mis plantillas",
+  "AI …": "IA …",
+  "What should Zeff do? Think along, write, or ask about this page": "¿Qué debe hacer Zeff? Pensar contigo, escribir o preguntar sobre esta página",
+  "Embed …": "Incrustar …",
+  "A linked database, a page, a to-do list or a new inline sub-page — shown right here": "Una base de datos vinculada, una página, una lista de tareas o una subpágina nueva — mostrada aquí mismo",
+  "Ticket …": "Ticket …",
+  "What Zeff knows about this row's ticket — briefing, todos, questions, chat …": "Lo que Zeff sabe del ticket de esta fila — resumen, tareas, preguntas, chat …",
+  "Entry parts …": "Partes de la entrada …",
+  "A field, related rows, a button, or blocks shown only if — what an entry's layout is made of": "Un campo, filas relacionadas, un botón o bloques que solo se muestran si — de lo que se compone el diseño de una entrada",
+  "Widget …": "Widget …",
+  "Data …": "Datos …",
+  "A figure, a chart, appointments, todos, a document or people — read live from Zeff": "Una cifra, un gráfico, citas, tareas, un documento o personas — leídos en vivo de Zeff"
 }
