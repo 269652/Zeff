@@ -6,7 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, savePageAction, installPackageAction, searchAction, templatesAction, todayPageAction } from "../actions";
+import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, searchAction, setTemplateAction, templatesAction, todayPageAction } from "../actions";
 import { kindIcon, moveBefore } from "../model";
 import type { TreeItem } from "../store";
 import type { AppNav } from "../app-nav";
@@ -19,6 +19,9 @@ type Hit = { id: number; title: string; icon: string; kind: string; snippet: str
 type Meta = import("../templates").TemplateMeta;
 
 const OPEN_KEY = "zeff.workspace.open";
+/** The folds of the Templates and of their built-in ones (kept with the pages' folds, below every page id). */
+const TEMPLATES_FOLD = -1;
+const BUILTIN_FOLD = -2;
 
 function useOpen(): [Set<number>, (id: number, on?: boolean) => void] {
   const [open, setOpen] = useState<Set<number>>(new Set());
@@ -46,11 +49,12 @@ function useOpen(): [Set<number>, (id: number, on?: boolean) => void] {
 }
 
 /** The page tree, favorites, search and "new" — the left column of the Workspace. */
-export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, extSources = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** Mail databases' unread rows, by id. */ unread?: Record<number, number> }) {
+export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, extSources = [], builtins = [], templateItems = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** Mail databases' unread rows, by id. */ unread?: Record<number, number>; /** The built-in templates (read only — opened as a preview). */ builtins?: Pick<Meta, "key" | "name" | "icon" | "kind" | "category">[]; /** Your templates' pages (each marked a template, with what is below it). */ templateItems?: TreeItem[] }) {
   const t = useT();
   const router = useRouter();
   const path = usePathname();
   const current = Number(/^\/workspace\/(\d+)/.exec(path)?.[1] ?? 0) || null;
+  const builtinOpen = path.startsWith("/workspace/templates/") ? decodeURIComponent(path.slice("/workspace/templates/".length)) : null;
   const [open, toggle] = useOpen();
   const [q, setQ] = useState("");
   const [showHidden, setShowHidden] = useState<Set<number>>(new Set());
@@ -76,19 +80,29 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
     return m;
   }, [items]);
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  const tplByParent = useMemo(() => {
+    const m = new Map<number | null, TreeItem[]>();
+    for (const i of templateItems) m.set(i.parentId, [...(m.get(i.parentId) ?? []), i]);
+    return m;
+  }, [templateItems]);
+  const tplById = useMemo(() => new Map(templateItems.map((i) => [i.id, i])), [templateItems]);
 
-  // The path to the open page is unfolded.
+  // The path to the open page is unfolded (one of your templates, or a built-in one previewed: the Templates too).
   useEffect(() => {
+    if (builtinOpen) [TEMPLATES_FOLD, BUILTIN_FOLD].forEach((f) => toggle(f, true));
     if (!current) return;
-    let at = byId.get(current)?.parentId ?? null;
+    const tpl = tplById.has(current);
+    if (tpl) toggle(TEMPLATES_FOLD, true);
+    const of = tpl ? tplById : byId;
+    let at = of.get(current)?.parentId ?? null;
     const seen = new Set<number>();
     while (at && !seen.has(at)) {
       seen.add(at);
       toggle(at, true);
-      at = byId.get(at)?.parentId ?? null;
+      at = of.get(at)?.parentId ?? null;
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [current, byId]);
+  }, [current, byId, tplById, builtinOpen]);
 
   useEffect(() => {
     if (!q.trim()) {
@@ -117,6 +131,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
     dragging.current = null;
     setOver(null);
     if (!id || id === target.id) return;
+    const inTpl = tplById.has(target.id);
     let parentId: number | null;
     let before: number | null = null;
     if (where === "into") parentId = target.id;
@@ -124,14 +139,33 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
       parentId = target.parentId;
       if (where === "before") before = target.id;
       else {
-        const sibs = byParent.get(target.parentId) ?? [];
+        const sibs = (inTpl ? tplByParent : byParent).get(target.parentId) ?? [];
         before = sibs[sibs.findIndex((s) => s.id === target.id) + 1]?.id ?? null;
       }
     }
     const r = await movePageAction(id, parentId, before);
     if (!r.ok) toast(r.error, { tone: "error" });
-    else if (parentId) toggle(parentId, true);
+    else {
+      if (parentId) toggle(parentId, true);
+      // Onto the templates' top: one of yours; a template of yours into the pages: a page again.
+      if (inTpl ? parentId === null && !tplById.get(id)?.template : tplById.get(id)?.template) await setTemplate(id, inTpl);
+    }
     router.refresh();
+  };
+  const setTemplate = async (id: number, on: boolean) => {
+    const r = await setTemplateAction(id, on);
+    if (!r.ok) toast(r.error, { tone: "error" });
+    if (on) toggle(TEMPLATES_FOLD, true);
+    router.refresh();
+  };
+  // A page dragged onto the Templates (or into the empty part of the pages): into your templates, or out of them.
+  const dropTo = (e: React.DragEvent, on: boolean) => {
+    if (e.target !== e.currentTarget || !dragging.current) return;
+    e.preventDefault();
+    const id = dragging.current;
+    dragging.current = null;
+    if (on) void setTemplate(id, true);
+    else void movePageAction(id, null).then(() => (tplById.get(id)?.template ? setTemplate(id, false) : router.refresh()));
   };
 
   // An app's navigation under its database: links to its entries; one is hidden (and shown again), never deleted.
@@ -179,7 +213,8 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
   };
 
   const node = (item: TreeItem, depth: number): React.ReactNode => {
-    const kids = byParent.get(item.id) ?? [];
+    const inTpl = tplById.has(item.id);
+    const kids = (inTpl ? tplByParent : byParent).get(item.id) ?? [];
     const isOpen = open.has(item.id);
     return (
       <li key={item.id}>
@@ -241,6 +276,24 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
                   >
                     ⧉ {t("Duplicate")}
                   </MenuItem>
+                  {inTpl ? (
+                    <MenuItem onClick={() => (close(), void setTemplate(item.id, false))}>↩ {t("Remove from templates")}</MenuItem>
+                  ) : (
+                    !item.system && (
+                      <MenuItem
+                        onClick={async () => {
+                          close();
+                          const r = await saveAsTemplateAction(item.id);
+                          if (!r.ok) return toast(r.error, { tone: "error" });
+                          toggle(TEMPLATES_FOLD, true);
+                          router.push(`/workspace/${r.id}`);
+                          router.refresh();
+                        }}
+                      >
+                        📋 {t("Save as template")}
+                      </MenuItem>
+                    )
+                  )}
                   {!item.system && (
                   <MenuItem
                     danger
@@ -432,21 +485,65 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
       <section>
         <h2 className="mb-0.5 px-1 text-xs font-semibold text-zinc-500 uppercase">{t("Pages")}</h2>
         {roots.length ? (
-          <ul
-            onDragOver={(e) => dragging.current !== null && e.preventDefault()}
-            onDrop={(e) => {
-              // Dropped on the empty part: to the end of the top level.
-              if (e.target !== e.currentTarget || !dragging.current) return;
-              e.preventDefault();
-              const id = dragging.current;
-              dragging.current = null;
-              void movePageAction(id, null).then(() => router.refresh());
-            }}
-          >
+          // Dropped on the empty part: to the end of the top level.
+          <ul onDragOver={(e) => dragging.current !== null && e.preventDefault()} onDrop={(e) => dropTo(e, false)}>
             {roots.map((r) => node(r, 0))}
           </ul>
         ) : (
           <p className="px-1 text-xs text-zinc-500">{t("No pages yet — press + to make one.")}</p>
+        )}
+      </section>
+
+      {/* Every template: the built-in ones (read only, a preview each) and yours (pages like any other — dragged in or saved as one). */}
+      <section aria-label={t("Templates")}>
+        <div className="flex items-center" onDragOver={(e) => dragging.current !== null && e.preventDefault()} onDrop={(e) => dropTo(e, true)}>
+          <button type="button" className="flex flex-1 items-center gap-1 px-1 text-left text-xs font-semibold text-zinc-500 uppercase" aria-expanded={open.has(TEMPLATES_FOLD)} onClick={() => toggle(TEMPLATES_FOLD)}>
+            <span aria-hidden>{open.has(TEMPLATES_FOLD) ? "▾" : "▸"}</span>
+            {t("Templates")}
+          </button>
+          <button type="button" className="icon-btn size-6 text-xs" aria-label={t("New template")} title={t("New template")} onClick={() => (toggle(TEMPLATES_FOLD, true), void create({ template: true, title: t("New template") }))}>
+            +
+          </button>
+        </div>
+        {open.has(TEMPLATES_FOLD) && (
+          <ul>
+            <li>
+              <button type="button" className="ws-tree-row w-full text-zinc-500" aria-expanded={open.has(BUILTIN_FOLD)} onClick={() => toggle(BUILTIN_FOLD)}>
+                <span className="grid size-6 shrink-0 place-items-center text-xs">{open.has(BUILTIN_FOLD) ? "▾" : "▸"}</span>
+                <span>🔒 {t("Built-in")}</span>
+              </button>
+              {open.has(BUILTIN_FOLD) && (
+                <ul>
+                  {(
+                    [
+                      ["page", t("Pages")],
+                      ["database", t("Databases")],
+                      ["packages", t("Packages")],
+                    ] as const
+                  ).map(([group, label]) => {
+                    const list = builtins.filter((b) => (b.category === "packages" ? "packages" : b.kind) === group);
+                    return list.length ? (
+                      <li key={group}>
+                        <div className="pt-1 pl-8 text-[11px] font-semibold tracking-wide text-zinc-400 uppercase">{label}</div>
+                        <ul>
+                          {list.map((b) => (
+                            <li key={b.key}>
+                              <Link href={`/workspace/templates/${encodeURIComponent(b.key)}`} className="ws-tree-row pl-8" data-active={builtinOpen === b.key}>
+                                <span className="shrink-0">{b.icon}</span>
+                                <span className="truncate">{b.name}</span>
+                              </Link>
+                            </li>
+                          ))}
+                        </ul>
+                      </li>
+                    ) : null;
+                  })}
+                </ul>
+              )}
+            </li>
+            {(tplByParent.get(null) ?? []).map((r) => node(r, 0))}
+            {!tplByParent.get(null)?.length && <li className="px-2 py-0.5 text-xs text-zinc-400">{t("Yours: save a page as a template (⋯) or drag one here.")}</li>}
+          </ul>
         )}
       </section>
 

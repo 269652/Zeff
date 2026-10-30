@@ -110,21 +110,11 @@ test("a package that is not one is refused — and what it holds is cleaned like
   assert.equal(JSON.stringify(w.getPage(r.rootId)!.content).includes("script"), false);
 });
 
-test("the packages that come with Zeff: listed with the templates, installable — projects with tasks, a form and an automation", async () => {
-  const { w, r } = await app();
+test("no packages of its own: Zeff's ready-made things are the templates (Projects & tasks was one twice)", async () => {
+  await app();
   const { listPackages } = await import("@/plugins/workspace/packages");
-  const { templateMetas, fromTemplate } = await import("@/plugins/workspace/templates");
-  assert.ok(listPackages().some((p) => p.id === "projects-tasks"));
-  const meta = templateMetas().find((m) => m.key === "pkg:projects-tasks");
-  assert.ok(meta, "among the templates");
-  const id = await fromTemplate("pkg:projects-tasks", null);
-  const kids = w.tree().filter((x) => x.parentId === id);
-  const titles = kids.map((x) => x.title).sort();
-  assert.ok(titles.some((t) => /Projects|Projekte/.test(t)) && titles.some((t) => /Tasks|Aufgaben/.test(t)));
-  const routine = kids.find((x) => r.getRoutine(x.id));
-  assert.ok(routine, "an automation in it");
-  assert.equal(r.getRoutine(routine!.id)!.enabled, false);
-  const tasks = kids.find((x) => /Tasks|Aufgaben/.test(x.title) && x.kind === "database")!;
-  const rel = w.getDatabase(tasks.id)!.schema.properties.find((p) => p.type === "relation")!;
-  assert.equal(w.getPage(rel.relationDb!)!.parentId, id, "its relation points into the same app");
+  const { templateMetas } = await import("@/plugins/workspace/templates");
+  assert.ok(!listPackages().some((p) => p.id === "projects-tasks"));
+  assert.ok(!templateMetas().some((m) => m.key === "pkg:projects-tasks"));
+  assert.ok(templateMetas().some((m) => m.key === "projects"));
 });

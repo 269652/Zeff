@@ -117,21 +117,45 @@ export function getPage(id: number): Page | null {
 // The tree
 // ---------------------------------------------------------------------------
 
-export type TreeItem = { id: number; parentId: number | null; kind: PageKind; title: string; icon: string; favorite: boolean; position: number; /** A system page: stays (not to the trash, not moved away). */ system?: boolean };
+export type TreeItem = { id: number; parentId: number | null; kind: PageKind; title: string; icon: string; favorite: boolean; position: number; /** A system page: stays (not to the trash, not moved away). */ system?: boolean; /** Marked a template (your own; what is below it belongs to it). */ template?: boolean };
 
-/** Every page of the tree (not the rows of databases, not the trash, not templates), in sibling order. */
-export function tree(): TreeItem[] {
+/** The pages of the tree (not the rows of databases, not the trash), split: the page tree, and your templates (a page marked one and what is below it — its top at the top). */
+function splitTree(): { pages: TreeItem[]; templates: TreeItem[] } {
   const system = new Set(systemPageIds());
-  return (db().prepare("select id, parent_id, kind, title, icon, favorite, position from ws_pages where db_id is null and archived_at is null and template = 0 order by position, id").all() as { id: number; parent_id: number | null; kind: string; title: string; icon: string; favorite: number; position: number }[]).map((r) => ({
-    id: r.id,
-    parentId: r.parent_id,
-    kind: pageKind(r.kind),
-    title: r.title,
-    icon: r.icon,
-    favorite: !!r.favorite,
-    position: r.position,
-    ...(system.has(r.id) ? { system: true } : {}),
-  }));
+  const rows = db().prepare("select id, parent_id, kind, title, icon, favorite, position, template from ws_pages where db_id is null and archived_at is null order by position, id").all() as { id: number; parent_id: number | null; kind: string; title: string; icon: string; favorite: number; position: number; template: number }[];
+  const byId = new Map(rows.map((r) => [r.id, r]));
+  const known = new Map<number, boolean>();
+  const isTpl = (id: number, hops = 0): boolean => {
+    if (known.has(id)) return known.get(id)!;
+    const r = byId.get(id);
+    const v = !!r && (!!r.template || (r.parent_id !== null && hops < 50 && isTpl(r.parent_id, hops + 1)));
+    known.set(id, v);
+    return v;
+  };
+  const out = { pages: [] as TreeItem[], templates: [] as TreeItem[] };
+  for (const r of rows) {
+    const tpl = isTpl(r.id);
+    const item: TreeItem = { id: r.id, parentId: r.parent_id, kind: pageKind(r.kind), title: r.title, icon: r.icon, favorite: !!r.favorite, position: r.position, ...(system.has(r.id) ? { system: true } : {}), ...(r.template ? { template: true } : {}) };
+    if (tpl && r.parent_id !== null && !isTpl(r.parent_id)) item.parentId = null;
+    out[tpl ? "templates" : "pages"].push(item);
+  }
+  return out;
+}
+
+/** Every page of the tree (not the rows of databases, not the trash, not your templates), in sibling order. */
+export const tree = (): TreeItem[] => splitTree().pages;
+/** Your templates' pages: each marked a template, with what is below it, in sibling order. */
+export const templateTree = (): TreeItem[] => splitTree().templates;
+
+/** Whether a page is one of your templates or inside one (a row: its database is). */
+export function inTemplates(id: number): boolean {
+  for (let cur: number | null = id, hops = 0; cur && hops < 50; hops++) {
+    const r = db().prepare("select parent_id, db_id, template from ws_pages where id = ?").get(cur) as { parent_id: number | null; db_id: number | null; template: number } | undefined;
+    if (!r) return false;
+    if (r.template && r.db_id === null) return true;
+    cur = r.db_id ?? r.parent_id;
+  }
+  return false;
 }
 
 /** The pages above a page, the root first (a row: its database and the ones above that). */
@@ -542,8 +566,11 @@ export function emptyTrash(): number {
   return roots.length;
 }
 
-/** A copy of a page with what is below it (a database: with its rows); "(copy)" added to the title. Returns the new id. */
-export function duplicatePage(id: number, opts: { parentId?: number | null; dbId?: number | null; suffix?: boolean } = {}): number {
+/**
+ * A copy of a page with what is below it (a database: with its rows); "(copy)" added to the title. Relations between databases copied
+ * together point at the copies. `template`: the copy's own mark (else the original's); `onCopy`: each page copied (from, to). Returns the new id.
+ */
+export function duplicatePage(id: number, opts: { parentId?: number | null; dbId?: number | null; suffix?: boolean; template?: boolean; onCopy?: (from: number, to: number) => void } = {}): number {
   const p = getPage(id);
   if (!p) throw new Error("No such page.");
   const idMap = new Map<number, number>();
@@ -557,7 +584,7 @@ export function duplicatePage(id: number, opts: { parentId?: number | null; dbId
       content: src.content,
       props: src.props,
       schema: src.schema ?? undefined,
-      template: src.template,
+      template: top && opts.template !== undefined ? opts.template : src.template,
     });
     idMap.set(src.id, nid);
     const x = db();
@@ -582,7 +609,12 @@ export function duplicatePage(id: number, opts: { parentId?: number | null; dbId
       }
       if (dirty) d.prepare("update ws_pages set props = ? where id = ?").run(JSON.stringify(props), to);
     }
-    void from;
+    // A database's relation to another database copied with it: to that copy.
+    if (copied.schema?.properties.some((x) => x.relationDb && idMap.has(x.relationDb))) {
+      const schema = { ...copied.schema, properties: copied.schema.properties.map((x) => (x.relationDb && idMap.has(x.relationDb) ? { ...x, relationDb: idMap.get(x.relationDb)! } : x)) };
+      d.prepare("update ws_pages set schema = ? where id = ?").run(JSON.stringify(schema), to);
+    }
+    opts.onCopy?.(from, to);
   }
   return top;
 }

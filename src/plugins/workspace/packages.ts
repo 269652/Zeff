@@ -2,7 +2,6 @@ import "@/plugins/contributions";
 import { sanitizeDoc, type DocNode } from "./doc";
 import { normalizeForm, type FormDef } from "./form-spec";
 import { pageKind, type DbSchema, type PageKind } from "./model";
-import { BUILTIN_PACKAGES } from "./packages-builtin";
 import { workspacePackages } from "./packages-point";
 import { createRoutine, getRoutine, type RoutineConfig, type Step, type Trigger } from "./routines";
 import { addRow, createPage, getPage, rawRows, setPageProps, tree, updatePage, updateSchema } from "./store";
@@ -182,8 +181,7 @@ export function installPackage(pkg: WorkspacePackage, parentId: number | null): 
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
-/** Packages that come with Zeff and the ones plugins bring. */
+/** The packages plugins bring (Zeff's own ready-made things are the templates). */
 export function listPackages(): (PackageMeta & { pkg: WorkspacePackage })[] {
-  const ext = workspacePackages.list().flatMap((c) => c.impl.map((p) => ({ id: `${c.plugin}.${slug(p.name)}`, pkg: p })));
-  return [...BUILTIN_PACKAGES, ...ext].map(({ id, pkg }) => ({ id, name: pkg.name, icon: pkg.icon ?? "📦", description: pkg.description ?? "", pkg }));
+  return workspacePackages.list().flatMap((c) => c.impl.map((p) => ({ id: `${c.plugin}.${slug(p.name)}`, name: p.name, icon: p.icon ?? "📦", description: p.description ?? "", pkg: p })));
 }

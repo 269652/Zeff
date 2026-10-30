@@ -1,7 +1,7 @@
 import { getSqlite } from "@/db";
 import { isToolGroup } from "./agent-tools";
 import { FILTER_OPS, newId, type FilterRule } from "./model";
-import { getPage } from "./store";
+import { getPage, inTemplates } from "./store";
 
 /**
  * Routines — Automations (deterministic steps, one after another, with gates, branches and conditions) and Agents (an LLM run on
@@ -257,11 +257,11 @@ export function deleteRoutine(pageId: number): void {
   db().prepare("delete from ws_routines where page_id = ?").run(pageId);
 }
 
-/** Every routine, with its page's title. */
+/** Every routine, with its page's title (not those of your templates: they wait to be used). */
 export function listRoutines(): (Routine & { title: string })[] {
   return (db().prepare("select * from ws_routines order by page_id").all() as RRow[]).flatMap((r) => {
     const page = getPage(r.page_id);
-    return page && !page.archivedAt ? [{ ...toRoutine(r), title: page.title }] : [];
+    return page && !page.archivedAt && !inTemplates(page.id) ? [{ ...toRoutine(r), title: page.title }] : [];
   });
 }
 

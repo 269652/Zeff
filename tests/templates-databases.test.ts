@@ -50,16 +50,13 @@ test("contracts: the running ones' sum a month under the table — published as 
   assert.equal(v!.value, Math.round(v!.sources.reduce((n, s) => n + (s.value ?? 0), 0) * 100) / 100);
 });
 
-test("with the Finances plugin: its debts database is a template (made once — the same database again), the instalment plans of your own aren't offered", async () => {
+test("with the Finances plugin: no debts template (its database is there anyway), the instalment plans of your own aren't offered", async () => {
   await setup();
   (await import("@/plugins/state")).setInstalled("finances", true);
-  const { templateMetas, fromTemplate } = await import("@/plugins/workspace/templates");
+  const { templateMetas } = await import("@/plugins/workspace/templates");
   const keys = templateMetas().map((m) => m.key);
-  assert.ok(keys.includes("debts"));
+  assert.ok(!keys.includes("debts"));
   assert.ok(!keys.includes("installment-plan"));
-  const a = await fromTemplate("debts", null);
-  assert.equal(await fromTemplate("debts", null), a);
-  assert.equal((await import("@/plugins/workspace/store")).getDatabase(a)!.schema.dataType, "debts");
 });
 
 test("the gallery: where most start first; what was made of a template (and is still there) is offered to open — a page in the bin is not", async () => {

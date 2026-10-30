@@ -44,6 +44,21 @@ export async function templatesAction() {
   return run(async () => ({ templates: (await import("./templates")).templateMetas() }));
 }
 
+/** A built-in template made as a template of yours (to change it). Returns its page. */
+export async function duplicateTemplateAction(key: string) {
+  return run(async () => ({ id: (await import("./templates")).duplicateBuiltin(String(key)) }));
+}
+
+/** A page copied into your templates (the page stays). Returns the template's page. */
+export async function saveAsTemplateAction(id: number) {
+  return run(async () => ({ id: (await import("./templates")).saveAsTemplate(Number(id)) }));
+}
+
+/** A page moved into your templates, or out of them into the page tree. */
+export async function setTemplateAction(id: number, on: boolean) {
+  return run(async () => ((await import("./templates")).setTemplate(Number(id), !!on), {}));
+}
+
 /** The user's answer to what a worker asked in a job: it goes on (see jobs.ts answerJob). */
 export async function answerJobAction(rowId: number, answer: string) {
   return run(async () => {
@@ -76,13 +91,13 @@ export async function runJobDeliveryAction(rowId: number, only?: number[]) {
   });
 }
 
-export async function createPageAction(v: { parentId?: number | null; kind?: "page" | "database" | "form"; title?: string; templateKey?: string }) {
+export async function createPageAction(v: { parentId?: number | null; kind?: "page" | "database" | "form"; title?: string; templateKey?: string; /** A new template of yours (at the top of the templates). */ template?: boolean }) {
   return run(async () => {
     if (v.templateKey) {
       const { fromTemplate } = await import("./templates");
       return { id: await fromTemplate(v.templateKey, v.parentId ?? null) };
     }
-    return { id: store.createPage({ parentId: v.parentId ?? null, kind: v.kind, title: v.title }) };
+    return { id: store.createPage({ parentId: v.parentId ?? null, kind: v.kind, title: v.title, template: !!v.template }) };
   });
 }
 

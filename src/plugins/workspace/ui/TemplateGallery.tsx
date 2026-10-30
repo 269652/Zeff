@@ -7,6 +7,7 @@ import type { TemplateCategory, TemplateMeta } from "../templates";
 
 /** The order the groups are shown in, with the tint of their icons. */
 const GROUPS: { key: TemplateCategory; tint: string }[] = [
+  { key: "mine", tint: "bg-rose-50 dark:bg-rose-950/50" },
   { key: "overview", tint: "bg-indigo-50 dark:bg-indigo-950/60" },
   { key: "work", tint: "bg-emerald-50 dark:bg-emerald-950/60" },
   { key: "notes", tint: "bg-amber-50 dark:bg-amber-950/50" },
@@ -21,7 +22,7 @@ const GROUPS: { key: TemplateCategory; tint: string }[] = [
  */
 export function TemplateGallery({ templates, onPick, busy }: { templates: TemplateMeta[]; onPick: (key: string) => void; busy?: string | null }) {
   const t = useT();
-  const labels: Record<TemplateCategory, string> = { overview: t("Overviews"), work: t("Work and projects"), notes: t("Notes and meetings"), automation: t("Agents and automations"), packages: t("Packages") };
+  const labels: Record<TemplateCategory, string> = { overview: t("Overviews"), work: t("Work and projects"), notes: t("Notes and meetings"), automation: t("Agents and automations"), packages: t("Packages"), mine: t("My templates") };
   const [q, setQ] = useState("");
   const [group, setGroup] = useState<TemplateCategory | "all">("all");
   const present = GROUPS.filter((g) => templates.some((x) => x.category === g.key));

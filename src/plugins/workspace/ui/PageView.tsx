@@ -9,7 +9,7 @@ import { useEffect, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { applyRowLayoutAction, archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, savePageAction, versionAction } from "../actions";
+import { applyRowLayoutAction, archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, saveAsTemplateAction, savePageAction, setTemplateAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { DatabaseView, RowProperties } from "./DatabaseView";
 import { DayEntry } from "./day-entry";
@@ -35,6 +35,8 @@ export type PageViewData = {
   smallText: boolean;
   locked: boolean;
   template: boolean;
+  /** One of your templates or a page inside one (not in the page tree). */
+  inTemplates?: boolean;
   isRow: boolean;
   /** A row's page that is (nearly) empty and whose view brings a layout (a person's): "Use the default layout" is offered. */
   layoutFits?: boolean;
@@ -352,9 +354,33 @@ export function PageView({ page, row, database, form, person }: { page: PageView
               <MenuItem checked={locked} onClick={() => (setLocked(!locked), void patch({ locked: !locked }), close())}>
                 🔒 {t("Lock the page")}
               </MenuItem>
-              {page.isRow && (
+              {page.isRow ? (
                 <MenuItem checked={page.template} onClick={() => (void patch({ template: !page.template }), close())}>
                   📋 {t("Use as a template")}
+                </MenuItem>
+              ) : page.inTemplates ? (
+                <MenuItem
+                  onClick={async () => {
+                    close();
+                    const r = await setTemplateAction(page.id, false);
+                    if (!r.ok) return toast(r.error, { tone: "error" });
+                    router.refresh();
+                  }}
+                >
+                  ↩ {t("Remove from templates")}
+                </MenuItem>
+              ) : (
+                <MenuItem
+                  onClick={async () => {
+                    close();
+                    const r = await saveAsTemplateAction(page.id);
+                    if (!r.ok) return toast(r.error, { tone: "error" });
+                    toast(t("Saved as a template."), { tone: "ok" });
+                    router.push(`/workspace/${r.id}`);
+                    router.refresh();
+                  }}
+                >
+                  📋 {t("Save as template")}
                 </MenuItem>
               )}
               {page.kind === "page" && (
@@ -459,6 +485,26 @@ export function PageView({ page, row, database, form, person }: { page: PageView
           )}
         </Dropdown>
       </div>
+
+      {page.inTemplates && (
+        <div className="flex flex-wrap items-center gap-2 rounded-lg bg-indigo-50 px-3 py-2 text-sm text-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-200" data-template-bar>
+          <span className="flex-1">📋 {t("One of your templates — a page made of it starts as a copy of this.")}</span>
+          {page.template && (
+            <button
+              type="button"
+              className="btn btn-sm"
+              onClick={async () => {
+                const r = await createPageAction({ templateKey: `page:${page.id}` });
+                if (!r.ok) return toast(r.error, { tone: "error" });
+                router.push(`/workspace/${r.id}`);
+                router.refresh();
+              }}
+            >
+              {t("Use")}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* The cover: shown when there is one (its hover button changes it); adding one is in the title's ⋯ menu — no row of its own. */}
       {cover && (

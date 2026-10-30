@@ -81,20 +81,6 @@ export function weeklyReviewPage(parentId: number | null): number {
   return id;
 }
 
-export function wikiHomePage(parentId: number | null): number {
-  return make(
-    parentId,
-    t("Wiki"),
-    "📚",
-    [
-      ...md(`:::callout 👋 blue\n${t("Welcome. Type @ to link a page, a person, a todo or a ticket — and / for any block.")}\n:::`),
-      columns(`### 🚀 ${t("Start here")}\n\n- `, `### ⚙️ ${t("Processes")}\n\n- `, `### 🙋 ${t("Who to ask")}\n\n- `),
-      columns(`### ⚖️ ${t("Decisions")}\n\n- `, `### 📐 ${t("Conventions")}\n\n- `, `### 🔗 ${t("Links")}\n\n- `),
-    ],
-    true,
-  );
-}
-
 /** With the Finances plugin: your debts and claims as figures and the payments ahead (both ways), the deadlines from your letters; without it: the cases' figures. */
 export function financesPage(parentId: number | null): number {
   const finances = widgetCatalog().some((w) => w.id === "finances.figures");

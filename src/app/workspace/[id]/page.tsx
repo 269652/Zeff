@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { loadDatabaseAction } from "@/plugins/workspace/actions";
-import { backlinks, breadcrumbs, getDatabase, getPage, touchOpened, tree } from "@/plugins/workspace/store";
+import { backlinks, breadcrumbs, getDatabase, getPage, inTemplates, templateTree, touchOpened, tree } from "@/plugins/workspace/store";
 import { PageView } from "@/plugins/workspace/ui/PageView";
 import { ArchivedNotice } from "@/plugins/workspace/ui/Trash";
 
@@ -38,6 +38,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   const row = isRow ? await loadDatabaseAction(page.dbId!) : null;
   const database = page.kind === "database" ? await loadDatabaseAction(page.id) : null;
   const form = page.kind === "form" ? (await import("@/plugins/workspace/forms")).getForm(page.id) : null;
+  const ofTemplates = !isRow && inTemplates(page.id);
   return (
     <PageView
       key={page.id}
@@ -54,12 +55,13 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
         smallText: page.smallText,
         locked: page.locked,
         template: page.template,
+        inTemplates: ofTemplates,
         isRow,
         layoutFits: !!rowViews?.rowLayoutFits(page.id),
         updatedAt: page.updatedAt,
         crumbs: breadcrumbs(page.id),
         backlinks: backlinks(page.id).map((b) => ({ id: b.id, title: b.title, icon: b.icon })),
-        children: tree()
+        children: (ofTemplates ? templateTree() : tree())
           .filter((x) => x.parentId === page.id)
           .map((x) => ({ id: x.id, title: x.title, icon: x.icon, kind: x.kind })),
       }}

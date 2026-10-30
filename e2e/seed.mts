@@ -115,4 +115,15 @@ if (!seed.assistPage) {
     fs.writeFileSync(out, JSON.stringify({ ...seed, boardDb, boardTitle, boardProps: { status: status.id, due: due.id, who: who.id }, personForm }, null, 2));
   }
 }
+
+// Templates: one of your own (a page marked a template, with a line of text) — in the Templates of the tree, not among the pages.
+{
+  const seed = JSON.parse(fs.readFileSync(out, "utf8"));
+  if (!seed.ownTemplate) {
+    const { createPage } = await import("@/plugins/workspace/store");
+    const ownTemplateTitle = "E2E Eigene Vorlage";
+    const ownTemplate = createPage({ title: ownTemplateTitle, icon: "🧪", template: true, content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Aus der eigenen Vorlage" }] }] } });
+    fs.writeFileSync(out, JSON.stringify({ ...seed, ownTemplate, ownTemplateTitle }, null, 2));
+  }
+}
 console.log(`e2e seed: ${out}`);

@@ -1,6 +1,7 @@
 /**
- * Ready-made pages and databases (the Workspace plugin): a meeting, a project brief, a weekly review,
- * a decision log, tasks tied to Zeff's todos, projects with their tasks and a progress rollup. Server only.
+ * Templates (the Workspace plugin): the built-in ready-made pages and databases (a meeting, a project brief, a weekly review, a
+ * decision log, tasks tied to Zeff's todos, projects with their tasks and a progress rollup …), the plugins' packages, and your own —
+ * pages marked a template, kept out of the page tree, under the Templates. One catalog for every "new from a template". Server only.
  */
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
@@ -11,16 +12,19 @@ import { createNotesBoard } from "./notes-board";
 import { newsDatabaseTitle } from "./news-database";
 import { installPackage, listPackages } from "./packages";
 import { widgetCatalog } from "./widgets";
-import { createRoutine } from "./routines";
+import { createRoutine, getRoutine } from "./routines";
 import { createTicketCockpit } from "./ticket-cockpit";
 import { journalPage } from "./templates-journal";
-import { authorityPage, financesPage, meetingPage, oneOnOnePage, projectBriefPage, weeklyReviewPage, whoOwesPage, wikiHomePage } from "./templates-pages";
+import { authorityPage, financesPage, meetingPage, oneOnOnePage, projectBriefPage, weeklyReviewPage, whoOwesPage } from "./templates-pages";
+import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
-import { createPage, getPage, updatePage } from "./store";
+import { quietly } from "./events";
+import { kindIcon } from "./model";
+import { createPage, duplicatePage, getPage, inTemplates, movePage, rawRows, templateTree, updatePage } from "./store";
 import { contractsDatabase, decisionsDatabase, instalmentPlansDatabase, projectsDatabase, readingDatabase, tasksDatabase } from "./templates-databases";
 
-/** The group a template is shown in (the gallery's tabs). */
-export type TemplateCategory = "overview" | "work" | "notes" | "automation" | "packages";
+/** The group a template is shown in (the gallery's tabs; "mine": your own, the pages marked a template). */
+export type TemplateCategory = "overview" | "work" | "notes" | "automation" | "packages" | "mine";
 export type TemplateMeta = {
   key: string;
   name: string;
@@ -50,7 +54,7 @@ function madeOf(key: string): { id: number; title: string }[] {
 
 
 type Template = TemplateMeta & {
-  build: (parentId: number | null) => number | Promise<number>;
+  build: (parentId: number | null) => number;
   /** Offered only while this holds (a template another plugin does better is left out then). */
   offered?: () => boolean;
 };
@@ -245,19 +249,6 @@ const TEMPLATES: Template[] = [
     build: (parentId) => weeklyReviewPage(parentId),
   },
   {
-    key: "wiki-home",
-    category: "notes",
-    get name() {
-      return t("Team wiki home");
-    },
-    icon: "📚",
-    get description() {
-      return t("A start page with sections to link your pages from.");
-    },
-    kind: "page",
-    build: (parentId) => wikiHomePage(parentId),
-  },
-  {
     key: "tasks",
     category: "work",
     get name() {
@@ -377,25 +368,6 @@ const TEMPLATES: Template[] = [
     build: (parentId) => authorityPage(parentId),
   },
   {
-    key: "debts",
-    category: "overview",
-    get name() {
-      return t("Debts and claims");
-    },
-    icon: "💶",
-    get description() {
-      return t("Whom you owe what and who owes you: each debt with its plan, the instalments a month, when you are debt-free — your cases' debts come by themselves.");
-    },
-    kind: "database",
-    offered: () => isInstalled("finances"),
-    // One for all: the Finances plugin's database (made once) — the template opens it.
-    build: async () => {
-      const id = await (await import("@/plugins/finances/database")).ensureDebtsDatabase();
-      if (!id) throw new Error(t("The debts database couldn't be made."));
-      return id;
-    },
-  },
-  {
     key: "installment-plan",
     category: "work",
     offered: () => !isInstalled("finances"),
@@ -424,22 +396,125 @@ const TEMPLATES: Template[] = [
   },
 ];
 
+/** The built-in templates offered now (the featured first, in their order) and the plugins' packages — each with what makes it. */
+function builtins(): (TemplateMeta & { build: (parentId: number | null) => number })[] {
+  return [
+    ...TEMPLATES.filter((x) => x.offered?.() ?? true)
+      .map(({ key, name, icon, description, kind, category, build }) => ({ key, name, icon, description, kind, category, build, featured: FEATURED.includes(key) }))
+      .sort((a, b) => rank(a.key) - rank(b.key)),
+    ...listPackages().map((p) => ({ key: `pkg:${p.id}`, name: t(p.name), icon: p.icon, description: p.description ? t(p.description) : "", kind: "page" as const, category: "packages" as const, build: (parentId: number | null) => installPackage(p.pkg, parentId).rootId })),
+  ];
+}
+const builtin = (key: string) => {
+  const b = builtins().find((x) => x.key === key);
+  if (!b) throw new Error(t("There is no such template."));
+  return b;
+};
+/** Your own template's page (key "page:<id>"), or null. */
+const ownId = (key: string): number | null => (/^page:\d+$/.test(key) ? Number(key.slice(5)) : null);
+
+/**
+ * Every template — the built-in ones, the plugins' packages and your own (the pages marked a template): what the Templates in the
+ * tree show and what every "new from a template" offers.
+ */
 export const templateMetas = (): TemplateMeta[] => [
-  ...TEMPLATES.filter((x) => x.offered?.() ?? true)
-    .map(({ key, name, icon, description, kind, category }): TemplateMeta => ({ key, name, icon, description, kind, category, featured: FEATURED.includes(key), made: madeOf(key) }))
-    // The featured first, in their order; the rest as they are.
-    .sort((a, b) => rank(a.key) - rank(b.key)),
-  ...listPackages().map((p): TemplateMeta => ({ key: `pkg:${p.id}`, name: t(p.name), icon: p.icon, description: p.description ? t(p.description) : "", kind: "page", category: "packages" })),
+  ...builtins().map(({ key, name, icon, description, kind, category, featured }): TemplateMeta => ({ key, name, icon, description, kind, category, featured, ...(category === "packages" ? {} : { made: madeOf(key) }) })),
+  ...templateTree()
+    .filter((x) => x.template)
+    .map((x): TemplateMeta => ({ key: `page:${x.id}`, name: x.title || t("Untitled"), icon: x.icon || kindIcon(x.kind), description: "", kind: x.kind === "database" ? "database" : "page", category: "mine" })),
 ];
 
-/** A template made as a new page (a database: with what belongs to it). Returns the new page's id. */
+/** A page copied with what is below it — as a template of yours or as a page made of one; its routines come along. */
+function copyTree(id: number, parentId: number | null, template: boolean): number {
+  return duplicatePage(id, {
+    parentId,
+    suffix: false,
+    template,
+    onCopy: (from, to) => {
+      const r = getRoutine(from);
+      if (r) createRoutine(to, r.kind, { enabled: r.enabled, triggers: r.triggers, permissions: r.permissions, steps: r.steps, provider: r.provider });
+    },
+  });
+}
+
+/** A template made as a new page (a database: with what belongs to it) — a built-in one or one of yours. Returns the new page's id. */
 export async function fromTemplate(key: string, parentId: number | null): Promise<number> {
-  const pkg = key.startsWith("pkg:") ? listPackages().find((p) => `pkg:${p.id}` === key) : undefined;
-  if (pkg) return installPackage(pkg.pkg, parentId).rootId;
-  const t = TEMPLATES.find((x) => x.key === key);
-  if (!t) throw new Error("No such template.");
-  const id = await t.build(parentId);
-  const made = getPref<Record<string, number[]>>(MADE, {});
-  setPref(MADE, { ...made, [key]: [...(made[key] ?? []).filter((x) => x !== id), id].slice(-10) });
+  const own = ownId(key);
+  if (own !== null) {
+    if (!inTemplates(own)) throw new Error(t("There is no such template."));
+    return copyTree(own, parentId, false);
+  }
+  const id = builtin(key).build(parentId);
+  if (!key.startsWith("pkg:")) {
+    const made = getPref<Record<string, number[]>>(MADE, {});
+    setPref(MADE, { ...made, [key]: [...(made[key] ?? []).filter((x) => x !== id), id].slice(-10) });
+  }
   return id;
+}
+
+export type TemplatePreview = Omit<TemplateMeta, "made"> & {
+  /** The page it makes: its title, icon, text and width; what is below it; the databases it makes (the page itself or below). */
+  page: { title: string; icon: string; content: unknown; fullWidth: boolean };
+  children: { title: string; icon: string; kind: string }[];
+  databases: { title: string; icon: string; properties: { name: string; type: string }[]; views: string[]; rows: number }[];
+};
+
+/**
+ * A built-in template as it would be made, without keeping anything: it is made inside a savepoint (its rows' events quiet), read,
+ * and rolled back. Synchronous: nothing else writes while it runs.
+ */
+export function previewTemplate(key: string): TemplatePreview {
+  const { name, icon, description, kind, category, build: make } = builtin(key);
+  const meta = { key, name, icon, description, kind, category };
+  const sqlite = getSqlite();
+  sqlite.exec("savepoint zeff_template_preview");
+  try {
+    return quietly(() => {
+      const before = (sqlite.prepare("select coalesce(max(id), 0) n from ws_pages").get() as { n: number }).n;
+      const root = getPage(make(null))!;
+      const made = (sqlite.prepare("select id from ws_pages where id > ? and db_id is null order by id").all(before) as { id: number }[]).map((r) => getPage(r.id)!);
+      const databases = made
+        .filter((p) => p.kind === "database" && p.schema)
+        .map((p) => ({ title: p.title, icon: p.icon, properties: p.schema!.properties.map((x) => ({ name: x.name, type: x.type })), views: p.schema!.views.map((v) => v.name), rows: rawRows(p.id).length }));
+      return {
+        ...meta,
+        page: { title: root.title, icon: root.icon, content: root.content, fullWidth: root.fullWidth },
+        children: made.filter((p) => p.parentId === root.id).map((p) => ({ title: p.title, icon: p.icon, kind: p.kind })),
+        databases,
+      };
+    });
+  } finally {
+    sqlite.exec("rollback to zeff_template_preview");
+    sqlite.exec("release zeff_template_preview");
+  }
+}
+
+/** A built-in template made as a template of yours (at the top of your templates; what it makes beside its page kept together under one). Returns its page. */
+export function duplicateBuiltin(key: string): number {
+  const b = builtin(key);
+  const sqlite = getSqlite();
+  const before = (sqlite.prepare("select coalesce(max(id), 0) n from ws_pages").get() as { n: number }).n;
+  let root = b.build(null);
+  const tops = (sqlite.prepare("select id from ws_pages where id > ? and db_id is null and parent_id is null order by id").all(before) as { id: number }[]).map((r) => r.id);
+  if (tops.length > 1) {
+    root = createPage({ title: b.name, icon: b.icon });
+    for (const id of tops) movePage(id, root);
+  }
+  updatePage(root, { template: true });
+  return root;
+}
+
+/** A page copied into your templates (the page itself stays). Returns the template's page. */
+export const saveAsTemplate = (id: number): number => copyTree(id, null, true);
+
+/**
+ * A page moved into your templates (to their top) — or out of them: back into the page tree (a page below a template: to the top of it).
+ */
+export function setTemplate(id: number, on: boolean): void {
+  const p = getPage(id);
+  if (!p || p.dbId) throw new Error(t("This page is gone."));
+  if (on) {
+    if (!inTemplates(id)) movePage(id, null);
+  } else if (p.parentId !== null && inTemplates(p.parentId)) movePage(id, null);
+  updatePage(id, { template: on });
 }
