@@ -5,26 +5,36 @@ import { setupTempData } from "./helpers";
 setupTempData();
 
 /**
- * Notes and Keep are two plugins: Notes is the note boards in the Workspace (works alone, on by default), Google Keep only the sync
- * with Google's notes (needs Notes).
+ * Notes are the Workspace's now (the Notes plugin is retired, its id answers as the Workspace); Google Keep is a part of the
+ * Workspace — only the sync with Google's notes, off until you install it.
  */
-test("Keep builds on Notes; Notes is on without Keep", async () => {
+test("Keep is a part of the Workspace; the Workspace is on without Keep", async () => {
   const { pluginById } = await import("@/plugins/catalog");
   const { isInstalled, setInstalled } = await import("@/plugins/state");
-  assert.equal(pluginById("notes").defaultInstalled, true);
-  assert.deepEqual(pluginById("keep").dependsOn, ["notes"]);
-  assert.equal(pluginById("keep").extensions, undefined, "the extensions are Notes'");
-  assert.ok(pluginById("notes").extensions!.some((e) => e.key === "note-review"));
+  assert.equal(pluginById("notes").id, "workspace", "the retired id answers as the Workspace");
+  assert.equal(pluginById("workspace").defaultInstalled, true);
+  assert.deepEqual(pluginById("keep").dependsOn, ["workspace"]);
+  assert.equal(pluginById("keep").extensions, undefined, "the note extensions are the Workspace's");
+  assert.ok(pluginById("workspace").extensions!.some((e) => e.key === "note-review"));
   setInstalled("workspace", true);
   assert.equal(isInstalled("notes"), true);
   assert.equal(isInstalled("keep"), false, "Google Keep stays off until you install it");
 });
 
-test("with Notes off, own boards are not in the briefing", async () => {
+test("switching a retired id changes nothing: the Workspace stays", async () => {
+  const { isInstalled, setInstalled } = await import("@/plugins/state");
+  setInstalled("workspace", true);
+  assert.deepEqual(setInstalled("notes", false), []);
+  assert.deepEqual(setInstalled("kanban", false), []);
+  assert.equal(isInstalled("workspace"), true);
+});
+
+test("with the Workspace off, own boards are not in the briefing", async () => {
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("keep", false);
-  setInstalled("notes", false);
+  setInstalled("workspace", false);
   const { notesInLage } = await import("@/plugins/keep/lage");
   assert.equal(notesInLage(), false);
-  setInstalled("notes", true);
+  setInstalled("workspace", true);
+  assert.equal(notesInLage(), true);
 });
