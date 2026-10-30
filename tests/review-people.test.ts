@@ -44,7 +44,7 @@ test("People's queue: identity suggestions, proposed claims and links, claims to
   const claim = of("people-claim").find((i) => i.title.includes("Leitet das QA-Team"))!;
   assert.match(claim.title, /^Julia Freidank/);
   assert.equal(claim.detail, "„Julia leitet das QA-Team“");
-  assert.equal(claim.href, `/personen/${julia}`);
+  assert.equal(claim.href, (await import("@/plugins/workspace/people-database")).personHref(julia)); // (the person's page, not the /personen redirect)
   assert.deepEqual(claim.actions.map((a) => [a.id, !!a.primary]), [["yes", true], ["no", false]]);
   assert.match(of("people-link")[0].title, /works-with Rico Clemen/);
   assert.match(of("people-stale")[0].title, /Teamleitung Frontend/);

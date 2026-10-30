@@ -60,7 +60,7 @@ test("trust: a value seen again is confirmed, another one for the same thing is 
   assert.match(item!.detail ?? "", /mail:a/);
   assert.match(item!.detail ?? "", /doc:7/);
   assert.deepEqual(item!.actions.map((x) => x.id), ["yes", "no", "both"]);
-  assert.equal(item!.href, "/personen/900");
+  assert.equal(item!.href, (await import("@/plugins/workspace/people-database")).personHref(900)); // (the person's page, not the /personen redirect)
 
   // Seen again, the disputed one stays disputed: no second item.
   assert.equal(recordFact({ subject: "person:900", attribute: "iban", value: "DE89370400440532013000", writer: "test", sourceRef: "doc:8" }).outcome, "disputed");

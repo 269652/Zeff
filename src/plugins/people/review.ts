@@ -6,6 +6,7 @@ import { pendingSuggestions } from "./identity";
 import { dateKindLabels, dateText } from "./shared";
 import { listPeople, proposedDates } from "./store";
 import { linkText, peopleTool, suggestionText, type PeopleTool } from "./tools";
+import { peopleHome, personHref } from "@/plugins/workspace/people-database";
 
 /**
  * What People has you confirm, for the review queue: the names that may be one person, what the AI read about
@@ -14,7 +15,8 @@ import { linkText, peopleTool, suggestionText, type PeopleTool } from "./tools";
  */
 
 const verdict = (yes = t("Right"), no = t("Wrong")): ReviewAction[] => [{ id: "yes", label: yes, primary: true }, { id: "no", label: no }];
-const profile = (personId: number) => `/personen/${personId}`;
+// (The person's page in the people database: /personen/<id> only redirects there.)
+const profile = (personId: number) => personHref(personId);
 
 /** The tool a button runs: yes or no, nothing else. */
 function decide(action: string, yes: PeopleTool, no: PeopleTool): Promise<{ message?: string }> {
@@ -36,7 +38,7 @@ export const PEOPLE_REVIEW: ReviewSource[] = [
         title: suggestionText(s, (id) => names.get(id)),
         detail: s.evidence,
         confidence: s.confidence,
-        href: s.kind === "person" ? "/personen" : profile(s.personId),
+        href: s.kind === "person" ? peopleHome() : profile(s.personId),
         actions: verdict(),
       }));
     },
