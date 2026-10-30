@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
 import { useCallback, useEffect, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
@@ -31,7 +32,7 @@ export function HistoryList() {
   };
 
   if (!entries) return <p className="text-sm text-zinc-400">…</p>;
-  if (!entries.length) return <p className="text-sm text-zinc-500">{t("Nothing yet — the AI's answers, automation runs and bulk edits show up here.")}</p>;
+  if (!entries.length) return <EmptyState>{t("Nothing yet — the AI's answers, automation runs and bulk edits show up here.")}</EmptyState>;
   return (
     <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
       {entries.map((e) => (

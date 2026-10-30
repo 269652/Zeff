@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import Link from "next/link";
 import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
@@ -23,6 +24,9 @@ export default async function AccountsPage() {
   return (
     <div className="page">
       <div className="page-aside">
+        <Link href="/settings" className="text-sm text-zinc-500 hover:underline">
+          ← {t("Settings")}
+        </Link>
         <h1 className="text-lg font-semibold">{t("Accounts")}</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
           {t(

@@ -60,6 +60,7 @@ export function SiteHeader({
   apps = [],
   pluginGroups = [],
   settingsGroup,
+  settingsSections = [],
   hidden = [],
   order = [],
   tabs = [],
@@ -81,6 +82,8 @@ export function SiteHeader({
   pluginGroups?: MenuGroup[];
   /** Settings, folded open: Zeff's own and every installed plugin's settings page. */
   settingsGroup?: MenuGroup;
+  /** The settings pages' sections (their tables of contents): found by the search, each with its page's name. */
+  settingsSections?: MenuLink[];
   tabs?: HeaderTab[];
   account?: { current: AccountChip; list: AccountChip[] };
 }) {
@@ -93,7 +96,9 @@ export function SiteHeader({
   // The search finds every page the menu has (the hidden ones too) — each once (a section's link counts as its page).
   const palettePages = [...apps, ...pluginGroups.flatMap((g) => g.items), ...(settingsGroup?.items ?? []), ...menuEntries(t)]
     .filter((l, i, all) => all.findIndex((x) => x.href.split("#")[0] === l.href.split("#")[0]) === i)
-    .map((l) => ({ id: l.href, label: l.label, hint: l.hint, href: l.href, group: "Pages" }));
+    .map((l) => ({ id: l.href, label: l.label, hint: l.hint, href: l.href, group: "Pages" }))
+    // …and each settings section by its own name (after the pages: a page's own link comes first).
+    .concat(settingsSections.filter((l, i, all) => all.findIndex((x) => x.href === l.href) === i).map((l) => ({ id: `section:${l.href}`, label: l.label, hint: l.hint ? `${t("Settings")} · ${l.hint}` : t("Settings"), href: l.href, group: "Pages" })));
   const pathname = usePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);

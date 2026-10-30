@@ -422,7 +422,7 @@ export default async function HeutePage({ searchParams }: { searchParams: Promis
 
       {/* 1. Appointments today and tomorrow morning — with whom (prepare). */}
       {appointments.length > 0 && (
-        <Section id="appointments" title={t("Appointments")} count={appointments.length} href={isInstalled("calendar") ? `/kalender?v=day&d=${todayIso}` : "/calendar"}>
+        <Section id="appointments" title={t("Appointments")} count={appointments.length} href={isInstalled("calendar") ? `/kalender?v=day&d=${todayIso}` : isInstalled("outlook-calendar") ? "/calendar" : undefined}>
           {todayAppts.length > 0 && apptList(todayAppts)}
           {tomorrowAppts.length > 0 && (
             <>

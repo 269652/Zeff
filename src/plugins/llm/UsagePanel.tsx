@@ -1,3 +1,4 @@
+import { EmptyState } from "@/components/EmptyState";
 import { revalidatePath } from "next/cache";
 import { t } from "@/lib/i18n/server";
 import { pricesText, setPricesText, usageSummary, type UsageGroup } from "@/lib/ai/usage";
@@ -42,7 +43,7 @@ export function UsagePanel() {
         <p className="max-w-[75ch] text-sm text-zinc-500">{t("Every AI answer of the last 30 days: how many, how many tokens (in → out) and what it cost. A “—” means the backend names no price (a subscription has none per token).")}</p>
       </div>
       {!u.total.calls ? (
-        <p className="text-sm text-zinc-400">{t("Nothing yet — the numbers appear with the next AI answer.")}</p>
+        <EmptyState faint>{t("Nothing yet — the numbers appear with the next AI answer.")}</EmptyState>
       ) : (
         <>
           <p className="text-2xl font-semibold tabular-nums">

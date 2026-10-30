@@ -9,6 +9,8 @@ export default definePlugin({
   category: "app",
   // The place for pages, boards, notes and the data sources (Jira, Google Keep) — Kanban's and Keep's tabs are its now.
   defaultInstalled: true,
+  // Its own settings (under its own name — not only through the Google Keep part).
+  settings: { href: "/workspace/settings/sources", what: "Data sources, outputs, pipelines, the apps that show its databases" },
   tabs: [{ href: "/workspace", label: "Workspace", short: "Space", also: ["/kanban", "/keep"] }],
   routes: ["/workspace", "/api/workspace"],
   actionsOrder: 70,

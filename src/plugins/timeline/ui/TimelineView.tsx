@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
 import { useT } from "@/components/I18nProvider";
 import { byDay, kindIcon, kindLabel, localDay, seenIndex } from "../shared";
 
@@ -28,7 +29,7 @@ function Link({ href, children, className }: { href: string; children: React.Rea
 
 export function TimelineView({ events, lastSeen, compact = false }: { events: ViewEvent[]; lastSeen: string | null; compact?: boolean }) {
   const t = useT();
-  if (!events.length) return <p className="text-sm text-zinc-400">{t("Nothing yet — what happens shows up here after the next sync.")}</p>;
+  if (!events.length) return <EmptyState faint>{t("Nothing yet — what happens shows up here after the next sync.")}</EmptyState>;
   const line = seenIndex(events, lastSeen);
   const firstSeen = line >= 0 ? events[line].id : null;
   const today = localDay(new Date().toISOString());

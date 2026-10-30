@@ -10,7 +10,8 @@ export default definePlugin({
   category: "app",
   defaultInstalled: true,
   dependsOn: ["todos", "llm"],
-  settings: { href: "/repos", what: "The repos the workers work in" },
+  // One settings entry: the Code section of the settings (the repos are a page of its own, in the menu).
+  settings: { href: "/settings/time#work", what: "How the sessions and workers run: permission modes, limits, model, house rules" },
   tabs: [
     { href: "/work", label: "Code", short: "Code" },
   ],

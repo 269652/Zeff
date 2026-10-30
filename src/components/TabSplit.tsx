@@ -10,7 +10,7 @@ import type { HeaderTab } from "./SiteHeader";
 import { useT } from "@/components/I18nProvider";
 import { useDismiss } from "@/components/useDismiss";
 
-// Where you last were under a tab ("/kanban/3", or "/kanban" itself) — kept in this browser.
+// Where you last were under a tab ("/workspace/3", or "/workspace" itself) — kept in this browser.
 const lastKey = (tab: string) => `zeff-tab-last:${tab}`;
 const LAST_EVENT = "zeff-tab-last";
 const subscribeLast = (cb: () => void) => {

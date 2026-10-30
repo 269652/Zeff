@@ -33,6 +33,9 @@ export default async function WorkspaceSettingsPage({ params }: { params: Promis
   return (
     <div className="grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)]">
       <nav className="space-y-0.5" aria-label={t("Workspace settings")}>
+        <Link href="/settings" className="mb-1 block text-sm text-zinc-500 hover:underline">
+          ← {t("Settings")}
+        </Link>
         <h1 className="mb-2 text-lg font-semibold">{t("Workspace settings")}</h1>
         {TABS.map((x) => (
           <Link

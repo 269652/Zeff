@@ -46,6 +46,9 @@ export default async function PluginsPage() {
   return (
     <div className="page">
       <div className="page-aside">
+        <Link href="/settings" className="text-sm text-zinc-500 hover:underline">
+          ← {t("Settings")}
+        </Link>
         <h1 className="text-lg font-semibold">{t("Plugins")}</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">
           {t(

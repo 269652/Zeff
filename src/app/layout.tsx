@@ -10,6 +10,7 @@ import { connection } from "next/server";
 import localFont from "next/font/local";
 import { SiteHeader, type MenuGroup, type MenuLink } from "@/components/SiteHeader";
 import { PLUGINS } from "@/plugins/catalog";
+import { settingsAreas, settingsSections } from "@/lib/settings-areas";
 import { catalogText } from "@/plugins/catalog-text";
 import { installedPlugins } from "@/plugins/state";
 import { allApps, appTabs, getMenuPrefs } from "@/plugins/tabs";
@@ -17,28 +18,18 @@ import { inOrder } from "@/lib/layout-shared";
 import { tabsWithMenu } from "@/plugins/tab-menus";
 import { currentAccount, listAccounts } from "@/db/accounts";
 
-/** Settings in the menu: the general ones, and the settings page of every installed plugin (language bundles: chosen in Settings itself). */
+/** Settings in the menu: its overview, then the areas the Settings hub lists — named alike (lib/settings-areas.ts). */
 const settingsGroup = (): MenuGroup => {
-  const on = installedPlugins();
-  const nav = new Map(PLUGINS.flatMap((p) => (p.nav ?? []).map((n) => [n.href, n] as const)));
-  // (Its overview first: every settings area on one page; then General, AI, Connections — a plugin's settings that are a
-  // section of one of these (LLM → AI, Gmail and Google Drive → Connections) aren't listed again.)
   const items: MenuLink[] = [
     { href: "/settings", label: t("Overview"), hint: t("Every settings area in one place") },
-    { href: "/preferences", label: t("General"), hint: t("Language, lock, backups") },
-    { href: "/settings/ai", label: t("AI"), hint: t("Backends, prompts, AI quality") },
-    { href: "/settings/connections", label: t("Connections"), hint: t("APIs, sign-ins, syncs") },
+    ...settingsAreas()
+      .filter((g) => g.menu)
+      .flatMap((g) => g.areas.map((a) => ({ href: a.href, label: a.label, hint: a.what }))),
   ];
-  if (on.has("todos")) items.push({ href: "/settings/todos", label: t("Todos"), hint: t("The briefing, what a todo shows") });
-  for (const p of PLUGINS) {
-    if (!on.has(p.id) || p.category === "language" || !p.settings) continue;
-    const href = p.settings.href;
-    if (items.some((i) => i.href.split("#")[0] === href.split("#")[0])) continue;
-    const n = nav.get(href);
-    items.push({ href, label: n ? catalogText(t, n.label) : catalogText(t, p.name), hint: catalogText(t, p.settings.what) });
-  }
   return { id: "settings", name: t("Settings"), items };
 };
+/** The settings pages' sections, for the search (each with its page's name). */
+const searchSections = () => settingsSections().map((a) => ({ href: a.href, label: a.label, hint: a.what }));
 /** The installed plugins' menu entries: each plugin's pages and its settings page, under its name (its apps are under "Apps"). */
 const pluginGroups = (): MenuGroup[] => {
   const on = installedPlugins();
@@ -128,6 +119,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             apps={allApps().map((a) => ({ href: a.href, label: a.label, hint: a.hint, place: a.place }))}
             pluginGroups={pluginGroups()}
             settingsGroup={settingsGroup()}
+            settingsSections={searchSections()}
             hidden={getMenuPrefs().hidden}
             order={getMenuPrefs().order}
             tabs={headerTabs()}

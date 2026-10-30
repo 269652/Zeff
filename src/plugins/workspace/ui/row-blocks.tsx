@@ -1,5 +1,6 @@
 "use client";
 
+import { EmptyState } from "@/components/EmptyState";
 import { mergeAttributes, Node } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import Link from "next/link";
@@ -72,7 +73,7 @@ function ActivityView(p: NodeViewProps) {
         {!data ? (
           <p className="text-sm text-zinc-400">…</p>
         ) : !data.length ? (
-          <p className="text-sm text-zinc-400">{t("Nothing yet — changes to this entry show up here.")}</p>
+          <EmptyState faint>{t("Nothing yet — changes to this entry show up here.")}</EmptyState>
         ) : (
           <ol className="space-y-1.5 text-sm">
             {data.map((l) => {
