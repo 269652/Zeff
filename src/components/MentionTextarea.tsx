@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { searchPeopleAction } from "@/plugins/todos/server-actions";
+import { searchPeopleAction } from "@/plugins/people/server-actions";
 import { searchDocumentsAction, type DocHit } from "@/plugins/documents/server-actions";
 import { KIND_ICONS, sizeText, type DocKind } from "@/plugins/documents/shared";
 import { useT } from "@/components/I18nProvider";

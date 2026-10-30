@@ -226,7 +226,7 @@ export async function mentionSearchAction(q: string): Promise<MentionItem[]> {
     if (isInstalled("people")) {
       // The circles (Familie, Freunde, Arbeit, Behörden & Gläubiger, Dienste): a whole group at once — Schulden(@Freunde).
       for (const c of (await import("@/plugins/people/formulas")).circlesFor(w)) items.push({ kind: "circle", ref: c.key, label: c.label, hint: c.count === 1 ? t("Circle · 1 person") : t("Circle · {n} people", { n: c.count }), icon: "👥", href: "" });
-      const { searchPeopleAction } = await import("@/plugins/todos/server-actions");
+      const { searchPeopleAction } = await import("@/plugins/people/server-actions");
       for (const p of await searchPeopleAction(w)) items.push({ kind: "person", ref: String(p.id), label: p.name, hint: t("Person"), icon: "👤", href: (await import("./people-database")).personHref(p.id) });
     }
     if (isInstalled("todos")) {

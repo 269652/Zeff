@@ -1,6 +1,6 @@
 "use client";
 
-import { useId, useRef, useState, useTransition } from "react";
+import { useId, useState } from "react";
 import { searchGitlabItemsAction } from "@/plugins/gitlab/server-actions";
 import { searchMailsAction } from "@/app/actions";
 import { searchTeamsMessagesAction } from "@/plugins/teams/server-actions";
@@ -14,6 +14,7 @@ import { SearchIcon } from "./icons";
 import { formatDateTime } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
+import { useComboboxKeys, useLatestSearch } from "@/components/Combobox";
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");
 
@@ -72,45 +73,48 @@ function Hit({ p, linked }: { p: Picked; linked: boolean }) {
 export function SourcePicker({ linked, onPick }: { linked: Set<string>; onPick: (p: Picked) => void }) {
   const t = useT();
   const id = useId();
-  const listId = `${id}-list`;
   const [q, setQ] = useState("");
-  const [hits, setHits] = useState<Picked[] | null>(null);
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
-  const [pending, start] = useTransition();
-  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  const search = (text: string) => {
-    if (timer.current) clearTimeout(timer.current);
-    timer.current = setTimeout(
-      () =>
-        start(async () => {
-          // How many of each comes from the server: a few of every kind for words, a pasted link's all.
-          const [teams, gitlab, todos, mails] = await Promise.all([
-            searchTeamsMessagesAction(text),
-            searchGitlabItemsAction(text),
-            isLink(text) ? [] : searchTodosAction(text),
-            isLink(text) ? [] : searchMailsAction(text),
-          ]);
-          setHits([
-            // Done todos first: the work an entry is about.
-            ...todos.map((todo): Picked => ({ source: "todo", todo, url: todoLink(todo.id) })),
-            ...teams.map((m): Picked => ({ source: "teams", teams: m, url: m.link })),
-            ...mails.map((m): Picked => ({ source: "mail", mail: m, url: mailLink(m.key) })),
-            ...gitlab.map((g): Picked => ({ source: "gitlab", gitlab: g, url: g.url })),
-          ]);
-          setActive(0);
-          setOpen(true);
-        }),
-      250,
-    );
-  };
+  // (Answers that come back after a newer search are dropped.)
+  const {
+    result: hits,
+    setResult: setHits,
+    search,
+    busy: pending,
+  } = useLatestSearch<Picked[] | null>(
+    async (text) => {
+      // How many of each comes from the server: a few of every kind for words, a pasted link's all.
+      const [teams, gitlab, todos, mails] = await Promise.all([
+        searchTeamsMessagesAction(text),
+        searchGitlabItemsAction(text),
+        isLink(text) ? [] : searchTodosAction(text),
+        isLink(text) ? [] : searchMailsAction(text),
+      ]);
+      return [
+        // Done todos first: the work an entry is about.
+        ...todos.map((todo): Picked => ({ source: "todo", todo, url: todoLink(todo.id) })),
+        ...teams.map((m): Picked => ({ source: "teams", teams: m, url: m.link })),
+        ...mails.map((m): Picked => ({ source: "mail", mail: m, url: mailLink(m.key) })),
+        ...gitlab.map((g): Picked => ({ source: "gitlab", gitlab: g, url: g.url })),
+      ];
+    },
+    null,
+    {
+      delay: 250,
+      onResult: () => {
+        keys.reset();
+        setOpen(true);
+      },
+    },
+  );
   const pick = (p: Picked) => {
     if (!linked.has(p.url)) onPick(p);
     setQ("");
     setOpen(false);
     setHits(null);
   };
+  const keys = useComboboxKeys({ count: hits?.length ?? 0, open, setOpen, onPick: (i) => hits && pick(hits[i]), wrap: true, start: 0, ignoreClosed: true });
+  const { active, setActive, listId } = keys;
 
   // Sections in the order the hits come (so ↑/↓ follows what's shown): todos, Teams, then GitLab
   // by kind — or, for a pasted link, what it points at with its merge request's family, together.
@@ -149,25 +153,14 @@ export function SourcePicker({ linked, onPick }: { linked: Set<string>; onPick: 
         aria-expanded={open}
         aria-controls={listId}
         aria-autocomplete="list"
-        aria-activedescendant={open && hits?.length ? `${listId}-${active}` : undefined}
+        aria-activedescendant={keys.activeDescendant}
         onChange={(e) => {
           setQ(e.target.value);
           search(e.target.value);
         }}
         onFocus={() => (hits ? setOpen(true) : search(q))}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
-        onKeyDown={(e) => {
-          if (!open || !hits?.length) return;
-          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-            e.preventDefault();
-            setActive((a) => (a + (e.key === "ArrowDown" ? 1 : hits.length - 1)) % hits.length);
-          } else if (e.key === "Enter") {
-            e.preventDefault();
-            pick(hits[active]);
-          } else if (e.key === "Escape") {
-            setOpen(false);
-          }
-        }}
+        onKeyDown={keys.onKeyDown}
       />
       {pending && <span className="absolute top-2 right-3 text-xs text-zinc-400">…</span>}
       {open && hits && (
@@ -197,7 +190,7 @@ export function SourcePicker({ linked, onPick }: { linked: Set<string>; onPick: 
                       {g.items.map(({ p, i }) => (
                         <li
                           key={p.url}
-                          id={`${listId}-${i}`}
+                          id={keys.optionId(i)}
                           role="option"
                           aria-selected={i === active}
                           aria-disabled={linked.has(p.url)}

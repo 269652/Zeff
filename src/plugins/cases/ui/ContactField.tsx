@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
+import { useComboboxKeys } from "@/components/Combobox";
 
 /**
  * A contact chosen by typing (an autocomplete): the contacts whose name has what you typed — people and organisations, the ones
@@ -13,11 +14,9 @@ type Kind = ContactOption["kind"];
 
 export function ContactField({ contacts, value, onPick, onNew, label, placeholder }: { contacts: ContactOption[]; value: number | null; onPick: (id: number | null) => void; onNew: (name: string, kind: Kind) => void; label: string; placeholder?: string }) {
   const t = useT();
-  const list = useId();
   const chosen = contacts.find((c) => c.id === value) ?? null;
   const [q, setQ] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
-  const [at, setAt] = useState(0);
   const input = useRef<HTMLInputElement>(null);
   const text = q ?? chosen?.name ?? "";
   const words = text.trim().toLowerCase();
@@ -39,6 +38,8 @@ export function ContactField({ contacts, value, onPick, onNew, label, placeholde
     setQ(null);
     setOpen(false);
   };
+  const keys = useComboboxKeys({ count: options.length, open, setOpen, onPick: choose, wrap: true, start: 0, onEscape: () => setQ(null) });
+  const { active: at, setActive: setAt, listId: list } = keys;
   return (
     <div className="relative">
       <div className="flex items-center gap-1">
@@ -49,29 +50,14 @@ export function ContactField({ contacts, value, onPick, onNew, label, placeholde
           aria-label={label}
           aria-expanded={open}
           aria-controls={list}
+          aria-activedescendant={keys.activeDescendant}
           aria-autocomplete="list"
           value={text}
           placeholder={placeholder ?? t("Type a name…")}
           onFocus={() => setOpen(true)}
           onBlur={() => setTimeout(() => (setOpen(false), setQ(null)), 120)}
           onChange={(e) => (setQ(e.target.value), setOpen(true), setAt(0))}
-          onKeyDown={(e) => {
-            const n = Math.max(1, options.length);
-            if (e.key === "ArrowDown") {
-              e.preventDefault();
-              setOpen(true);
-              setAt((at + 1) % n);
-            } else if (e.key === "ArrowUp") {
-              e.preventDefault();
-              setAt((at - 1 + n) % n);
-            } else if (e.key === "Enter" && open && options.length) {
-              e.preventDefault();
-              choose(at);
-            } else if (e.key === "Escape") {
-              setOpen(false);
-              setQ(null);
-            }
-          }}
+          onKeyDown={keys.onKeyDown}
         />
         {chosen && (
           <button type="button" className="icon-btn" title={t("Remove")} aria-label={t("Remove")} onClick={() => (onPick(null), setQ(""), input.current?.focus())}>
@@ -84,6 +70,7 @@ export function ContactField({ contacts, value, onPick, onNew, label, placeholde
           {options.map((o, i) => (
             <li
               key={o.type === "pick" ? o.c.id : `new-${o.k}`}
+              id={keys.optionId(i)}
               role="option"
               aria-selected={i === at}
               className={`flex cursor-pointer items-center gap-2 px-3 py-1.5 ${i === at ? "bg-zinc-100 dark:bg-zinc-800" : ""}`}

@@ -7,11 +7,12 @@ import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } fro
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { widgetActAction, widgetCatalogAction, widgetDataAction } from "../actions";
-import { searchPeopleAction } from "@/plugins/todos/server-actions";
+import { searchPeopleAction } from "@/plugins/people/server-actions";
 import type { CatalogWidget } from "../widgets";
 import type { WidgetData, WidgetItem, WidgetTile } from "../widget-point";
 import { WS_CHANGED } from "./ChatPanel";
 import { TemplateBody } from "./card-template";
+import { useComboboxKeys, useLatestSearch } from "@/components/Combobox";
 
 /**
  * A widget a plugin supplies, as a block of a page (the dashboard is a page of them): live data with an action right there. The plugin
@@ -287,22 +288,14 @@ function Picker({ defs, pick }: { defs: CatalogWidget[]; pick: (id: string) => v
 
 /** A person's name with suggestions from the people as you type — the one picked is kept by id (typed freely: by name). */
 function PersonInput({ value, onChange }: { value: string; onChange: (name: string, id?: number) => void }) {
-  const [hits, setHits] = useState<{ id: number; name: string }[]>([]);
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
-  const seq = useRef(0);
-  const search = (q: string) => {
-    const n = ++seq.current;
-    void searchPeopleAction(q).then((r) => {
-      if (n !== seq.current) return;
-      setHits(r);
-      setActive(0);
-    });
-  };
+  const { result: hits, search } = useLatestSearch(searchPeopleAction, [], { onResult: () => keys.reset() });
   const pick = (h: { id: number; name: string }) => {
     onChange(h.name, h.id);
     setOpen(false);
   };
+  const keys = useComboboxKeys({ count: hits.length, open, setOpen, onPick: (i) => pick(hits[i]), wrap: true, tab: true, start: 0, ignoreClosed: true });
+  const { active, setActive } = keys;
   return (
     <span className="relative">
       <input
@@ -310,6 +303,8 @@ function PersonInput({ value, onChange }: { value: string; onChange: (name: stri
         value={value}
         role="combobox"
         aria-expanded={open}
+        aria-controls={keys.listId}
+        aria-activedescendant={keys.activeDescendant}
         aria-autocomplete="list"
         onFocus={() => {
           setOpen(true);
@@ -321,23 +316,12 @@ function PersonInput({ value, onChange }: { value: string; onChange: (name: stri
           setOpen(true);
           search(e.target.value);
         }}
-        onKeyDown={(e) => {
-          if (!open || !hits.length) return;
-          if (e.key === "ArrowDown" || e.key === "ArrowUp") {
-            e.preventDefault();
-            setActive((a) => (a + (e.key === "ArrowDown" ? 1 : hits.length - 1)) % hits.length);
-          } else if (e.key === "Enter" || e.key === "Tab") {
-            if (hits[active]) {
-              e.preventDefault();
-              pick(hits[active]);
-            }
-          } else if (e.key === "Escape") setOpen(false);
-        }}
+        onKeyDown={keys.onKeyDown}
       />
       {open && hits.length > 0 && (
-        <ul role="listbox" className="absolute top-full left-0 z-30 mt-1 max-h-60 w-60 overflow-auto rounded-lg border border-zinc-200 bg-white p-1 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <ul id={keys.listId} role="listbox" className="absolute top-full left-0 z-30 mt-1 max-h-60 w-60 overflow-auto rounded-lg border border-zinc-200 bg-white p-1 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
           {hits.map((h, i) => (
-            <li key={h.id} role="option" aria-selected={i === active}>
+            <li key={h.id} id={keys.optionId(i)} role="option" aria-selected={i === active}>
               <button
                 type="button"
                 className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left ${i === active ? "bg-zinc-100 dark:bg-zinc-800" : "hover:bg-zinc-50 dark:hover:bg-zinc-800/60"}`}

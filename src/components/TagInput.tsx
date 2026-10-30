@@ -7,6 +7,7 @@ import {
   normalizeTagName,
 } from "@/lib/tags-shared";
 import { useT } from "@/components/I18nProvider";
+import { useComboboxKeys } from "@/components/Combobox";
 
 /**
  * A description field with #tag autocomplete. Typing `#` shows a popup of
@@ -48,7 +49,6 @@ export function TagInput({
   };
   const auto = new Set(autoTags.map((t) => t.toLowerCase()));
   const [query, setQuery] = useState<{ text: string; start: number } | null>(null);
-  const [active, setActive] = useState(0);
   const ref = useRef<HTMLTextAreaElement>(null);
 
   const lower = new Set(tags.map((t) => t.toLowerCase()));
@@ -67,7 +67,7 @@ export function TagInput({
   function sync(el: HTMLTextAreaElement) {
     setDescription(el.value);
     setQuery(hashtagAtCaret(el.value, el.selectionStart ?? el.value.length));
-    setActive(0);
+    keys.reset();
   }
 
   function addTag(raw: string) {
@@ -95,21 +95,9 @@ export function TagInput({
     });
   }
 
-  function onKeyDown(e: React.KeyboardEvent<HTMLTextAreaElement>) {
-    if (!query || options.length === 0) return;
-    if (e.key === "ArrowDown") {
-      e.preventDefault();
-      setActive((a) => (a + 1) % options.length);
-    } else if (e.key === "ArrowUp") {
-      e.preventDefault();
-      setActive((a) => (a - 1 + options.length) % options.length);
-    } else if (e.key === "Enter" || e.key === "Tab") {
-      e.preventDefault();
-      confirmAt(active);
-    } else if (e.key === "Escape") {
-      setQuery(null);
-    }
-  }
+  // (With no popup the keys are the text area's own.)
+  const keys = useComboboxKeys({ count: options.length, open: !!query && options.length > 0, onPick: confirmAt, wrap: true, tab: true, start: 0, ignoreClosed: true, onEscape: () => setQuery(null) });
+  const { active } = keys;
 
   return (
     <div className="relative">
@@ -146,17 +134,22 @@ export function TagInput({
         value={description}
         onChange={(e) => sync(e.currentTarget)}
         onClick={(e) => setQuery(hashtagAtCaret(e.currentTarget.value, e.currentTarget.selectionStart ?? 0))}
-        onKeyDown={onKeyDown}
+        onKeyDown={keys.onKeyDown}
+        role="combobox"
+        aria-expanded={!!query && options.length > 0}
+        aria-controls={keys.listId}
+        aria-activedescendant={keys.activeDescendant}
+        aria-autocomplete="list"
         onBlur={() => setTimeout(() => setQuery(null), 150)}
       />
 
       {query && options.length > 0 && (
-        <ul className="absolute z-20 mt-1 max-h-56 w-64 overflow-auto rounded-md border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+        <ul id={keys.listId} role="listbox" className="absolute z-20 mt-1 max-h-56 w-64 overflow-auto rounded-md border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
           {options.map((opt, i) => {
             const creating = opt.startsWith("__create__:");
             const tag = creating ? opt.slice("__create__:".length) : opt;
             return (
-              <li key={opt}>
+              <li key={opt} id={keys.optionId(i)} role="option" aria-selected={i === active}>
                 <button
                   type="button"
                   className={`flex w-full items-center gap-2 px-3 py-1.5 text-left ${

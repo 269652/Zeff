@@ -1,7 +1,8 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
+import { useComboboxKeys } from "@/components/Combobox";
 
 type TodoOption = { id: number; ref: string; text: string };
 
@@ -11,10 +12,8 @@ type TodoOption = { id: number; ref: string; text: string };
  */
 export function TodoPicker({ todos, onPick, disabled = false }: { todos: TodoOption[]; onPick: (todoId: number) => void; disabled?: boolean }) {
   const t = useT();
-  const listId = useId();
   const [q, setQ] = useState("");
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(0);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const words = q.trim().toLowerCase().split(/\s+/).filter(Boolean);
@@ -23,9 +22,11 @@ export function TodoPicker({ todos, onPick, disabled = false }: { todos: TodoOpt
   const pick = (x: TodoOption) => {
     setQ("");
     setOpen(false);
-    setActive(0);
+    keys.reset();
     onPick(x.id);
   };
+  const keys = useComboboxKeys({ count: shown.length, open, setOpen, start: 0, onPick: (i) => pick(shown[i]) });
+  const { active, setActive, listId } = keys;
 
   return (
     <div className="relative">
@@ -34,6 +35,7 @@ export function TodoPicker({ todos, onPick, disabled = false }: { todos: TodoOpt
         role="combobox"
         aria-expanded={open}
         aria-controls={listId}
+        aria-activedescendant={keys.activeDescendant}
         aria-autocomplete="list"
         aria-label={t("Attach to a todo")}
         autoComplete="off"
@@ -44,27 +46,13 @@ export function TodoPicker({ todos, onPick, disabled = false }: { todos: TodoOpt
         onChange={(e) => {
           setQ(e.target.value);
           setOpen(true);
-          setActive(0);
+          keys.reset();
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => {
           closeTimer.current = setTimeout(() => setOpen(false), 150); // let a click land first
         }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setOpen(true);
-            setActive((a) => Math.min(a + 1, shown.length - 1));
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setActive((a) => Math.max(a - 1, 0));
-          } else if (e.key === "Enter" && open && shown[active]) {
-            e.preventDefault();
-            pick(shown[active]);
-          } else if (e.key === "Escape") {
-            setOpen(false);
-          }
-        }}
+        onKeyDown={keys.onKeyDown}
       />
       {open && (
         <ul
@@ -81,6 +69,7 @@ export function TodoPicker({ todos, onPick, disabled = false }: { todos: TodoOpt
           {shown.map((x, i) => (
             <li
               key={x.id}
+              id={keys.optionId(i)}
               role="option"
               aria-selected={i === active}
               className={`flex cursor-pointer items-baseline gap-2 px-3 py-1.5 text-xs ${i === active ? "bg-indigo-50 dark:bg-indigo-950/60" : "hover:bg-zinc-50 dark:hover:bg-zinc-800"}`}

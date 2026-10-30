@@ -15,6 +15,25 @@ function guard(): void {
   if (!isInstalled("people")) throw new Error(t("The People plugin is not installed (Menu → Plugins)."));
 }
 
+/** People for @-tagging (the People plugin): by name, alias or Jira username — with their Jira account, if linked. */
+export async function searchPeopleAction(q: string): Promise<{ id: number; name: string; jira: string | null }[]> {
+  try {
+    if (!isInstalled("people")) return [];
+    const { listPeople } = await import("./store");
+    // Jira users Zeff knows by name are tied to the profiles first (so "no Jira account" is true).
+    (await import("./accounts")).linkJiraAccounts();
+    const w = String(q ?? "").trim().toLowerCase();
+    return listPeople()
+      .map((p) => ({ p, forms: [p.name, ...p.aliases, ...p.accounts.map((a) => a.value)].map((f) => f.toLowerCase()) }))
+      .filter(({ forms }) => !w || forms.some((f) => f.startsWith(w) || f.split(/\s+/).some((x) => x.startsWith(w))))
+      .sort((a, b) => Number(b.forms.some((f) => f.startsWith(w))) - Number(a.forms.some((f) => f.startsWith(w))) || Number(b.p.starred) - Number(a.p.starred))
+      .slice(0, 8)
+      .map(({ p }) => ({ id: p.id, name: p.name, jira: p.accounts.find((a) => a.kind === "jira")?.value ?? null }));
+  } catch {
+    return [];
+  }
+}
+
 /** Who to tag in a note on this todo: the people linked to its ticket and to what the note is about — not those already tagged. */
 export async function suggestTagsAction(todoId: number, text: string): Promise<{ id: number; name: string; why: string }[]> {
   if (!isInstalled("people")) return [];
