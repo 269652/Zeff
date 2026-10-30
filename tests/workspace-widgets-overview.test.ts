@@ -98,7 +98,7 @@ test("database widget: a database drawn as cards by its view's template, the vie
   assert.equal(plain.kind, "cards");
 });
 
-test("the Ticket cockpit template: tickets joined with hours, merge requests, todos and runs; the Dashboard starts with the overview", async () => {
+test("the Ticket cockpit template (with the Jira plugin): tickets joined with hours, merge requests, todos and runs", async () => {
   await seed();
   const w = await import("@/plugins/workspace/store");
   const { fromTemplate, templateMetas } = await import("@/plugins/workspace/templates");
@@ -117,6 +117,8 @@ test("the Ticket cockpit template: tickets joined with hours, merge requests, to
   const cards = await widgetData("workspace.database", { database: "Ticket cockpit", limit: 5 });
   assert.equal(cards.kind, "cards");
   if (cards.kind === "cards") assert.equal(cards.cards.length, 2);
-  const dash = JSON.stringify(w.getPage(await fromTemplate("dashboard", null))!.content);
-  assert.ok(dash.indexOf('"workspace.overview"') > -1 && dash.indexOf('"workspace.overview"') < dash.indexOf('"flexBox"'), "the overview comes first");
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("jira", false);
+  assert.ok(!templateMetas().some((m) => m.key === "ticket-cockpit"), "without the Jira plugin no ticket cockpit");
+  setInstalled("jira", true);
 });

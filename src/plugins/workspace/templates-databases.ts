@@ -2,7 +2,8 @@ import { t } from "@/lib/i18n/server";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property, type View } from "./model";
 import { isInstalled } from "@/plugins/state";
 import { CONTRACT } from "./contract-fields";
-import { addRow, createPage, getDatabase, updateSchema } from "./store";
+import { markdownToDoc, type DocNode } from "./doc";
+import { addRow, createPage, getDatabase, updatePage, updateSchema } from "./store";
 
 /**
  * The database templates' make (the Workspace plugin): every name in your language — the database, its fields, its views and
@@ -69,17 +70,18 @@ export function decisionsDatabase(parentId: number | null): number {
   const who = newProperty(t("Deciders"), "person");
   const area = multi(t("Area"), [t("Product"), t("Tech"), t("Process"), t("Team")]);
   const why = newProperty(t("Why"), "text");
+  const alternatives = newProperty(t("Alternatives"), "text");
   const ticket = newProperty(t("Ticket"), "ticket");
   const card = `<b>{{ title }}</b>\n{{ ${f(why.name)} | truncate 120 | muted }}\n<row gap=1>{{ ${f(area.name)} | chip }}<grow/>{{ ${f(decided.name)} | date | muted }}</row>`;
   const schema: DbSchema = {
     titleName: t("Decision"),
     personProp: who.id,
-    properties: [st, decided, why, who, area, ticket],
+    properties: [st, decided, why, alternatives, who, area, ticket],
     views: [view(t("Log"), "table", { sorts: [{ prop: decided.id, dir: "desc" }], hidden: [ticket.id] }), view(t("By status"), "board", { groupBy: st.id, card })],
   };
   const id = createPage({ parentId, title: t("Decisions"), icon: "⚖️", kind: "database", schema });
-  addRow(id, { title: t("We review merge requests within one working day"), cells: { [st.id]: st.options[1].id, [decided.id]: day(-14), [area.id]: [area.options![2].id], [why.id]: t("Waiting on a review was the longest stretch of every ticket.") } });
-  addRow(id, { title: t("Design tokens come from one shared file"), cells: { [st.id]: st.options[0].id, [area.id]: [area.options![1].id, area.options![0].id], [why.id]: t("Three places had their own colours — they drifted apart.") } });
+  addRow(id, { title: t("We review merge requests within one working day"), cells: { [st.id]: st.options[1].id, [decided.id]: day(-14), [area.id]: [area.options![2].id], [why.id]: t("Waiting on a review was the longest stretch of every ticket."), [alternatives.id]: t("Pair programming on every change; a review day a week") } });
+  addRow(id, { title: t("Design tokens come from one shared file"), cells: { [st.id]: st.options[0].id, [area.id]: [area.options![1].id, area.options![0].id], [why.id]: t("Three places had their own colours — they drifted apart."), [alternatives.id]: t("Keep the colours per app and check them by hand") } });
   return id;
 }
 
@@ -106,10 +108,14 @@ export function readingDatabase(parentId: number | null): number {
   return id;
 }
 
-/** Projects and their tasks: two linked databases — each project rolls up its tasks' progress and hours; the tasks a board by status. */
-export function projectsDatabase(parentId: number | null): number {
-  const projects = createPage({ parentId, title: t("Projects"), icon: "🗂️", kind: "database", schema: { titleName: t("Project"), properties: [], views: [view(t("Table"), "table")] } });
-  const tasks = createPage({ parentId, title: t("Project tasks"), icon: "☑️", kind: "database", schema: { titleName: t("Task"), properties: [], views: [view(t("Table"), "table")] } });
+/**
+ * Projects and their tasks: a page that says what it is for and shows both — the running projects as cards, the tasks as a board —,
+ * its two linked databases below it: each project its goal and rolls up its tasks' progress and hours; the tasks a board by status.
+ */
+export function projectsPage(parentId: number | null): number {
+  const root = createPage({ parentId, title: t("Projects and tasks"), icon: "🗂️" });
+  const projects = createPage({ parentId: root, title: t("Projects"), icon: "🗂️", kind: "database", schema: { titleName: t("Project"), properties: [], views: [view(t("Table"), "table")] } });
+  const tasks = createPage({ parentId: root, title: t("Project tasks"), icon: "☑️", kind: "database", schema: { titleName: t("Task"), properties: [], views: [view(t("Table"), "table")] } });
   const st = workStatus();
   const hours = newProperty(t("Hours"), "number");
   const due = newProperty(t("Due"), "date");
@@ -130,53 +136,40 @@ export function projectsDatabase(parentId: number | null): number {
   const back = { ...newProperty(t("Tasks"), "relation"), relationDb: tasks, backOf: project.id };
   const done = { ...newProperty(t("Progress"), "rollup"), format: "percent" as const, rollup: { relation: back.id, property: st.id, fn: "percent_done" as const } };
   const total = { ...newProperty(t("Total hours"), "rollup"), rollup: { relation: back.id, property: hours.id, fn: "sum" as const } };
+  const goal = newProperty(t("Goal"), "text");
   const pOwner = newProperty(t("Owner"), "person");
   const pDue = newProperty(t("Due"), "date");
-  const card = `<row><b>{{ title }}</b><grow/>{{ ${f(done.name)} | percent }}</row>\n{{ ${f(done.name)} | bar }}\n<row gap=1>{{ ${f(phase.name)} | chip }}<grow/>{{ ${f(pDue.name)} | relative | muted }}</row>\n<row>{{ ${f(pOwner.name)} | muted }}<grow/>{{ ${f(total.name)} | hours | muted }}</row>`;
+  const card = `<row><b>{{ title }}</b><grow/>{{ ${f(done.name)} | percent }}</row>\n{{ ${f(goal.name)} | truncate 90 | muted }}\n{{ ${f(done.name)} | bar }}\n<row gap=1>{{ ${f(phase.name)} | chip }}<grow/>{{ ${f(pDue.name)} | relative | muted }}</row>\n<row>{{ ${f(pOwner.name)} | muted }}<grow/>{{ ${f(total.name)} | hours | muted }}</row>`;
   updateSchema(projects, {
     titleName: t("Project"),
     personProp: pOwner.id,
-    properties: [phase, pOwner, pDue, back, done, total],
+    properties: [phase, goal, pOwner, pDue, back, done, total],
     views: [view(t("Cards"), "gallery", { card, filter: notDone(phase) }), view(t("Board"), "board", { groupBy: phase.id, card }), view(t("All"), "table")],
   });
-  // An example: a project with three tasks, one done — its progress and hours roll up.
-  const p = addRow(projects, { title: t("Website relaunch"), cells: { [phase.id]: phase.options[1].id, [pDue.id]: day(30) } });
+  const taskViews = getDatabase(tasks)!.schema.views;
+  const projectViews = getDatabase(projects)!.schema.views;
+  // Two examples: a running project with three tasks, one done — its progress and hours roll up —, and one planned.
+  const p = addRow(projects, { title: t("Website relaunch"), cells: { [phase.id]: phase.options[1].id, [pDue.id]: day(30), [goal.id]: t("A site that loads in a second and brings twice the enquiries") } });
+  const q = addRow(projects, { title: t("Team offsite"), cells: { [phase.id]: phase.options[0].id, [pDue.id]: day(60), [goal.id]: t("Two days to agree on next year's priorities") } });
   const sts = getDatabase(tasks)!.schema.properties.find((x) => x.id === st.id)!.options!;
   addRow(tasks, { title: t("Collect the requirements"), cells: { [project.id]: [p], [st.id]: sts[2].id, [hours.id]: 3 } });
   addRow(tasks, { title: t("Design the start page"), cells: { [project.id]: [p], [st.id]: sts[1].id, [hours.id]: 5, [due.id]: day(7) } });
   addRow(tasks, { title: t("Go live"), cells: { [project.id]: [p], [st.id]: sts[0].id, [due.id]: day(30) } });
-  return projects;
-}
-
-/** Instalment plans of your own (without the Finances plugin — with it, its debts database is the place). */
-export function instalmentPlansDatabase(parentId: number | null): number {
-  const plans = createPage({ parentId, title: t("Instalment plans"), icon: "🧾", kind: "database", schema: { titleName: t("Creditor"), properties: [], views: [view(t("Table"), "table")] } });
-  const payments = createPage({ parentId, title: t("Payments"), icon: "💸", kind: "database", schema: { titleName: t("Payment"), properties: [], views: [view(t("Table"), "table")] } });
-  const plan = { ...newProperty(t("Plan"), "relation"), relationDb: plans };
-  const amount = euro(t("Amount"));
-  const paidOn = newProperty(t("Paid on"), "date");
-  updateSchema(payments, { titleName: t("Payment"), properties: [plan, amount, paidOn], views: [view(t("Table"), "table", { sorts: [{ prop: paidOn.id, dir: "desc" }], calcs: { [amount.id]: "sum" } })] });
-  const back = { ...newProperty(t("Payments"), "relation"), relationDb: payments, backOf: plan.id };
-  const total = euro(t("Total"));
-  const rate = euro(t("Instalment"));
-  const paid = { ...newProperty(t("Paid"), "rollup"), format: "euro" as const, rollup: { relation: back.id, property: amount.id, fn: "sum" as const } };
-  const open = { ...newProperty(t("Open"), "formula"), format: "euro" as const, formula: `prop(${JSON.stringify(total.name)}) - prop(${JSON.stringify(paid.name)})` };
-  const caseNo = newProperty(t("Case number"), "text");
-  const next = { ...newProperty(t("Next due"), "date"), remind: 5 };
-  const iban = newProperty("IBAN", "text");
-  const st = status([
-    [t("Running"), "blue", "doing"],
-    [t("Paid off"), "green", "done"],
-  ]);
-  updateSchema(plans, {
-    titleName: t("Creditor"),
-    properties: [st, caseNo, total, rate, paid, open, next, iban, back],
-    views: [view(t("Running"), "table", { filter: notDone(st), sorts: [{ prop: next.id, dir: "asc" }], calcs: { [rate.id]: "sum", [open.id]: "sum" } }), view(t("Board"), "board", { groupBy: st.id })],
+  addRow(tasks, { title: t("Find a place"), cells: { [project.id]: [q], [st.id]: sts[0].id, [due.id]: day(21), [hours.id]: 2 } });
+  const md = (x: string): DocNode[] => (markdownToDoc(x).content ?? []) as DocNode[];
+  updatePage(root, {
+    fullWidth: true,
+    content: {
+      type: "doc",
+      content: [
+        ...md(`:::callout 🗂️ blue\n${t("Your projects and what they take: a project its goal, owner and date; its tasks link to it and roll its progress and hours up. Open a card for the details.")}\n:::`),
+        { type: "databaseView", attrs: { dbId: projects, viewId: projectViews[0].id, title: "" } },
+        { type: "databaseView", attrs: { dbId: tasks, viewId: taskViews[0].id, title: "" } },
+        { type: "paragraph" },
+      ],
+    },
   });
-  const p = addRow(plans, { title: t("Example creditor"), cells: { [st.id]: st.options[0].id, [caseNo.id]: "DR II 123/26", [total.id]: 600, [rate.id]: 100, [next.id]: day(20) } });
-  addRow(payments, { title: t("Instalment 1"), cells: { [plan.id]: [p], [amount.id]: 100, [paidOn.id]: day(-30) } });
-  addRow(payments, { title: t("Instalment 2"), cells: { [plan.id]: [p], [amount.id]: 100, [paidOn.id]: day(0) } });
-  return plans;
+  return root;
 }
 
 /**

@@ -90,20 +90,3 @@ test("the widget block in a page: its widget and its settings kept; what is not 
   assert.deepEqual(doc.content[0].attrs, { widget: "news.top", config: '{"limit":5}', title: "" });
   assert.equal(doc.content[1].attrs.config, "{}", "a config that is no JSON object is an empty one");
 });
-
-test("the Dashboard template: a page of widget blocks in flex boxes — only the widgets of installed plugins", async () => {
-  const { setInstalled } = await import("@/plugins/state");
-  for (const id of ["workspace", "work", "todos", "people", "news", "outlook-mail", "mail-client"]) setInstalled(id, true);
-  await import("@/plugins/contributions");
-  const w = await import("@/plugins/workspace/store");
-  const { templateMetas, fromTemplate } = await import("@/plugins/workspace/templates");
-  assert.ok(templateMetas().some((m) => m.key === "dashboard" && m.kind === "page"));
-  const id = await fromTemplate("dashboard", null);
-  const text = JSON.stringify(w.getPage(id)!.content);
-  for (const widget of ["mail.unread", "people.upcoming", "news.top", "work.runs", "workspace.routines"]) assert.ok(text.includes(`"${widget}"`), `${widget} is on the dashboard`);
-  assert.ok(text.includes('"flexBox"'), "laid out in boxes");
-  setInstalled("news", false);
-  const without = JSON.stringify(w.getPage(await fromTemplate("dashboard", null))!.content);
-  assert.ok(!without.includes('"news.top"'), "a plugin that is off has no widget on it");
-  setInstalled("news", true);
-});

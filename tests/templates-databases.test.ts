@@ -22,10 +22,14 @@ test("the database templates speak your language: the database, its fields, view
   assert.equal(tasks.schema.views[0].type, "board", "the board first — where tasks move");
   assert.match(tasks.schema.views[0].card!, /\[Priorität\]/);
   assert.ok(rawRows(tasks.page.id).some((r) => r.title === "Zieh eine Karte nach „In Arbeit“"), "the examples in German");
-  for (const key of ["decisions", "reading-list", "projects", "contracts"]) {
-    const d = getDatabase(await fromTemplate(key, null))!;
+  const { tree } = await import("@/plugins/workspace/store");
+  const projects = await fromTemplate("projects", null);
+  const dbs = [...(await Promise.all(["decisions", "reading-list", "contracts"].map((k) => fromTemplate(k, null)))), ...tree().filter((x) => x.parentId === projects && x.kind === "database").map((x) => x.id)];
+  assert.equal(dbs.length, 5, "the projects' two databases below its page");
+  for (const id of dbs) {
+    const d = getDatabase(id)!;
     const words = [d.page.title, ...d.schema.properties.map((p) => p.name), ...d.schema.views.map((v) => v.name)].join(" ");
-    assert.doesNotMatch(words, /\b(Table|Due|Owner|Decided on|Reading list|Projects|Per month|Cancel by)\b/, `${key}: ${words}`);
+    assert.doesNotMatch(words, /\b(Table|Due|Owner|Decided on|Reading list|Projects|Per month|Cancel by|Goal)\b/, words);
   }
 });
 
@@ -50,13 +54,15 @@ test("contracts: the running ones' sum a month under the table — published as 
   assert.equal(v!.value, Math.round(v!.sources.reduce((n, s) => n + (s.value ?? 0), 0) * 100) / 100);
 });
 
-test("with the Finances plugin: no debts template (its database is there anyway), the instalment plans of your own aren't offered", async () => {
+test("no debts or instalment plans of your own, with or without the Finances plugin (its debts database is the place)", async () => {
   await setup();
-  (await import("@/plugins/state")).setInstalled("finances", true);
+  const { setInstalled } = await import("@/plugins/state");
   const { templateMetas } = await import("@/plugins/workspace/templates");
-  const keys = templateMetas().map((m) => m.key);
-  assert.ok(!keys.includes("debts"));
-  assert.ok(!keys.includes("installment-plan"));
+  for (const on of [true, false]) {
+    setInstalled("finances", on);
+    const keys = templateMetas().map((m) => m.key);
+    assert.ok(!keys.includes("debts") && !keys.includes("installment-plan"), String(on));
+  }
 });
 
 test("the gallery: where most start first; what was made of a template (and is still there) is offered to open — a page in the bin is not", async () => {
@@ -67,7 +73,7 @@ test("the gallery: where most start first; what was made of a template (and is s
       .filter((m) => m.featured)
       .map((m) => m.key)
       .slice(0, 2),
-    ["dashboard", "tasks"],
+    ["tasks", "projects"],
   );
   const a = await fromTemplate("decisions", null);
   const b = await fromTemplate("decisions", null);

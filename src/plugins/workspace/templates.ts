@@ -1,30 +1,27 @@
 /**
- * Templates (the Workspace plugin): the built-in ready-made pages and databases (a meeting, a project brief, a weekly review, a
- * decision log, tasks tied to Zeff's todos, projects with their tasks and a progress rollup …), the plugins' packages, and your own —
- * pages marked a template, kept out of the page tree, under the Templates. One catalog for every "new from a template". Server only.
+ * Templates (the Workspace plugin): the built-in ready-made pages and databases — few, each complete (tasks tied to Zeff's todos,
+ * projects with their tasks and a progress rollup, a journal, meeting notes, a weekly review, a reading list, contracts, a decision
+ * log; the ticket cockpit with the Jira plugin) —, the plugins' packages, and your own — pages marked a template, kept out of the page
+ * tree, under the Templates. One catalog for every "new from a template". Agents, automations, jobs and rules are no templates: the
+ * "+" menu's "Automation …" makes them (automation-new.ts). Server only.
  */
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { markdownToDoc, type DocNode } from "./doc";
-import { createJobsDatabase } from "./jobs";
-import { createRulesDatabase } from "./rules";
-import { createNotesBoard } from "./notes-board";
-import { newsDatabaseTitle } from "./news-database";
 import { installPackage, listPackages } from "./packages";
-import { widgetCatalog } from "./widgets";
 import { createRoutine, getRoutine } from "./routines";
 import { createTicketCockpit } from "./ticket-cockpit";
 import { journalPage } from "./templates-journal";
-import { authorityPage, financesPage, meetingPage, oneOnOnePage, projectBriefPage, weeklyReviewPage, whoOwesPage } from "./templates-pages";
+import { meetingPage, weeklyReviewPage } from "./templates-pages";
 import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
 import { quietly } from "./events";
 import { kindIcon } from "./model";
 import { createPage, duplicatePage, getPage, inTemplates, movePage, rawRows, templateTree, updatePage } from "./store";
-import { contractsDatabase, decisionsDatabase, instalmentPlansDatabase, projectsDatabase, readingDatabase, tasksDatabase } from "./templates-databases";
+import { contractsDatabase, decisionsDatabase, projectsPage, readingDatabase, tasksDatabase } from "./templates-databases";
+import { previewParts, type MadePage, type PreviewDatabase } from "./template-preview";
 
 /** The group a template is shown in (the gallery's tabs; "mine": your own, the pages marked a template). */
-export type TemplateCategory = "overview" | "work" | "notes" | "automation" | "packages" | "mine";
+export type TemplateCategory = "work" | "notes" | "packages" | "mine";
 export type TemplateMeta = {
   key: string;
   name: string;
@@ -41,7 +38,7 @@ export type TemplateMeta = {
 /** Where the templates' pages are kept (per template, the pages made of it — newest last). */
 const MADE = "workspace.templatesMade";
 /** The templates most start with (in this order). */
-const FEATURED = ["dashboard", "tasks", "finances", "weekly-review", "meeting", "contracts"];
+const FEATURED = ["tasks", "projects", "journal", "meeting", "weekly-review"];
 const rank = (key: string) => (FEATURED.includes(key) ? FEATURED.indexOf(key) : FEATURED.length);
 
 function madeOf(key: string): { id: number; title: string }[] {
@@ -59,195 +56,7 @@ type Template = TemplateMeta & {
   offered?: () => boolean;
 };
 
-/** A routine's page: its controls block first (run, when, what it may do …), then the blocks that are its instructions (or notes). */
-function routinePage(kind: "agent" | "automation", parentId: number | null, title: string, icon: string, intro: string): number {
-  const doc = { type: "doc", content: [{ type: "zeffRoutine" }, ...(markdownToDoc(intro).content ?? [])] };
-  const id = createPage({ parentId, title, icon, content: doc });
-  createRoutine(id, kind);
-  return id;
-}
-
-/**
- * The dashboard, full width: your day in figures across the top, then three columns — what needs you and the news (the wide one), the
- * calendar and what is unread, the workers, dates and routines. Only the widgets of installed plugins.
- */
-function dashboardPage(parentId: number | null): number {
-  const have = new Set(widgetCatalog().map((w) => w.id));
-  const widget = (id: string, config: Record<string, unknown> = {}): DocNode[] => (have.has(id) ? [{ type: "zeffWidget", attrs: { widget: id, config: JSON.stringify(config), title: "" } }] : []);
-  const col = (span: number | null, ...parts: DocNode[][]): DocNode[] => {
-    const content = parts.flat();
-    return content.length ? [{ type: "flexBox", attrs: { dir: "col", gap: "md", span }, content }] : [];
-  };
-  const columns = [
-    ...col(2, widget("workspace.attention", { limit: 8 }), widget("news.top", { limit: 6 })),
-    ...col(null, widget("calendar.agenda"), widget("mail.unread", { limit: 6 })),
-    ...col(null, widget("work.runs"), widget("people.upcoming"), widget("workspace.routines")),
-  ];
-  const doc = {
-    type: "doc",
-    content: [...widget("workspace.overview"), ...(columns.length ? [{ type: "flexBox", attrs: { dir: "row", gap: "md" }, content: columns }] : []), { type: "paragraph" }],
-  };
-  const id = createPage({ parentId, title: t("Dashboard"), icon: "🧭", content: doc });
-  updatePage(id, { fullWidth: true });
-  return id;
-}
-
 const TEMPLATES: Template[] = [
-  {
-    key: "ticket-cockpit",
-    category: "overview",
-    get name() {
-      return t("Ticket cockpit");
-    },
-    icon: "🧭",
-    get description() {
-      return t("Your tickets as cards with hours booked, open merge requests and todos, worker runs and the days since the last comment — joined live, nothing copied.");
-    },
-    kind: "database",
-    build: (parentId) => createTicketCockpit(parentId),
-  },
-  {
-    key: "dashboard",
-    category: "overview",
-    get name() {
-      return t("Dashboard");
-    },
-    icon: "🧭",
-    get description() {
-      return t("Your day at a glance, live: the figures, what needs you, the calendar, unread mail, the news, the workers.");
-    },
-    kind: "page",
-    build: (parentId) => dashboardPage(parentId),
-  },
-  {
-    key: "agent",
-    category: "automation",
-    get name() {
-      return t("Agent");
-    },
-    icon: "🤖",
-    get description() {
-      return t("An LLM run on the instructions you write here — by hand, on a schedule or on an event; it knows its parent and sibling pages.");
-    },
-    kind: "page",
-    build: (parentId) => routinePage("agent", parentId, t("New agent"), "🤖", `${t("Write what the agent should do — one block per instruction.")}\n\n- ${t("Read the pages next to this one.")}\n- ${t("Write what you find as a short summary under this page.")}\n`),
-  },
-  {
-    key: "news-summary",
-    category: "automation",
-    get name() {
-      return t("News summary (agent)");
-    },
-    icon: "📰",
-    get description() {
-      return t("An agent that reads the news you saved or liked and writes a summary for you — start it by hand or on a schedule.");
-    },
-    kind: "page",
-    build: (parentId) =>
-      routinePage(
-        "agent",
-        parentId,
-        t("News summary"),
-        "📰",
-        `${t("Read the database “{name}” (the news I saved or liked — find it with workspace_search, read it with workspace_read_page).", { name: newsDatabaseTitle() })}
-
-- ${t("Group the items by topic and write a short summary per topic, with the headlines as links.")}
-- ${t("Say what is new since your last summary (look at the sub pages of this page).")}
-- ${t("Write the result as a new sub page of this page, titled with today's date.")}
-`,
-      ),
-  },
-  {
-    key: "automation",
-    category: "automation",
-    get name() {
-      return t("Automation");
-    },
-    icon: "⚙️",
-    get description() {
-      return t("Steps that run one after another, with gates, branches and conditions — no AI; on a schedule, on an event or by hand.");
-    },
-    kind: "page",
-    build: (parentId) => routinePage("automation", parentId, t("New automation"), "⚙️", t("What this automation is for, in a line — its steps are above.")),
-  },
-  {
-    key: "agent-jobs",
-    category: "automation",
-    get name() {
-      return t("Jobs for agents");
-    },
-    icon: "🤖",
-    get description() {
-      return t("Jobs a worker takes on your click — a board by status; the result comes back into the row for your check.");
-    },
-    kind: "database",
-    build: (parentId) => createJobsDatabase(parentId),
-  },
-  {
-    key: "rules",
-    category: "automation",
-    get name() {
-      return t("Rules");
-    },
-    icon: "📏",
-    get description() {
-      return t("When / then rules a pipeline applies to its records: drop, set a field, hand to an agent — or a hint every agent gets.");
-    },
-    kind: "database",
-    build: (parentId) => createRulesDatabase(parentId),
-  },
-  {
-    key: "meeting",
-    category: "notes",
-    get name() {
-      return t("Meeting notes");
-    },
-    icon: "🗓️",
-    get description() {
-      return t("Attendees, agenda, notes, decisions and action items.");
-    },
-    kind: "page",
-    build: (parentId) => meetingPage(parentId),
-  },
-  {
-    key: "one-on-one",
-    category: "notes",
-    get name() {
-      return t("1:1");
-    },
-    icon: "🤝",
-    get description() {
-      return t("A recurring conversation: wins, blockers, feedback, next steps.");
-    },
-    kind: "page",
-    build: (parentId) => oneOnOnePage(parentId),
-  },
-  {
-    key: "project-brief",
-    category: "work",
-    get name() {
-      return t("Project brief");
-    },
-    icon: "🎯",
-    get description() {
-      return t("Goal, scope, stakeholders, milestones, risks.");
-    },
-    kind: "page",
-    build: (parentId) => projectBriefPage(parentId),
-  },
-  {
-    key: "weekly-review",
-    category: "notes",
-    get name() {
-      return t("Weekly review");
-    },
-    icon: "🔁",
-    get description() {
-      return t("What got done, what didn't, what's next — and what to change.");
-    },
-    kind: "page",
-    build: (parentId) => weeklyReviewPage(parentId),
-  },
   {
     key: "tasks",
     category: "work",
@@ -262,43 +71,17 @@ const TEMPLATES: Template[] = [
     build: (parentId) => tasksDatabase(parentId),
   },
   {
-    key: "keep-board",
-    category: "notes",
-    get name() {
-      return t("Keep board");
-    },
-    icon: "🗒️",
-    get description() {
-      return t("Notes like in Google Keep: cards with colours, labels and pinning, lists as checkboxes.");
-    },
-    kind: "database",
-    build: (parentId) => createNotesBoard(parentId, t("Keep board")),
-  },
-  {
-    key: "decisions",
+    key: "projects",
     category: "work",
     get name() {
-      return t("Decision log");
+      return t("Projects with tasks");
     },
-    icon: "⚖️",
+    icon: "🗂️",
     get description() {
-      return t("What was decided, by whom, when — so nobody asks twice.");
+      return t("A page with two linked databases: projects (goal, owner, due) and their tasks — each project rolls up its tasks' progress and hours.");
     },
-    kind: "database",
-    build: (parentId) => decisionsDatabase(parentId),
-  },
-  {
-    key: "reading-list",
-    category: "notes",
-    get name() {
-      return t("Reading list");
-    },
-    icon: "📖",
-    get description() {
-      return t("Articles and books: status, rating, tags, link — in a gallery too.");
-    },
-    kind: "database",
-    build: (parentId) => readingDatabase(parentId),
+    kind: "page",
+    build: (parentId) => projectsPage(parentId),
   },
   {
     key: "journal",
@@ -314,72 +97,43 @@ const TEMPLATES: Template[] = [
     build: (parentId) => journalPage(parentId),
   },
   {
-    key: "projects",
-    category: "work",
-    get name() {
-      return t("Projects with tasks");
-    },
-    icon: "🗂️",
-    get description() {
-      return t("Two linked databases: projects and their tasks — each project rolls up its tasks' progress and hours.");
-    },
-    kind: "database",
-    build: (parentId) => projectsDatabase(parentId),
-  },
-  {
-    key: "finances",
-    category: "overview",
-    get name() {
-      return t("Finances");
-    },
-    icon: "💶",
-    get description() {
-      return isInstalled("finances")
-        ? t("Your money at a glance, live: what is open, the instalments a month, when you are debt-free, what is left — and the payments coming up.")
-        : t("Your cases in figures, the payments and deadlines coming up, the open cases and what you owe — live.");
-    },
-    kind: "page",
-    build: (parentId) => financesPage(parentId),
-  },
-  {
-    key: "who-owes",
-    category: "overview",
-    get name() {
-      return t("Who owes whom");
-    },
-    icon: "🤝",
-    get description() {
-      return t("What you owe your people and what they owe you — read from your messages, ticked off when kept.");
-    },
-    kind: "page",
-    build: (parentId) => whoOwesPage(parentId),
-  },
-  {
-    key: "authority",
+    key: "meeting",
     category: "notes",
     get name() {
-      return t("Authority");
+      return t("Meeting notes");
     },
-    icon: "🏛️",
+    icon: "🗓️",
     get description() {
-      return t("An office, a court, an insurer: contact, your numbers there, what runs, deadlines and a log of what you sent.");
+      return t("Attendees, agenda, notes, decisions and action items — with a section for a recurring 1:1.");
     },
     kind: "page",
-    build: (parentId) => authorityPage(parentId),
+    build: (parentId) => meetingPage(parentId),
   },
   {
-    key: "installment-plan",
-    category: "work",
-    offered: () => !isInstalled("finances"),
+    key: "weekly-review",
+    category: "notes",
     get name() {
-      return t("Instalment plans");
+      return t("Weekly review");
     },
-    icon: "🧾",
+    icon: "🔁",
     get description() {
-      return t("Two linked databases: the plans (creditor, case number, total, instalment, account) and their payments — each plan sums up what is paid and what is open.");
+      return t("What got done, what didn't, what's next — the week's figures live, and an agent drafts it on Fridays.");
+    },
+    kind: "page",
+    build: (parentId) => weeklyReviewPage(parentId),
+  },
+  {
+    key: "reading-list",
+    category: "notes",
+    get name() {
+      return t("Reading list");
+    },
+    icon: "📖",
+    get description() {
+      return t("Articles and books: status, rating, tags, link — in a gallery too.");
     },
     kind: "database",
-    build: (parentId) => instalmentPlansDatabase(parentId),
+    build: (parentId) => readingDatabase(parentId),
   },
   {
     key: "contracts",
@@ -393,6 +147,33 @@ const TEMPLATES: Template[] = [
     },
     kind: "database",
     build: (parentId) => contractsDatabase(parentId),
+  },
+  {
+    key: "decisions",
+    category: "work",
+    get name() {
+      return t("Decision log");
+    },
+    icon: "⚖️",
+    get description() {
+      return t("What was decided, by whom, when — so nobody asks twice.");
+    },
+    kind: "database",
+    build: (parentId) => decisionsDatabase(parentId),
+  },
+  {
+    key: "ticket-cockpit",
+    category: "work",
+    offered: () => isInstalled("jira"),
+    get name() {
+      return t("Ticket cockpit");
+    },
+    icon: "🧭",
+    get description() {
+      return t("Your tickets as cards with hours booked, open merge requests and todos, worker runs and the days since the last comment — joined live, nothing copied.");
+    },
+    kind: "database",
+    build: (parentId) => createTicketCockpit(parentId),
   },
 ];
 
@@ -424,17 +205,37 @@ export const templateMetas = (): TemplateMeta[] => [
     .map((x): TemplateMeta => ({ key: `page:${x.id}`, name: x.title || t("Untitled"), icon: x.icon || kindIcon(x.kind), description: "", kind: x.kind === "database" ? "database" : "page", category: "mine" })),
 ];
 
-/** A page copied with what is below it — as a template of yours or as a page made of one; its routines come along. */
+/** The blocks pointing at a page or database by id (a database view, an embedded page, a form …) with the ids in `map` put right. */
+function remapIds(node: unknown, map: Map<number, number>): unknown {
+  if (!node || typeof node !== "object") return node;
+  const n = node as { attrs?: Record<string, unknown>; content?: unknown[] };
+  const attrs = n.attrs && Object.fromEntries(Object.entries(n.attrs).map(([k, v]) => [k, ["dbId", "pageId", "formId"].includes(k) && map.has(Number(v)) ? map.get(Number(v)) : v]));
+  return { ...n, ...(attrs ? { attrs } : {}), ...(n.content ? { content: n.content.map((c) => remapIds(c, map)) } : {}) };
+}
+
+/**
+ * A page copied with what is below it — as a template of yours or as a page made of one; its routines come along, and what its pages
+ * show of each other (the journal's days, the projects' boards) points at the copies.
+ */
 function copyTree(id: number, parentId: number | null, template: boolean): number {
-  return duplicatePage(id, {
+  const map = new Map<number, number>();
+  const top = duplicatePage(id, {
     parentId,
     suffix: false,
     template,
     onCopy: (from, to) => {
+      map.set(from, to);
       const r = getRoutine(from);
       if (r) createRoutine(to, r.kind, { enabled: r.enabled, triggers: r.triggers, permissions: r.permissions, steps: r.steps, provider: r.provider });
     },
   });
+  for (const to of map.values()) {
+    const p = getPage(to);
+    if (!p?.content || p.dbId) continue;
+    const content = remapIds(p.content, map);
+    if (JSON.stringify(content) !== JSON.stringify(p.content)) updatePage(to, { content });
+  }
+  return top;
 }
 
 /** A template made as a new page (a database: with what belongs to it) — a built-in one or one of yours. Returns the new page's id. */
@@ -453,15 +254,21 @@ export async function fromTemplate(key: string, parentId: number | null): Promis
 }
 
 export type TemplatePreview = Omit<TemplateMeta, "made"> & {
-  /** The page it makes: its title, icon, text and width; what is below it; the databases it makes (the page itself or below). */
+  /**
+   * The page it makes: its title, icon, text and width — what it would show of what is made with it (its databases, its sub pages)
+   * as static cards; what is below it; the databases it makes that the page doesn't show.
+   */
   page: { title: string; icon: string; content: unknown; fullWidth: boolean };
   children: { title: string; icon: string; kind: string }[];
-  databases: { title: string; icon: string; properties: { name: string; type: string }[]; views: string[]; rows: number }[];
+  databases: PreviewDatabase[];
 };
 
+/** How many example rows a database's card names. */
+const EXAMPLES = 3;
+
 /**
- * A built-in template as it would be made, without keeping anything: it is made inside a savepoint (its rows' events quiet), read,
- * and rolled back. Synchronous: nothing else writes while it runs.
+ * A built-in template as it would be made, without keeping anything: it is made inside a savepoint (its rows' events quiet), what it
+ * made read, and rolled back — the preview points at none of it (template-preview.ts). Synchronous: nothing else writes while it runs.
  */
 export function previewTemplate(key: string): TemplatePreview {
   const { name, icon, description, kind, category, build: make } = builtin(key);
@@ -471,17 +278,25 @@ export function previewTemplate(key: string): TemplatePreview {
   try {
     return quietly(() => {
       const before = (sqlite.prepare("select coalesce(max(id), 0) n from ws_pages").get() as { n: number }).n;
-      const root = getPage(make(null))!;
-      const made = (sqlite.prepare("select id from ws_pages where id > ? and db_id is null order by id").all(before) as { id: number }[]).map((r) => getPage(r.id)!);
-      const databases = made
-        .filter((p) => p.kind === "database" && p.schema)
-        .map((p) => ({ title: p.title, icon: p.icon, properties: p.schema!.properties.map((x) => ({ name: x.name, type: x.type })), views: p.schema!.views.map((v) => v.name), rows: rawRows(p.id).length }));
-      return {
-        ...meta,
-        page: { title: root.title, icon: root.icon, content: root.content, fullWidth: root.fullWidth },
-        children: made.filter((p) => p.parentId === root.id).map((p) => ({ title: p.title, icon: p.icon, kind: p.kind })),
-        databases,
-      };
+      const rootId = make(null);
+      const made = (sqlite.prepare("select id from ws_pages where id > ? and db_id is null order by id").all(before) as { id: number }[]).map((r): MadePage => {
+        const p = getPage(r.id)!;
+        const rows = p.kind === "database" && p.schema ? rawRows(p.id) : [];
+        return {
+          id: p.id,
+          parentId: p.parentId,
+          title: p.title,
+          icon: p.icon,
+          kind: p.kind,
+          titleName: p.schema?.titleName,
+          properties: p.schema?.properties.map((x) => ({ name: x.name, type: x.type })) ?? [],
+          views: p.schema?.views.map((v) => v.name) ?? [],
+          examples: rows.slice(0, EXAMPLES).map((x) => x.title).filter(Boolean),
+          rows: rows.length,
+        };
+      });
+      const root = getPage(rootId)!;
+      return { ...meta, ...previewParts({ ...made.find((x) => x.id === rootId)!, content: root.content, fullWidth: root.fullWidth }, made, t) };
     });
   } finally {
     sqlite.exec("rollback to zeff_template_preview");
