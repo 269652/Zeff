@@ -17,7 +17,12 @@ export const CALENDAR_WIDGETS: WorkspaceWidget[] = [
       return t("Your next appointments — what is still to come today, and tomorrow — with where and when.");
     },
     get settings(): WidgetSetting[] {
-      return [{ key: "days", label: t("Days ahead"), kind: "number", default: 2, min: 1, max: 7 }];
+      return [
+        { key: "days", label: t("Days ahead"), kind: "number", default: 2, min: 1, max: 60 },
+        { key: "q", label: t("Words (title, place, people)"), kind: "text", default: "" },
+        { key: "calendar", label: t("Calendar (its name; empty: all)"), kind: "text", default: "" },
+        { key: "limit", label: t("How many"), kind: "number", default: 12, min: 1, max: 50 },
+      ];
     },
     ttl: 60,
     data: async (config) => {
@@ -27,14 +32,18 @@ export const CALENDAR_WIDGETS: WorkspaceWidget[] = [
       end.setDate(end.getDate() + Number(config.days));
       const tomorrow = new Date(now);
       tomorrow.setDate(tomorrow.getDate() + 1);
+      // Only some (an old appointments block's words or calendar): by words in the title, the place or who comes; by the calendar's name.
+      const q = String(config.q ?? "").trim().toLowerCase();
+      const cal = String(config.calendar ?? "").trim().toLowerCase();
       const events = eventsBetween(`${today}T00:00`, `${day(end)}T00:00`, { visible: true })
         .filter((e) => !e.cancelled && (e.allDay ? e.end > today : new Date(e.end) > now))
+        .filter((e) => (!q || `${e.title} ${e.location} ${e.attendees.join(" ")}`.toLowerCase().includes(q)) && (!cal || e.calendar.name.toLowerCase() === cal))
         .sort((a, b) => (a.allDay === b.allDay ? a.start.localeCompare(b.start) : a.allDay ? -1 : 1) || a.start.localeCompare(b.start));
       const { calendarDatabase } = await import("@/plugins/workspace/calendar-database");
       const db = calendarDatabase();
       const href = (d: string) => (db ? `/workspace/${db}?v=day&d=${d}` : "/calendar");
       const when = (d: string) => (d === today ? t("today") : d === day(tomorrow) ? t("tomorrow") : new Date(`${d}T12:00`).toLocaleDateString(undefined, { weekday: "short" }));
-      const items = events.slice(0, 12).map((e): WidgetItem => {
+      const items = events.slice(0, Number(config.limit) || 12).map((e): WidgetItem => {
         const d = e.start.slice(0, 10);
         const running = !e.allDay && new Date(e.start) <= now;
         return {

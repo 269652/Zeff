@@ -11,12 +11,17 @@ import { getPage, rowsOf } from "./store";
 
 export { CALC_FNS, type CalcFn };
 
-/** Where a type's values come from: a column of a database, over the rows a view of it shows (its filter applied). */
+/**
+ * Where a type's values come from: a column of a database, over the rows a view of it shows (its filter applied). No view (""): all
+ * its rows; no column (""): the rows themselves, each one 1 — counted (an old figure block's "how many rows").
+ */
 export type ValueRef = { dbId: number; viewId: string; propId: string };
-type ValueType = { label: string; agg: CalcFn; sources: ValueRef[] };
+/** count_unique: how many different values the column has (an old figure block's "unique") — set only by data-block-migration.ts. */
+export type ValueAgg = CalcFn | "count_unique";
+type ValueType = { label: string; agg: ValueAgg; sources: ValueRef[] };
 
 /** A type, read now: its aggregate over all its sources' rows, and each source with what it adds. */
-export type NamedValue = { key: string; label: string; agg: CalcFn; value: number | null; sources: (ValueRef & { text: string; value: number | null })[] };
+export type NamedValue = { key: string; label: string; agg: ValueAgg; value: number | null; sources: (ValueRef & { text: string; value: number | null })[] };
 
 const PREF = "workspace.valueTypes";
 /** (Before types: one source per name, its own calculation.) */
@@ -43,15 +48,29 @@ const KNOWN: { label: string; agg: CalcFn; what: string }[] = [
 
 /** The numbers of a column over the rows a view shows — each row with its title. Empty: no such database, view or column. */
 export function refRows(ref: ValueRef): { rowId: number; title: string; value: number }[] {
-  const d = rowsOf(ref.dbId);
-  const view = d?.schema.views.find((v) => v.id === ref.viewId);
-  if (!d || !view || !d.schema.properties.some((p) => p.id === ref.propId)) return [];
-  return filterRows(d.rows, view.filter, d.schema.properties).flatMap((r) => {
+  const rows = refViewRows(ref);
+  if (!rows) return [];
+  if (!ref.propId) return rows.map((r) => ({ rowId: r.id, title: r.title, value: 1 }));
+  return rows.flatMap((r) => {
     const v = r.cells[ref.propId];
     const n = typeof v === "number" ? v : typeof v === "string" && v.trim() !== "" ? Number(v) : NaN;
     return Number.isFinite(n) ? [{ rowId: r.id, title: r.title, value: n }] : [];
   });
 }
+
+/** The rows a reference reads (its view's filter applied; no view: all) — null: no such database, view or column. */
+function refViewRows(ref: ValueRef) {
+  const d = rowsOf(ref.dbId);
+  const view = ref.viewId ? d?.schema.views.find((v) => v.id === ref.viewId) : null;
+  if (!d || view === undefined || (ref.propId && !d.schema.properties.some((p) => p.id === ref.propId))) return null;
+  return view ? filterRows(d.rows, view.filter, d.schema.properties) : d.rows;
+}
+
+/** The different values of a column over the rows a reference reads (as text, empty ones left out). */
+const refUnique = (ref: ValueRef): string[] => (ref.propId ? (refViewRows(ref) ?? []).map((r) => r.cells[ref.propId]).filter((v) => v !== null && v !== undefined && v !== "" && !(Array.isArray(v) && !v.length)).map((v) => JSON.stringify(v)) : []);
+
+/** A type's aggregate over its sources (count_unique: the different values of all of them). */
+const aggregate = (agg: ValueAgg, refs: ValueRef[]): number | null => (agg === "count_unique" ? new Set(refs.flatMap(refUnique)).size : round(rollup(agg, undefined, refs.flatMap((s) => refRows(s).map((r) => r.value)))));
 
 const round = (v: unknown): number | null => (typeof v === "number" && Number.isFinite(v) ? Math.round(v * 100) / 100 : null);
 
@@ -116,6 +135,21 @@ export function removeValueSource(keyOrLabel: string, ref: ValueRef): void {
   save(types);
 }
 
+/**
+ * A type made of exactly these sources and this aggregate (count_unique too) — what data-block-migration.ts makes of an old figure
+ * block. The same one there already: kept. Another type of that name: null (the caller picks another name). The key.
+ */
+export function defineValueType(v: { label: string; agg: ValueAgg; sources: ValueRef[] }): string | null {
+  const key = valueKey(v.label);
+  if (!key) return null;
+  const types = stored();
+  const had = types[key];
+  if (had) return had.agg === v.agg && had.sources.length === v.sources.length && had.sources.every((s, i) => same(s, v.sources[i])) ? key : null;
+  types[key] = { label: v.label.trim(), agg: v.agg, sources: v.sources.map((s) => ({ dbId: Number(s.dbId), viewId: String(s.viewId), propId: String(s.propId) })) };
+  save(types);
+  return key;
+}
+
 /** The type gone, all its sources with it. */
 export function unpublishValue(keyOrLabel: string): void {
   const types = stored();
@@ -128,7 +162,7 @@ const FORMAT_UNIT: Partial<Record<string, string>> = { euro: "€", dollar: "$",
 /** The unit its columns say (all of them the same: euro → €, hours → h, a unit of their own) — "" when they don't, or it counts rows. */
 export function valueUnit(keyOrLabel: string): string {
   const ty = stored()[valueKey(keyOrLabel)];
-  if (!ty || ty.agg === "count" || ty.agg === "count_values") return "";
+  if (!ty || ty.agg === "count" || ty.agg === "count_values" || ty.agg === "count_unique") return "";
   const units = new Set(
     ty.sources.map((s) => {
       const p = rowsOf(s.dbId)?.schema.properties.find((x) => x.id === s.propId);
@@ -142,13 +176,13 @@ export function valueUnit(keyOrLabel: string): string {
 export const valueSources = (keyOrLabel: string): ValueRef[] => stored()[valueKey(keyOrLabel)]?.sources ?? [];
 
 /** The type's aggregate. */
-export const valueAggregate = (keyOrLabel: string): CalcFn | null => stored()[valueKey(keyOrLabel)]?.agg ?? null;
+export const valueAggregate = (keyOrLabel: string): ValueAgg | null => stored()[valueKey(keyOrLabel)]?.agg ?? null;
 
 const refText = (r: ValueRef): string => {
   const d = rowsOf(r.dbId);
   const view = d?.schema.views.find((v) => v.id === r.viewId);
   const prop = d?.schema.properties.find((p) => p.id === r.propId);
-  return `${getPage(r.dbId)?.title || "?"} · ${view?.name ?? "?"} · ${prop?.name ?? "?"}`;
+  return `${getPage(r.dbId)?.title || "?"} · ${r.viewId ? (view?.name ?? "?") : "*"} · ${r.propId ? (prop?.name ?? "?") : "#"}`;
 };
 
 /** A type read now (by its name or key): its aggregate over all its sources' rows. Null: no such type. */
@@ -156,13 +190,12 @@ export function namedValue(keyOrLabel: string): NamedValue | null {
   const key = valueKey(keyOrLabel);
   const ty = stored()[key];
   if (!ty) return null;
-  const per = ty.sources.map((s) => ({ ...s, rows: refRows(s) }));
   return {
     key,
     label: ty.label,
     agg: ty.agg,
-    value: round(rollup(ty.agg, undefined, per.flatMap((s) => s.rows.map((r) => r.value)))),
-    sources: per.map(({ rows, ...s }) => ({ ...s, text: refText(s), value: round(rollup(ty.agg, undefined, rows.map((r) => r.value))) })),
+    value: aggregate(ty.agg, ty.sources),
+    sources: ty.sources.map((s) => ({ ...s, text: refText(s), value: aggregate(ty.agg, [s]) })),
   };
 }
 

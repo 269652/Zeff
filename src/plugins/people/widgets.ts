@@ -8,6 +8,49 @@ import { openCommitments, reviewClaim } from "./graph";
 /** The dates of your people coming up (birthdays, anniversaries) — "done" for this time takes one off; who owes whom; the briefs before an appointment; who you are drifting apart from. */
 export const PEOPLE_WIDGETS: WorkspaceWidget[] = [
   {
+    id: "people.list",
+    get label() {
+      return t("People");
+    },
+    icon: "👥",
+    get description() {
+      return t("People at a glance — your starred ones, the ones picked, or by words — with how to reach them and their next date.");
+    },
+    get settings(): WidgetSetting[] {
+      return [
+        { key: "q", label: t("Words (name, alias, mail)"), kind: "text", default: "" },
+        { key: "limit", label: t("How many"), kind: "number", default: 8, min: 1, max: 30 },
+        // (the people an old people block had picked: their ids)
+        { key: "ids", label: "ids", kind: "text", default: "", hidden: true },
+      ];
+    },
+    ttl: 60,
+    data: async (config) => {
+      const { listPeople, upcoming } = await import("./store");
+      const { peopleHome, personHrefs } = await import("@/plugins/workspace/people-database");
+      const q = String(config.q ?? "").trim().toLowerCase();
+      const ids = new Set(String(config.ids ?? "").split(",").map(Number).filter((n) => n > 0));
+      const soonest = new Map<number, { on: string; kind: string }>();
+      for (const u of upcoming({ days: 366 }).sort((a, b) => a.on.localeCompare(b.on))) if (!soonest.has(u.person.id)) soonest.set(u.person.id, { on: u.on, kind: u.date.kind === "other" ? u.date.label || "" : u.date.kind });
+      // The ones picked, or by words; neither: your starred ones.
+      const all = listPeople().filter((p) => (ids.size ? ids.has(p.id) : true) && (!q || `${p.name} ${p.aliases.join(" ")} ${p.emails.join(" ")}`.toLowerCase().includes(q)) && (ids.size || q || p.starred));
+      const hrefs = personHrefs();
+      const items = all.slice(0, Number(config.limit) || 8).map((p) => {
+        const next = soonest.get(p.id);
+        return {
+          id: String(p.id),
+          icon: initials(p.name) || "👤",
+          text: p.name,
+          detail: p.emails.slice(0, 2).join(" · ") || undefined,
+          meta: next ? `${next.kind === "birthday" ? "🎂 " : ""}${new Date(`${next.on}T12:00`).toLocaleDateString(undefined, { day: "numeric", month: "short" })}` : undefined,
+          badge: p.starred ? "★" : undefined,
+          href: hrefs[p.id] ?? peopleHome(),
+        };
+      });
+      return { kind: "list", items, count: all.length || undefined, empty: ids.size || q ? t("Nobody found.") : t("No starred people yet — star someone on their page.") };
+    },
+  },
+  {
     id: "people.upcoming",
     get label() {
       return t("Dates coming up");

@@ -3,7 +3,7 @@ import { t } from "@/lib/i18n/server";
 import type { WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
 
 /**
- * The widgets of Todos: what you got done — this week (from Monday) or in the last days —, the latest first, with how many in
+ * The widgets of Todos: a list of your todos (all, of a ticket, by words — ticked off in place); what you got done — this week (from Monday) or in the last days —, the latest first, with how many in
  * all; the weekly review is made of it. Server only.
  */
 
@@ -15,6 +15,62 @@ function weekStart(now = new Date()): string {
 }
 
 export const TODOS_WIDGETS: WorkspaceWidget[] = [
+  {
+    id: "todos.list",
+    get label() {
+      return t("Todo list");
+    },
+    icon: "☑️",
+    get description() {
+      return t("Your todos — all, of a ticket or by words; open, done or both — ticked off right here.");
+    },
+    get settings(): WidgetSetting[] {
+      return [
+        { key: "q", label: t("Words"), kind: "text", default: "" },
+        { key: "ticket", label: t("Ticket"), kind: "text", default: "" },
+        {
+          key: "status",
+          label: t("Which"),
+          kind: "select",
+          default: "open",
+          options: [
+            { value: "open", label: t("Open") },
+            { value: "done", label: t("Done") },
+            { value: "all", label: t("All") },
+          ],
+        },
+        { key: "limit", label: t("How many"), kind: "number", default: 10, min: 1, max: 60 },
+      ];
+    },
+    ttl: 20,
+    data: async (config) => {
+      const { listTodos } = await import("@/lib/boards/store");
+      const q = String(config.q ?? "").trim().toLowerCase();
+      const ticket = String(config.ticket ?? "").trim().toUpperCase();
+      const status = config.status === "done" || config.status === "all" ? config.status : "open";
+      const today = new Date().toISOString().slice(0, 10);
+      const all = listTodos({ status, ...(ticket ? { ticket } : {}) }).filter((x) => !x.byWorker && (!q || `${x.ref} ${x.text} ${x.ticket}`.toLowerCase().includes(q)));
+      const items = all.slice(0, Number(config.limit) || 10).map((x) => ({
+        id: String(x.id),
+        text: x.text,
+        detail: [x.ref, x.ticket].filter(Boolean).join(" · "),
+        meta: x.due || undefined,
+        tone: x.status === "open" && x.due && x.due < today ? ("bad" as const) : undefined,
+        href: `/t/${x.id}`,
+        done: x.status !== "open",
+        actions: [{ id: "toggle", label: x.status === "open" ? t("Done") : t("Open again"), icon: "✓" }],
+      }));
+      return { kind: "list", items, count: all.length || undefined, empty: status === "done" ? t("Nothing done yet.") : t("No open todos.") };
+    },
+    act: async (action, payload) => {
+      // Ticked: done; ticked again: open.
+      if (action !== "toggle") throw new Error("unknown action");
+      const { getTodo, setTodoStatus } = await import("@/lib/boards/store");
+      const todo = getTodo(Number(payload.id));
+      if (!todo) throw new Error(t("This todo is gone."));
+      setTodoStatus(todo.id, todo.status === "open" ? "done" : "open");
+    },
+  },
   {
     id: "todos.done",
     get label() {

@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { templateParamsAction, tryRulesAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, formFromTableAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { chartViewAction, templateParamsAction, tryRulesAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, formFromTableAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, withCell, dropBetween, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -30,6 +30,7 @@ import { viewAppMeta, TEMPLATE_VIEW } from "../view-apps";
 import type { TplError } from "../view-template";
 import { CalcCell, usePublished } from "./calc-row";
 import { ShareDialog } from "./sheet";
+import { parseChartMarker } from "../legacy-blocks";
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
 
@@ -2142,7 +2143,7 @@ function CalendarView({ canAdd = true, view, rows, schema, api, openRow, newRow 
 }
 
 /** A database shown in a page (a block): its own view, loaded when it appears. */
-export function DatabaseBlock({ dbId, viewId, onView }: { dbId: number; viewId: string; onView: (id: string) => void }) {
+export function DatabaseBlock({ dbId, viewId, onView, blockTitle = "" }: { dbId: number; viewId: string; onView: (id: string) => void; /** The block's own title (an old chart block's: the name of the chart view it becomes). */ blockTitle?: string }) {
   const t = useT();
   const router = useRouter();
   const [title, setTitle] = useState("");
@@ -2153,6 +2154,17 @@ export function DatabaseBlock({ dbId, viewId, onView }: { dbId: number; viewId: 
       live = false;
     };
   }, [dbId]);
+  // An old chart block (legacy-blocks.ts): the chart view it stands for, found or made, and the block shows it from now on.
+  const marker = parseChartMarker(viewId) ? viewId : "";
+  const onViewRef = useRef(onView);
+  useEffect(() => {
+    onViewRef.current = onView;
+  });
+  useEffect(() => {
+    if (!marker) return;
+    void chartViewAction(dbId, marker, blockTitle).then((r) => (r.ok ? onViewRef.current(r.viewId) : toast(r.error, { tone: "error" })));
+  }, [dbId, marker, blockTitle]);
+  if (marker) return <p className="text-sm text-zinc-400">…</p>;
   return (
     <div className="space-y-1">
       <button type="button" className="text-sm font-semibold hover:underline" onClick={() => router.push(`/workspace/${dbId}`)} title={t("Open as a page")}>
