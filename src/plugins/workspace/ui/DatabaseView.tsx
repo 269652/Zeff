@@ -7,8 +7,6 @@ import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { chartViewAction, templateParamsAction, tryRulesAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, formFromTableAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, loadDatabaseAction, addSubtaskAction, makeInboxAction, placeRowAction, refreshPipelineAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, withCell, dropBetween, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
-/** The fields that hold where a row came from (keep:…, a source's key, when it was edited there). */
-const INTERNAL_REFS = new Set(["noteref", "srcref", "srcedited"]);
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { useProgressive } from "./progressive";
@@ -34,6 +32,9 @@ import { CalcCell, usePublished } from "./calc-row";
 import { ShareDialog } from "./sheet";
 import { DatabaseMenu, PLAIN_VIEWS, VIEW_ICON } from "./db-menu";
 import { parseChartMarker } from "../legacy-blocks";
+
+/** The fields that hold where a row came from (keep:…, a source's key, when it was edited there). */
+const INTERNAL_REFS = new Set(["noteref", "srcref", "srcedited"]);
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
 
