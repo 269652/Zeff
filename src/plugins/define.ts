@@ -13,6 +13,8 @@ export type PluginCategory = "app" | "ai" | "connector" | "timesheet" | "languag
 export type ExtensionShape = {
   /** Unique within the plugin that brings it ("note-action"). */
   key: string;
+  /** Its id when a retired plugin brought it once ("notes:note-review") — so what you set stays set. Else "<plugin>:<key>". */
+  id?: string;
   /** The plugin it extends. */
   for: string;
   name: string;
@@ -64,6 +66,17 @@ export type PluginShape<Id extends string = string> = {
   experimental?: string;
   /** Beta: works, but may break — the warning shown with it (Plugins page, before installing, where it acts). */
   beta?: string;
+  /**
+   * Its parts, each on or off by itself (the Plugins page lists them under it) — there only while the plugin is. Often
+   * a plugin of its own once: it keeps that id, so what you had set (and every check of it) stays as it was.
+   */
+  features?: FeatureShape[];
+};
+
+/** A part of a plugin (see `features`): what a plugin brings, without a category or parts of its own. */
+export type FeatureShape = Omit<PluginShape, "category" | "features"> & {
+  /** Set where it acts (the Keep source's "write back"), not on the Plugins page. */
+  hidden?: boolean;
 };
 
 /** Declare a plugin. Keeps the id as a literal type, so the plugin ids are known to the compiler. */

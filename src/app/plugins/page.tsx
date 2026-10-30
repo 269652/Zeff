@@ -7,7 +7,7 @@ import { PluginExtensions, type ExtensionRow } from "@/components/PluginExtensio
 import { PluginInstallButton } from "@/components/PluginInstallButton";
 import { ThisPc } from "@/components/ThisPc";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
-import { PLUGIN_CATEGORY_LABELS, PLUGINS, pluginById, type PluginCategory, type PluginManifest } from "@/plugins/catalog";
+import { PLUGIN_CATEGORY_LABELS, featuresOf, listedPlugins, pluginById, type PluginCategory, type PluginManifest } from "@/plugins/catalog";
 import { findCopilotCli } from "@/plugins/copilot-cli/cli";
 import { ExternalPlugins } from "@/components/ext/ExternalPlugins";
 import { extensionStates } from "@/plugins/extension-state";
@@ -42,7 +42,7 @@ export default async function PluginsPage() {
       .filter((s) => s.ext.for === host)
       .map((s) => ({ id: s.ext.id, name: catalogText(t, s.ext.name), description: catalogText(t, s.ext.description), origin: extensionOrigin(s.ext, t), available: s.available, missing: s.missing.map((m) => catalogText(t, pluginById(m).name)), chosen: s.chosen, installed: s.installed, defaultInstalled: s.ext.defaultInstalled }));
   const brings = (by: string) => [...new Set(exts.filter((s) => s.ext.by === by).map((s) => catalogText(t, pluginById(s.ext.for).name)))];
-  const groups = (Object.keys(PLUGIN_CATEGORY_LABELS) as PluginCategory[]).map((c) => [c, PLUGINS.filter((p) => p.category === c)] as const);
+  const groups = (Object.keys(PLUGIN_CATEGORY_LABELS) as PluginCategory[]).map((c) => [c, listedPlugins().filter((p) => p.category === c)] as const);
   return (
     <div className="page">
       <div className="page-aside">
@@ -117,6 +117,32 @@ export default async function PluginsPage() {
                       )}
                       {p.syncSteps?.length ? <span>{t("Sync: {steps}", { steps: p.syncSteps.join(", ") })}</span> : null}
                     </p>
+                  )}
+                  {featuresOf(p.id).length > 0 && (
+                    <div className="space-y-1.5 border-t border-zinc-100 pt-2 dark:border-zinc-800">
+                      <p className="text-xs font-medium text-zinc-500">{t("Parts")}</p>
+                      <ul className="space-y-2">
+                        {featuresOf(p.id).map((f) => (
+                          <li key={f.id} className={`flex items-start justify-between gap-3 text-sm ${set.has(f.id) ? "" : "opacity-80"}`}>
+                            <span>
+                              <span className="font-medium">{catalogText(t, f.name)}</span>
+                              {f.defaultInstalled && <span className="ml-1 text-xs text-zinc-400">{t("Default")}</span>}
+                              {f.beta && <BetaBadge warning={f.beta} />}
+                              {f.experimental && <ExperimentalBadge warning={f.experimental} />}
+                              <span className="block text-xs text-zinc-500">{catalogText(t, f.description)}</span>
+                              {f.requires && <span className="block text-xs text-zinc-500">{t("Needs: {what}", { what: catalogText(t, f.requires) })}</span>}
+                              {set.has(f.id) && !on.has(f.id) && (
+                                <span className="block text-xs font-medium text-amber-700 dark:text-amber-400">
+                                  {t("— not active, missing: {names}", { names: (f.dependsOn ?? []).filter((d) => !on.has(d)).map((d) => catalogText(t, pluginById(d).name)).join(", ") })}
+                                </span>
+                              )}
+                            </span>
+                            <PluginInstallButton id={f.id} installed={set.has(f.id)} beta={f.beta} experimental={f.experimental} />
+                          </li>
+                        ))}
+                      </ul>
+                      <PluginExtensions rows={featuresOf(p.id).flatMap((f) => extRows(f.id))} />
+                    </div>
                   )}
                   <PluginExtensions rows={extRows(p.id)} />
                 </li>

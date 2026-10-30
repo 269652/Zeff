@@ -21,7 +21,7 @@ export type Extension = ExtensionDecl & {
   by: PluginId;
 };
 
-export const EXTENSIONS: Extension[] = PLUGINS.flatMap((p) => (p.extensions ?? []).map((e): Extension => ({ ...e, id: `${p.id}:${e.key}`, by: p.id })));
+export const EXTENSIONS: Extension[] = PLUGINS.flatMap((p) => (p.extensions ?? []).map((e): Extension => ({ ...e, id: e.id ?? `${p.id}:${e.key}`, by: p.id })));
 
 export const extensionById = (id: string) => EXTENSIONS.find((e) => e.id === id);
 /** The extension a sync step / an action belongs to (none: the plugin's own). */

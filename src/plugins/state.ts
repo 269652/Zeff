@@ -2,7 +2,7 @@ import { getDb, schema } from "@/db";
 import { accountsInstalled, currentAccountId, setAccountsInstalled } from "@/db/accounts";
 import { emitChange } from "@/lib/events";
 import { stepExtensionOk } from "./extension-state";
-import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfStep, pluginsOfService, type PluginId } from "./catalog";
+import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfStep, pluginsOfService, resolvePluginId, type PluginId } from "./catalog";
 
 /** Each plugin as you set it (the plugins table), else its default — not yet looking at what it builds on. */
 function chosen(): Map<PluginId, boolean> {
@@ -47,10 +47,12 @@ function readInstalled(): Set<PluginId> {
 /** As you set it, whatever it builds on (the Plugins page shows both). */
 export const chosenPlugins = () => new Set([...chosen()].filter(([, v]) => v).map(([k]) => k));
 
-export const isInstalled = (id: PluginId) => installedPlugins().has(id);
+/** Installed (a retired plugin's id answers as its successor: "kanban" as the Workspace). */
+export const isInstalled = (id: PluginId) => installedPlugins().has(resolvePluginId(id));
 
 /** The installed plugins that build on this one, directly or not (they go with it). */
-export function dependents(id: PluginId): PluginId[] {
+export function dependents(asked: PluginId): PluginId[] {
+  const id = resolvePluginId(asked);
   const set = chosen();
   const out: PluginId[] = [];
   const walk = (x: PluginId) => {
@@ -68,7 +70,8 @@ export function dependents(id: PluginId): PluginId[] {
  * Install or uninstall one — installing also installs what it builds on. Its data stays (mails,
  * messages, todos, pulled entries) — only what it does goes.
  */
-export function setInstalled(id: PluginId, installed: boolean): PluginId[] {
+export function setInstalled(asked: PluginId, installed: boolean): PluginId[] {
+  const id = resolvePluginId(asked);
   const changedAt = new Date().toISOString();
   const ids: PluginId[] = [id];
   if (installed) {
