@@ -216,7 +216,8 @@ export function contractsDatabase(parentId: number | null): number {
     ],
   };
   const id = createPage({ parentId, title: t("Contracts"), icon: "📜", kind: "database", schema });
-  if (fromBank) void import("./pipeline").then((p) => p.runPipeline(id, { ai: false })).catch(() => undefined);
+  // (With its AI step: the kind tells a transfer to a person or a pocket from a contract — few rows, a moment.)
+  if (fromBank) void import("./pipeline").then((p) => p.runPipeline(id)).catch(() => undefined);
   else {
     addRow(id, { title: t("Example: mobile phone"), cells: { [st.id]: st.options[0].id, [kind.id]: kind.options![3].id, [monthly.id]: 15, [cancel.id]: day(45) } });
     addRow(id, { title: t("Example: streaming"), cells: { [st.id]: st.options[0].id, [kind.id]: kind.options![1].id, [monthly.id]: 13.99 } });
