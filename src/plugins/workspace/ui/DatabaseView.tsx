@@ -7,6 +7,8 @@ import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { chartViewAction, templateParamsAction, tryRulesAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, formFromTableAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, loadDatabaseAction, addSubtaskAction, makeInboxAction, placeRowAction, refreshPipelineAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, withCell, dropBetween, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+/** The fields that hold where a row came from (keep:…, a source's key, when it was edited there). */
+const INTERNAL_REFS = new Set(["noteref", "srcref", "srcedited"]);
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { useProgressive } from "./progressive";
@@ -408,7 +410,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     setCurrent(id);
     onView?.(id);
   };
-  const visible = (view.order ? [...schema.properties].sort((a, b) => (view.order!.indexOf(a.id) + 1 || 999) - (view.order!.indexOf(b.id) + 1 || 999)) : schema.properties).filter((p) => !view.hidden.includes(p.id));
+  // (Cards, lists, the calendar: where a row came from — "keep:n4", a source's key — is Zeff's, not a line to show; a table still has its column.)
+  const visible = (view.order ? [...schema.properties].sort((a, b) => (view.order!.indexOf(a.id) + 1 || 999) - (view.order!.indexOf(b.id) + 1 || 999)) : schema.properties).filter((p) => !view.hidden.includes(p.id) && (view.type === "table" || !INTERNAL_REFS.has(p.id)));
   const filters = countRules(view.filter);
   const selection: Selection = {
     has: (id) => picked.has(id),
