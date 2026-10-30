@@ -15,6 +15,7 @@ import { PersistentDetails } from "@/components/PersistentDetails";
 import { ReportView } from "@/components/ReportView";
 import { BookedStat, PastWeeksStat } from "@/components/StatCard";
 import { WeekNav } from "@/components/WeekNav";
+import { ReportToggle } from "@/components/ReportToggle";
 import { WeekCloseCard } from "@/components/WeekCloseCard";
 import { WeekTable } from "@/components/WeekTable";
 import { listContextPeople } from "@/lib/contexts";
@@ -89,6 +90,7 @@ export default async function WeekPage({
   return (
     <div className="page">
       <div className="page-aside">
+        <ReportToggle view="week" />
         <WeekNav week={week} by={by} reporters={reporters} />
       </div>
 

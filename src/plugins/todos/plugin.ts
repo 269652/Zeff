@@ -11,7 +11,7 @@ export default definePlugin({
   settings: { href: "/preferences", what: "The briefing's JQL filter" },
   tabs: [
     { href: "/heute", label: "Today", short: "Today" },
-    { href: "/todos", label: "Todos", short: "Todos" },
+    { href: "/todos", label: "Todos", short: "Todos", also: ["/tickets"] },
   ],
   // The review queue is everyone's (each plugin brings its items) — its entry is here, with the todos it starts from.
   nav: [{ href: "/review", label: "Review", hint: "Everything waiting for your yes or no" }],

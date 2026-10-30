@@ -6,8 +6,8 @@ import { catalogText } from "./catalog-text";
 import { installedPlugins } from "./state";
 import { enabledPlugins } from "@/lib/ext/registry";
 
-/** The applications' default order (a plugin's tabs — Work, Todos …); the plugins' apps (Mail, Gmail …) after. */
-const TAB_ORDER = ["work", "todos", "tickets", "kanban", "weekly-report", "monthly-report", "knowledge"];
+/** The applications' default order: the four tabs — Today and Todos (the Todos plugin), Workspace, Code —, then the menu's apps (Report, Chat, Mail …). */
+const TAB_ORDER = ["todos", "workspace", "work", "weekly-report", "monthly-report", "knowledge"];
 
 /** The menu's settings (Menu → Anpassen) — per account. */
 export const getMenuPrefs = (): MenuPrefs => {
@@ -33,7 +33,7 @@ export function allApps(): AppView[] {
   const apps: AppView[] = [];
   for (const [list, defaultPlace] of [
     [plugins.flatMap((p) => (p.tabs ?? []).filter((x) => !x.unless || !on.has(x.unless as never)).map((x) => ({ ...x, label: tr(x.label), short: tr(x.short), hint: tr(p.name), pluginName: tr(p.name) }))), "header"],
-    [[...plugins.flatMap((p) => (p.apps ?? []).map((a) => ({ ...a, label: tr(a.label), short: tr(a.short), hint: tr(a.hint), pluginName: tr(p.name) }))), ...external], "menu"],
+    [[...plugins.flatMap((p) => (p.apps ?? []).filter((a) => !a.unless || !on.has(a.unless as never)).map((a) => ({ ...a, label: tr(a.label), short: tr(a.short), hint: tr(a.hint), pluginName: tr(p.name) }))), ...external], "menu"],
   ] as const) {
     for (const a of list) {
       if (seen.has(a.href)) continue;

@@ -1,17 +1,14 @@
-import type { Metadata } from "next";
-import { t } from "@/lib/i18n/server";
+import { redirect } from "next/navigation";
 import { connection } from "next/server";
-import { LagePage, type LageSearch } from "@/components/boards/LagePage";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: t("Tickets") };
-}
-
-/** Tickets (Tickets plugin): the Ticket-Lage per ticket — how each stands, what happened, its todos. */
-export default async function TicketsPage({ searchParams }: { searchParams: Promise<LageSearch> }) {
+/** Tickets (Tickets plugin): now a toggle inside Todos — the old address leads there (with its filters). */
+export default async function TicketsPage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
   await connection();
   if (!isInstalled("tickets")) return <PluginNotInstalled id="tickets" />;
-  return LagePage({ searchParams, part: "tickets" });
+  const q = new URLSearchParams();
+  for (const [k, v] of Object.entries(await searchParams)) for (const x of [v ?? []].flat()) if (k !== "part") q.append(k, x);
+  q.set("part", "tickets");
+  redirect(`/todos?${q}`);
 }
