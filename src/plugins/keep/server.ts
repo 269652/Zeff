@@ -1,7 +1,5 @@
 import { collectionProviders } from "@/lib/items/point";
-import { tabMenus } from "../tab-menus-point";
 import { keepCollections } from "./collections";
 
-/** What Keep registers for the shell and other plugins (loaded through plugins/contributions). */
-tabMenus.contribute("notes", { tab: "/keep", items: async () => (await import("./tab-menu")).tabMenu() });
-collectionProviders.contribute("notes", keepCollections);
+/** What the Keep module registers (loaded through plugins/contributions): Google Keep's notes (until they are a Workspace database) and old note refs as collections. */
+collectionProviders.contribute("workspace", keepCollections);

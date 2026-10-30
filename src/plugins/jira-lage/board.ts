@@ -7,7 +7,7 @@ import { attentionLabels, isAttention, type Attention } from "@/lib/boards/share
 import { boardRunState } from "@/lib/boards/run";
 import { ticketChats, type ChatItem } from "@/lib/boards/ticket-chat";
 import { contextByTicket, lageByTicket, openTodosByTicket, type Lage, type TicketContextItem } from "@/lib/boards/ticket-lage";
-import type { BoardSummary, RichBoard, RichCard, RichColumn } from "@/plugins/kanban/shared";
+import type { BoardSummary, RichBoard, RichCard, RichColumn } from "./shared";
 import { accountFlag } from "@/lib/sync/account-flags";
 
 /**
@@ -254,3 +254,12 @@ export async function lageBoard(id: string): Promise<RichBoard | null> {
     error: error ?? null,
   };
 }
+
+/** The briefing's run (My briefing's button): running, when last, the follow-up step going on. */
+export function briefingRunState(): NonNullable<RichBoard["briefing"]> {
+  const { at } = lageByTicket();
+  return { running: !!boardRunState(), lastAt: at, step: followUpStep(boardRunState()?.phase) };
+}
+
+/** The Board-Lage's run (a Jira board's "Auswerten"): running, and how it went last. */
+export const boardLageRunState = (): NonNullable<RichBoard["boardLage"]> => boardLageState()!;

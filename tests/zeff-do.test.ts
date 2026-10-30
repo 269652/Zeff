@@ -52,32 +52,3 @@ test("zeff-do: an instruction becomes an action that adjusts the AI step's instr
   assert.match(getContextPrefs().branchname.extra, /nicht nach dem Ticket-Titel/, "the instructions stay");
   assert.equal(getContextPrefs().branchname.numbers.maxChars, 60, "the number is held to the step's limits");
 });
-
-/** The AI's dictionary lists what is offered, and a plugin's offer is gone with the plugin. */
-test("zeff-do: the dictionary lists the offered methods; an uninstalled plugin's are not offered", async () => {
-  const { opsDictionary } = await import("@/lib/boards/shared");
-  const { cleanActions } = await import("@/plugins/actions/catalog");
-  const { setInstalled } = await import("@/plugins/state");
-  setInstalled("kanban", true);
-  setInstalled("llm", true);
-  const dict = opsDictionary();
-  assert.match(dict, /zeff-do/);
-  assert.match(dict, /method „llm\.steps\.update“/);
-  assert.match(dict, /method „kanban\.cards\.add“/);
-
-  const store = await import("@/plugins/kanban/store");
-  const board = store.createBoard({ name: "Privat" });
-  const card = { type: "zeff-do", method: "kanban.cards.add", args: { board: "priv", column: "in prog", title: "Geschenk besorgen", description: "bis Freitag" } };
-  const ops = cleanActions([card], ctx);
-  assert.equal(ops.length, 1);
-  assert.match((ops[0] as { title: string }).title, /Geschenk besorgen.*Privat/);
-  const { runZeffDo } = await import("@/plugins/actions/zeff-run");
-  await runZeffDo(ops[0] as never, { todo: {} as never, note: () => undefined });
-  const cols = store.getBoard(board).columns;
-  assert.deepEqual(cols.find((c) => c.name === "In progress")?.cards.map((c) => c.title), ["Geschenk besorgen"], "the column was found by its name");
-
-  setInstalled("kanban", false);
-  assert.ok(!/method „kanban\.cards\.add“/.test(opsDictionary()), "gone from the dictionary");
-  assert.equal(cleanActions([card], ctx).length, 0, "and not proposed any more");
-  await assert.rejects(runZeffDo(ops[0] as never, { todo: {} as never, note: () => undefined }), /not offered/);
-});

@@ -432,30 +432,3 @@ test("the docs render in the app: no bold or code span runs over a line break (t
     });
   }
 });
-
-test("a plugin's event reaches the hooks: Kanban's change becomes kanban.changed", async () => {
-  const reg = await import("@/lib/ext/registry");
-  const { startExtWatcher } = await import("@/lib/ext/work");
-  const { setInstalled } = await import("@/plugins/state");
-  setInstalled("kanban", true);
-  const dir = write(
-    "hook-kanban",
-    { ...base, id: "hook-kanban", permissions: ["exec"], contributes: { hooks: { "kanban.changed": { command: ["node", "./hook.mjs"], timeoutMs: 5000 } } } },
-    { "hook.mjs": 'import fs from "node:fs"; fs.appendFileSync("seen.txt", process.env.ZEFF_EVENT + " ");' },
-  );
-  assert.ok(reg.scanPlugins(true).plugins.some((p) => p.id === "hook-kanban"), "a hook on an event a plugin brings is accepted");
-  reg.setEnabled("hook-kanban", true);
-  startExtWatcher();
-  const store = await import("@/plugins/kanban/store");
-  const b = store.createBoard({ name: "Hooked" });
-  store.createCard(store.getBoard(b).columns[0].id, "x");
-  const seen = path.join(dir, "seen.txt");
-  const said = () => fs.existsSync(seen) && fs.readFileSync(seen, "utf8").includes("kanban.changed");
-  for (let i = 0; i < 40 && !said(); i++) await new Promise((r) => setTimeout(r, 100));
-  assert.ok(fs.existsSync(seen), "the hook ran");
-  assert.match(fs.readFileSync(seen, "utf8"), /kanban\.changed/);
-  // An event nobody brings is refused.
-  const { parseManifest } = await import("@/lib/ext/manifest");
-  assert.ok(!parseManifest(JSON.stringify({ ...base, id: "p-y", permissions: ["exec"], contributes: { hooks: { "mail.arrived": { command: ["x"] } } } })).ok);
-  reg.setEnabled("hook-kanban", false);
-});

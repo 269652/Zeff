@@ -34,14 +34,6 @@ export async function startRecapAnywhere(day: string): Promise<Result> {
   return remoteResult("recap.start", { day });
 }
 
-/** A Keep board's sync (the Keep write plugin): started — false when one runs already. */
-export async function startBoardSyncAnywhere(boardId: number): Promise<boolean> {
-  if (!delegates()) return (await import("@/plugins/keep-write/board-sync")).startBoardSync(boardId);
-  const r = await callHost<{ started: boolean }>("keepboard.sync", { boardId });
-  void refreshMirror();
-  return r.started;
-}
-
 /** The search for everyone's dates (the People plugin): started — false when one runs already. */
 export async function findAllDatesAnywhere(): Promise<boolean> {
   if (!delegates()) return (await import("@/plugins/people/dates")).findAllDates();

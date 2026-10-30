@@ -15,7 +15,7 @@ export async function startBoardLageAction(opts: { all?: boolean } = {}): Promis
     if (delegates()) await (await import("@/lib/host/client")).callHost("boardlage.scope", { all: !!opts.all });
     else (await import("./board-lage")).setBoardLageScope(!!opts.all);
     const r = await (await import("@/lib/sync/registry")).startSync("boardlage");
-    revalidatePath("/kanban", "layout");
+    revalidatePath("/workspace", "layout");
     return r.ok ? { ok: true, message: t("The board briefing is running — the cards fill in as parts are done.") } : { ok: false, error: r.message };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };

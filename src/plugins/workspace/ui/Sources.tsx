@@ -10,6 +10,7 @@ import { setBoardEnabledAction } from "@/plugins/jira/server-actions";
 import { convertTaskListAction, createSourceDatabaseAction, followTaskListAction, keepSourceDatabasesAction, taskListMetaAction } from "../actions";
 import type { SourceView } from "../sources";
 import { SyncEvery } from "./pipeline";
+import { KeepAccountForm } from "@/plugins/keep/KeepAccountForm";
 
 /**
  * The Workspace's data sources: Jira (its boards switched on here, each a board database), Google Keep (a gallery
@@ -84,6 +85,7 @@ export function SourcesView({ sources }: { sources: SourceView[] }) {
           </div>
           <p className="text-sm text-zinc-600 dark:text-zinc-400">{info[s.key] ?? (s.hint ? t(s.hint) : "")}</p>
           {(s.key === "jira" || s.key === "keep" || s.key === "mail") && <SyncEvery syncKey={s.key} name={s.name} />}
+          {s.keepAccount !== undefined && <KeepAccountForm account={s.keepAccount} />}
           {s.boards && (
             <ul className="divide-y divide-zinc-100 text-sm dark:divide-zinc-800">
               {s.boards.map((b) => (

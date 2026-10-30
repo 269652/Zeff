@@ -2,11 +2,11 @@ import path from "node:path";
 import { getSqlite } from "@/db";
 import { accountDir, currentAccountId } from "@/db/accounts";
 import { setCollection } from "@/lib/items";
-import { getPref, setPref } from "@/lib/prefs";
+import { setPref } from "@/lib/prefs";
 import { isInstalled, setInstalled } from "@/plugins/state";
 import { markdownToDoc } from "@/plugins/workspace/doc";
 import { addRow, archivePage, createPage, getDatabase, updatePage } from "@/plugins/workspace/store";
-import { listKeepBoards, listOwnNotes, updateKeepBoard, type NoteView } from "./boards";
+import { listKeepBoards, listOwnNotes, updateKeepBoard, type NoteView } from "@/plugins/keep/boards";
 import { notesBoardSchema } from "@/plugins/workspace/notes-board";
 
 /**
@@ -41,7 +41,6 @@ const iso = (t: string | null) => new Date(t && !t.includes("T") ? `${t.replace(
 export function moveKeepBoardToWorkspace(boardId: number): { dbId: number } {
   const already = movedKeepBoard(boardId);
   if (already) return { dbId: already };
-  if (!isInstalled("workspace")) throw new Error("Moving a board needs the Workspace plugin — install it first.");
   // All or nothing: a failure halfway leaves no half-made database and the board as it was.
   return db().transaction(() => move(boardId))();
 }
@@ -54,7 +53,7 @@ function move(boardId: number): { dbId: number } {
   const notes: NoteView[] = [...live, ...archived];
 
   const { schema, color, pinned, labels, ref } = notesBoardSchema([...new Set(notes.flatMap((n) => n.labels))]);
-  const dbId = createPage({ kind: "database", title: board.name, schema });
+  const dbId = createPage({ kind: "database", title: board.archived ? `${board.name} (archived)` : board.name, schema });
   updatePage(dbId, { fullWidth: true }); // the notes use the whole width, as Keep's did
 
   const d = db();
@@ -79,7 +78,7 @@ function move(boardId: number): { dbId: number } {
   for (const n of notes) times.run(iso(n.createdAt), iso(n.updatedAt), rows.get(n.ref)!);
 
   d.prepare("insert or replace into keep_moved_boards (board_id, db_id) values (?, ?)").run(boardId, dbId);
-  setCollection(`workspace:${dbId}`, { briefing: board.inLage, knowledge: board.inKnowledge });
+  setCollection(`workspace:${dbId}`, { briefing: !board.archived && board.inLage, knowledge: !board.archived && board.inKnowledge });
   updateKeepBoard(boardId, { archived: true });
   return { dbId };
 }
@@ -98,28 +97,20 @@ export function movedNoteDatabases(): { dbId: number; name: string }[] {
   });
 }
 
-const MOVED_ALL = "keep.movedToWorkspace";
-
 /**
- * Once per account (at a server start): every Keep board of yours that isn't archived moves into the
- * Workspace — after a copy of the database next to it (zeff-before-keep-move.db), with the Workspace
- * turned on. A board that fails is logged and the next start tries again; null: done already (or Keep
- * isn't installed).
+ * At a server start, per account: every Keep board of yours not moved yet (archived ones too, as "… (archived)") moves
+ * into the Workspace — after a copy of the database next to it (zeff-before-keep-move.db), with the Workspace turned
+ * on. Keep's own tables are only read (and the board marked archived). A board that fails is logged and the next start
+ * tries again; null: nothing (left) to move.
  */
-/** A board was made in Keep: once Keep's boards have moved (and the Workspace is there), it goes into the Workspace too. */
-export function keepBoardCreated(boardId: number): void {
-  if (getPref<boolean>(MOVED_ALL, false) && isInstalled("workspace")) moveKeepBoardToWorkspace(boardId);
-}
-
 export async function moveAllKeepBoardsOnce(): Promise<{ moved: number; failed: number; backup: string | null } | null> {
-  if (getPref<boolean>(MOVED_ALL, false) || !isInstalled("notes")) return null;
-  const boards = listKeepBoards().filter((b) => !movedKeepBoard(b.id));
-  let backup: string | null = null;
-  if (boards.length) {
-    backup = path.join(accountDir(currentAccountId()), "zeff-before-keep-move.db");
-    await getSqlite().backup(backup);
-    if (!isInstalled("workspace")) setInstalled("workspace", true);
-  }
+  if (!getSqlite().prepare("select 1 from sqlite_master where type = 'table' and name = 'keep_boards'").get()) return null;
+  const moved = new Set((db().prepare("select board_id from keep_moved_boards").all() as { board_id: number }[]).map((r) => r.board_id));
+  const boards = listKeepBoards({ archived: true }).filter((b) => !moved.has(b.id));
+  if (!boards.length) return null;
+  const backup = path.join(accountDir(currentAccountId()), "zeff-before-keep-move.db");
+  await getSqlite().backup(backup);
+  if (!isInstalled("workspace")) setInstalled("workspace", true);
   let failed = 0;
   for (const b of boards) {
     try {
@@ -129,8 +120,6 @@ export async function moveAllKeepBoardsOnce(): Promise<{ moved: number; failed: 
       console.error(`[keep] moving board ${b.id} “${b.name}” into the Workspace failed`, e);
     }
   }
-  if (!failed) setPref(MOVED_ALL, true);
+  if (!failed) setPref("keep.movedToWorkspace", true);
   return { moved: boards.length - failed, failed, backup };
 }
-
-export { googleKeepDatabase, googleKeepHref, syncGoogleKeepDatabase } from "./google-workspace";

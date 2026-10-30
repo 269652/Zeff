@@ -5,7 +5,7 @@ import { useEffect, useState, useTransition } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { formatDateTime } from "@/lib/format";
-import type { RichBoard } from "@/plugins/kanban/shared";
+import type { RichBoard } from "./shared";
 import { startBoardLageAction } from "./actions";
 
 const when = (iso: string | null) => (iso ? formatDateTime(iso) : "");

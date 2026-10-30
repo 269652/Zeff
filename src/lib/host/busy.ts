@@ -23,7 +23,6 @@ export function busyThings(): string[] {
     for (const key of s.running) busy.push(`sync ${key} (${account})`);
     if (s.all !== undefined) busy.push(`Sync all (${account})`);
   }
-  for (const [account, s] of each<{ boardId: number }>("__zeffBoardSync")) busy.push(`Keep board sync (board ${s.boardId}, ${account})`);
   for (const [account] of each("__zeffKeepSyncing")) busy.push(`Keep sync (${account})`);
   for (const [account, d] of each<{ done: number; total: number }>("__zeffPeopleDates")) busy.push(`people's dates (${d.done}/${d.total}, ${account})`);
   for (const [account, r] of each<{ day: string }>("__zeffRecap")) busy.push(`day recap ${r.day} (${account})`);

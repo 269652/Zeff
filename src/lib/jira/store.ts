@@ -1,7 +1,5 @@
-import { isKanbanKey, isOwnKey } from "@/lib/ticket-keys";
+import { isOwnKey } from "@/lib/ticket-keys";
 import { itemTicketCards } from "@/lib/items/tickets";
-import { kanbanTicketCards } from "@/plugins/kanban/lage";
-import { isInstalled } from "@/plugins/state";
 import { and, asc, desc, eq, gte, inArray, lte, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { JiraBoard, JiraStatusCategory, JiraTicket } from "@/db/schema";
@@ -490,11 +488,9 @@ function jiraBrowseBase(): string | null {
 export function getTicketCards(keys: (string | null | undefined)[]): Record<string, TicketCard> {
   const all = [...new Set(keys.flatMap((k) => (k?.trim() ? [k.trim().toUpperCase()] : [])))];
   if (all.length === 0) return {};
-  // Your own (KB-…, WS-…): a row's card (a moved Kanban card's too) — else Kanban's own card: title, column, a link to the board.
+  // Your own (KB-…, WS-…): a row's card (a moved Kanban card's too): title, status, a link to the row.
   const own = all.filter((k) => isOwnKey(k));
-  const rowCards = own.length ? itemTicketCards(own) : {};
-  const kanban = own.filter((k) => isKanbanKey(k) && !rowCards[k]);
-  const kanbanCards = { ...rowCards, ...(kanban.length && isInstalled("kanban") ? kanbanTicketCards(kanban) : {}) };
+  const kanbanCards = own.length ? itemTicketCards(own) : {};
   const wanted = all.filter((k) => !kanbanCards[k]);
   if (wanted.length === 0) return kanbanCards;
   const rows = getDb().select().from(jiraTickets).where(inArray(jiraTickets.key, wanted)).all();

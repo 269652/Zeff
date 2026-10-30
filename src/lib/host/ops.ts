@@ -38,7 +38,6 @@ export const HOST_OPS: Record<string, Op> = {
   },
 
   // Longer jobs the pages start.
-  "keepboard.sync": async (a) => ({ started: (await import("@/plugins/keep-write/board-sync")).startBoardSync(Number(a.boardId)) }),
   "people.datesAll": async () => ({ started: (await import("@/plugins/people/dates")).findAllDates() }),
 
   /** What this server is doing that a restart would cut off — for `npm run deploy` (see /api/busy). */

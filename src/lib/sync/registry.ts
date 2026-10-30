@@ -214,7 +214,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   },
   keep: {
     label: "Google Keep",
-    href: "/keep/google",
+    href: "/workspace/settings/sources",
     get what() { return t("Your Google Keep notes (Keep opened in a fresh tab, what it loads kept — nothing in Keep changes)"); },
     run: async () => (await import("@/plugins/keep/sync")).syncKeep(),
     busy: () => flag("__zeffKeepSyncing"),
@@ -359,7 +359,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   },
   boardlage: {
     get label() { return t("Board briefing"); },
-    href: "/kanban",
+    href: "/workspace",
     get what() { return t("The briefing on every relevant card of your boards — the Jira boards' tickets (not only yours) and your own boards' cards — shown on the cards (only what changed)"); },
     run: async () => {
       const r = await (await import("@/plugins/jira-lage/board-lage")).runBoardLage();
@@ -403,7 +403,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   // Google Keep's extensions for Todos (there while they're on — see extensions.ts):
   notetodos: {
     get label() { return t("Note review"); },
-    href: "/keep",
+    href: "/workspace",
     get what() { return t("Todos from your notes — new and edited ones (Google Keep, your Keep boards in the briefing), by the AI (after each briefing)"); },
     run: async () => {
       const r = await (await import("@/plugins/keep/note-review")).reviewNotesForTodos(

@@ -17,7 +17,7 @@ test("syncGoogleKeepDatabase: Google Keep's notes kept in a gallery database, ea
   const { docToMarkdown } = await import("@/plugins/workspace/doc");
   const c = await import("@/lib/items");
   const { keepCollections } = await import("@/plugins/keep/collections");
-  const { syncGoogleKeepDatabase, googleKeepDatabase, googleKeepHref } = await import("@/plugins/keep/to-workspace");
+  const { syncGoogleKeepDatabase, googleKeepDatabase, googleKeepHref } = await import("@/plugins/keep/google-workspace");
   const note = (id: string, extra: Partial<import("@/plugins/keep/store").KeepNote> = {}) => ({ id, kind: "note" as const, title: `Note ${id}`, text: `Text ${id}`, labels: [], color: null, pinned: false, archived: false, createdAt: "2026-10-01T00:00:00Z", updatedAt: "2026-10-02T00:00:00Z", url: `https://keep.google.com/#NOTE/${id}`, ...extra });
   g.saveKeepNotes([note("g1", { color: "yellow", pinned: true, labels: ["Haushalt"], kind: "list", text: "- [ ] Milch\n- [x] Brot" }), note("g2"), note("g3", { archived: true })], true);
 

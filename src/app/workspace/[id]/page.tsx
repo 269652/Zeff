@@ -7,6 +7,7 @@ import { loadDatabaseAction } from "@/plugins/workspace/actions";
 import { backlinks, breadcrumbs, getDatabase, getPage, inTemplates, templateTree, touchOpened, tree } from "@/plugins/workspace/store";
 import { PageView } from "@/plugins/workspace/ui/PageView";
 import { ArchivedNotice } from "@/plugins/workspace/ui/Trash";
+import { LageStrip } from "@/plugins/jira-lage/LageStrip";
 
 export async function generateMetadata({ params }: { params: Promise<{ id: string }> }): Promise<Metadata> {
   const { id } = await params;
@@ -39,7 +40,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   const database = page.kind === "database" ? await loadDatabaseAction(page.id) : null;
   const form = page.kind === "form" ? (await import("@/plugins/workspace/forms")).getForm(page.id) : null;
   const ofTemplates = !isRow && inTemplates(page.id);
-  return (
+  const view = (
     <PageView
       key={page.id}
       page={{
@@ -70,5 +71,13 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
       database={database?.ok ? database.data : null}
       form={form}
     />
+  );
+  // The Jira briefing's run buttons over its databases (Meine Lage, a Jira board's).
+  if (page.kind !== "database") return view;
+  return (
+    <>
+      <LageStrip dbId={page.id} />
+      {view}
+    </>
   );
 }

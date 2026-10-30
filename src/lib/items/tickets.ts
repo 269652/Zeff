@@ -26,8 +26,8 @@ export function boardLageTickets(): BoardLageTicket[] {
   const since = Date.now() - DONE_DAYS * 864e5;
   const out: BoardLageTicket[] = [];
   for (const col of listCollections({ briefing: true })) {
-    // Kanban's own boards are kanbanLageTickets'; a database a sync keeps (Jira) brings its tickets from there.
-    if (col.kind !== "board" || col.plugin === "kanban" || col.source) continue;
+    // A database a sync keeps (Jira) brings its tickets from there.
+    if (col.kind !== "board" || col.source) continue;
     const statuses = col.statuses ?? [];
     for (const it of collectionItems(col.id) ?? []) {
       if (!it.key) continue;

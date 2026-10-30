@@ -3,7 +3,7 @@
 import { useActionState } from "react";
 import type { ActionState } from "@/app/action-helpers";
 import { useT } from "@/components/I18nProvider";
-import { setKeepAccountAction } from "./actions";
+import { setKeepAccountAction } from "./server-actions";
 
 /** Which Google account's Keep the sync reads (its number in the automation Chrome, or its address). */
 export function KeepAccountForm({ account }: { account: string }) {

@@ -16,7 +16,7 @@ declare module "@/lib/boards/shared" {
 export const KEEP_ACTIONS = [
   action({
     type: "keep-note",
-    plugin: "notes",
+    plugin: "workspace",
     label: "Create note",
     verb: "Create",
     offer: {

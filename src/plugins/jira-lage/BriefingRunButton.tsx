@@ -6,7 +6,7 @@ import { runBoardAction } from "@/plugins/todos/server-actions";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { formatDateTime } from "@/lib/format";
-import type { RichBoard } from "@/plugins/kanban/shared";
+import type { RichBoard } from "./shared";
 
 /**
  * "My briefing"'s run: the briefing itself (the Todos tab's "Jetzt auswerten" — Jira synced first, then the

@@ -1,47 +1,10 @@
 /**
- * Kanban, client-safe: your own boards (columns, cards K-<id>) and the boards other plugins bring
- * (Jira Lage: your Jira boards, each card with the Lage of its ticket) — one way to show both.
+ * Jira briefing's boards, client-safe: "My briefing" and your Jira boards, each card with its ticket's briefing — what
+ * they are made into Workspace databases from (to-workspace.ts), and the state of their runs (the briefing buttons).
  */
-import type { T } from "@/lib/i18n/shared";
 import type { TicketQuestion, TodoSource, TodoUserNote } from "@/lib/boards/shared";
 import type { ChatItem } from "@/lib/boards/ticket-chat";
 
-export const PRIORITIES = ["low", "normal", "high", "urgent"] as const;
-export type Priority = (typeof PRIORITIES)[number];
-/** The priorities' names in English (what the briefing reads). */
-export const PRIORITY_LABELS: Record<Priority, string> = { low: "Low", normal: "Normal", high: "High", urgent: "Urgent" };
-/** The priorities' names as shown, in the language of `t`. */
-export const priorityLabels = (t: T): Record<Priority, string> => ({ low: t("Low"), normal: t("Normal"), high: t("High"), urgent: t("Urgent") });
-export const isPriority = (v: unknown): v is Priority => (PRIORITIES as readonly unknown[]).includes(v);
-
-export const BOARD_COLORS = ["indigo", "emerald", "amber", "rose", "sky", "violet", "zinc"] as const;
-
-/** A card's key: KB-<id> — shaped like a Jira key, so it flows into todos, the Lage, entries. */
-export const cardRef = (id: number) => `KB-${id}`;
-
-export type CardView = {
-  id: number;
-  ref: string;
-  columnId: number;
-  title: string;
-  description: string;
-  labels: string[];
-  priority: Priority | null;
-  due: string | null;
-  assignee: string | null;
-  sort: number;
-  /** The card it's a subtask of (null: a card of its own). */
-  parentId: number | null;
-  createdAt: string;
-  updatedAt: string;
-  doneAt: string | null;
-};
-export type ColumnView = { id: number; name: string; sort: number; wipLimit: number | null; done: boolean; cards: CardView[] };
-export type BoardView = { id: number; name: string; description: string; color: string; inLage: boolean; columns: ColumnView[]; createdAt: string; updatedAt: string };
-/** What the Lage says about a card (its last run), and its open todos — shown on the card. */
-export type CardLage = { attention: string | null; attentionLabel: string | null; lead: string | null; summary: string | null; happened: { when: string; who?: string; what: string }[]; todos: CardTodo[] };
-/** A card's todo — a checklist item (open or done), with its deadline. */
-export type CardTodo = { id: number; text: string; owner: "me" | "other"; status?: "open" | "done"; due?: string | null };
 export type BoardSummary = { id: string; name: string; description: string; color: string; source: string; cards: number; open: number; href: string; updatedAt: string | null };
 
 /** A card on a board another plugin brings — shown, not edited here. */

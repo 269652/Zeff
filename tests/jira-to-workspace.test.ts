@@ -59,8 +59,6 @@ test("syncJiraBoardDatabases: a Jira board becomes a read-only board database, k
   c.setCollection(col.id, { briefing: true });
   assert.ok(!boardLageTickets().some((x) => x.issue.key.startsWith("PROJ-")), "Jira's tickets come into the Lage from Jira, not again from its database");
   assert.equal(c.itemsByKeys(["PROJ-1"]).get("PROJ-1")?.title, "Summary PROJ-1", "found by its key");
-  const { workspaceBoards } = await import("@/plugins/kanban/to-workspace");
-  assert.ok(!workspaceBoards().some((x) => x.id === `workspace:${dbId}`), "Kanban's overview lists it among Jira's, not again among yours");
   const a = await import("@/plugins/workspace/actions");
   const loaded = await a.loadDatabaseAction(dbId);
   assert.ok(loaded.ok && loaded.data.locked, "the view gets it as locked: no drag, no edits");

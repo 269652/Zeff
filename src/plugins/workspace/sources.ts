@@ -6,7 +6,7 @@ import { listJiraBoards } from "@/lib/jira/store";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { briefingDatabase, jiraBoardDatabase } from "@/plugins/jira-lage/to-workspace";
 import { googleKeepHref } from "@/plugins/keep/google-workspace";
-import { keepCount } from "@/plugins/keep/store";
+import { keepCount, keepSettings } from "@/plugins/keep/store";
 import { isInstalled } from "@/plugins/state";
 import { allTaskLists } from "./task-lists";
 
@@ -36,6 +36,8 @@ export type SourceView = {
   databases: { title: string; href: string }[];
   /** To-do lists in pages: each list by its path, its Todo-engine switch, and the database that follows it (if any). */
   lists?: { key: string; pageId: number; listId: string; path: string; title: string; engine: boolean; open: number; total: number; database: string | null }[];
+  /** Google Keep: the Google account its sync reads (its number in the automation Chrome, or its address). */
+  keepAccount?: string;
   /** Mail, messages: the database the inboxes go under ("Mail", "Chats") — its type for the templates. */
   home?: { id: number; dataType: "mail" | "message"; inboxes: { title: string; href: string }[] } | null;
 };
@@ -82,7 +84,8 @@ function keepSource(): SourceView {
     name: "Google Keep",
     step: "keep",
     ready: true,
-    setup: { text: "The Google account Keep is read with", href: "/keep/settings" },
+    setup: null,
+    keepAccount: keepSettings().account,
     count: keepCount(),
     databases: href ? [{ title: "Google Keep", href }] : [],
   };

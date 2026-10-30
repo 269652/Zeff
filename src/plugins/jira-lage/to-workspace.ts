@@ -200,3 +200,9 @@ export const jiraBoardHref = (boardId: string): string | null => {
   const dbId = boardId === "jira-lage" ? briefingDatabase() : jiraBoardDatabase(boardId);
   return dbId ? `/workspace/${dbId}` : null;
 };
+
+/** What a database is to the Jira briefing: Meine Lage ("briefing"), a Jira board's ("board"), or nothing of it (null). */
+export function lageDatabaseKind(dbId: number): "briefing" | "board" | null {
+  if (briefingDatabase() === dbId) return "briefing";
+  return db().prepare("select 1 from jira_board_dbs where db_id = ? and board_id != 'jira-lage'").get(dbId) ? "board" : null;
+}

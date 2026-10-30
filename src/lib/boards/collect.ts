@@ -654,12 +654,12 @@ export async function collectBoard(
 ): Promise<Collected> {
   const cfg = getJiraSyncConfig();
   const { isInstalled } = await import("@/plugins/state");
-  // The sources: Jira (its plugin, set up, with boards chosen) and your Kanban boards in the Lage —
+  // The sources: Jira (its plugin, set up, with boards chosen) and your Workspace boards in the Lage —
   // either is enough.
   const jiraOn = isInstalled("jira") && cfg.configured && !!cfg.command;
   const boards = jiraOn ? listJiraBoards().filter((b) => b.enabled) : [];
-  const kanbanOn = isInstalled("kanban");
-  if (!boards.length && !kanbanOn)
+  const ownBoardsOn = isInstalled("workspace");
+  if (!boards.length && !ownBoardsOn)
     throw new Error(
       jiraOn
         ? t("No boards chosen — enable the boards to read on the Jira tab (or put a Kanban board in the briefing).")
@@ -828,13 +828,9 @@ export async function collectBoard(
   const left = leftIssues.map((i) => factsOf(i, cfg.baseUrl, false, true));
   tickets.push(...left);
 
-  // Your own Kanban cards (KB-…, Kanban plugin): tickets of the Lage too — their column the
-  // status, the board's other columns where they can go (a suggested move moves the card).
-  // The rows of board databases in the briefing (moved Kanban boards: KB-…, new rows: WS-…) the same way.
-  const kanban = [
-    ...((await import("@/plugins/state")).isInstalled("kanban") ? (await import("@/plugins/kanban/lage")).kanbanLageTickets() : []),
-    ...(await import("@/lib/items/tickets")).boardLageTickets(),
-  ];
+  // The rows of board databases in the briefing (moved Kanban boards: KB-…, new rows: WS-…): tickets of the Lage
+  // too — their status column the status, the other options where they can go (a suggested move moves the row).
+  const kanban = (await import("@/lib/items/tickets")).boardLageTickets();
   const kanbanMoves: Record<string, string[]> = {};
   for (const k of kanban) {
     const facts = factsOf(k.issue, cfg.baseUrl, !k.done);
