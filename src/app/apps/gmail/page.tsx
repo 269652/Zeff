@@ -53,7 +53,7 @@ export default async function GmailAppPage({ searchParams }: { searchParams: Pro
           <input name="q" defaultValue={q} className="input min-w-0 flex-1" placeholder={t("Sender, subject, text…")} aria-label={t("Search mails")} />
           <button type="submit" className="btn shrink-0">{t("Search")}</button>
         </form>
-        <Link href="/gmail" className="block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
+        <Link href="/settings/connections#gmail-accounts" className="block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
           {t("Set up accounts")}
         </Link>
       </div>

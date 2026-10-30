@@ -239,7 +239,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   // The Google Drive plugin's extensions for Backups and Documents (there while they're on):
   drivebackup: {
     label: "Backups → Google Drive",
-    href: "/google-drive",
+    href: "/settings/connections#google-drive",
     get what() { return t("Your backups, copied to Google Drive as they are made (encrypted ones; what the retention removes goes from Drive too, if set)"); },
     run: async () => (await import("@/plugins/google-drive/sync")).syncBackups(),
     busy: () => flag("__zeffDriveBackup"),
@@ -247,7 +247,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   },
   drivedocs: {
     label: "Documents ↔ Google Drive",
-    href: "/google-drive",
+    href: "/settings/connections#google-drive",
     get what() { return t("Your documents, copied to Google Drive — and, if you set so, what you add to its Documents folder comes into Zeff"); },
     run: async () => (await import("@/plugins/google-drive/sync")).syncDocuments(),
     busy: () => flag("__zeffDriveDocs"),

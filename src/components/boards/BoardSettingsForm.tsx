@@ -28,7 +28,7 @@ export function BoardSettingsForm({ jql, autoMinutes, boards, ai }: { jql: strin
         {rich(t("AI: <b>{ai}</b> — chosen in <link>Settings</link>.", { ai }), {
           b: (s) => <span className="font-medium text-zinc-700 dark:text-zinc-200">{s}</span>,
           link: (s) => (
-            <Link href="/preferences" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            <Link href="/settings/ai#backends" className="text-indigo-600 hover:underline dark:text-indigo-400">
               {s}
             </Link>
           ),
@@ -45,7 +45,7 @@ export function BoardSettingsForm({ jql, autoMinutes, boards, ai }: { jql: strin
           <span className="label">{t("By itself")}</span>
           <p className="py-1.5 text-sm">
             {t("{every} on weekdays", { every: minutesText(autoMinutes, t) })} ·{" "}
-            <Link href="/sync-settings#boards" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            <Link href="/settings/connections#boards" className="text-indigo-600 hover:underline dark:text-indigo-400">
               {t("change")}
             </Link>
           </p>

@@ -8,7 +8,7 @@ export default definePlugin({
   description: "The briefing: your tickets read by the AI — what happened, what to do — and the todos with their context, activity and recap.",
   category: "app",
   defaultInstalled: true,
-  settings: { href: "/preferences", what: "The briefing's JQL filter" },
+  settings: { href: "/settings/todos#boards", what: "The briefing's JQL filter" },
   tabs: [
     { href: "/heute", label: "Today", short: "Today" },
     { href: "/todos", label: "Todos", short: "Todos", also: ["/tickets"] },

@@ -51,7 +51,7 @@ export async function saveLlmSettingsAction(v: { instructions: string; context: 
       context: String(v?.context ?? ""),
       tasks: Object.fromEntries(Object.entries(v?.tasks ?? {}).map(([k, x]) => [k, { provider: x?.provider === "copilot" || x?.provider === "claude" || x?.provider === "codex" ? x.provider : "", model: String(x?.model ?? "") }])),
     });
-    revalidatePath("/llm");
+    revalidatePath("/settings/ai");
     return { ok: true, message: t("LLM settings saved — they apply from the next task on.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };

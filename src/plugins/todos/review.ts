@@ -110,7 +110,7 @@ export const TODOS_REVIEW: ReviewSource[] = [
         id: String(r.id),
         title: `${stepLabel(r.step)}: ${t("Leave alone: from {sender}, like “{kind}”", { sender: r.sender, kind: r.kind })}`,
         detail: `${t("rejected {n}×", { n: r.evidence.length })}: ${r.evidence.map((e) => `„${e.text}“`).join(" · ")}`,
-        href: "/settings/ai-quality#rules",
+        href: "/settings/ai#rules",
         actions: [{ id: "yes", label: t("Confirm rule") }, { id: "no", label: t("Dismiss") }],
       }));
     },

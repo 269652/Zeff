@@ -33,7 +33,7 @@ export function UsagePanel() {
   async function savePrices(fd: FormData) {
     "use server";
     setPricesText(String(fd.get("prices") ?? ""));
-    revalidatePath("/llm");
+    revalidatePath("/settings/ai");
   }
   return (
     <section className="card space-y-4 p-4">

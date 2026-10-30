@@ -6,15 +6,11 @@ import { availableLanguages, t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
 import Link from "next/link";
 import { connection } from "next/server";
-import { BoardSettingsForm } from "@/components/boards/BoardSettingsForm";
+import { HashRedirect } from "@/components/HashRedirect";
 import { BackupSettings } from "@/plugins/backup/BackupSettings";
 import { ParallelDefaultSetting } from "@/components/ParallelControls";
 import { defaultParallelMode } from "@/lib/entry-parallel";
 import { getBackupSettings, listBackups } from "@/plugins/backup/backup";
-import { aiChoice } from "@/lib/ai";
-import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
-import { getBoardSettings } from "@/lib/boards/store";
-import { listJiraBoards } from "@/lib/jira/store";
 import { LanguagePicker } from "@/components/LanguagePicker";
 import { TouchSettings } from "@/components/TouchSettings";
 import { LockSettings } from "@/components/LockSettings";
@@ -22,7 +18,7 @@ import { lockEnabled } from "@/lib/lock/shared";
 import { guardedActions, listCredentials } from "@/lib/touch";
 
 export async function generateMetadata(): Promise<Metadata> {
-  return { title: t("Settings") };
+  return { title: t("General settings") };
 }
 
 /** Backups → Google Drive: on (the extension), signed in. */
@@ -30,24 +26,42 @@ function driveBackupView() {
   return { on: extensionInstalled("google-drive:backup-sync"), connected: isDriveConnected(), installed: isInstalled("google-drive") };
 }
 
-/** App-wide settings: the AI provider Zeff's analyses run through (the Todos tab's). */
+/** Settings → General: language, parallel work, touch to approve, lock, backups (the AI, connections and the briefing have pages of their own). */
 export default async function PreferencesPage() {
   await connection();
-  const board = getBoardSettings();
-  const ai = aiChoice();
   return (
     <div className="page">
       <div className="page-aside">
-        <h1 className="text-lg font-semibold">{t("Settings")}</h1>
+        <Link href="/settings" className="text-sm text-zinc-500 hover:underline">
+          ← {t("Settings")}
+        </Link>
+        <h1 className="text-lg font-semibold">{t("General")}</h1>
         <p className="text-sm text-zinc-500">
-          {rich(t("Working hours and absences are on the <link>Schedule</link> page."), {
-            link: (s) => (
+          {rich(t("The AI is set on the <ai>AI</ai> page, the services on <connections>Connections</connections>, the briefing under <todos>Todo settings</todos> — all of them in <settings>Settings</settings>."), {
+            ai: (s) => (
+              <Link href="/settings/ai" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+            connections: (s) => (
+              <Link href="/settings/connections" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+            todos: (s) => (
+              <Link href="/settings/todos#boards" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                {s}
+              </Link>
+            ),
+            settings: (s) => (
               <Link href="/settings" className="text-indigo-600 hover:underline dark:text-indigo-400">
                 {s}
               </Link>
             ),
           })}
         </p>
+        {/* The briefing's settings moved to Todo settings. */}
+        <HashRedirect moves={{ boards: "/settings/todos#boards" }} />
       </div>
       <section id="language" className="card scroll-mt-4 space-y-2 p-4">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Language")}</h2>
@@ -61,45 +75,6 @@ export default async function PreferencesPage() {
           })}
         </p>
         <LanguagePicker available={availableLanguages()} />
-      </section>
-      <section className="card space-y-1 p-4">
-        <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("AI")}</h2>
-        <p className="text-sm text-zinc-500">
-          {isInstalled("llm")
-            ? rich(t("Backends, models, your instructions and the context for all AI tasks and agents are set in the <link>LLM plugin</link>."), {
-                link: (s) => (
-                  <Link href="/llm" className="text-indigo-600 hover:underline dark:text-indigo-400">
-                    {s}
-                  </Link>
-                ),
-              })
-            : rich(
-                t(
-                  "Backends, models, your instructions and the context for all AI tasks and agents are set in the <link>LLM plugin (not installed)</link>.",
-                ),
-                {
-                  link: (s) => (
-                    <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
-                      {s}
-                    </Link>
-                  ),
-                },
-              )}
-        </p>
-      </section>
-      <section id="boards" className="card scroll-mt-4 space-y-3 p-4">
-        <div>
-          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Todos (briefing)")}</h2>
-          <p className="max-w-[75ch] text-sm text-zinc-500">{t("Which tickets the briefing goes through, and how often it runs by itself.")}</p>
-        </div>
-        <BoardSettingsForm
-          jql={board.jql}
-          autoMinutes={board.autoMinutes}
-          boards={listJiraBoards()
-            .filter((b) => b.enabled)
-            .map((b) => b.name)}
-          ai={`${AI_PROVIDER_INFO[ai.provider].label}${ai.model ? ` · ${ai.model}` : ""}`}
-        />
       </section>
       {isInstalled("zeiterfassung") && (
         <section id="parallel" className="card scroll-mt-4 space-y-3 p-4">

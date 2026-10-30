@@ -773,7 +773,7 @@ export async function checkLoginAction(service: string): Promise<ActionState> {
     if (!serviceLabel(service)) return { ok: false, error: t("Unknown service.") };
     const { checkLogin } = await import("@/lib/logins");
     const r = await checkLogin(service);
-    revalidatePath("/logins");
+    revalidatePath("/settings/connections");
     return r.state === "ok" ? { ok: true, message: r.detail } : { ok: false, error: r.detail };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -788,7 +788,7 @@ export async function checkAllLoginsAction(): Promise<ActionState> {
     let ok = 0;
     const todo = logins.filter((l) => l.checkable);
     for (const l of todo) if ((await checkLogin(l.service)).state === "ok") ok++;
-    revalidatePath("/logins");
+    revalidatePath("/settings/connections");
     return { ok: true, message: t("{ok} of {n} signed in.", { ok, n: todo.length }) };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -1289,7 +1289,7 @@ export async function openAllSignInsAction(): Promise<ActionState> {
     if (!open.length) return { ok: true, message: t("Everything is signed in.") };
     const failed: string[] = [];
     for (const l of open) if (!(await openServiceLogin(l.service)).ok) failed.push(l.label);
-    revalidatePath("/logins");
+    revalidatePath("/settings/connections");
     return failed.length
       ? { ok: false, error: t("Couldn't open: {names}. Is a browser installed?", { names: failed.join(", ") }) }
       : { ok: true, message: t("{n} sign-in pages are open in the automation Chrome — sign in to each, then click Check all.", { n: open.length }) };

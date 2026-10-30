@@ -365,7 +365,7 @@ export default async function HeutePage({ searchParams }: { searchParams: Promis
             {problems.map((p) => (
               <li key={p.key} className="text-sm">
                 <div className="flex flex-wrap items-baseline gap-x-2">
-                  <Link href={p.kind === "login" ? "/logins" : p.href} className="shrink-0 font-medium hover:underline">
+                  <Link href={p.kind === "login" ? "/settings/connections#sign-ins" : p.href} className="shrink-0 font-medium hover:underline">
                     {p.label}
                   </Link>
                   <span className="min-w-0 flex-1 text-red-700 dark:text-red-300">{problem[p.kind]}</span>

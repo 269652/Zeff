@@ -2,6 +2,11 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { connection } from "next/server";
 import { SubmitButton } from "@/components/SubmitButton";
+import { BoardSettingsForm } from "@/components/boards/BoardSettingsForm";
+import { aiChoice } from "@/lib/ai";
+import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
+import { getBoardSettings } from "@/lib/boards/store";
+import { listJiraBoards } from "@/lib/jira/store";
 import { t } from "@/lib/i18n/server";
 import { AREAS, KNOWLEDGE_KINDS } from "@/lib/todo-display";
 import { getTodoDisplayOff } from "@/lib/todo-display-store";
@@ -14,10 +19,12 @@ export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Todo settings") };
 }
 
-/** Settings → Todos: what a todo shows under its text, and which kinds of knowledge are worth showing there. */
+/** Settings → Todos: the briefing (which tickets, how often), what a todo shows under its text, and which kinds of knowledge are worth showing there. */
 export default async function TodoSettingsPage() {
   await connection();
   const off = new Set(getTodoDisplayOff());
+  const board = getBoardSettings();
+  const ai = aiChoice();
   const repoPromptPage = isInstalled("knowledge") ? await (await import("@/lib/prompts")).promptHref("repo-pick") : null;
   const areas: Record<(typeof AREAS)[number], { label: string; hint: string }> = {
     context: { label: t("Context"), hint: t("The mails, messages, tickets and comments a todo comes from.") },
@@ -44,6 +51,21 @@ export default async function TodoSettingsPage() {
         <h1 className="text-lg font-semibold">{t("Todo settings")}</h1>
         <p className="text-sm text-zinc-500">{t("What a todo shows under its text, and what is worth showing as knowledge.")}</p>
       </div>
+      {/* The briefing: which tickets it goes through, how often it runs (was under General, /preferences#boards). */}
+      <section id="boards" className="card scroll-mt-4 space-y-3 p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Todos (briefing)")}</h2>
+          <p className="max-w-[75ch] text-sm text-zinc-500">{t("Which tickets the briefing goes through, and how often it runs by itself.")}</p>
+        </div>
+        <BoardSettingsForm
+          jql={board.jql}
+          autoMinutes={board.autoMinutes}
+          boards={listJiraBoards()
+            .filter((b) => b.enabled)
+            .map((b) => b.name)}
+          ai={`${AI_PROVIDER_INFO[ai.provider].label}${ai.model ? ` · ${ai.model}` : ""}`}
+        />
+      </section>
       <form action={saveTodoDisplayFormAction} className="space-y-4">
         <section className="card space-y-3 p-4">
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Show on a todo")}</h2>

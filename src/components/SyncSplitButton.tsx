@@ -91,7 +91,7 @@ export function SyncSplitButton({ sources }: { sources: SyncSource[] }) {
               </p>
               <p className="text-xs text-zinc-400">
                 {t("By itself: {interval}", { interval: minutesText(s.minutes, t) })} ·{" "}
-                <Link href={`/sync-settings#${s.key}`} className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
+                <Link href={`/settings/connections#${s.key}`} className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
                   {t("change")}
                 </Link>
               </p>
