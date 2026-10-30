@@ -124,6 +124,22 @@ export function MenuItem({ onClick, children, danger = false, disabled = false, 
   );
 }
 
+/**
+ * A headed section of a menu: its items under a small heading (a group the screen reader names), a line above the next one. The
+ * heading takes no focus — the arrow keys go from item to item across the sections (useMenuKeys).
+ */
+export function MenuSection({ title, children }: { title: string; children: ReactNode }) {
+  const id = useId();
+  return (
+    <div role="group" aria-labelledby={id} className="mt-1 border-t border-zinc-100 pt-1 first:mt-0 first:border-t-0 first:pt-0 dark:border-zinc-800">
+      <p id={id} className="px-2 pt-1 pb-0.5 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase">
+        {title}
+      </p>
+      {children}
+    </div>
+  );
+}
+
 const EMOJI = [
   "📄", "📘", "📗", "📙", "📕", "📓", "📝", "🗒️", "🗂️", "📁", "📌", "📎", "🔖", "💡", "🎯", "🚀", "✅", "☑️", "⭐", "🔥", "⚡", "🧠", "🧩", "🛠️", "⚙️", "🔧", "🧪", "🔬", "📊", "📈", "📉", "💼", "🏷️", "🗓️", "📅", "⏰", "🕐", "🤝", "👥", "👤", "💬", "📣", "📢", "✉️", "📨", "🔒", "🔑", "🌍", "🏠", "🏢", "🛒", "💰", "🧾", "📚", "📖", "🎓", "🎨", "🖼️", "🎬", "🎵", "🎮", "⚽", "🌱", "🌳", "☀️", "🌙", "❤️", "💜", "💙", "💚", "🟢", "🟡", "🔴", "🔵", "⚠️", "❗", "❓", "ℹ️", "✨", "🎉", "🐛", "🔍", "🔗", "📦", "🧰", "🗑️",
 ];

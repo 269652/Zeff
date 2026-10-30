@@ -286,27 +286,6 @@ export const slashItems = (t: T): SlashItem[] => [
     keywords: ["timeline", "zeitleiste", "verlauf", "history", "events", "ereignisse", "what happened", "chronik"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffTimeline", attrs: { ref: "", limit: 20 } }).run(),
   },
-  // Blocks that show what Zeff holds - read when the page is shown, never stored in it.
-  picker("data", { title: t("Data …"), hint: t("A figure, a chart, appointments, todos, a document or people — read live from Zeff"), icon: "📊", group: t("Data"), keywords: ["figure", "chart", "kennzahl", "diagramm"] }),
-  ...(
-    [
-      ["metric", "zeffMetric", t("Figure"), t("A number from a database — a count, a sum, a share — with an optional progress bar"), "🔢", { dbId: null, viewId: "", calc: "count", prop: "", label: "", style: "number" }, ["figure", "metric", "number", "kpi", "kennzahl", "zahl", "count", "sum"]],
-      ["chart", "zeffChart", t("Chart"), t("Bars, columns, a line or a pie from a database — grouped by a field"), "📊", { dbId: null, viewId: "", type: "bar", groupBy: "", calc: "count", prop: "", bucket: "month", limit: 12, title: "" }, ["chart", "graph", "diagram", "diagramm", "bar", "pie", "line", "statistik"]],
-      ["events", "zeffEvents", t("Appointments"), t("The next appointments from your calendar — all, or by words"), "📅", { days: 7, q: "", calendar: "", limit: 8, title: "" }, ["appointments", "events", "calendar", "termine", "kalender", "agenda"]],
-      ["tasks", "zeffTasks", t("Todo list"), t("Your todos — by ticket or words — ticked off right here"), "☑️", { q: "", ticket: "", status: "open", limit: 10, title: "" }, ["todos", "tasks", "aufgaben", "ticket", "checklist"]],
-      ["document", "zeffDocument", t("Document"), t("A document from Documents with its preview, abstract and where it came from"), "📎", { docId: null }, ["document", "dokument", "file", "datei", "pdf", "attachment", "anhang"]],
-      ["people", "zeffPeople", t("People"), t("Cards of people — your starred ones, or the ones you pick"), "👥", { ids: [], q: "", limit: 8, title: "" }, ["people", "person", "personen", "contacts", "kontakte", "team"]],
-    ] as const
-  ).map(([key, type, title, hint, icon, attrs, keywords]): SlashItem => ({
-    key: `data-${key}`,
-    title,
-    hint,
-    icon,
-    group: t("Data"),
-    under: "data",
-    keywords: [...keywords],
-    run: ({ editor, range }) => chain(editor, range).insertContent({ type, attrs }).run(),
-  })),
   // The custom view a plugin brings for the rows of this database (a person's page) — one block; it starts a person's page by itself.
   {
     key: "row-view",

@@ -1,13 +1,14 @@
 "use server";
 
 import type { CalcFn } from "./model";
+import type { ValueAgg } from "./values";
 import { run, type Result } from "@/lib/action-result";
 
 /** What a table's sum row calls: the value types this database's columns are sources of, the names to pick from; add, set, remove. */
 
 
 /** A column of this database that is a source of a type — with the type's aggregate, its value now and how many sources it has. */
-export type PublishedHere = { key: string; label: string; viewId: string; propId: string; agg: CalcFn; value: number | null; sources: number };
+export type PublishedHere = { key: string; label: string; viewId: string; propId: string; agg: ValueAgg; value: number | null; sources: number };
 
 /** The types this database's columns are sources of (to mark them), and the names offered. */
 export async function valuesOfDbAction(dbId: number): Promise<Result<{ here: PublishedHere[]; names: { key: string; label: string; what: string; taken: boolean }[] }>> {
