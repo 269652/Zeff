@@ -1,23 +1,14 @@
 "use server";
 
-import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { caseBundle, caseOp, type CaseBundle, type CaseOperation } from "./blocks";
 import { localDay } from "@/lib/dates";
+import { pluginAction, type Result } from "@/lib/action-result";
 
 /** What a case's page calls: its bundle, an operation. None throws at the page. */
 
-type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
-
-async function run<T extends object>(fn: () => T | Promise<T>): Promise<Result<T>> {
-  try {
-    if (!isInstalled("cases")) throw new Error(t("The Cases plugin is not installed (Menu → Plugins)."));
-    return { ok: true, ...(await fn()) };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-}
+const run = pluginAction("cases", () => t("The Cases plugin is not installed (Menu → Plugins)."));
 
 const caseId = async (rowId: number): Promise<number> => {
   const id = await (await import("./database")).caseOfRow(Number(rowId));

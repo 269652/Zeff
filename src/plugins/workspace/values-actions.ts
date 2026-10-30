@@ -1,19 +1,10 @@
 "use server";
 
-import { errorMessage } from "@/lib/errors";
 import type { CalcFn } from "./model";
+import { run, type Result } from "@/lib/action-result";
 
 /** What a table's sum row calls: the value types this database's columns are sources of, the names to pick from; add, set, remove. */
 
-type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
-
-async function run<T extends object>(fn: () => T | Promise<T>): Promise<Result<T>> {
-  try {
-    return { ok: true, ...(await fn()) };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-}
 
 /** A column of this database that is a source of a type — with the type's aggregate, its value now and how many sources it has. */
 export type PublishedHere = { key: string; label: string; viewId: string; propId: string; agg: CalcFn; value: number | null; sources: number };

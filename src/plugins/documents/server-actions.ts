@@ -5,22 +5,19 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { docRef, type DocView } from "./shared";
+import { pluginAction } from "@/lib/action-result";
 
 /** The Documents plugin's server actions (each answers an ActionState unless it says otherwise). */
 
 const off = () => (isInstalled("documents") ? null : t("The Documents plugin is not installed (Menu → Plugins)."));
+const inPlugin = pluginAction("documents", () => t("The Documents plugin is not installed (Menu → Plugins)."));
 
-async function run(fn: () => Promise<string | void> | string | void): Promise<ActionState> {
-  try {
-    const no = off();
-    if (no) return { ok: false, error: no };
+const run = (fn: () => Promise<string | void> | string | void): Promise<ActionState> =>
+  inPlugin(async () => {
     const message = await fn();
     revalidateAll();
-    return { ok: true, message: message || undefined };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-}
+    return { message: message || undefined };
+  });
 
 /** A document and its file deleted — todos that kept it let go of it. */
 export async function deleteDocumentAction(id: number): Promise<ActionState> {

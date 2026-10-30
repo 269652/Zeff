@@ -16,22 +16,16 @@ import { kindIcon, rowsToCsv, subtaskCounts, type DbSchema, type Row } from "./m
 import * as store from "./store";
 import "./metrics"; // (kennzahl() in the databases' formulas reads the Kennzahlen)
 import { localDay } from "@/lib/dates";
+import { pluginAction, type Result as ActionResult } from "@/lib/action-result";
 
 /** The Workspace plugin's server actions: what its pages and editors call. Each says what came of it; none throws at the page. */
 
-export type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
+export type Result<T = unknown> = ActionResult<T>;
 
 function guard(): void {
   if (!isInstalled("workspace")) throw new Error(t("The Workspace plugin is not installed (Menu → Plugins)."));
 }
-async function run<T extends object>(fn: () => T | Promise<T>): Promise<Result<T>> {
-  try {
-    guard();
-    return { ok: true, ...(await fn()) };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-}
+const run = pluginAction("workspace", () => t("The Workspace plugin is not installed (Menu → Plugins)."));
 
 // ---------------------------------------------------------------------------
 // Pages

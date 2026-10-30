@@ -1,6 +1,5 @@
 "use server";
 
-import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import type { DebtPlan } from "./debts";
@@ -8,19 +7,11 @@ import type { MonthlyIncome } from "./income";
 import type { DebtSuggestion, Direction } from "./own";
 import type { PlanSummary } from "./plans";
 import { localDay } from "@/lib/dates";
+import { pluginAction, type Result } from "@/lib/action-result";
 
 /** What the Finances plugin's pages call. None throws at the page. */
 
-type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
-
-async function run<T extends object>(fn: () => T | Promise<T>): Promise<Result<T>> {
-  try {
-    if (!isInstalled("finances")) throw new Error(t("The Finances plugin is not installed (Menu → Plugins)."));
-    return { ok: true, ...(await fn()) };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-}
+const run = pluginAction("finances", () => t("The Finances plugin is not installed (Menu → Plugins)."));
 
 /** The debts database reads the cases again (a new or changed row shows its plan). */
 async function rowsAgain(): Promise<void> {
