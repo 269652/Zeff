@@ -172,3 +172,22 @@ export async function runRowOp(rowId: number, raw: Record<string, unknown>, mode
   const r = await runner(op as unknown as TodoOp, { todo: null as never, note: () => {} });
   return { what: r.what };
 }
+
+/**
+ * The same from the inbox (/mail): an action on a conversation (`conv`, its newest message `mailKey`) — your click on its reply
+ * — checked as a row's would be; a Gmail mail sent or saved through Gmail's API into that conversation.
+ */
+export async function runConvOp(conv: string, mailKey: string, raw: Record<string, unknown>, mode?: "send" | "draft"): Promise<{ href?: string; what?: string }> {
+  const { checkAction } = await import("@/plugins/workspace/row-actions");
+  const { op, href } = await checkAction(raw);
+  if (mode && op.type === "gmail-compose") {
+    const { runGmailCompose } = await import("@/plugins/gmail/run");
+    const r = await runGmailCompose(op as unknown as Extract<TodoOp, { type: "gmail-compose" }>, { mode: mode === "draft" ? "draft" : "send", thread: conv.startsWith("gmail:") ? conv : null, refs: mailKey ? [`mail:${mailKey}`] : [] });
+    return { what: r.what };
+  }
+  if (href) return { href };
+  const runner = RUNNERS[op.type as TodoOp["type"]];
+  if (!runner) throw new Error(t("Unknown action."));
+  const r = await runner(op as unknown as TodoOp, { todo: null as never, note: () => {} });
+  return { what: r.what };
+}

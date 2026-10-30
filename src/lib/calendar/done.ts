@@ -4,6 +4,7 @@ import { fromMinutes, toMinutes } from "@/lib/pauses-shared";
 import { listPausesByDate } from "@/lib/pauses";
 import { t } from "@/lib/i18n/server";
 import { ensureCalendar, replaceEvents, type EventInput } from "./ir";
+import { localDay } from "@/lib/dates";
 
 /** The key of the calendar of what is done (derived: Zeff writes it, nothing there is entered by hand). */
 export const DONE_CALENDAR_KEY = "zeff:done";
@@ -18,7 +19,7 @@ export const DONE_CALENDAR_KEY = "zeff:done";
 export function syncDoneCalendar(from: string, to: string): void {
   const cal = ensureCalendar(DONE_CALENDAR_KEY, { source: "zeff", name: "Done", color: "#10b981", busy: false, book: false, todos: false });
   const last = new Date(new Date(`${to}T00:00:00`).getTime() - 864e5);
-  const lastDay = `${last.getFullYear()}-${String(last.getMonth() + 1).padStart(2, "0")}-${String(last.getDate()).padStart(2, "0")}`;
+  const lastDay = localDay(last);
   const events: EventInput[] = [];
   for (const e of listEntries({ from, to: lastDay })) {
     const start = normalizeStart(e.start);

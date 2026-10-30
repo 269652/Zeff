@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import net from "node:net";
 import { t } from "@/lib/i18n/server";
+import { sleep } from "@/lib/abort";
 
 /**
  * What a live session's driver needs of its own host (scripts/work-session-host.mjs), whatever CLI
@@ -62,7 +63,7 @@ export async function connectHost(infoFile: string, token: string, opts: { waitM
   const until = Date.now() + opts.waitMs;
   let info = readHostInfo(infoFile);
   while (!info && Date.now() < until && !opts.gone()) {
-    await new Promise((r) => setTimeout(r, 300));
+    await sleep(300);
     info = readHostInfo(infoFile);
   }
   if (!info) throw new Error(t("The session isn't running (any more)."));

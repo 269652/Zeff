@@ -7,6 +7,7 @@
  * entity since a date ("what changed since I last looked?"). Its own tables, made on first use. Server only.
  */
 import { getSqlite } from "@/db";
+import { flatSlice } from "@/lib/text";
 
 export type TimelineEvent = {
   id: number;
@@ -33,7 +34,6 @@ export type EventInput = { at: string; kind: string; source: string; sourceRef: 
 
 const TITLE = 200;
 const SUMMARY = 400;
-const clip = (s: unknown, n: number) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
 function db() {
   const d = getSqlite();
@@ -65,11 +65,11 @@ export function recordEvent(v: EventInput, opts: { merge?: boolean } = {}): { id
   const refs = [...new Set((v.refs ?? []).map(normRef).filter(Boolean))];
   const r = d
     .prepare("insert or ignore into tl_events (at, kind, source, source_ref, title, summary, actor_ref, url, data) values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(v.at, v.kind, v.source, v.sourceRef, clip(v.title, TITLE), clip(v.summary, SUMMARY), normRef(v.actorRef ?? ""), String(v.url ?? "").slice(0, 1000), JSON.stringify(v.data ?? {}));
+    .run(v.at, v.kind, v.source, v.sourceRef, flatSlice(v.title, TITLE), flatSlice(v.summary, SUMMARY), normRef(v.actorRef ?? ""), String(v.url ?? "").slice(0, 1000), JSON.stringify(v.data ?? {}));
   const created = r.changes > 0;
   const id = created ? Number(r.lastInsertRowid) : (d.prepare("select id from tl_events where source = ? and source_ref = ?").get(v.source, v.sourceRef) as { id: number }).id;
   if (!created && !opts.merge) return { id, created };
-  if (!created) d.prepare("update tl_events set at = ?, title = ?, summary = ?, data = ? where id = ?").run(v.at, clip(v.title, TITLE), clip(v.summary, SUMMARY), JSON.stringify(v.data ?? {}), id);
+  if (!created) d.prepare("update tl_events set at = ?, title = ?, summary = ?, data = ? where id = ?").run(v.at, flatSlice(v.title, TITLE), flatSlice(v.summary, SUMMARY), JSON.stringify(v.data ?? {}), id);
   const add = d.prepare("insert or ignore into tl_event_refs (event_id, ref) values (?, ?)");
   for (const ref of refs) add.run(id, ref);
   return { id, created };

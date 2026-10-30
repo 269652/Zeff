@@ -23,5 +23,3 @@ export function setAccountFlag(name: string, value: unknown, account = currentAc
   else delete flags[name];
 }
 
-/** The accounts a flag is set for, with their values (a deploy waits for all of them). */
-export const accountFlagAll = <T = unknown>(name: string): [string, T][] => Object.entries(all()[name] ?? {}) as [string, T][];

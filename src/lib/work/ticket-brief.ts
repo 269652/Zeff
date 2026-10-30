@@ -7,6 +7,7 @@
  */
 import { execFileSync } from "node:child_process";
 import { getSqlite } from "@/db";
+import { flatTruncate } from "@/lib/text";
 
 const KEY = /\b([A-Z][A-Z0-9]+-\d+)\b/;
 
@@ -49,10 +50,6 @@ export function acceptanceCriteria(description: string): string[] {
   return out;
 }
 
-const clip = (s: string, n: number) => {
-  const v = String(s ?? "").replace(/\s+/g, " ").trim();
-  return v.length > n ? `${v.slice(0, n - 1)}…` : v;
-};
 
 /** The brief as Markdown; null when the ticket isn't known to Zeff. */
 export async function ticketBrief(key: string): Promise<string | null> {
@@ -68,7 +65,7 @@ export async function ticketBrief(key: string): Promise<string | null> {
     out.push("", `Status: ${t.status} · assigned to ${t.assignee ?? "nobody"}${t.issue_type ? ` · ${t.issue_type}` : ""}${t.priority ? ` · ${t.priority}` : ""}${t.url ? ` · ${t.url}` : ""}`);
     const ac = acceptanceCriteria(t.description ?? "");
     if (ac.length) out.push("", "## Acceptance criteria", ...ac.map((a) => `- ${a}`));
-    if (t.description?.trim()) out.push("", "## Description", clip(t.description, 3000));
+    if (t.description?.trim()) out.push("", "## Description", flatTruncate(t.description, 3000));
   }
 
   // Who asked, in their words: the messages the ticket's todos were made from (up their chain).
@@ -81,17 +78,17 @@ export async function ticketBrief(key: string): Promise<string | null> {
     const m = r.channel === "teams"
       ? (db.prepare("select sent_at at, text from teams_messages where key = ?").get(key2) as { at: string; text: string } | undefined)
       : (db.prepare("select received_at at, preview text from emails where key = ?").get(key2) as { at: string; text: string } | undefined);
-    asked.set(r.ref, `- ${r.who} (${r.channel}${m ? `, ${m.at.slice(0, 16).replace("T", " ")}` : ""}): ${m ? `“${clip(m.text, 300)}”` : ""}`);
+    asked.set(r.ref, `- ${r.who} (${r.channel}${m ? `, ${m.at.slice(0, 16).replace("T", " ")}` : ""}): ${m ? `“${flatTruncate(m.text, 300)}”` : ""}`);
   }
   if (asked.size) out.push("", "## Who asked for it", ...asked.values());
 
   // What was said about it lately: chats naming it (newest first).
   const chats = db.prepare("select sender_name, sent_at, text from teams_messages where text like ? order by sent_at desc limit 8").all(`%${key}%`) as { sender_name: string | null; sent_at: string; text: string }[];
-  if (chats.length) out.push("", "## Teams lately", ...chats.map((c) => `- ${c.sent_at.slice(0, 16).replace("T", " ")} ${c.sender_name ?? "?"}: ${clip(c.text, 240)}`));
+  if (chats.length) out.push("", "## Teams lately", ...chats.map((c) => `- ${c.sent_at.slice(0, 16).replace("T", " ")} ${c.sender_name ?? "?"}: ${flatTruncate(c.text, 240)}`));
 
   // Its merge requests and branches.
   const mrs = db.prepare("select kind, title, state, url, branch, updated_at from gitlab_items where (title like ? or branch like ?) and kind in ('mr', 'branch') order by updated_at desc limit 8").all(`%${key}%`, `%${key}%`) as { kind: string; title: string; state: string | null; url: string | null; branch: string | null; updated_at: string }[];
-  if (mrs.length) out.push("", "## Merge requests and branches", ...mrs.map((m) => `- ${m.kind === "mr" ? "MR" : "branch"} ${m.branch ?? ""} — ${clip(m.title, 120)}${m.state ? ` (${m.state})` : ""}${m.url ? ` ${m.url}` : ""}`));
+  if (mrs.length) out.push("", "## Merge requests and branches", ...mrs.map((m) => `- ${m.kind === "mr" ? "MR" : "branch"} ${m.branch ?? ""} — ${flatTruncate(m.title, 120)}${m.state ? ` (${m.state})` : ""}${m.url ? ` ${m.url}` : ""}`));
 
   // People, open loops, what happened (the know brief), when that plugin is on.
   try {
@@ -106,9 +103,9 @@ export async function ticketBrief(key: string): Promise<string | null> {
   }
 
   const open = todos.filter((x) => x.status === "open");
-  if (open.length) out.push("", "## Open todos", ...open.map((x) => `- ${x.ref} (${x.kind}${x.owner === "other" ? ", waiting for others" : ""}): ${clip(x.text, 200)}`));
+  if (open.length) out.push("", "## Open todos", ...open.map((x) => `- ${x.ref} (${x.kind}${x.owner === "other" ? ", waiting for others" : ""}): ${flatTruncate(x.text, 200)}`));
   const done = todos.filter((x) => x.status !== "open").slice(-6);
-  if (done.length) out.push("", "## Done or dropped lately", ...done.map((x) => `- ${x.ref} ${x.status}: ${clip(x.text, 160)}`));
+  if (done.length) out.push("", "## Done or dropped lately", ...done.map((x) => `- ${x.ref} ${x.status}: ${flatTruncate(x.text, 160)}`));
   out.push("", "(For one todo's full brief — its sources in full, earlier runs — use todo_context with its T-id.)");
   if (open.length) {
     const { CLOCK_RULE } = await import("./todo-clock");

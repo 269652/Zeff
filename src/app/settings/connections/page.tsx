@@ -168,14 +168,9 @@ async function GmailCard() {
           )}
         </p>
         <p className="text-sm text-zinc-500">
-          {rich(t("Each account's mails land in a folder of their own — in the <app>Gmail app</app> and under <mail>Messages</mail> a filter each."), {
-            app: (s) => (
-              <Link href="/apps/gmail" className={LINK}>
-                {s}
-              </Link>
-            ),
+          {rich(t("Each account's mails land in a folder of their own — in the <mail>Inbox</mail>'s Gmail filter an account each."), {
             mail: (s) => (
-              <Link href="/mail" className={LINK}>
+              <Link href="/mail?channel=gmail" className={LINK}>
                 {s}
               </Link>
             ),

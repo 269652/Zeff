@@ -3,10 +3,10 @@
  * calendars (Kalender's extension: entered on your click) or in Google Calendar (its extension: the
  * click opens Google's form, filled in; you save it). Client-safe.
  */
-import { pad2 as two } from "@/lib/text";
 import { formatDayTime } from "@/lib/format";
 import type { T } from "@/lib/i18n/shared";
 import { action, EN, str } from "../actions/types";
+import { localStamp as stampOf } from "@/lib/dates";
 
 /** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
 declare module "@/lib/boards/shared" {
@@ -23,7 +23,7 @@ export const localStamp = (v: string, plus = 0): string | null => {
   const m = /^(\d{4})-(\d{2})-(\d{2})[T ](\d{2}):(\d{2})/.exec(v.trim());
   if (!m) return null;
   const d = new Date(+m[1], +m[2] - 1, +m[3], +m[4], +m[5] + plus);
-  return `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
+  return stampOf(d);
 };
 const minutesOf = (v: unknown) => Math.min(600, Math.max(15, Math.round(Number(str(v)) || 30)));
 const when = (start: string, minutes: number, t: T) => `${formatDayTime(start)} · ${t("{n} min", { n: minutes })}`;

@@ -300,28 +300,6 @@ function changeOf(name: string, input: Record<string, unknown>): { diff?: { old:
   return {};
 }
 
-/** The JSON object at the end of a plain-text answer (Copilot's): the last ```json block, else the last object that parses. */
-export function lastJson(text: string): unknown {
-  const fences = [...text.matchAll(/```json\s*([\s\S]*?)```/g)];
-  for (const f of fences.reverse()) {
-    try {
-      return JSON.parse(f[1]);
-    } catch {
-      // the next one
-    }
-  }
-  const t = text.slice(-60000);
-  const end = t.lastIndexOf("}");
-  for (let i = t.lastIndexOf("{", end); i >= 0; i = t.lastIndexOf("{", i - 1)) {
-    try {
-      return JSON.parse(t.slice(i, end + 1));
-    } catch {
-      // further back
-    }
-  }
-  return null;
-}
-
 /** The plain text a CLI printed (Copilot's answer is in it). */
 export function readOutput(id: number): string {
   return read(logPath(id));

@@ -8,6 +8,7 @@ import {
   parseISO,
   startOfISOWeek,
 } from "date-fns";
+import { localDay } from "./dates";
 
 /** A calendar week (ISO 8601: Monday–Sunday). */
 export type WeekInfo = {
@@ -27,13 +28,10 @@ export type WeekInfo = {
 export const ISO_DATE_RE = /^\d{4}-\d{2}-\d{2}$/;
 const WEEK_KEY_RE = /^(\d{4})-W(\d{1,2})$/i;
 
-export function isoDate(d: Date): string {
-  return format(d, "yyyy-MM-dd");
-}
+/** The local day as YYYY-MM-DD. */
+export const isoDate = (d: Date): string => localDay(d);
 
-export function todayIso(): string {
-  return isoDate(new Date());
-}
+export const todayIso = (): string => localDay();
 
 export function isValidIsoDate(s: string): boolean {
   if (!ISO_DATE_RE.test(s)) return false;

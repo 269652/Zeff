@@ -8,6 +8,7 @@ import { docText } from "./doc";
 import { cellText, type Property, type Row } from "./model";
 import { noteAi } from "./meter";
 import { getDatabase, getPage, rawRows, setCell, tree } from "./store";
+import { batchByChars } from "@/lib/ai/batch-job";
 
 /**
  * The AI review of a database: its AI properties (each with its instruction — and its choices, if it has them) filled by
@@ -91,16 +92,7 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
   const result: ReviewResult = { ...base, rows: rows.length, unchanged: rows.length - todo.length - rows.filter(skipped).length };
   if (!todo.length) return result;
 
-  const batches: (typeof todo)[] = [];
-  let size = 0;
-  for (const t of todo) {
-    if (!batches.length || size + t.text.length > BATCH_CHARS) {
-      batches.push([]);
-      size = 0;
-    }
-    batches[batches.length - 1].push(t);
-    size += t.text.length;
-  }
+  const batches = batchByChars(todo, (t) => t.text.length, BATCH_CHARS);
   const values: Record<string, unknown> = {};
   for (const p of ai) values[p.id] = p.aiChoices?.length ? { type: "string", enum: p.aiChoices } : { type: "string" };
   const SCHEMA = { type: "object", required: ["rows"], properties: { rows: { type: "array", items: { type: "object", required: ["id", "values"], properties: { id: { type: "integer" }, values: { type: "object", properties: values } } } } } };

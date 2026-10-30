@@ -9,7 +9,7 @@ import { killPid } from "@/lib/abort";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
 import { closeOnHost, killOnHost, spawnOnHost, workHostFeatures, writeToHost } from "@/lib/work/host";
-import { errPath, inPath, lastJson, logPath, workDir } from "@/lib/work/log";
+import { errPath, inPath, logPath, workDir } from "@/lib/work/log";
 import { workerMcpServers } from "@/lib/work/mcp";
 import { normalizeResult } from "@/lib/work/outcome";
 import { connectHost, newLines, pidAlive, readHostInfo } from "@/lib/work/session-host";
@@ -19,6 +19,7 @@ import { hostScript } from "@/plugins/claude-cli/live";
 import type { LiveView } from "@/plugins/copilot-cli/live-state";
 import { codexModels, codexSandboxState, findCodexCli } from "./cli";
 import { commandText, fileChangeInput, markCodexRun, type FileUpdate } from "./log";
+import { lastJson } from "@/lib/ai/json";
 
 /**
  * Live Codex sessions (ChatGPT) on the Code tab: `codex app-server`, Codex's own JSON-RPC over

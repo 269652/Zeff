@@ -6,6 +6,7 @@
  */
 import { getSqlite } from "@/db";
 import type { KnowledgeDoc } from "@/plugins/knowledge/export";
+import { localDay } from "@/lib/dates";
 
 /** A text's version: a 31-bit hash (FNV-1a) — the same as the other Zeff pages'. */
 function version(s: string): number {
@@ -44,7 +45,7 @@ export function bankDocs(): KnowledgeDoc[] {
   since.setDate(1);
   since.setMonth(since.getMonth() - MONTHS);
   try {
-    rows = getSqlite().prepare("select account, date, amount, text, counterparty, reference from bank_transactions where date >= ? order by date").all(since.toISOString().slice(0, 10)) as Tx[];
+    rows = getSqlite().prepare("select account, date, amount, text, counterparty, reference from bank_transactions where date >= ? order by date").all(localDay(since)) as Tx[];
   } catch {
     return []; // no bank yet
   }

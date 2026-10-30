@@ -7,6 +7,7 @@ import { checkFormula, evalWithUnits, setFunctionReader, setMetricReader, setMet
 import { workspaceFormulaFunctions, type FormulaFunction } from "./formula-point";
 import { workspaceMetrics, type MetricProvider } from "./metric-point";
 import { listNamedValues, namedValue, unpublishValue, valueKey, valueUnit, type NamedValue } from "./values";
+import { localDay } from "@/lib/dates";
 
 /**
  * Kennzahlen (the Workspace plugin): numbers every part of Zeff reads by their name — kennzahl("Sparrate") in a formula (a
@@ -241,7 +242,6 @@ export function removeMetric(name: string): void {
 // History, goals, thresholds
 // ---------------------------------------------------------------------------
 
-const isoDay = (d = new Date()) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const KEEP_DAYS = 400;
 
 /** A Kennzahl's values by day, oldest first (the last `days`). */
@@ -269,7 +269,7 @@ export const beyond = (value: number | null, a: MetricAlert | undefined): "below
  * since the last time gets a todo (once per crossing: back inside, the next crossing is told again). What it did.
  */
 export async function snapshotMetrics(now = new Date()): Promise<{ taken: number; alerts: string[] }> {
-  const day = isoDay(now);
+  const day = localDay(now);
   if (getPref<string>(SNAPSHOT_DAY, "") === day) return { taken: 0, alerts: [] };
   forgetMetricValues();
   const list = listMetrics();

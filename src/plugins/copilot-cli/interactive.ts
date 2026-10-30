@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n/server";
 import { lives, type Live } from "./live-state";
 import { errPath, logPath } from "@/lib/work/log";
 import { currentAccountId } from "@/db/accounts";
+import { fencedJson } from "@/lib/ai/json";
 
 /**
  * Interactive workers: Copilot as an Agent Client Protocol server (`copilot --acp`), driven by
@@ -36,16 +37,11 @@ function call<T>(live: Live, method: string, params: Record<string, unknown>): P
 
 /** Its result, if this turn gave one: the last ```json block (or object) in what it said. */
 function resultIn(text: string): boolean {
-  const fences = [...text.matchAll(/```json\s*([\s\S]*?)```/g)];
-  for (const f of fences.reverse()) {
-    try {
-      const o = JSON.parse(f[1]) as { outcome?: unknown; summary?: unknown };
-      if (o && (typeof o.outcome === "string" || typeof o.summary === "string")) return true;
-    } catch {
-      // the next one
-    }
-  }
-  return false;
+  const isResult = (v: unknown) => {
+    const o = v as { outcome?: unknown; summary?: unknown } | null;
+    return !!o && (typeof o.outcome === "string" || typeof o.summary === "string");
+  };
+  return fencedJson(text, isResult) !== undefined;
 }
 
 /** Something the agent tells or does, into the log (and the page refreshed). */

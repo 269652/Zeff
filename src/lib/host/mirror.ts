@@ -75,9 +75,6 @@ export function applySnapshot(snap: HostSnapshot | null): void {
 
 const state = globalThis as { __zeffHostMirror?: { timer: ReturnType<typeof setInterval> | null; up: boolean; busy: boolean } };
 
-/** Whether the sync host answered the last time (false before the first answer). */
-export const hostReachable = (): boolean => !!state.__zeffHostMirror?.up;
-
 /** Ask the host now (a change was announced, or an action just started something). */
 export async function refreshMirror(): Promise<void> {
   const m = (state.__zeffHostMirror ??= { timer: null, up: false, busy: false });

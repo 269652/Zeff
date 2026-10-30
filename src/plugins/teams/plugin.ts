@@ -12,9 +12,9 @@ export default definePlugin({
   requires: "The automation Chrome with Teams Web, signed in — or Microsoft's API with your own sign-in (Connections page).",
   settings: { href: "/settings/connections", what: "How it is reached: the automation Chrome or its API" },
   apps: [
-    { href: "/teams", label: "Teams", short: "Teams", hint: "Your mentions and messages" },
+    { href: "/mail", label: "Inbox", short: "Inbox", hint: "All your mails and chats in one place, a filter per channel" },
   ],
-  routes: ["/teams"],
+  routes: ["/teams", "/mail"],
   syncSteps: ["teams"],
   services: ["teams"],
 });

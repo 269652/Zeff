@@ -1,4 +1,5 @@
 import type { T } from "@/lib/i18n/shared";
+import { localDay } from "@/lib/dates";
 
 /**
  * Open loops, the shared model (client-safe): a loop is something still open between you and someone — a promise (a commitment
@@ -126,7 +127,7 @@ export function addressedTo(text: string, names: string[], handles: string[] = [
 }
 
 /** The day (YYYY-MM-DD, local) of a time. */
-export const localDay = (d: Date): string => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+export { localDay };
 
 /** Overdue: its day is past, or (no day) it has been open for OVERDUE_DAYS. */
 export function isOverdue(l: { due: string; at: string }, now = new Date()): boolean {
@@ -134,9 +135,6 @@ export function isOverdue(l: { due: string; at: string }, now = new Date()): boo
   const at = Date.parse(l.at);
   return Number.isFinite(at) && now.getTime() - at >= OVERDUE_DAYS * 864e5;
 }
-
-/** Who owes, as a label. */
-export const directionLabel = (t: T, d: LoopDirection): string => (d === "mine" ? t("I owe") : t("They owe"));
 
 export function kindLabel(t: T, k: LoopKind): string {
   switch (k) {

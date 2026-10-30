@@ -13,6 +13,7 @@ import { deferral } from "./deferral";
 import { isInstalled } from "@/plugins/state";
 import { awayFor } from "@/plugins/people/away";
 import type { TodoAlternative, TodoView } from "./shared";
+import { localDay } from "@/lib/dates";
 
 /** "Sarah Klein" → "sarah klein" (no accents), for matching a Jira username. */
 const plainName = (s: string) =>
@@ -227,7 +228,7 @@ export const withAlternatives = (list: TodoView[]): TodoView[] => {
     each(todoTimes(list), (time) => ({ time })),
     deferral(list),
     // Who it names is away (People): said on the todo, so a question to them waits.
-    isInstalled("people") ? awayFor(list, new Date().toISOString().slice(0, 10)) : {},
+    isInstalled("people") ? awayFor(list, localDay()) : {},
   ];
   return list.map((t) => {
     const extra = Object.assign({}, ...parts.map((p) => p[t.id] ?? {})) as Partial<TodoView>;

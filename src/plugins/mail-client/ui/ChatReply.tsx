@@ -5,12 +5,14 @@ import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { draftRowReplyAction, rowActionAction } from "@/plugins/workspace/actions";
+import { inboxDraftReplyAction, inboxReplyAction } from "@/app/mail/actions";
 
 /**
  * A reply in a chat (Teams, WhatsApp, Signal): written or drafted by the AI, read once more, then sent through the channel's own way
- * (as the auto-actions send). `bar`: one line under a conversation, Enter sends (Shift+Enter: a new line).
+ * (as the auto-actions send). `bar`: one line under a conversation, Enter sends (Shift+Enter: a new line). For a Workspace row (`rowId`)
+ * or a conversation of the inbox (`conv`, its newest message `mailKey`).
  */
-export function ChatReply({ rowId, channel, chat, onSent, bar = false }: { rowId: number; channel: string; chat: string; onSent: () => void; bar?: boolean }) {
+export function ChatReply({ rowId, conv, channel, chat, onSent, bar = false }: { rowId?: number; conv?: { id: string; mailKey: string }; channel: string; chat: string; onSent: () => void; bar?: boolean }) {
   const t = useT();
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
@@ -19,7 +21,7 @@ export function ChatReply({ rowId, channel, chat, onSent, bar = false }: { rowId
     if (!body || !confirmAction(t("Send to “{chat}” via {channel}?", { chat, channel }))) return;
     setBusy(true);
     const op = channel === "Teams" ? { type: "teams-message", to: chat, body } : channel === "WhatsApp" ? { type: "whatsapp-message", chat, body } : { type: "signal-message", chat, body };
-    const r = await rowActionAction(rowId, op);
+    const r = rowId != null ? await rowActionAction(rowId, op) : await inboxReplyAction(conv?.id ?? "", conv?.mailKey ?? "", op);
     setBusy(false);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     setText("");
@@ -28,7 +30,7 @@ export function ChatReply({ rowId, channel, chat, onSent, bar = false }: { rowId
   };
   const draft = async () => {
     setBusy(true);
-    const r = await draftRowReplyAction(rowId);
+    const r = rowId != null ? await draftRowReplyAction(rowId) : await inboxDraftReplyAction({ channel, to: chat, subject: "", conv: conv?.id ?? "" });
     setBusy(false);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     setText(r.text);

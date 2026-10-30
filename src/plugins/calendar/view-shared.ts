@@ -8,6 +8,7 @@ import type { CalendarEventView, CalendarView, ProposedEvent } from "@/lib/calen
 import { addDays, weekdayOf } from "@/lib/calendar/recurrence";
 import { currentLocale, formatDate } from "@/lib/format";
 import type { T } from "@/lib/i18n/shared";
+import { localDay } from "@/lib/dates";
 
 export const VIEWS = ["day", "week", "month", "agenda"] as const;
 export type ViewKind = (typeof VIEWS)[number];
@@ -72,7 +73,7 @@ export function calendarItems(
 }
 
 export const local = (s: string) => new Date(s.length === 10 ? `${s}T00:00:00` : `${s.slice(0, 16)}:00`);
-export const ymd = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
+export const ymd = localDay;
 export const stampAt = (day: string, minutes: number) => `${day}T${two(Math.floor(minutes / 60))}:${two(minutes % 60)}`;
 export const minutesOf = (s: string) => (s.length === 10 ? 0 : Number(s.slice(11, 13)) * 60 + Number(s.slice(14, 16)));
 /** Minutes from one stamp to another (across days and daylight saving, in local time). */

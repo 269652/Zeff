@@ -1,4 +1,5 @@
 import type { T } from "@/lib/i18n/shared";
+import { localDay as dayOf } from "@/lib/dates";
 
 /**
  * What the timeline's views share (the Timeline plugin): a sign and a name per kind of event, the kinds and sources to filter by,
@@ -78,9 +79,7 @@ export function sourceLabel(t: T, source: string): string {
 
 /** The local day of an ISO time (YYYY-MM-DD). */
 export function localDay(iso: string): string {
-  const d = new Date(iso);
-  const p = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
+  return dayOf(new Date(iso));
 }
 
 /** Events by their local day, in the order given (newest first); each day once. */

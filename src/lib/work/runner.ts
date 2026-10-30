@@ -35,12 +35,13 @@ import { addBranchWorktree, addWorktreeAsync, baseForAsync, git, gitSummary, rep
 import { startInteractive } from "@/plugins/copilot-cli/interactive";
 import { readSessionOpts, saveSessionOpts } from "@/plugins/claude-cli/live";
 import { liveDriverFor, liveDriverOf, liveDrivers, liveIdle } from "./live-driver";
-import { errPath, lastJson, logPath, readErrors, readLog, readOutput, workDir } from "./log";
+import { errPath, logPath, readErrors, readLog, readOutput, workDir } from "./log";
 import { applyOutcome, normalizeResult } from "./outcome";
 import { ensureActions } from "./ensure-actions";
 import { approvedToolsFor, grantTools } from "./approved-tools";
 import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOptions, type WorkResult, type WorkRunView } from "./shared";
+import { lastJson } from "@/lib/ai/json";
 
 /** Zeff's own booking tools — a worker never books: Zeff books its runs (Weekly report). (complete_todo is allowed: it only marks a todo "done by the worker".) */
 const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "create_job"].map((tool) => `mcp__zeff__${tool}`);

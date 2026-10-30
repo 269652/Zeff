@@ -75,17 +75,17 @@ async function heuteData() {
     // One line per chat, while the last word isn't yours; a group only when something in it is to you.
     const { whatsappChatsWaiting } = await import("@/lib/mail/store");
     for (const c of whatsappChatsWaiting(7, now))
-      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/apps/whatsapp?chat=${encodeURIComponent(c.who)}`, source: "WhatsApp" });
+      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/mail?${new URLSearchParams({ channel: "whatsapp", open: c.convId })}`, source: "WhatsApp" });
   }
   if (isInstalled("signal")) {
     const { chatsWaiting } = await import("@/lib/mail/store");
     for (const c of chatsWaiting("Signal", 7, now))
-      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/apps/signal?chat=${encodeURIComponent(c.who)}`, source: "Signal" });
+      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/mail?${new URLSearchParams({ channel: "signal", open: c.convId })}`, source: "Signal" });
   }
   if (isInstalled("teams")) {
     // One line per chat (not per message), and only while the last word isn't yours.
     const { teamsChatsWaiting } = await import("@/lib/teams/store");
-    for (const c of teamsChatsWaiting(3, now)) unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: c.link || "/teams", source: "Teams" });
+    for (const c of teamsChatsWaiting(3, now)) unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: c.link || "/mail?channel=teams", source: "Teams" });
   }
   unanswered.sort((a, b) => b.at.localeCompare(a.at));
 

@@ -12,8 +12,7 @@ export default definePlugin({
   experimental: "Zeff reads Signal Desktop through its internals, over a debug port — a Signal update can change them and stop the sync until Zeff is adapted. While the port is open, any program on this computer could read Signal through it (as with the automation Chrome). Signal does not offer an API for this.",
   requires: "Signal Desktop on this computer, linked to your phone — running with its debug port (Zeff starts it so, or sets up its autostart).",
   apps: [
-    { href: "/apps/signal", label: "Signal", short: "Signal", hint: "Your Signal chats, their latest messages" },
-    { href: "/mail", label: "Messages", short: "Msgs", hint: "All mails and chats in one place, their sync" },
+    { href: "/mail", label: "Inbox", short: "Inbox", hint: "All your mails and chats in one place, a filter per channel" },
   ],
   routes: ["/mail", "/apps/signal", "/api/boards/mail-relations"],
   syncSteps: ["signal", "mailtodos", "relations"],

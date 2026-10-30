@@ -1,5 +1,6 @@
 import { getPref, setPref } from "@/lib/prefs";
 import { isInstalled } from "@/plugins/state";
+import { monthKey } from "@/lib/dates";
 
 /**
  * Your monthly income (the Finances plugin), as the knowledge server read it off your bank statements when it compiled them (a
@@ -42,7 +43,7 @@ export type MonthlyIncome = {
 /** Your monthly income: yours, else the average of the last three whole months the knowledge read off your statements. */
 export function monthlyIncome(today = new Date()): MonthlyIncome {
   const manual = getPref<number | null>(MANUAL, null);
-  const running = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}`;
+  const running = monthKey(today);
   const facts = getPref<IncomeFact[]>(READ, [])
     .filter((f) => f.period < running)
     .sort((a, b) => b.period.localeCompare(a.period))

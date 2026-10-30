@@ -33,8 +33,6 @@ const { syncState, jiraTickets } = schema;
 export type LiveSyncs = { running: Set<SyncKey>; all: SyncKey | null | undefined; stops?: Map<string, AbortController>; allStopped?: boolean };
 const state = globalThis as { __zeffSyncsByAccount?: Record<string, LiveSyncs> };
 const live = (account = currentAccountId()) => ((state.__zeffSyncsByAccount ??= {})[account] ??= { running: new Set(), all: undefined });
-/** Every account's running syncs (a deploy waits for all; the mirror copies all). */
-export const liveSyncsAll = (): [string, LiveSyncs][] => Object.entries(state.__zeffSyncsByAccount ?? {});
 /** The running syncs' stop handles, by step (the menu's, the scheduler's, a page's button). */
 const stops = () => (live().stops ??= new Map());
 
@@ -133,13 +131,6 @@ export type SyncStep = {
 
 type Step = SyncStep;
 
-/** The Monday ISO dates of the last and the current month's weeks. */
-export async function lastAndCurrentWeeks(): Promise<string[]> {
-  const { lastAndCurrentMonth } = await import("@/lib/month");
-  const { last, current } = lastAndCurrentMonth();
-  return [...last.weeks, ...current.weeks].map((w) => w.startIso);
-}
-
 
 /** When Jira last synced — through the menu, its page, or by itself. */
 export const jiraLastSyncAt = () => recordedOr("jira", jiraTickets.syncedAt).lastAt;
@@ -178,7 +169,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   },
   teams: {
     label: "Teams",
-    href: "/teams",
+    href: "/mail?channel=teams",
     get what() { return t("Your mentions and 1:1 messages"); },
     ownRecord: true,
     run: async () => (await import("@/lib/teams/sync")).syncTeams(),
@@ -198,7 +189,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   },
   whatsapp: {
     label: "WhatsApp",
-    href: "/mail?folder=WhatsApp",
+    href: "/mail?channel=whatsapp",
     get what() { return t("Your chats' latest messages (WhatsApp Web's chat list — no chat opened, nothing marked read)"); },
     run: async () => (await import("@/lib/mail/sync")).syncWhatsapp(),
     busy: () => flag("__zeffWhatsappSyncing"),
@@ -206,7 +197,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   },
   signal: {
     label: "Signal",
-    href: "/mail?folder=Signal",
+    href: "/mail?channel=signal",
     get what() { return t("Your Signal chats' latest messages (from Signal Desktop — no chat opened, nothing marked read)"); },
     run: async () => (await import("@/lib/mail/sync")).syncSignal(),
     busy: () => flag("__zeffSignalSyncing"),

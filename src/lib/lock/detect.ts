@@ -1,6 +1,7 @@
 import { execFile, spawn, type ChildProcess } from "node:child_process";
 import fs from "node:fs";
 import { readConfig, readState, writeState, YUBICO } from "./shared";
+import { sleep } from "@/lib/abort";
 
 /**
  * The key watcher: is a security key plugged into this computer, right now. A browser cannot tell (WebAuthn only answers
@@ -126,7 +127,7 @@ export async function keyPresentNow(): Promise<boolean> {
   for (let i = 0; i < 40; i++) {
     const s = readState();
     if (s && Date.now() - s.beat < 6000) return s.present;
-    await new Promise((r) => setTimeout(r, 250));
+    await sleep(250);
   }
   return false;
 }

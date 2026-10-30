@@ -5,6 +5,7 @@ import { openCommitments, reviewClaim } from "./graph";
 import { circleLabels, dateKindLabels, type Person } from "./shared";
 import { getPerson, listPeople, namesThem, upcoming } from "./store";
 import type { DocNode } from "@/plugins/workspace/doc";
+import { localDay } from "@/lib/dates";
 
 /**
  * Widgets about one person, for a page — on a person's own page (a row of the People database) they take that person by
@@ -95,7 +96,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       if (!p) return nobody();
       if (!isInstalled("todos")) return { kind: "list", items: [], empty: t("Needs the Todos plugin.") };
       const { listTodos } = await import("@/lib/boards/store");
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDay();
       // (A checklist of the same page that feeds the engine goes into this list there: the editor folds it — merged-lists.ts.)
       const all = listTodos({ status: "open" }).filter((x) => aboutThem(p, `${x.text} ${x.note ?? ""}`));
       const items: WidgetItem[] = all.slice(0, Number(config.limit ?? 8)).map((x) => ({
@@ -251,7 +252,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       if (String(config.person ?? "").trim() && !p) return { kind: "list", items: [], empty: t("No person “{name}”.", { name: String(config.person) }) };
       const { personHref } = await import("@/plugins/workspace/people-database");
       const who = String(config.who ?? "all");
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDay();
       const names = new Map(listPeople().map((x) => [x.id, x.name]));
       const all = openCommitments()
         .filter((c) => (!p || c.personId === p.id) && (who === "all" || c.direction === who) && c.direction)

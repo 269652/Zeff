@@ -8,6 +8,7 @@
 import { pad2 as two } from "@/lib/text";
 import { currentLocale } from "@/lib/format";
 import { type T, translator } from "@/lib/i18n/shared";
+import { localDay } from "@/lib/dates";
 
 export type Frequency = "daily" | "weekly" | "monthly" | "yearly";
 
@@ -54,8 +55,7 @@ export function parseTodoRecurrence(raw: unknown): TodoRecurrence | null {
 
 const SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
 
-const ymd = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
-const stamp = (d: Date) => `${ymd(d)}T${two(d.getHours())}:${two(d.getMinutes())}`;
+const stamp = (d: Date) => `${localDay(d)}T${two(d.getHours())}:${two(d.getMinutes())}`;
 const local = (s: string) => new Date(s.length === 10 ? `${s}T00:00:00` : `${s.slice(0, 16)}:00`);
 /** Monday = 0 … Sunday = 6. */
 export const weekdayOf = (d: Date) => (d.getDay() + 6) % 7;
@@ -113,24 +113,24 @@ export function occurrenceDays(firstStart: string, r: Recurrence, before: string
   const end = r.until && r.until < before ? addDays(r.until, 1) : before;
   const out: string[] = [];
   const push = (d: Date) => {
-    const s = ymd(d);
+    const s = localDay(d);
     if (s < firstStart.slice(0, 10) || s >= end) return false;
     out.push(s);
     return !(r.count && out.length >= r.count);
   };
   let guard = 0;
   if (r.freq === "daily") {
-    for (let d = new Date(first); ymd(d) < end && guard++ < limit; d.setDate(d.getDate() + r.interval)) if (!push(d)) break;
+    for (let d = new Date(first); localDay(d) < end && guard++ < limit; d.setDate(d.getDate() + r.interval)) if (!push(d)) break;
   } else if (r.freq === "weekly") {
     const days = r.byDay?.length ? r.byDay : [weekdayOf(first)];
     const monday = new Date(first);
     monday.setDate(first.getDate() - weekdayOf(first));
-    outer: for (let w = new Date(monday); ymd(w) < end && guard++ < limit; w.setDate(w.getDate() + 7 * r.interval))
+    outer: for (let w = new Date(monday); localDay(w) < end && guard++ < limit; w.setDate(w.getDate() + 7 * r.interval))
       for (const wd of days) {
         const d = new Date(w);
         d.setDate(w.getDate() + wd);
-        if (ymd(d) < firstStart.slice(0, 10)) continue;
-        if (ymd(d) >= end) break outer;
+        if (localDay(d) < firstStart.slice(0, 10)) continue;
+        if (localDay(d) >= end) break outer;
         if (!push(d)) break outer;
       }
   } else if (r.freq === "monthly") {
@@ -140,7 +140,7 @@ export function occurrenceDays(firstStart: string, r: Recurrence, before: string
     for (let m = 0; guard++ < limit; m += r.interval) {
       const y = first.getFullYear() + Math.floor((first.getMonth() + m) / 12);
       const mo = (first.getMonth() + m) % 12;
-      if (ymd(new Date(y, mo, 1)) >= end) break;
+      if (localDay(new Date(y, mo, 1)) >= end) break;
       const d = r.monthlyBy === "weekday" ? nthWeekday(y, mo, wd, nth) : new Date(y, mo, day);
       // A month without that day (the 31st, the 5th Monday): none that month.
       if (!d || (r.monthlyBy !== "weekday" && d.getMonth() !== mo)) continue;
@@ -149,7 +149,7 @@ export function occurrenceDays(firstStart: string, r: Recurrence, before: string
   } else {
     for (let n = 0; guard++ < limit; n += r.interval) {
       const d = new Date(first.getFullYear() + n, first.getMonth(), first.getDate());
-      if (ymd(d) >= end) break;
+      if (localDay(d) >= end) break;
       // The 29th of February in a year without it: none that year.
       if (d.getMonth() !== first.getMonth()) continue;
       if (!push(d)) break;
@@ -162,7 +162,7 @@ export function occurrenceDays(firstStart: string, r: Recurrence, before: string
 export function addDays(day: string, n: number): string {
   const d = local(day);
   d.setDate(d.getDate() + n);
-  return ymd(d);
+  return localDay(d);
 }
 
 /** A local stamp moved to another day, its time kept ("2026-10-12T09:30" → "2026-10-19T09:30"). */
@@ -269,6 +269,4 @@ export function monthlyChoices(firstStart: string, t: T = translator("en")): { b
   ];
 }
 
-/** The weekdays, short (Mon … Sun), in English — weekdayShort(t) in the language of `t`. */
-export const WEEKDAY_SHORT = SHORT;
 export const weekdayShort = (t: T) => [t("Mon"), t("Tue"), t("Wed"), t("Thu"), t("Fri"), t("Sat"), t("Sun")];

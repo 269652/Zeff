@@ -31,7 +31,6 @@ const EXPORTS: Record<string, { mime: string; ext: string }> = {
 
 /** Running now (one at a time, per step). */
 const flags = globalThis as unknown as Record<string, boolean | undefined>;
-export const driveBusy = (flag: string) => !!flags[flag];
 
 async function guarded(flag: string, run: () => Promise<SyncResult>): Promise<SyncResult> {
   if (accountFlag(flag)) return { ok: true, message: t("Already running.") };

@@ -3,6 +3,7 @@ import { and, desc, eq, gte, isNull, like, lt } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { isInstalled } from "@/plugins/state";
 import { t } from "@/lib/i18n/server";
+import { addDays } from "@/lib/dates";
 
 /** A line of the day's proposal: a meeting, an agent's suggestion, or a ticket you worked on. */
 export type DayRow = {
@@ -146,7 +147,7 @@ export async function proposeDay(now = new Date()): Promise<DayProposal> {
 }
 
 /** The day after a "YYYY-MM-DD". */
-const nextDay = (date: string) => new Date(new Date(`${date}T12:00:00`).getTime() + 864e5).toISOString().slice(0, 10);
+const nextDay = (date: string) => addDays(date, 1);
 
 const KEY = /\b([A-Z][A-Z0-9]+-\d+)\b/;
 const hhmm = (d: Date) => `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;

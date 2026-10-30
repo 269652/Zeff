@@ -1,14 +1,12 @@
-import { aiChoice, runAi } from "@/lib/ai";
 import { promptText } from "@/lib/prompts";
 import { plain } from "@/lib/boards/collect";
 import type { TodoView } from "@/lib/boards/shared";
 import { listTodos, setTodoNoteRefs } from "@/lib/boards/store";
-import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { briefingNotes, type Item } from "@/lib/items";
-import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
+import { promptRoom, relateInBatches, relateJob } from "@/lib/ai/batch-job";
 
 /**
  * The Notiz-Zuordnung (Google Keep's extension for Todos, a step after the Ticket-Lage): each open
@@ -31,7 +29,6 @@ const SCHEMA = {
   },
   required: ["todos"],
 };
-type Answer = { todos?: { id?: number; notes?: string[] }[] };
 
 export const INSTRUCTIONS = `Du ordnest Notizen meinen offenen Todos zu. Unten steht je Todo (Nummer in eckigen Klammern) eine Auswahl meiner Notizen aus Google Keep und meinen Notiz-Boards (Kennung in eckigen Klammern, z. B. [keep:…], dann wo sie liegt, Titel und Text).
 
@@ -59,9 +56,7 @@ const block = (t: TodoView, list: Note[]) => [`## [${t.id}] ${plain(t.text, 300)
 export type NoteRelationResult = { ok: boolean; todos: number; changed: number; batches: number; error?: string };
 
 export function relateNotes(): Promise<NoteRelationResult> {
-  const running = accountFlag<Promise<NoteRelationResult>>("__zeffNoteRelations");
-  if (running) return running;
-  const run = (async (): Promise<NoteRelationResult> => {
+  return relateJob("__zeffNoteRelations", "note-relations", async () => {
     const open = listTodos({ status: "open" });
     const notes = briefingNotes()
       .map(({ item, collection }): Note => ({ ...item, where: collection.name }))
@@ -74,45 +69,22 @@ export function relateNotes(): Promise<NoteRelationResult> {
       if (list.length) groups.push({ t, list });
       else picks.set(t.id, []); // nothing likely: no notes
     }
-    const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
-    const batches: (typeof groups)[] = [];
-    let size = 0;
-    for (const g of groups) {
-      const n = block(g.t, g.list).length;
-      if (!batches.length || size + n > limit) {
-        batches.push([]);
-        size = 0;
-      }
-      batches[batches.length - 1].push(g);
-      size += n;
-    }
-    let failed = 0;
-    for (const batch of batches) {
-      const prompt = `${promptText("note-relations", INSTRUCTIONS)}\n\n${batch.map((g) => block(g.t, g.list)).join("\n\n")}`;
-      // A batch that fails: its todos keep the notes they have.
-      const answer = await runAi<Answer>(prompt, SCHEMA, { task: "note-relations", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
-        console.error("[note-relations]", errorMessage(e));
-        failed++;
-        return null;
-      });
-      if (!answer) continue;
-      const said = new Map((answer.output?.todos ?? []).filter((t) => Number.isInteger(t?.id)).map((t) => [t.id!, t.notes ?? []]));
-      for (const g of batch) {
+    // A batch that fails: its todos keep the notes they have.
+    const { batches, failed } = await relateInBatches({
+      task: "note-relations",
+      groups,
+      block: (g) => block(g.t, g.list),
+      room: promptRoom(BATCH_CHARS),
+      prompt: (blocks) => `${promptText("note-relations", INSTRUCTIONS)}\n\n${blocks}`,
+      schema: SCHEMA,
+      field: "notes",
+      take: (g, said) => {
         const known = new Set(g.list.map((n) => n.ref));
         const refs = (said.get(g.t.id) ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (known.has(r) ? r : `keep:${r}`));
         picks.set(g.t.id, refs.filter((r) => known.has(r)).slice(0, 4));
-      }
-    }
-    const changed = setTodoNoteRefs(picks);
-    return { ok: failed < batches.length || !batches.length, todos: picks.size, changed, batches: batches.length, ...(failed ? { error: t("{failed} of {n} parts failed", { failed, n: batches.length }) } : {}) };
-  })()
-    .catch((e): NoteRelationResult => {
-      console.error("[note-relations]", errorMessage(e));
-      return { ok: false, todos: 0, changed: 0, batches: 0, error: errorMessage(e) };
-    })
-    .finally(() => {
-      setAccountFlag("__zeffNoteRelations", null);
+      },
     });
-  setAccountFlag("__zeffNoteRelations", run);
-  return run;
+    const changed = setTodoNoteRefs(picks);
+    return { todos: picks.size, changed, batches, failed };
+  });
 }

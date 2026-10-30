@@ -8,6 +8,7 @@ import { apiGet } from "@/lib/connectors/http";
 import { getConnector } from "@/lib/connectors/store";
 import { t } from "@/lib/i18n/server";
 import { googleWrite } from "./write-guard";
+import { localDay } from "@/lib/dates";
 
 export const CALENDAR_WRITE_SCOPE = "https://www.googleapis.com/auth/calendar.events";
 
@@ -76,12 +77,12 @@ function dayOf(v: { date?: string; dateTime?: string } | undefined): string | nu
   if (v?.date) return v.date;
   if (!v?.dateTime) return null;
   const d = new Date(v.dateTime);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return localDay(d);
 }
 const nextDay = (day: string) => {
   const d = new Date(`${day}T12:00:00`);
   d.setDate(d.getDate() + 1);
-  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+  return localDay(d);
 };
 
 /** The days a write touched, read again from Google into Zeff's copy of that calendar (only that one). Never fails the write. */

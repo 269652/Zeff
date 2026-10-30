@@ -58,8 +58,6 @@ export function boardSyncState(boardId: number): { running: State | null; last: 
   const s = accountFlag<State>("__zeffBoardSync");
   return { running: s && s.boardId === boardId ? s : null, last: getPref<{ at: string; ok: boolean; message: string } | null>(PREF(boardId), null) };
 }
-/** This account's (each syncs its own boards, in its own Chrome). */
-export const boardSyncRunning = () => !!accountFlag("__zeffBoardSync");
 
 const summary = (r: BoardSyncResult) =>
   [

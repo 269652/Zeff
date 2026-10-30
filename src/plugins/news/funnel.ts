@@ -75,7 +75,6 @@ async function context(): Promise<FunnelContext> {
 }
 
 const g = globalThis as { __zeffFunnelRunning?: boolean };
-export const isFunnelRunning = () => !!g.__zeffFunnelRunning;
 
 /**
  * One round of the agent: the best items it hasn't looked at yet go to the AI, its verdicts are kept. Returns what it

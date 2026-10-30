@@ -1,4 +1,3 @@
-import { execFileSync } from "node:child_process";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -185,20 +184,3 @@ export function repoChoices(): {
   return { projects, boards };
 }
 
-/** A repo's local branches, the most recently committed first (up to 50). */
-export function localBranches(dir: string): string[] {
-  try {
-    return execFileSync("git", ["for-each-ref", "--sort=-committerdate", "--count=50", "--format=%(refname:short)", "refs/heads"], {
-      cwd: dir,
-      encoding: "utf8",
-      timeout: 15000,
-      windowsHide: true,
-      stdio: ["ignore", "pipe", "pipe"],
-    })
-      .split("\n")
-      .map((b) => b.trim())
-      .filter(Boolean);
-  } catch {
-    return [];
-  }
-}

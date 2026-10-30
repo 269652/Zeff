@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { NEWS_PAGE, parseInterests, parseMutes, PRESETS, type NewsPrefs, type NewsState } from "./shared";
+import { NEWS_PAGE, parseInterests, parseMutes, type NewsPrefs, type NewsState } from "./shared";
 import { addSource, addSources, forgetLearning, getContent, getItem, getPrefs, listItems, listSources, removeSource, setContent, setPrefs, setState, UNREADABLE, updateSource, vote, type NewsView } from "./store";
 
 /** The News plugin's server actions: the cards' buttons return a result; the settings forms go back to their page with what came of it. */
@@ -252,20 +252,6 @@ export async function startRefreshAction(): Promise<Result & { status?: import("
 export async function refreshStatusAction(): Promise<import("./refresh").RefreshStatus> {
   guard();
   return (await import("./refresh")).getRefreshStatus();
-}
-
-/** "Refresh": the sync, now (kept for the settings page). */
-export async function refreshNewsAction(): Promise<Result> {
-  try {
-    guard();
-    // Through the Sync menu's step: on the sync host when there is one.
-    const r = await (await import("@/lib/sync/registry")).syncAndWait("news");
-    revalidatePath("/news");
-    revalidatePath("/settings/news");
-    return r.lastOk ? { ok: true, message: r.lastMessage ?? "" } : { ok: false, error: r.lastMessage ?? t("Failed.") };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
 }
 
 /** "Overview now": the AI overview of the best unread items. */
