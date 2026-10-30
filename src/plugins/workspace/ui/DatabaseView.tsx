@@ -5,8 +5,8 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { chartViewAction, templateParamsAction, tryRulesAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, formFromTableAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, exportDatabaseCsvAction, loadDatabaseAction, addSubtaskAction, createDerivedDatabaseAction, makeInboxAction, setNavPlaceAction, placeRowAction, refreshPipelineAction, reviewDatabaseAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runOpenJobsAction, runPipelineAction, sendRowAction, setCellAction, setDatabaseLabelAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
-import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, VIEW_TYPES, withCell, dropBetween, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
+import { chartViewAction, templateParamsAction, tryRulesAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, formFromTableAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, loadDatabaseAction, addSubtaskAction, makeInboxAction, placeRowAction, refreshPipelineAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, withCell, dropBetween, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
 import { useProgressive } from "./progressive";
@@ -30,13 +30,10 @@ import { viewAppMeta, TEMPLATE_VIEW } from "../view-apps";
 import type { TplError } from "../view-template";
 import { CalcCell, usePublished } from "./calc-row";
 import { ShareDialog } from "./sheet";
+import { DatabaseMenu, PLAIN_VIEWS, VIEW_ICON } from "./db-menu";
 import { parseChartMarker } from "../legacy-blocks";
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
-
-const VIEW_ICON: Record<ViewType, string> = { table: "▦", board: "▥", list: "☰", gallery: "▤", calendar: "📅", timeline: "▬", chart: "📊", todo: "☑", app: "◫" };
-/** The view types one picks (an app's view comes with its app). */
-const PLAIN_VIEWS = VIEW_TYPES.filter((v) => v !== "app");
 
 const ymd = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const countRules = (f: View["filter"]): number => f.rules.reduce((n, r) => n + ("rules" in r ? countRules(r) : 1), 0);
@@ -726,205 +723,24 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             {t("Card")}
           </button>
         )}
-        <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm shrink-0">
-          {(close) => (
-            <>
-              {/* Narrow: what the toolbar left out — the refresh from the sources, the card template. */}
-              {narrow && schema.pipeline?.steps.some((s) => s.kind === "source") && !data.extras?.source && (
-                <MenuItem
-                  onClick={async () => {
-                    close();
-                    const r = await refreshPipelineAction(dbId);
-                    await api.reload();
-                    if (!r.ok) return void toast(r.error, { tone: "error" });
-                    toast(ranText(r, r.syncing), { tone: "ok" });
-                  }}
-                >
-                  ↻ {t("Refresh from the sources")}
-                </MenuItem>
-              )}
-              {narrow && (view.type === "board" || view.type === "gallery") && <MenuItem onClick={() => (close(), setCardOpen(true))}>🃏 {t("Card")}</MenuItem>}
-              {/* Its sidebar beside the view or in the tree — an app's (its plugin brings it) or a template's <nav>. */}
-              {view.type === "app" && (data.extras?.appViews?.find((a) => a.id === view.app)?.nav || /<nav[\s>]/.test(view.template ?? viewAppMeta(view.app ?? "")?.defaultTemplate(t) ?? "")) && (
-                <>
-                  {/* Where it is: in the tree, beside the view — or (a template's) nowhere. */}
-                  {(
-                    [
-                      ["workspace", `🧭 ${t("Navigation in the Workspace tree")}`],
-                      ["view", `◧ ${t("Navigation beside the view")}`],
-                      ...(/<nav[\s>]/.test(view.template ?? viewAppMeta(view.app ?? "")?.defaultTemplate(t) ?? "") ? ([["off", `⊘ ${t("No navigation")}`]] as const) : []),
-                    ] as const
-                  ).map(([place, label]) => (
-                    <MenuItem
-                      key={place}
-                      checked={(view.nav ?? "view") === place}
-                      onClick={() => {
-                        close();
-                        void setNavPlaceAction(dbId, view.id, place).then((r) => {
-                          if (!r.ok) return toast(r.error, { tone: "error" });
-                          void api.reload();
-                          router.refresh();
-                        });
-                      }}
-                    >
-                      {label}
-                    </MenuItem>
-                  ))}
-                </>
-              )}
-              {/* The rows hidden in the database: shown too (set back), or left out again. */}
-              {view.type === "app" && appAvailable(data, view) && (
-                <>
-                  {/* The app's view as code: its template (written by hand or by the AI), drawn live. */}
-                  <MenuItem checked={code?.viewId === view.id} onClick={() => (close(), setCode(code?.viewId === view.id ? null : { viewId: view.id, draft: view.template ?? viewAppMeta(view.app!)?.defaultTemplate(t) ?? "" }))}>
-                    &lt;/&gt; {t("Code")}
-                  </MenuItem>
-                  {view.template && (
-                    <MenuItem onClick={() => (close(), window.confirm(t("Back to the default view? Your changes are gone.")) && (setView({ ...view, template: undefined }), setCode(null)))}>
-                      ↺ {t("Reset to default")}
-                    </MenuItem>
-                  )}
-                </>
-              )}
-              <MenuItem checked={!!view.showHidden} onClick={() => (close(), setView({ ...view, showHidden: !view.showHidden }))}>
-                👁 {hiddenCount ? t("Show hidden rows ({n})", { n: hiddenCount }) : t("Show hidden rows")}
-              </MenuItem>
-              {view.groupBy && (view.type === "table" || view.type === "list") && (
-                <MenuItem checked={!!view.hideEmpty} onClick={() => (close(), setView({ ...view, hideEmpty: !view.hideEmpty }))}>
-                  ▭ {t("Hide empty groups")}
-                </MenuItem>
-              )}
-              <MenuItem onClick={() => (close(), setSchemaOpen(true))}>⚙ {t("Edit properties …")}</MenuItem>
-              <MenuItem checked={!!schema.entryForm} onClick={() => (close(), setFormOpen(true))}>📝 {t("Entry form …")}</MenuItem>
-              <MenuItem onClick={() => (close(), void formFromTableAction(dbId).then((r) => (r.ok ? router.push(`/workspace/${r.id}`) : toast(r.error, { tone: "error" }))))}>📝 {t("Make a form from this table")}</MenuItem>
-              <MenuItem onClick={() => (close(), setRepeatOpen(true))}>🔁 {t("Repeating rows …")}</MenuItem>
-              <MenuItem onClick={() => (close(), setProtectOpen(true))}>🛡 {t("Protection …")}</MenuItem>
-              <MenuItem checked={!!schema.share} onClick={() => (close(), setShareOpen(true))}>
-                ƒ {t("Share for formulas …")}
-                {schema.share ? ` (${schema.share.name})` : ""}
-              </MenuItem>
-              <MenuItem onClick={() => (close(), setPipelineOpen(true))}>⛓ {t("Sources & steps …")}</MenuItem>
-              <MenuItem onClick={() => (close(), setReceiveOpen(true))}>➜ {t("Receive tickets …")}</MenuItem>
-              {schema.jobs && <MenuItem onClick={() => (close(), setAgentsOpen(true))}>🤖 {t("Agents …")}</MenuItem>}
-              {schema.jobs && (
-                <MenuItem
-                  onClick={async () => {
-                    close();
-                    const r = await runOpenJobsAction(dbId);
-                    await api.reload();
-                    if (!r.ok) return void toast(r.error, { tone: "error" });
-                    toast(t("{n} jobs given to workers.", { n: r.started }) + (r.failed.length ? ` ${r.failed[0]}` : ""), { tone: r.failed.length ? "error" : "ok" });
-                  }}
-                >
-                  ▶ {t("Start all open jobs")}
-                </MenuItem>
-              )}
-              <MenuItem
-                onClick={async () => {
-                  close();
-                  const r = await createDerivedDatabaseAction(dbId);
-                  if (!r.ok) return void toast(r.error, { tone: "error" });
-                  router.push(`/workspace/${r.id}?steps=1`);
-                  router.refresh();
-                }}
-              >
-                ＋ {t("Derived database …")}
-              </MenuItem>
-              {personProp && (
-                <MenuItem checked={!!view.mine} onClick={() => (close(), setView({ ...view, mine: !view.mine }))}>
-                  {t("Only mine in this view")}
-                </MenuItem>
-              )}
-              {schema.properties.some((p) => p.type === "ai") && (
-                <>
-                  <MenuItem checked={!!schema.review?.on} onClick={() => (close(), api.changeSchema((s) => ({ ...s, review: { on: !s.review?.on } })))}>
-                    {t("AI review (with the briefing)")}
-                  </MenuItem>
-                  <MenuItem
-                    onClick={() => {
-                      close();
-                      toast(t("The AI reads the rows that changed …"));
-                      void reviewDatabaseAction(dbId).then((r) => (r.ok ? toast(t("{n} rows filled, {m} unchanged", { n: r.reviewed, m: r.unchanged }), { tone: "ok" }) : toast(r.error, { tone: "error" })));
-                    }}
-                  >
-                    ✨ {t("Review now")}
-                  </MenuItem>
-                </>
-              )}
-              {/* What goes out of it (into the Ticket-Lage; the knowledge server picks for itself): the Workspace's settings. */}
-              <MenuItem onClick={() => (close(), router.push(`/workspace/settings/outputs#db-${dbId}`))}>📤 {t("Outputs …")}</MenuItem>
-              {/* How sensitive it is (open, personal, secret): what may flow out of it at all — Settings → Data boundaries. */}
-              <div className="flex items-center gap-1 px-2 py-1 text-sm" title={t("Personal: agents only with permission. Secret: never leaves Zeff — no knowledge, briefing, agents or AI.")}>
-                <span aria-hidden>{data.extras?.sensitivity && data.extras.sensitivity !== "open" ? "🔒" : "🔓"}</span>
-                <span className="mr-auto text-zinc-500">{t("Sensitivity")}</span>
-                {(["open", "personal", "secret"] as const).map((l) => (
-                  <button
-                    key={l}
-                    type="button"
-                    aria-pressed={(data.extras?.sensitivity ?? "open") === l}
-                    className={`rounded px-1.5 py-0.5 text-xs ${(data.extras?.sensitivity ?? "open") === l ? "bg-indigo-100 dark:bg-indigo-950" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
-                    onClick={async () => {
-                      const r = await setDatabaseLabelAction(dbId, l);
-                      if (!r.ok) return void toast(r.error, { tone: "error" });
-                      await api.reload();
-                    }}
-                  >
-                    {l === "open" ? t("Open") : l === "personal" ? t("Personal") : t("Secret")}
-                  </button>
-                ))}
-              </div>
-              <MenuItem onClick={() => (close(), router.push("/privacy/boundaries"))}>🔒 {t("Data boundaries …")}</MenuItem>
-              <div className="px-2 py-1">
-                <input className="input w-full text-sm" value={view.name} aria-label={t("View name")} onChange={(e) => setView({ ...view, name: e.target.value })} />
-              </div>
-              <p className="px-2 pt-1 text-xs text-zinc-500">{t("Show this view as — to keep it as it is, add another view with “+”")}</p>
-              <div className="flex flex-wrap gap-1 px-2 pb-1">
-                {PLAIN_VIEWS.map((vt) => (
-                  <button key={vt} type="button" className={`rounded px-1.5 py-0.5 text-sm ${view.type === vt ? "bg-indigo-100 dark:bg-indigo-950" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`} title={vt} aria-pressed={view.type === vt} onClick={() => setView({ ...view, type: vt, groupBy: vt === "board" && !view.groupBy ? schema.properties.find((p) => p.type === "status" || p.type === "select")?.id : view.groupBy, dateProp: vt === "calendar" && !view.dateProp ? schema.properties.find((p) => p.type === "date")?.id : view.dateProp })}>
-                    {VIEW_ICON[vt]}
-                  </button>
-                ))}
-              </div>
-              <MenuItem
-                onClick={() => {
-                  close();
-                  const copy = { ...view, id: newId("v"), name: `${view.name} (${t("copy")})` };
-                  api.changeSchema((s) => ({ ...s, views: [...s.views, copy] }));
-                  pick(copy.id);
-                }}
-              >
-                ⧉ {t("Duplicate the view")}
-              </MenuItem>
-              <MenuItem
-                disabled={schema.views.length < 2}
-                danger
-                onClick={() => {
-                  close();
-                  const rest = schema.views.filter((v) => v.id !== view.id);
-                  api.changeSchema((s) => ({ ...s, views: rest }));
-                  pick(rest[0].id);
-                }}
-              >
-                🗑 {t("Delete the view")}
-              </MenuItem>
-              <MenuItem
-                onClick={async () => {
-                  close();
-                  const r = await exportDatabaseCsvAction(dbId, view.id);
-                  if (!r.ok) return toast(r.error, { tone: "error" });
-                  const url = URL.createObjectURL(new Blob([`﻿${r.csv}`], { type: "text/csv;charset=utf-8" }));
-                  const a = document.createElement("a");
-                  a.href = url;
-                  a.download = r.filename;
-                  a.click();
-                  URL.revokeObjectURL(url);
-                }}
-              >
-                ⇩ {t("Export as CSV")}
-              </MenuItem>
-            </>
-          )}
-        </Dropdown>
+        <DatabaseMenu
+          dbId={dbId}
+          data={data}
+          schema={schema}
+          view={view}
+          narrow={narrow}
+          hiddenCount={hiddenCount}
+          hasPerson={!!personProp}
+          codeOpen={code?.viewId === view.id}
+          toggleCode={() => setCode(code?.viewId === view.id ? null : { viewId: view.id, draft: view.template ?? viewAppMeta(view.app!)?.defaultTemplate(t) ?? "" })}
+          resetTemplate={() => (setView({ ...view, template: undefined }), setCode(null))}
+          open={(d) => ({ card: setCardOpen, schema: setSchemaOpen, form: setFormOpen, repeat: setRepeatOpen, protect: setProtectOpen, share: setShareOpen, pipeline: setPipelineOpen, receive: setReceiveOpen, agents: setAgentsOpen })[d](true)}
+          setView={setView}
+          pick={pick}
+          changeSchema={api.changeSchema}
+          reload={api.reload}
+          ranText={ranText}
+        />
         <div className={`flex shrink-0 ${data.locked || data.noNewRows ? "hidden" : ""}`}>
           <button type="button" className="btn btn-primary btn-sm rounded-r-none" title={t("New")} aria-label={t("New")} onClick={() => (view.type === "app" && appNew.current ? appNew.current() : void newRow({}, undefined, !inPlace))}>
             {narrow ? "+" : t("New")}
