@@ -20,7 +20,8 @@ test("the top bar's ✨ opens the composer: a field, the three chips; Escape clo
     await openFromBar(page);
     const box = composer(page);
     await box.getByRole("textbox", { name: rx("What should Zeff do?", "Was soll Zeff tun?") }).waitFor();
-    for (const name of [rx("Think along", "Mitdenken"), rx("Write …", "Schreiben …"), rx("Ask about this page", "Zu dieser Seite fragen")]) await box.getByRole("button", { name }).waitFor();
+    // (The chips by their exact names: the send button says "✨ Think along" too.)
+    for (const name of ["Think along|Mitdenken", "Write …|Schreiben …", "Ask about this page|Zu dieser Seite fragen"]) await box.getByRole("button", { name: new RegExp(`^(${name})$`, "i") }).waitFor();
     assert.ok(await box.getByRole("textbox").evaluate((el) => el === document.activeElement), "the field has the focus");
     await page.keyboard.press("Escape");
     await box.waitFor({ state: "detached" });
@@ -56,7 +57,8 @@ test("Think along: the chip (keyboard: Ctrl+Shift+Space) puts a card under the b
     await box.getByRole("textbox").fill("Was muss ich einpacken?");
     await box.getByRole("button", { name: rx("Think along", "Mitdenken") }).click();
     await box.waitFor({ state: "detached" });
-    const card = editor(page).locator("[data-assist-card]").first();
+    // (The card's node view: .ws-assist — data-assist-card is only its saved HTML.)
+    const card = editor(page).locator(".ws-assist").first();
     await card.getByText("Packliste für Hamburg").waitFor({ timeout: 60_000 });
     await card.getByRole("checkbox", { name: /Packliste/ }).waitFor();
     await card.getByRole("button", { name: rx("Apply", "Übernehmen") }).click();
