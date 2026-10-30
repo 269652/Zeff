@@ -27,7 +27,9 @@ test("today: what is due shows under its heading, a checkbox ticks a todo (done)
       throw new Error(`Dismissing "${dismiss}" didn't take it off the list.`);
     });
 
-    // Gone for good: after a reload neither is due any more.
-    await open(page, "/heute");
+    // Gone for good: after a reload neither is due any more. (Loaded, not open(): with nothing left, Today may have no button
+    // in main to wait for hydration on — and what it shows is rendered on the server.)
+    await page.reload({ waitUntil: "load" });
+    await page.locator("main").first().waitFor();
     for (const text of [tick, dismiss]) assert.equal(await page.getByText(text, { exact: true }).count(), 0, `"${text}" is back after a reload`);
   }));
