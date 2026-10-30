@@ -12,6 +12,7 @@ import { toast } from "@/components/Toaster";
 import { convertTaskListAction, taskItemAction, taskListAction, taskListMetaAction } from "../actions";
 import { WS_CHANGED } from "./ChatPanel";
 import { MenuItem } from "./kit";
+import { GripBar } from "./app-nodes";
 import { TodoAddLine, TodoCheck, TodoDue, TodoHeader, TodoList, useCollapsibleHead } from "./todo-ui";
 
 /**
@@ -181,7 +182,7 @@ export const TaskListBlock = TaskList.extend<{ pageId: number; flush: () => Prom
 
 type Loaded = { path: string; title: string; pageId: number; listId: string; engine: boolean; items: { itemId: string; text: string; checked: boolean; depth: number; due: string | null }[] };
 
-function TodoListEmbedView({ node, editor }: NodeViewProps) {
+function TodoListEmbedView({ node, editor, getPos, deleteNode }: NodeViewProps) {
   const t = useT();
   const router = useRouter();
   const pageId = Number(node.attrs.pageId);
@@ -212,6 +213,7 @@ function TodoListEmbedView({ node, editor }: NodeViewProps) {
 
   return (
     <NodeViewWrapper className={`ws-todo-block ws-todo-embed ${head.visible ? "" : "is-headless"}`} contentEditable={false} data-todo-embed {...head.frame}>
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={t("Embedded to-do list")} />
       {list === null ? (
         <p className="text-sm text-zinc-400">…</p>
       ) : list === "gone" ? (

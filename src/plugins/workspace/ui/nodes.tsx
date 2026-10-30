@@ -13,6 +13,8 @@ import { DatabaseBlock } from "./DatabaseView";
 import { embedPage } from "./page-embed";
 import { RowViewHost } from "./row-view";
 import { ModuleBlock } from "./detail-modules";
+import { GripBar } from "./app-nodes";
+import { moduleTitle } from "./slash";
 import type { DetailModule } from "../model";
 
 /** The editor's own blocks: a callout, a mention chip (people, pages, todos, tickets), a database view. */
@@ -31,13 +33,14 @@ const CALLOUT_ICONS: { icon: string; tone: string }[] = [
 ];
 
 function CalloutView({ node, updateAttributes, editor }: NodeViewProps) {
+  const t = useT();
   const icon = String(node.attrs.icon ?? "💡");
   return (
     <NodeViewWrapper className="ws-callout" data-tone={String(node.attrs.tone ?? "gray")}>
       <button
         type="button"
         contentEditable={false}
-        title="Change the icon"
+        title={t("Change the icon")}
         disabled={!editor.isEditable}
         onClick={() => {
           const i = CALLOUT_ICONS.findIndex((c) => c.icon === icon);
@@ -76,6 +79,7 @@ export const Callout = Node.create({
 // ---------------------------------------------------------------------------
 
 function FlexView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
+  const t = useT();
   const dir = node.attrs.dir === "col" ? "col" : "row";
   const gap = String(node.attrs.gap ?? "md");
   const wrap = !!node.attrs.wrap;
@@ -85,21 +89,21 @@ function FlexView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
     <NodeViewWrapper className="ws-flex" data-dir={dir} data-gap={gap} data-span={span > 1 ? span : undefined} data-wrap={wrap ? "true" : undefined}>
       {editor.isEditable && (
         <div className="ws-flex-bar" contentEditable={false}>
-          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-hidden="true">
+          <span data-drag-handle className="ws-grip-btn" title={t("Drag to move")} aria-hidden="true">
             ⠿
           </span>
-          <span className="ws-grip-label">{dir === "row" ? "row" : "column"}</span>
-          <button type="button" title="Row or column" onClick={() => updateAttributes({ dir: dir === "row" ? "col" : "row" })}>
-            {dir === "row" ? "↔ row" : "↕ column"}
+          <span className="ws-grip-label">{dir === "row" ? t("Row") : t("Column")}</span>
+          <button type="button" title={t("Row or column")} onClick={() => updateAttributes({ dir: dir === "row" ? "col" : "row" })}>
+            {dir === "row" ? `↔ ${t("Row")}` : `↕ ${t("Column")}`}
           </button>
-          <button type="button" title="Wrap onto the next line" aria-pressed={wrap} onClick={() => updateAttributes({ wrap: !wrap })}>
-            ⤶ wrap
+          <button type="button" title={t("Wrap onto the next line")} aria-pressed={wrap} onClick={() => updateAttributes({ wrap: !wrap })}>
+            ⤶ {t("Wrap")}
           </button>
-          <button type="button" title="How wide this box is next to the others in a row (1 to 4 parts)" onClick={() => updateAttributes({ span: span >= 4 ? 1 : span + 1 })}>
-            ↔ width {span}
+          <button type="button" title={t("How wide this box is next to the others in a row (1 to 4 parts)")} onClick={() => updateAttributes({ span: span >= 4 ? 1 : span + 1 })}>
+            ↔ {t("Width {n}", { n: span })}
           </button>
-          <button type="button" title="Space between the blocks" onClick={() => updateAttributes({ gap: next[gap] ?? "md" })}>
-            ⇔ {gap}
+          <button type="button" title={t("Space between the blocks")} onClick={() => updateAttributes({ gap: next[gap] ?? "md" })}>
+            ⇔ {({ sm: t("Small"), md: t("Medium"), lg: t("Large") } as Record<string, string>)[gap] ?? gap}
           </button>
         </div>
       )}
@@ -119,7 +123,7 @@ function FlexView({ node, updateAttributes, editor, getPos }: NodeViewProps) {
             else editor.chain().focus().insertContentAt(at, { type: "paragraph", content: [{ type: "text", text: "/" }] }).setTextSelection(at + 2).run();
           }}
         >
-          {dir === "row" ? "＋ Add a column" : "＋ Add a block"}
+          {dir === "row" ? `＋ ${t("Add a column")}` : `＋ ${t("Add a block")}`}
         </button>
       )}
     </NodeViewWrapper>
@@ -339,10 +343,12 @@ export const ZeffRef = Node.create({
 // A database in a page
 // ---------------------------------------------------------------------------
 
-function DatabaseBlockView({ node, updateAttributes }: NodeViewProps) {
+function DatabaseBlockView({ node, updateAttributes, editor, getPos, deleteNode }: NodeViewProps) {
+  const t = useT();
   const dbId = Number(node.attrs.dbId);
   return (
-    <NodeViewWrapper className="ws-dbblock" contentEditable={false}>
+    <NodeViewWrapper className="ws-dbblock ws-module-block" contentEditable={false}>
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={String(node.attrs.title || "") || t("Database")} />
       <DatabaseBlock dbId={dbId} viewId={String(node.attrs.viewId ?? "")} blockTitle={String(node.attrs.title ?? "")} onView={(viewId) => updateAttributes({ viewId })} />
     </NodeViewWrapper>
   );
@@ -369,32 +375,12 @@ export const DatabaseViewNode = Node.create({
 
 /** A detail module as a block (/Lage, /Todos …): its key in a small field (empty: its page's row's), the module below. */
 function ModuleBlockView({ node, updateAttributes, editor, extension, getPos, deleteNode }: NodeViewProps) {
+  const t = useT();
   const [key, setKey] = useState(String(node.attrs.key ?? ""));
   return (
     <NodeViewWrapper className="ws-module-block my-2" contentEditable={false}>
-      {editor.isEditable && (
-        // Where a module can be taken by: dragged into another box or place, a line added after it, or removed.
-        <div className="ws-grip-bar" contentEditable={false}>
-          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-hidden="true">
-            ⠿
-          </span>
-          <span className="ws-grip-label">{String(node.attrs.module).replace(/-/g, " ")}</span>
-          <button
-            type="button"
-            title="A new line after this block"
-            aria-label="A new line after this block"
-            onClick={() => {
-              const pos = typeof getPos === "function" ? getPos() : undefined;
-              if (pos !== undefined) editor.chain().focus().insertContentAt(pos + node.nodeSize, { type: "paragraph" }).run();
-            }}
-          >
-            ＋
-          </button>
-          <button type="button" title="Remove this block" aria-label="Remove this block" onClick={() => deleteNode()}>
-            ✕
-          </button>
-        </div>
-      )}
+      {/* Where a module can be taken by: dragged into another box or place, a line added after it, or removed. */}
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={moduleTitle(t, String(node.attrs.module))} />
       {editor.isEditable && (
         <input
           value={key}
@@ -402,7 +388,7 @@ function ModuleBlockView({ node, updateAttributes, editor, extension, getPos, de
           onBlur={() => updateAttributes({ key: key.trim().toUpperCase() })}
           onKeyDown={(e) => e.key === "Enter" && (e.preventDefault(), e.currentTarget.blur())}
           placeholder="KEY-1"
-          aria-label="Ticket"
+          aria-label={t("Ticket")}
           className="float-right w-24 bg-transparent text-right font-mono text-xs text-zinc-400 outline-none focus:text-zinc-700"
         />
       )}
@@ -435,19 +421,11 @@ export const ZeffModuleNode = Node.create<{ pageId: number }>({
 });
 
 /** The custom view of a row's database (a person's page): one block of the row's own page — the rest of the page is free. */
-function RowViewBlockView({ editor, extension, deleteNode }: NodeViewProps) {
+function RowViewBlockView({ node, editor, extension, getPos, deleteNode }: NodeViewProps) {
+  const t = useT();
   return (
     <NodeViewWrapper className="ws-module-block my-2" contentEditable={false}>
-      {editor.isEditable && (
-        <div className="ws-grip-bar" contentEditable={false}>
-          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-hidden="true">
-            ⠿
-          </span>
-          <button type="button" title="Remove this view" aria-label="Remove this view" onClick={() => deleteNode()}>
-            ✕
-          </button>
-        </div>
-      )}
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} add={false} removeLabel={t("Remove this view")} />
       <RowViewHost rowId={Number((extension.options as { pageId: number }).pageId)} />
     </NodeViewWrapper>
   );
@@ -473,7 +451,7 @@ export const RowViewNode = Node.create<{ pageId: number }>({
 });
 
 /** An AI block: its instruction, what the AI wrote by it from the page (and the databases in it), written again by hand — or with the briefing ("auto"). */
-function AiBlockView({ node, updateAttributes, editor, extension }: NodeViewProps) {
+function AiBlockView({ node, updateAttributes, editor, extension, getPos, deleteNode }: NodeViewProps) {
   const t = useT();
   const [prompt, setPrompt] = useState(String(node.attrs.prompt ?? ""));
   const [busy, setBusy] = useState(false);
@@ -487,7 +465,8 @@ function AiBlockView({ node, updateAttributes, editor, extension }: NodeViewProp
     else toast(r.error, { tone: "error" });
   };
   return (
-    <NodeViewWrapper className="ws-ai-block my-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3 dark:border-violet-900 dark:bg-violet-950/20" contentEditable={false}>
+    <NodeViewWrapper className="ws-ai-block ws-module-block my-2 space-y-2 rounded-lg border border-violet-200 bg-violet-50/40 p-3 dark:border-violet-900 dark:bg-violet-950/20" contentEditable={false}>
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={t("AI block")} />
       <div className="flex items-center gap-2 text-xs text-violet-700 dark:text-violet-300">
         <span aria-hidden>✨</span>
         {editor.isEditable ? (

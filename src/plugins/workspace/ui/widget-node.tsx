@@ -9,6 +9,7 @@ import { toast } from "@/components/Toaster";
 import { widgetActAction, widgetCatalogAction, widgetDataAction } from "../actions";
 import { searchPeopleAction } from "@/plugins/people/server-actions";
 import type { CatalogWidget } from "../widgets";
+import { GripBar } from "./app-nodes";
 import type { WidgetData, WidgetItem, WidgetTile } from "../widget-point";
 import { WS_CHANGED } from "./ChatPanel";
 import { TemplateBody } from "./card-template";
@@ -413,8 +414,8 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
         </button>
       )}
       {editor.isEditable && (
-        // Removed right here (not only while arranging the page).
-        <button type="button" className="grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Remove this block")} aria-label={t("Remove this block")} onClick={() => deleteNode()}>
+        // Removed right here (not only while arranging the page — then the grip bar's ✕ is the one).
+        <button type="button" className="ws-widget-remove grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Remove this block")} aria-label={t("Remove this block")} onClick={() => deleteNode()}>
           ✕
         </button>
       )}
@@ -422,28 +423,7 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
   );
   return (
     <NodeViewWrapper className="ws-widget ws-module-block my-1" contentEditable={false} data-app-block="widget">
-      {editor.isEditable && (
-        <div className="ws-grip-bar" contentEditable={false}>
-          <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-hidden="true">
-            ⠿
-          </span>
-          <span className="ws-grip-label">{label || "widget"}</span>
-          <button
-            type="button"
-            title="A new line after this block"
-            aria-label="A new line after this block"
-            onClick={() => {
-              const pos = typeof getPos === "function" ? getPos() : undefined;
-              if (pos !== undefined) editor.chain().focus().insertContentAt(pos + node.nodeSize, { type: "paragraph" }).run();
-            }}
-          >
-            ＋
-          </button>
-          <button type="button" title="Remove this block" aria-label="Remove this block" onClick={() => deleteNode()}>
-            ✕
-          </button>
-        </div>
-      )}
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={label || t("Widget")} />
       {!id ? (
         <Picker defs={defs} pick={(w) => updateAttributes({ widget: w, config: "{}" })} />
       ) : (

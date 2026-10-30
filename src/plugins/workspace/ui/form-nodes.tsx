@@ -11,7 +11,7 @@ import { FormDesigner } from "./form-designer";
 import { FormRunner } from "./form-runner";
 import { cellText, type Property } from "../model";
 import { conditionHolds, type RecordOf } from "../routine-conditions";
-import { useRowData } from "./app-nodes";
+import { GripBar, useRowData } from "./app-nodes";
 
 /**
  * More parts for building an app's pages with clicks: a form (a form page shown in the page — filled in, it makes a row; routines on
@@ -36,7 +36,7 @@ const asList = (v: unknown): string[] => {
  * place. Without one yet: make a new form for a database (below this page) or show one there is. An old block (a database and its
  * fields, no form page) becomes a form page the first time its page is edited; read, it is still filled in as it was.
  */
-function FormBlockView({ node, updateAttributes, editor, extension }: NodeViewProps) {
+function FormBlockView({ node, updateAttributes, editor, extension, getPos, deleteNode }: NodeViewProps) {
   const t = useT();
   const pageId = Number((extension.options as { pageId: number }).pageId) || 0;
   const formId = Number(node.attrs.formId) || 0;
@@ -70,6 +70,7 @@ function FormBlockView({ node, updateAttributes, editor, extension }: NodeViewPr
   const legacy = !formId && !!legacyDb;
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-2" contentEditable={false} data-app-block="form" data-form-ui="">
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={t("Form")} />
       {error ? (
         <p className="alert-error text-sm" role="alert">
           {error}
@@ -192,7 +193,7 @@ export const ZeffForm = Node.create<{ pageId: number }>({
 
 const OPS = ["is", "is_not", "contains", "not_contains", "empty", "not_empty"] as const;
 
-function IfView({ node, updateAttributes, editor, extension }: NodeViewProps) {
+function IfView({ node, updateAttributes, editor, extension, getPos, deleteNode }: NodeViewProps) {
   const t = useT();
   const pageId = Number((extension.options as { pageId: number }).pageId);
   const field = String(node.attrs.field ?? "");
@@ -209,6 +210,7 @@ function IfView({ node, updateAttributes, editor, extension }: NodeViewProps) {
   const ops: Record<(typeof OPS)[number], string> = { is: t("is"), is_not: t("isn't"), contains: t("contains"), not_contains: t("doesn't contain"), empty: t("is empty"), not_empty: t("isn't empty") };
   return (
     <NodeViewWrapper className={`ws-if my-2 ${met ? "" : editor.isEditable ? "ws-if-off" : "ws-if-hidden"}`} data-met={met ? "true" : "false"}>
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={t("Shown only if")} />
       {editor.isEditable && (
         <div className="mb-1 flex flex-wrap items-center gap-1.5 text-xs text-zinc-500" contentEditable={false}>
           <span>{t("Shown only if")}</span>

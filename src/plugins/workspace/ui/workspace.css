@@ -958,6 +958,10 @@
 [data-arrange="true"] .ws-flex-add {
   display: block;
 }
+/* A widget's own ✕ steps aside while arranging: the grip bar's is the one then. */
+[data-arrange="true"] .ws-widget-remove {
+  display: none;
+}
 .ws-grip-label {
   flex: 1;
   min-width: 0;

@@ -657,7 +657,7 @@ export function BoardView({
           ))}
         </div>
         {tab !== "activity" && (
-          <div className="flex flex-wrap items-center gap-2" role="search" aria-label="Todos filtern">
+          <div className="flex flex-wrap items-center gap-2" role="search" aria-label={t("Filter todos")}>
             <Omnibar chips={omniChips} onChange={setOmniChips} />
             {filtering && (
               <button
@@ -667,7 +667,7 @@ export function BoardView({
                   setOmniChips([]);
                 }}
               >
-                Filter löschen
+                {t("Clear the filter")}
               </button>
             )}
           </div>
@@ -676,7 +676,7 @@ export function BoardView({
           <ActivityList events={activity} />
         ) : tab === "worker" ? (
           <>
-            <p className="text-xs text-zinc-500">Todos, die Worker selbst anlegen — sie schließen sie auch selbst. Sie stehen nicht in deiner Liste.</p>
+            <p className="text-xs text-zinc-500">{t("Todos the workers make themselves — they close them themselves too. They aren't in your list.")}</p>
             {workerShown.length > 0 ? (
               <ul className="space-y-0.5">
                 {workerShown.map((t) => (
@@ -684,7 +684,7 @@ export function BoardView({
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-zinc-500">{filtering ? "Nichts passt zum Filter." : "Noch keine Worker-Todos."}</p>
+              <p className="text-sm text-zinc-500">{filtering ? t("Nothing matches the filter.") : t("No worker todos yet.")}</p>
             )}
           </>
         ) : tab === "done" ? (

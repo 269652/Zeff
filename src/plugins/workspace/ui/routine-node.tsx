@@ -13,6 +13,7 @@ import type { RoutineView } from "../routine-view";
 import type { Condition, Step, Trigger } from "../routines";
 import { FILTER_OPS } from "../model";
 import { AGENT_TOOL_GROUPS } from "../agent-tools";
+import { GripBar } from "./app-nodes";
 
 /**
  * The controls of an agent or an automation page — the block at the top of its page: switch it on, run it, when it runs (by hand, on
@@ -675,10 +676,12 @@ function ConditionEditor({ cond, editable, onChange, optional = false }: { cond:
 // The block
 // ---------------------------------------------------------------------------
 
-function RoutineBlockView({ editor, extension }: NodeViewProps) {
+function RoutineBlockView({ node, editor, extension, getPos, deleteNode }: NodeViewProps) {
+  const t = useT();
   const pageId = Number((extension.options as { pageId: number }).pageId);
   return (
-    <NodeViewWrapper className="ws-routine-block my-2" contentEditable={false} data-app-block="routine">
+    <NodeViewWrapper className="ws-routine-block ws-module-block my-2" contentEditable={false} data-app-block="routine">
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={t("Routine")} />
       <RoutineControls pageId={pageId} editable={editor.isEditable} />
     </NodeViewWrapper>
   );

@@ -66,7 +66,7 @@ function ActivityView(p: NodeViewProps) {
   const FIELD: Record<string, string> = { created: t("created"), trash: t("moved to the trash"), restored: t("brought back"), text: t("the text was edited"), title: t("title") };
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-2" contentEditable={false} data-app-block="activity">
-      <GripBar editor={p.editor} node={p.node} getPos={p.getPos} deleteNode={p.deleteNode} label="activity" />
+      <GripBar editor={p.editor} node={p.node} getPos={p.getPos} deleteNode={p.deleteNode} label={t("Activity")} />
       <section className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
         <h4 className="mb-2 text-xs font-semibold tracking-wide text-zinc-500 uppercase">{t("Activity")}</h4>
         {!data ? (
@@ -172,7 +172,7 @@ function BelongsView(p: NodeViewProps) {
   const empty = !!data && !data.groups.length && !data.todos.length && !data.tickets.length;
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-2" contentEditable={false} data-app-block="belongs">
-      <GripBar editor={p.editor} node={p.node} getPos={p.getPos} deleteNode={p.deleteNode} label="everything that belongs" />
+      <GripBar editor={p.editor} node={p.node} getPos={p.getPos} deleteNode={p.deleteNode} label={t("Everything that belongs")} />
       <section className="space-y-3 rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
         <h4 className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">{t("Everything that belongs")}</h4>
         {!data ? (

@@ -5,6 +5,7 @@ import { Plugin, PluginKey } from "@tiptap/pm/state";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 import { mentionSearchAction, type MentionItem } from "../actions";
 import { sheetRef } from "../model";
 import { loadNames, mentionInsert, mentionQuery, metricRef, type Names } from "./sheet";
@@ -38,22 +39,25 @@ const takeTypedAhead = (): string => {
 type Suggestion = { key: string; icon: string; label: string; hint: string; insert: string };
 
 /** The functions as they are written here (German names first, as the help says them), with what each does. */
-const BUILTINS: { name: string; sig: string; what: string }[] = [
-  { name: "Datum", sig: "Datum(127 Monate)", what: "The day a duration from today ends — or a date as it is" },
-  { name: "Heute", sig: "Heute()", what: "Today" },
-  { name: "Summe", sig: "Summe(…)", what: "The sum" },
-  { name: "Mittelwert", sig: "Mittelwert(…)", what: "The mean" },
-  { name: "Min", sig: "Min(…)", what: "The smallest" },
-  { name: "Max", sig: "Max(…)", what: "The largest" },
-  { name: "Runden", sig: "Runden(Zahl; Stellen)", what: "Rounded" },
-  { name: "Wenn", sig: "Wenn(Bedingung; dann; sonst)", what: "One value or the other" },
-  { name: "Anzahl", sig: "Anzahl(…)", what: "How many numbers" },
-  { name: "Jahr", sig: "Jahr(Datum)", what: "The year of a date" },
-  { name: "Monat", sig: "Monat(Datum)", what: "The month of a date" },
-  { name: "Tag", sig: "Tag(Datum)", what: "The day of a date" },
-  { name: "dateBetween", sig: 'dateBetween(Datum; Datum; "days")', what: "The time between two dates" },
-  { name: "formatDate", sig: 'formatDate(Datum; "DD.MM.YYYY")', what: "A date written as you like" },
+const BUILTINS: { name: string; args: string[]; what: string }[] = [
+  { name: "Datum", args: ["127 Monate"], what: "The day a duration from today ends — or a date as it is" },
+  { name: "Heute", args: [], what: "Today" },
+  { name: "Summe", args: ["…"], what: "The sum" },
+  { name: "Mittelwert", args: ["…"], what: "The mean" },
+  { name: "Min", args: ["…"], what: "The smallest" },
+  { name: "Max", args: ["…"], what: "The largest" },
+  { name: "Runden", args: ["number", "places"], what: "Rounded" },
+  { name: "Wenn", args: ["condition", "then", "else"], what: "One value or the other" },
+  { name: "Anzahl", args: ["…"], what: "How many numbers" },
+  { name: "Jahr", args: ["date"], what: "The year of a date" },
+  { name: "Monat", args: ["date"], what: "The month of a date" },
+  { name: "Tag", args: ["date"], what: "The day of a date" },
+  { name: "dateBetween", args: ["date", "date", '"days"'], what: "The time between two dates" },
+  { name: "formatDate", args: ["date", '"DD.MM.YYYY"'], what: "A date written as you like" },
 ];
+
+/** How a function is called, its arguments' names in the UI language (examples and quoted values as they are written). */
+const signature = (t: T, f: (typeof BUILTINS)[number]) => `${f.name}(${f.args.map((a) => (/^[a-z]/.test(a) ? t(a) : a)).join("; ")})`;
 
 function InlineFormulaView({ node, updateAttributes, deleteNode, editor, selected, getPos }: NodeViewProps) {
   const t = useT();
@@ -165,7 +169,7 @@ function FormulaPopover({ draft, setDraft, res, commit, cancel, remove, t }: { d
     const hit = (s: string) => !w || s.toLowerCase().startsWith(w) || s.toLowerCase().includes(w);
     const from = caret - q.length;
     const fns: (Suggestion & { from: number })[] = [
-      ...BUILTINS.filter((f) => hit(f.name)).map((f) => ({ key: `f:${f.name}`, icon: "ƒ", label: f.sig, hint: t(f.what), insert: `${f.name}(`, from })),
+      ...BUILTINS.filter((f) => hit(f.name)).map((f) => ({ key: `f:${f.name}`, icon: "ƒ", label: signature(t, f), hint: t(f.what), insert: `${f.name}(`, from })),
       ...(names?.functions ?? []).filter((f) => hit(f.name)).map((f) => ({ key: `p:${f.name}`, icon: "ƒ", label: f.signature, hint: `${f.what}${f.unit ? ` (${f.unit})` : ""}`, insert: `${f.name}(`, from })),
     ];
     const metrics = (names?.metrics ?? []).filter(hit).map((m) => ({ key: `m:${m}`, icon: "📊", label: `@${m}`, hint: t("Kennzahl"), insert: metricRef(m), from }));

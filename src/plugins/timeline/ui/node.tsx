@@ -17,7 +17,7 @@ function TimelineBlock(p: NodeViewProps) {
   const limit = Number(p.node.attrs.limit) || 20;
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-2" contentEditable={false} data-app-block="timeline">
-      <GripBar editor={p.editor} node={p.node} getPos={p.getPos} deleteNode={p.deleteNode} label="timeline" />
+      <GripBar editor={p.editor} node={p.node} getPos={p.getPos} deleteNode={p.deleteNode} label={t("Timeline")} />
       <section className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
         <div className="mb-2 flex items-center gap-2">
           <h4 className="text-xs font-semibold tracking-wide text-zinc-500 uppercase">{t("Timeline")}</h4>

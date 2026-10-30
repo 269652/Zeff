@@ -69,27 +69,35 @@ function useChoices(pageId: number, on: boolean) {
   return choices;
 }
 
-/** Where a block can be taken by: dragged elsewhere, a line added after it, removed — shown when it is hovered, while editing the layout. */
-export function GripBar({ editor, node, getPos, deleteNode, label }: Pick<NodeViewProps, "editor" | "node" | "getPos" | "deleteNode"> & { label: string }) {
+/**
+ * Where a block can be taken by: dragged elsewhere, a line added after it, removed — shown while arranging the layout (the
+ * same bar on every block; `children`: a block's own buttons in it, `add: false` without the new line).
+ */
+export function GripBar({ editor, node, getPos, deleteNode, label, removeLabel, add = true, children }: Pick<NodeViewProps, "editor" | "node" | "getPos" | "deleteNode"> & { label?: string; removeLabel?: string; add?: boolean; children?: React.ReactNode }) {
+  const t = useT();
   if (!editor.isEditable) return null;
+  const remove = removeLabel ?? t("Remove this block");
   return (
     <div className="ws-grip-bar" contentEditable={false}>
-      <span data-drag-handle className="ws-grip-btn" title="Drag to move" aria-hidden="true">
+      <span data-drag-handle className="ws-grip-btn" title={t("Drag to move")} aria-hidden="true">
         ⠿
       </span>
       <span className="ws-grip-label">{label}</span>
-      <button
-        type="button"
-        title="A new line after this block"
-        aria-label="A new line after this block"
-        onClick={() => {
-          const pos = typeof getPos === "function" ? getPos() : undefined;
-          if (pos !== undefined) editor.chain().focus().insertContentAt(pos + node.nodeSize, { type: "paragraph" }).run();
-        }}
-      >
-        ＋
-      </button>
-      <button type="button" title="Remove this block" aria-label="Remove this block" onClick={() => deleteNode()}>
+      {children}
+      {add && (
+        <button
+          type="button"
+          title={t("A new line after this block")}
+          aria-label={t("A new line after this block")}
+          onClick={() => {
+            const pos = typeof getPos === "function" ? getPos() : undefined;
+            if (pos !== undefined) editor.chain().focus().insertContentAt(pos + node.nodeSize, { type: "paragraph" }).run();
+          }}
+        >
+          ＋
+        </button>
+      )}
+      <button type="button" title={remove} aria-label={remove} onClick={() => deleteNode()}>
         ✕
       </button>
     </div>
@@ -113,7 +121,7 @@ function FieldView({ node, updateAttributes, editor, extension, getPos, deleteNo
   const name = choices?.properties.find((p) => p.id === prop)?.name ?? data?.schema.properties.find((p) => p.id === prop)?.name ?? (prop === "title" ? data?.schema.titleName : "") ?? "";
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-1" contentEditable={false} data-app-block="field">
-      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label="field" />
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={t("Field")} />
       {editor.isEditable && (
         <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
           <select className="input w-auto py-0.5 text-xs" value={prop} onChange={(e) => updateAttributes({ prop: e.target.value })} aria-label={t("Field")}>
@@ -185,7 +193,7 @@ function RelatedView({ node, updateAttributes, editor, extension, getPos, delete
   const label = choices?.related.find((r) => r.dbId === dbId && r.prop === prop);
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-2" contentEditable={false} data-app-block="related">
-      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label="related rows" />
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={t("Related rows")} />
       {editor.isEditable && (
         <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
           <select
@@ -316,7 +324,7 @@ function ButtonView({ node, updateAttributes, editor, extension, getPos, deleteN
   };
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-1" contentEditable={false} data-app-block="button">
-      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label="button" />
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={t("Button")} />
       {editor.isEditable && (
         <div className="mb-1 flex flex-wrap items-center gap-2 text-xs text-zinc-500">
           <input className="input w-32 py-0.5 text-xs" value={label} onChange={(e) => updateAttributes({ label: e.target.value })} placeholder={t("Label")} aria-label={t("Label")} />

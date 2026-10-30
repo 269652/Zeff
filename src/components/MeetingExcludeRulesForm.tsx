@@ -43,7 +43,7 @@ export function MeetingExcludeRulesForm({ initialRules }: { initialRules: string
             <input
               className="input py-1 text-sm"
               value={r}
-              placeholder="Zeiten in Chrono Erfassen"
+              placeholder={t("Log hours in Chrono")}
               aria-label={t("Exclude rule {n}: meeting title contains", { n: i + 1 })}
               onChange={(e) => setRule(i, e.target.value)}
             />

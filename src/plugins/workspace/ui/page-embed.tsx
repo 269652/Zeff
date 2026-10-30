@@ -6,6 +6,7 @@ import { createContext, lazy, Suspense, useContext, useEffect, useState } from "
 import { useT } from "@/components/I18nProvider";
 import { pageEmbedAction } from "../actions";
 import { DatabaseBlock } from "./DatabaseView";
+import { GripBar } from "./app-nodes";
 import { kindIcon } from "../model";
 
 /**
@@ -35,7 +36,7 @@ export function embedPage(editor: TiptapEditor, pos: number, page: { id: number;
   editor.chain().insertContentAt(after, block).deleteRange({ from: pos, to: pos + 1 }).run();
 }
 
-function PageEmbedView({ node, editor, getPos, extension }: NodeViewProps) {
+function PageEmbedView({ node, editor, getPos, extension, deleteNode }: NodeViewProps) {
   const t = useT();
   const pageId = Number(node.attrs.pageId);
   const depth = useContext(Depth);
@@ -85,7 +86,8 @@ function PageEmbedView({ node, editor, getPos, extension }: NodeViewProps) {
     );
   };
   return (
-    <NodeViewWrapper className="ws-embed my-2 rounded-lg border border-zinc-200 dark:border-zinc-800" contentEditable={false} data-page-embed={pageId}>
+    <NodeViewWrapper className="ws-embed ws-module-block my-2 rounded-lg border border-zinc-200 dark:border-zinc-800" contentEditable={false} data-page-embed={pageId}>
+      <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={title} />
       <div className="flex items-center gap-2 border-b border-zinc-100 px-3 py-1.5 text-sm dark:border-zinc-800" data-drag-handle>
         <Link href={`/workspace/${pageId}`} className="min-w-0 flex-1 truncate font-medium hover:underline">
           {(page && page !== "gone" && page.icon) || "📄"} {title}

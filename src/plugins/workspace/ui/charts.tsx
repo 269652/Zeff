@@ -1,5 +1,7 @@
 "use client";
 
+import { useT } from "@/components/I18nProvider";
+
 /** A point of a chart: its label, its value, its colour. */
 export type ChartPoint = { label: string; value: number; color: string };
 
@@ -12,9 +14,10 @@ const fmt = (n: number, unit: string) => `${Math.round(n * 100) / 100}${unit ? `
 const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n - 1)}…` : s);
 
 export function BarChart({ points, unit }: { points: ChartPoint[]; unit: string }) {
+  const t = useT();
   const max = Math.max(...points.map((p) => p.value), 1);
   return (
-    <ul className="space-y-1.5" aria-label="Bar chart">
+    <ul className="space-y-1.5" aria-label={t("Bar chart")}>
       {points.map((p) => (
         <li key={p.label} className="grid grid-cols-[minmax(5rem,11rem)_1fr_auto] items-center gap-2 text-sm">
           <span className="truncate text-zinc-600 dark:text-zinc-300" title={p.label}>
@@ -31,6 +34,7 @@ export function BarChart({ points, unit }: { points: ChartPoint[]; unit: string 
 }
 
 export function ColumnChart({ points, unit }: { points: ChartPoint[]; unit: string }) {
+  const t = useT();
   const max = Math.max(...points.map((p) => p.value), 1);
   const W = Math.max(320, points.length * 56);
   const H = 190;
@@ -38,7 +42,7 @@ export function ColumnChart({ points, unit }: { points: ChartPoint[]; unit: stri
   const step = W / points.length;
   return (
     <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-52 w-full min-w-80" role="img" aria-label="Column chart">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-52 w-full min-w-80" role="img" aria-label={t("Column chart")}>
         <line x1="0" x2={W} y1={base} y2={base} stroke="currentColor" strokeOpacity="0.15" />
         {points.map((p, i) => {
           const h = Math.max(2, (p.value / max) * (base - 20));
@@ -63,6 +67,7 @@ export function ColumnChart({ points, unit }: { points: ChartPoint[]; unit: stri
 }
 
 export function LineChart({ points, unit }: { points: ChartPoint[]; unit: string }) {
+  const t = useT();
   const max = Math.max(...points.map((p) => p.value), 1);
   const W = Math.max(320, points.length * 56);
   const H = 190;
@@ -73,7 +78,7 @@ export function LineChart({ points, unit }: { points: ChartPoint[]; unit: string
   const color = points[0]?.color ?? "#6366f1";
   return (
     <div className="overflow-x-auto">
-      <svg viewBox={`0 0 ${W} ${H}`} className="h-52 w-full min-w-80" role="img" aria-label="Line chart">
+      <svg viewBox={`0 0 ${W} ${H}`} className="h-52 w-full min-w-80" role="img" aria-label={t("Line chart")}>
         <line x1="0" x2={W} y1={base} y2={base} stroke="currentColor" strokeOpacity="0.15" />
         {xy.length > 1 && <polygon points={`${xy[0][0]},${base} ${line} ${xy[xy.length - 1][0]},${base}`} fill={color} fillOpacity="0.1" />}
         <polyline points={line} fill="none" stroke={color} strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
@@ -95,6 +100,7 @@ export function LineChart({ points, unit }: { points: ChartPoint[]; unit: string
 }
 
 export function PieChart({ points, unit }: { points: ChartPoint[]; unit: string }) {
+  const t = useT();
   const total = points.reduce((a, p) => a + p.value, 0) || 1;
   const R = 70;
   const sweeps = points.map((p) => (p.value / total) * Math.PI * 2);
@@ -111,7 +117,7 @@ export function PieChart({ points, unit }: { points: ChartPoint[]; unit: string 
   });
   return (
     <div className="flex flex-wrap items-center gap-6">
-      <svg viewBox="0 0 180 180" className="size-44 shrink-0" role="img" aria-label="Pie chart">
+      <svg viewBox="0 0 180 180" className="size-44 shrink-0" role="img" aria-label={t("Pie chart")}>
         {arcs.map(({ p, d }) => (
           <path key={p.label} d={d} fill={p.color} stroke="white" strokeWidth="1.5" className="dark:stroke-zinc-900">
             <title>{`${p.label}: ${fmt(p.value, unit)} (${Math.round((p.value / total) * 100)} %)`}</title>

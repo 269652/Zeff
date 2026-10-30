@@ -8,6 +8,7 @@ import { minutesText } from "@/plugins/sync-settings";
 import { RunLog } from "./RunLog";
 import { previewJoinAction, previewSetAction, previewAiFilterAction, instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
+import type { T } from "@/lib/i18n/shared";
 import { ATTENTIONS } from "@/lib/boards/shared";
 import { FILTER_OPS, newId, type DataType, type FilterRule, type JiraCriteria, type Pipeline, type PipelineSource, type PipelineStep } from "../model";
 import { Dropdown, MenuItem, Modal } from "./kit";
@@ -21,12 +22,12 @@ const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions:
 const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output === "filter" ? "aifilter" : (s.output ?? "")) : s.kind);
 const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
-/** The example "My briefing": your Jira tickets of the last 14 days, commented, open — their Lage, one overall picture. */
-export const BRIEFING_EXAMPLE = (): PipelineStep[] => [
+/** The example "My briefing": your Jira tickets of the last 14 days, commented, open — their Lage, one overall picture (its prompts in the UI language). */
+export const BRIEFING_EXAMPLE = (t: T): PipelineStep[] => [
   { id: newId("s"), kind: "source", from: "jira", jira: { mine: true, recentDays: 14, commented: true, openOnly: true } },
-  { id: newId("s"), kind: "ai", output: "field", prop: "lageattention", name: "Attention", choices: [...ATTENTIONS], prompt: "Wie das Ticket steht: feedback (Rückfrage offen), active (in Arbeit), check (Test/Review/Abnahme), spec (Anforderung unklar), blocked (wartet auf andere), ready (bereit), stale (seit Wochen ohne Bewegung)." },
-  { id: newId("s"), kind: "ai", output: "field", prop: "lagelead", name: "Lage", prompt: "EIN Satz — wie es steht, was als Nächstes passieren muss und wer dran ist. Nüchtern, konkret, nichts erfinden." },
-  { id: newId("s"), kind: "ai", output: "summary", prompt: "Die Gesamtlage: was gerade brennt, was als Nächstes kommt, worauf ich warte — in wenigen Sätzen, die wichtigsten Tickets mit Schlüssel." },
+  { id: newId("s"), kind: "ai", output: "field", prop: "lageattention", name: t("Attention"), choices: [...ATTENTIONS], prompt: t("How the ticket stands: feedback (a question open), active (being worked on), check (test/review/acceptance), spec (requirement unclear), blocked (waiting for others), ready (ready), stale (no movement for weeks).") },
+  { id: newId("s"), kind: "ai", output: "field", prop: "lagelead", name: t("Briefing"), prompt: t("ONE sentence — how it stands, what has to happen next and whose turn it is. Sober, concrete, invent nothing.") },
+  { id: newId("s"), kind: "ai", output: "summary", prompt: t("The overall picture: what is burning right now, what comes next, what I'm waiting for — in a few sentences, the most important tickets with their key.") },
 ];
 
 export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, checkboxes, databases, extSources = [], onSave, onRun, onClose }: { /** The sources plugins bring (People …). */ extSources?: { id: string; label: string; icon: string; hint?: string }[]; dbId: number; pipeline: Pipeline | undefined; synced: string | null; dataType?: DataType; fields: string[]; checkboxes: { id: string; name: string }[]; databases: { id: number; title: string; rules?: boolean; jobs?: boolean; people?: boolean }[]; onSave: (p: Pipeline) => Promise<void>; onRun: (ai: boolean) => Promise<void>; onClose: () => void }) {
@@ -75,7 +76,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
       {!steps.length && (
         <div className="rounded-lg border border-dashed border-zinc-300 p-3 text-sm dark:border-zinc-700">
           {t("No steps yet: the rows are your own.")}{" "}
-          <button type="button" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setSteps(BRIEFING_EXAMPLE().filter((s) => !synced || s.kind === "ai"))}>
+          <button type="button" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setSteps(BRIEFING_EXAMPLE(t).filter((s) => !synced || s.kind === "ai"))}>
             {t("Start from the example “My briefing”")}
           </button>
         </div>

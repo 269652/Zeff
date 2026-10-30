@@ -69,6 +69,25 @@ const today = () => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
+/** The detail modules a block can show (/Lage, /Todos …): the key, its title, icon and search words. */
+const moduleList = (t: T) =>
+  [
+    ["briefing", t("Briefing"), "🧭", ["lage", "briefing", "status", "attention"]],
+    ["todos", t("Todos"), "☑", ["todos", "checklist", "tasks"]],
+    ["questions", t("Questions"), "❓", ["questions", "fragen"]],
+    ["actions", t("Suggested actions"), "⚡", ["actions", "aktionen", "suggestions"]],
+    ["flags", t("Flags"), "⚑", ["flags", "risks", "markierungen"]],
+    ["context", t("Context"), "🔗", ["context", "kontext", "sources"]],
+    ["chat", t("Chat"), "💬", ["chat", "ask", "frag"]],
+    ["properties", t("Properties"), "📋", ["properties", "eigenschaften", "fields", "felder"]],
+    ["subtasks", t("Subtasks"), "⧉", ["subtasks", "unteraufgaben"]],
+    ["suggested", t("Suggested actions (AI step)"), "⚡", ["suggested", "vorschläge", "ai"]],
+    ["page", t("The row's page"), "📄", ["page", "seite", "text", "content"]],
+  ] as const;
+
+/** A module block's name, as the slash menu calls it (the key itself for one it does not know). */
+export const moduleTitle = (t: T, module: string): string => moduleList(t).find(([m]) => m === module)?.[1] ?? module.replace(/-/g, " ");
+
 export const slashItems = (t: T): SlashItem[] => [
   { key: "text", title: t("Text"), hint: t("Plain paragraph"), icon: "¶", group: t("Basic blocks"), keywords: ["paragraph", "text", "plain"], run: ({ editor, range }) => chain(editor, range).setParagraph().run() },
   { key: "h1", title: t("Heading 1"), hint: t("Big section heading"), icon: "H1", group: t("Basic blocks"), keywords: ["h1", "heading", "title", "#"], run: ({ editor, range }) => chain(editor, range).setHeading({ level: 1 }).run() },
@@ -135,21 +154,7 @@ export const slashItems = (t: T): SlashItem[] => [
   { key: "ai-block", under: "ai", title: t("AI block"), hint: t("The AI writes here — from this page and the databases in it"), icon: "✨", group: t("Zeff"), keywords: ["ai", "ki", "write", "summary", "briefing", "lage", "gpt", "claude"], run: ({ editor, range }) => chain(editor, range).insertContent({ type: "aiBlock", attrs: { prompt: "", text: "", at: "", auto: false } }).run() },
   // What Zeff knows about a ticket — of the row whose page it is, or the key given in the block: the modules of a detail view.
   picker("ticket", { title: t("Ticket …"), hint: t("What Zeff knows about this row's ticket — briefing, todos, questions, chat …"), icon: "🎫", group: t("Zeff"), keywords: ["zeff", "module", "briefing"] }),
-  ...(
-    [
-      ["briefing", t("Briefing"), "🧭", ["lage", "briefing", "status", "attention"]],
-      ["todos", t("Todos"), "☑", ["todos", "checklist", "tasks"]],
-      ["questions", t("Questions"), "❓", ["questions", "fragen"]],
-      ["actions", t("Suggested actions"), "⚡", ["actions", "aktionen", "suggestions"]],
-      ["flags", t("Flags"), "⚑", ["flags", "risks", "markierungen"]],
-      ["context", t("Context"), "🔗", ["context", "kontext", "sources"]],
-      ["chat", t("Chat"), "💬", ["chat", "ask", "frag"]],
-      ["properties", t("Properties"), "📋", ["properties", "eigenschaften", "fields", "felder"]],
-      ["subtasks", t("Subtasks"), "⧉", ["subtasks", "unteraufgaben"]],
-      ["suggested", t("Suggested actions (AI step)"), "⚡", ["suggested", "vorschläge", "ai"]],
-      ["page", t("The row's page"), "📄", ["page", "seite", "text", "content"]],
-    ] as const
-  ).map(([module, title, icon, keywords]): SlashItem => ({
+  ...moduleList(t).map(([module, title, icon, keywords]): SlashItem => ({
     key: `module-${module}`,
     title,
     hint: t("About this row's ticket — or the key you give the block"),
@@ -192,7 +197,7 @@ export const slashItems = (t: T): SlashItem[] => [
   {
     key: "widget",
     under: "widget",
-    title: t("Widget"),
+    title: t("Choose a widget …"),
     hint: t("What a plugin shows live — unread, dates coming up, workers, news — with its buttons"),
     icon: "🧩",
     group: t("App blocks"),
