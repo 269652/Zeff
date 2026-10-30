@@ -2,7 +2,7 @@ import { getDb, schema } from "@/db";
 import { accountsInstalled, currentAccountId, setAccountsInstalled } from "@/db/accounts";
 import { emitChange } from "@/lib/events";
 import { stepExtensionOk } from "./extension-state";
-import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfStep, pluginsOfService, resolvePluginId, type PluginId } from "./catalog";
+import { PLUGINS, RETIRED_PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfStep, pluginsOfService, resolvePluginId, type PluginId } from "./catalog";
 
 /** Each plugin as you set it (the plugins table), else its default — not yet looking at what it builds on. */
 function chosen(): Map<PluginId, boolean> {
@@ -68,10 +68,14 @@ export function dependents(asked: PluginId): PluginId[] {
 
 /**
  * Install or uninstall one — installing also installs what it builds on. Its data stays (mails,
- * messages, todos, pulled entries) — only what it does goes.
+ * messages, todos, pulled entries) — only what it does goes. A retired plugin's id ("kanban", "notes")
+ * changes nothing: it is no plugin of its own anymore, and its successor (the Workspace) stays as it is.
  */
-export function setInstalled(asked: PluginId, installed: boolean): PluginId[] {
-  const id = resolvePluginId(asked);
+export function setInstalled(id: PluginId, installed: boolean): PluginId[] {
+  if (RETIRED_PLUGINS[id]) {
+    console.warn(`[plugins] setInstalled("${id}", ${installed}) ignored: a retired plugin (now part of "${RETIRED_PLUGINS[id]}")`);
+    return [];
+  }
   const changedAt = new Date().toISOString();
   const ids: PluginId[] = [id];
   if (installed) {

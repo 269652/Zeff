@@ -13,7 +13,7 @@ export function PluginNotInstalled({ id }: { id: PluginId }) {
       <p className="text-zinc-600 dark:text-zinc-300">{catalogText(t, p.description)}</p>
       {p.requires && <p className="text-xs text-zinc-500">{t("Needs: {requires}", { requires: catalogText(t, p.requires) })}</p>}
       <div className="flex items-center gap-3">
-        <PluginInstallButton id={id} installed={false} />
+        <PluginInstallButton id={p.id} installed={false} />
         <Link href="/plugins" className="text-indigo-600 hover:underline dark:text-indigo-400">
           {t("All plugins →")}
         </Link>

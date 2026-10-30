@@ -42,7 +42,7 @@
     },
     "permissions": {
       "default": [],
-      "description": "What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, kanban.read …).",
+      "description": "What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, workspace.write …).",
       "maxItems": 30,
       "type": "array",
       "items": {

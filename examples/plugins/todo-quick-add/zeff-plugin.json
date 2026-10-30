@@ -1,0 +1,14 @@
+{
+  "$schema": "http://127.0.0.1:9333/ext/sdk/zeff-plugin.schema.json",
+  "id": "todo-quick-add",
+  "name": "Todo quick add",
+  "version": "1.0.0",
+  "description": "An app in Zeff's menu: drop a todo on your list (with a ticket, if there is one) and see the newest open ones.",
+  "author": "Zeff examples",
+  "apiVersion": 1,
+  "permissions": ["todos.read", "todos.write"],
+  "contributes": {
+    "workPanels": [{ "id": "add", "title": "Quick add", "entry": "index.html" }],
+    "apps": [{ "panel": "add", "label": "Todo quick add", "short": "Quick add", "hint": "Drop a todo on your list" }]
+  }
+}

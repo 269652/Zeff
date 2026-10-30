@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <title>Todo quick add</title>
+  <link rel="stylesheet" href="/ext/sdk/zeff.css">
+</head>
+<body>
+  <h1>Todo quick add</h1>
+  <p class="muted" id="hint"></p>
+  <form class="row" id="form">
+    <input class="input" id="text" placeholder="A todo …" autocomplete="off" style="flex:1">
+    <input class="input" id="ticket" placeholder="Ticket (PROJ-123)" autocomplete="off" style="width:10em">
+    <button class="btn btn-primary">Add</button>
+  </form>
+  <ul id="todos"></ul>
+
+  <script src="/ext/sdk/zeff.js"></script>
+  <script>
+    "use strict";
+    const $ = (id) => document.getElementById(id);
+
+    // Methods other plugins bring are called by name: todos.read / todos.write are the Todos plugin's permissions.
+    async function loadTodos() {
+      const todos = await zeff.call("todos.list", { status: "open", limit: 10 });
+      $("hint").textContent = todos.length ? "" : "No open todos.";
+      $("todos").replaceChildren(...todos.map((x) => {
+        const li = document.createElement("li");
+        li.textContent = x.ref + " " + x.text + (x.ticket ? " (" + x.ticket + ")" : "");
+        return li;
+      }));
+    }
+    $("form").onsubmit = async (e) => {
+      e.preventDefault();
+      try {
+        await zeff.call("todos.add", { text: $("text").value, ticket: $("ticket").value.trim() });
+        $("text").value = "";
+        await loadTodos();
+      } catch (err) { zeff.ui.toast(err.message, "error"); }
+    };
+    zeff.on("change", ({ topic }) => { if (topic === "todos") loadTodos().catch(() => {}); });
+    loadTodos().catch((err) => { $("hint").textContent = err.message; });   // e.g. Todos isn't installed
+  </script>
+</body>
+</html>

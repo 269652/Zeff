@@ -128,22 +128,6 @@ is queued behind it. Both show up in Work's sidebar like any session.
 
 `Todo`: `{ id, ref, ticket, text, kind, owner: "me" | "other", status, due: string | null, parentId: number | null, source: string | null }`.
 
-### Kanban
-
-Needs the Kanban plugin to be installed. Cards are the ones on your own boards (`KB-<id>`).
-
-| Method | Permission | Params | Result |
-| --- | --- | --- | --- |
-| `kanban.boards.list` | `kanban.read` | — | `{ id, name, description, cards, open, inLage }[]` |
-| `kanban.boards.get` | `kanban.read` | `id`* | the board with its `columns` (each with its `cards`) |
-| `kanban.cards.add` | `kanban.write` | `columnId`*, `title`*, and any of `description`, `labels`, `priority`, `due`, `assignee` | the card |
-| `kanban.cards.update` | `kanban.write` | `id`*, and any of `title`, `description`, `labels`, `priority` (`low`, `normal`, `high`, `urgent` or `null`), `due` (`YYYY-MM-DD` or `null`), `assignee` | the card |
-| `kanban.cards.move` | `kanban.write` | `id`*, `columnId`*, `before` (a card id; none: at the end) | `true` |
-| `kanban.cards.archive` | `kanban.write` | `id`* | `true` |
-| `kanban.cards.unarchive` | `kanban.write` | `id`* | `true` |
-
-`card`: `{ id, ref, columnId, title, description, labels, priority, due, assignee, parentId, doneAt }`.
-
 ### AI steps (LLM)
 
 The instructions and numbers of the AI steps (Menu → Prompts: the briefing, the mail review, the branch names …).
@@ -178,7 +162,7 @@ Pages and databases of the Workspace — by their names (or ids).
 | `workspace.signals.send` | `workspace.write` | `name`* (e.g. `invoice.paid`), `payload` (a JSON object of text values the routines use as `{{payload.x}}`) | the routines listening to it run |
 | `workspace.routines.run` | `workspace.write` | `routine`* (an automation's or agent's page title or id), `row` (a row's id it is about) | `{ id, status, run?, error? }` |
 
-The AI may also propose `llm.steps.update` (and `kanban.cards.add`, the `workspace.*` methods, `todos.add`) as an **Auto-Aktion** from what a colleague wrote
+The AI may also propose `llm.steps.update` (and the `workspace.*` methods, `todos.add`) as an **Auto-Aktion** from what a colleague wrote
 ("Do in Zeff"): a method is offered to the AI by an `offer` on it (`ApiOffer` in `lib/plugins/api-kit.ts`), with the
 current state as context so the new text adjusts what is there.
 

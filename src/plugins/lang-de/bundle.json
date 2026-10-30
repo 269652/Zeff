@@ -3095,6 +3095,7 @@
   "Online meeting": "Online-Meeting",
   "Only <b>enabled</b> boards are synced and feed the ticket dropdown — uncheck stale boards to declutter. Map a board to a job and every ticket on it defaults to that job (override per ticket below). Re-syncing only re-reads enabled and newly-found boards.": "Nur <b>aktivierte</b> Boards werden gesynct und füllen das Ticket-Dropdown — nimm bei veralteten Boards den Haken raus, um aufzuräumen. Ordne einem Board einen Job zu, dann gilt er für jedes Ticket darauf (pro Ticket unten änderbar). Ein erneuter Sync liest nur aktivierte und neu gefundene Boards.",
   "Only a short note came back instead of the document's text — click “Read again”.": "Statt des Textes kam nur eine kurze Notiz zurück — klick auf „Neu lesen“.",
+  "Only a reply (a mail or a message) can be sent from a conversation.": "Aus einer Unterhaltung geht nur eine Antwort (eine Mail oder eine Nachricht).",
   "Only backups Zeff put there are ever removed.": "Entfernt werden nur Backups, die Zeff dort abgelegt hat.",
   "Only by hand": "Nur von Hand",
   "Only Claude can post to Jira (through Zeff's Jira connection) — install the Claude CLI plugin.": "Nur Claude kann in Jira posten (über Zeffs Jira-Verbindung) — installier das Claude-CLI-Plugin.",

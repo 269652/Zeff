@@ -13,7 +13,7 @@ delete process.env.JIRA_URL;
  */
 test("replaceBriefingOnce: My briefing replaced by a pipeline database with its own AI steps", async () => {
   const { setInstalled } = await import("@/plugins/state");
-  for (const id of ["kanban", "jira-lage", "workspace"]) setInstalled(id, true);
+  for (const id of ["jira-lage", "workspace"]) setInstalled(id, true);
   const { getDb, schema } = await import("@/db");
   const w = await import("@/plugins/workspace/store");
   const { databaseSource } = await import("@/plugins/workspace/collections");

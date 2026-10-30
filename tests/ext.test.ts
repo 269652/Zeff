@@ -25,7 +25,7 @@ test("a manifest is checked: ids, permissions the contributions need, paths insi
   await import("@/lib/plugins/api"); // the plugins register the permissions a manifest may ask for
   const { parseManifest } = await import("@/lib/ext/manifest");
   const ok = parseManifest(JSON.stringify({ ...base, id: "my-plugin" }));
-  assert.ok(parseManifest(JSON.stringify({ ...base, id: "my-plugin", permissions: ["kanban.write", "work.read", "exec"] })).ok, "permissions plugins bring are fine");
+  assert.ok(parseManifest(JSON.stringify({ ...base, id: "my-plugin", permissions: ["todos.write", "work.read", "exec"] })).ok, "permissions plugins bring are fine");
   assert.ok(ok.ok);
   const bad = (m: object) => {
     const r = parseManifest(JSON.stringify({ ...base, id: "p-x", ...m }));
@@ -302,17 +302,17 @@ test("the manifest's JSON Schema file and the permission texts are in step with 
   const { permissionTexts } = await import("@/lib/ext/permission-texts");
   const file = fs.readFileSync(path.join(process.cwd(), "docs", "plugins", "zeff-plugin.schema.json"), "utf8").replace(/\r\n/g, "\n");
   assert.equal(file, manifestJsonSchema(), "docs/plugins/zeff-plugin.schema.json is out of date: npm run plugin:schema");
-  // Zeff's three and those of Work, Todos and Kanban (installed by default or not, the texts are the plugins' own).
+  // Zeff's three and those of Work and Todos (installed by default or not, the texts are the plugins' own).
   const { setInstalled } = await import("@/plugins/state");
-  setInstalled("kanban", true);
+  for (const id of ["work", "todos"]) setInstalled(id, true);
   const words = permissionTexts();
-  for (const id of ["prompt", "exec", "network", "work.read", "work.write", "todos.read", "todos.write", "kanban.read", "kanban.write"]) assert.ok(words[id], `no text for the permission ${id}`);
+  for (const id of ["prompt", "exec", "network", "work.read", "work.write", "todos.read", "todos.write"]) assert.ok(words[id], `no text for the permission ${id}`);
 });
 
 test("the docs name every API method, event and permission; the examples are valid plugins", async () => {
   const { apiMethods, knownPermissions } = await import("@/lib/plugins/api");
   const { setInstalled } = await import("@/plugins/state");
-  setInstalled("kanban", true);
+  for (const id of ["work", "todos", "workspace"]) setInstalled(id, true);
   const METHODS = apiMethods();
   const { allEvents } = await import("@/lib/plugins/api-point");
   const { checkPluginFolder } = await import("@/lib/ext/check");

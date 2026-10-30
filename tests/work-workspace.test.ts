@@ -4,7 +4,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import test from "node:test";
-import { setupTempData } from "./helpers";
+import { FAIL_CLI, setupTempData } from "./helpers";
 
 setupTempData();
 
@@ -88,7 +88,7 @@ test("a session works where you picked: another folder, a new branch from a chos
     assert.equal(d.status, "failed");
     assert.match(d.error ?? "", /checked out in .* already/);
   } finally {
-    delete process.env.CLAUDE_CLI;
+    process.env.CLAUDE_CLI = FAIL_CLI; // back to the stand-in, never to the real CLI
     fs.rmSync(base, { recursive: true, force: true });
   }
 });
