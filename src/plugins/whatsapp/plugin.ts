@@ -12,8 +12,7 @@ export default definePlugin({
   experimental: "Zeff reads WhatsApp Web in the automation Chrome, as if by hand. WhatsApp does not offer an API for this, its terms forbid automated access, and it can restrict or ban an account it suspects of it. A WhatsApp update can stop the sync or make it read wrongly.",
   requires: "The account's automation Chrome with WhatsApp Web (web.whatsapp.com), linked to your phone.",
   apps: [
-    { href: "/apps/whatsapp", label: "WhatsApp", short: "WhatsApp", hint: "Your chats, their latest messages" },
-    { href: "/mail", label: "Messages", short: "Msgs", hint: "All mails and chats in one place, their sync" },
+    { href: "/mail", label: "Inbox", short: "Inbox", hint: "All your mails and chats in one place, a filter per channel" },
   ],
   routes: ["/mail", "/apps/whatsapp", "/api/boards/mail-relations"],
   syncSteps: ["whatsapp", "mailtodos", "relations"],

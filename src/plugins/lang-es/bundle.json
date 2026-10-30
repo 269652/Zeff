@@ -8029,5 +8029,10 @@
   "A field, related rows, a button, or blocks shown only if — what an entry's layout is made of": "Un campo, filas relacionadas, un botón o bloques que solo se muestran si — de lo que se compone el diseño de una entrada",
   "Widget …": "Widget …",
   "Data …": "Datos …",
-  "A figure, a chart, appointments, todos, a document or people — read live from Zeff": "Una cifra, un gráfico, citas, tareas, un documento o personas — leídos en vivo de Zeff"
+  "A figure, a chart, appointments, todos, a document or people — read live from Zeff": "Una cifra, un gráfico, citas, tareas, un documento o personas — leídos en vivo de Zeff",
+  "Channels": "Canales",
+  "Teams connection": "Conexión de Teams",
+  "All your mails and chats in one place, a filter per channel": "Todos tus correos y chats en un solo lugar, un filtro por canal",
+  "All your messages in one place — read from {source}, a filter per channel. No mail or chat is opened, nothing marked as read. “Sync now” reads two months, the background sync the last few days. A conversation unfolds with its reply. What names a ticket, the briefing reads too; the rest goes through the mail review (Todos).": "Todos tus mensajes en un solo lugar — leídos de {source}, un filtro por canal. No se abre ningún correo ni chat, nada se marca como leído. «Sincronizar ahora» lee dos meses, la sincronización en segundo plano los últimos días. Una conversación se despliega con su respuesta. Lo que nombra un ticket también lo lee el briefing; el resto pasa por la revisión de correo (Todos).",
+  "Each account's mails land in a folder of their own — in the <mail>Inbox</mail>'s Gmail filter an account each.": "Los correos de cada cuenta van a una carpeta propia — en el filtro de Gmail de la <mail>bandeja de entrada</mail>, una por cuenta."
 }

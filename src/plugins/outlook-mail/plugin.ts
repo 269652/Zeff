@@ -12,7 +12,7 @@ export default definePlugin({
   requires: "The automation Chrome with Outlook Web, signed in — or Microsoft's API with your own sign-in (Connections page).",
   settings: { href: "/settings/mail", what: "Which Outlook folders are read, and what happens to the attachments" },
   apps: [
-    { href: "/mail", label: "Messages", short: "Msgs", hint: "All mails and chats in one place, their sync" },
+    { href: "/mail", label: "Inbox", short: "Inbox", hint: "All your mails and chats in one place, a filter per channel" },
   ],
   routes: ["/mail", "/api/boards/mail-relations"],
   syncSteps: ["mail", "mailtodos", "relations"],

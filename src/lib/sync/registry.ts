@@ -178,7 +178,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   },
   teams: {
     label: "Teams",
-    href: "/teams",
+    href: "/mail?channel=teams",
     get what() { return t("Your mentions and 1:1 messages"); },
     ownRecord: true,
     run: async () => (await import("@/lib/teams/sync")).syncTeams(),
@@ -198,7 +198,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   },
   whatsapp: {
     label: "WhatsApp",
-    href: "/mail?folder=WhatsApp",
+    href: "/mail?channel=whatsapp",
     get what() { return t("Your chats' latest messages (WhatsApp Web's chat list — no chat opened, nothing marked read)"); },
     run: async () => (await import("@/lib/mail/sync")).syncWhatsapp(),
     busy: () => flag("__zeffWhatsappSyncing"),
@@ -206,7 +206,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   },
   signal: {
     label: "Signal",
-    href: "/mail?folder=Signal",
+    href: "/mail?channel=signal",
     get what() { return t("Your Signal chats' latest messages (from Signal Desktop — no chat opened, nothing marked read)"); },
     run: async () => (await import("@/lib/mail/sync")).syncSignal(),
     busy: () => flag("__zeffSignalSyncing"),

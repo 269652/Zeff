@@ -12,8 +12,7 @@ export default definePlugin({
   requires: "The account's automation Chrome with Gmail (mail.google.com), signed in — or Google's API with your own sign-in (Connections page).",
   settings: { href: "/gmail", what: "Which Gmail accounts are read" },
   apps: [
-    { href: "/apps/gmail", label: "Gmail", short: "Gmail", hint: "Your Gmail mails, per account" },
-    { href: "/mail", label: "Messages", short: "Msgs", hint: "All mails and chats in one place, their sync" },
+    { href: "/mail", label: "Inbox", short: "Inbox", hint: "All your mails and chats in one place, a filter per channel" },
   ],
   routes: ["/mail", "/apps/gmail", "/gmail", "/api/boards/mail-relations"],
   syncSteps: ["mail", "mailtodos", "relations"],

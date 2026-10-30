@@ -30,6 +30,11 @@ export async function rowCanRun(type: string): Promise<boolean> {
 export async function checkRowAction(rowId: number, raw: Record<string, unknown>): Promise<{ op: Record<string, unknown> & { type: string }; href: string | null }> {
   const row = getPage(rowId);
   if (!row?.dbId) throw new Error(t("Not a row of a database."));
+  return checkAction(raw, rowKey({ id: row.id, cells: row.props }) ?? "");
+}
+
+/** The same check for an action without a row (the inbox's reply to a conversation): a draft, or one that needs no todo. */
+export async function checkAction(raw: Record<string, unknown>, ticket = ""): Promise<{ op: Record<string, unknown> & { type: string }; href: string | null }> {
   const { actionOf } = await import("@/plugins/actions/catalog");
   const { opAvailable } = await import("@/plugins/ops");
   const type = String(raw.type ?? "");
@@ -37,7 +42,7 @@ export async function checkRowAction(rowId: number, raw: Record<string, unknown>
   if (!spec) throw new Error(t("Unknown action."));
   if (!spec.href && !ROW_RUNNABLE.has(type)) throw new Error(t("This action runs from a todo (make one from the row)."));
   if (!opAvailable(type)) throw new Error(t("{action}: not installed (Menu → Plugins).", { action: spec.label }));
-  const op = spec.clean(raw, { ticket: rowKey({ id: row.id, cells: row.props }) ?? "" });
+  const op = spec.clean(raw, { ticket });
   if (!op) throw new Error(t("The action is incomplete."));
   return { op: op as never, href: spec.href ? spec.href(op as never) : null };
 }
@@ -68,9 +73,13 @@ export function rowMailConv(rowId: number): string | null {
 export async function draftRowReply(rowId: number): Promise<{ text: string; to: string; subject: string; channel: string }> {
   const row = getPage(rowId);
   if (!row?.dbId) throw new Error(t("Not a row of a database."));
-  const target = replyTarget(row);
+  return draftReply(replyTarget(row), `${row.title}\n${docText(row.content).slice(0, 3000)}`);
+}
+
+/** Who a reply goes to and on what (a conversation of the inbox, a row's) — drafted by the AI from the conversation, else from `alone`. */
+export async function draftReply(target: { channel: string; to: string; subject: string; conv: string }, alone = ""): Promise<{ text: string; to: string; subject: string; channel: string }> {
   const { conversationOf } = await import("@/lib/mail/store");
-  const history = target.conv && !target.conv.startsWith("19:") ? conversationOf(target.conv, 12).map((m) => `${m.receivedAt.slice(0, 16).replace("T", " ")} ${m.fromName ?? m.fromEmail ?? "?"}: ${m.preview.slice(0, 1500)}`) : [`${row.title}\n${docText(row.content).slice(0, 3000)}`];
+  const history = target.conv && !target.conv.startsWith("19:") ? conversationOf(target.conv, 12).map((m) => `${m.receivedAt.slice(0, 16).replace("T", " ")} ${m.fromName ?? m.fromEmail ?? "?"}: ${m.preview.slice(0, 1500)}`) : [alone];
   const { fillPrompt } = await import("@/lib/prompts");
   const { INSTRUCTIONS } = await import("@/lib/boards/reply-draft");
   const channel = target.channel === "Outlook" || target.channel === "Gmail" ? "Mail" : target.channel === "Teams" ? "Teams-Nachricht" : `${target.channel}-Unterhaltung`;

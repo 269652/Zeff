@@ -11,6 +11,6 @@ export async function pullWhatsappHistoryAction(chat: string): Promise<{ ok: boo
   const name = String(chat ?? "").trim();
   if (!name) return { ok: false, error: t("Which chat?") };
   const r = await pullWhatsappHistory(name);
-  revalidatePath("/apps/whatsapp");
+  revalidatePath("/mail");
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
 }

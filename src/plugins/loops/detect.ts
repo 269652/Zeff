@@ -69,7 +69,7 @@ function fromMail(r: Resolver, since: string, now: Date): Loop[] {
     if (chat && msgs.every((m) => !mine(m)) && msgs[msgs.length - 1].subject === msgs[msgs.length - 1].folder) continue;
     const group = msgs.some((m) => !!m.is_group);
     const spoke = msgs.some(mine);
-    const href = (m: M) => (conv.startsWith("wa:") ? `/apps/whatsapp?chat=${encodeURIComponent(chatName)}` : conv.startsWith("sg:") ? `/apps/signal?chat=${encodeURIComponent(chatName)}` : `/mail?q=${encodeURIComponent(m.subject)}`);
+    const href = (m: M) => (chat ? `/mail?${new URLSearchParams({ channel: conv.startsWith("wa:") ? "whatsapp" : "signal", open: conv })}` : `/mail?q=${encodeURIComponent(m.subject)}`);
     let lastMine = -1;
     msgs.forEach((m, i) => mine(m) && (lastMine = i));
     const asked: Loop[] = [];

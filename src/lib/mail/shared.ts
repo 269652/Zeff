@@ -25,6 +25,20 @@ export type ChatFolder = (typeof CHAT_FOLDERS)[number];
 /** Whether a message is a chat's (WhatsApp, Signal) — not a mail. */
 export const isChatFolder = (folder: string): folder is ChatFolder => (CHAT_FOLDERS as readonly string[]).includes(folder);
 
+/** The inbox's channels — its filters (the URL's `channel`): Outlook, Gmail, WhatsApp, Signal kept as mails, Teams in its own store. */
+export const INBOX_CHANNELS = [
+  { id: "outlook", name: "Outlook", plugin: "outlook-mail" },
+  { id: "gmail", name: "Gmail", plugin: "gmail" },
+  { id: "whatsapp", name: "WhatsApp", plugin: "whatsapp" },
+  { id: "signal", name: "Signal", plugin: "signal" },
+  { id: "teams", name: "Teams", plugin: "teams" },
+] as const;
+export type InboxChannel = (typeof INBOX_CHANNELS)[number]["id"];
+
+/** The channel a stored message's folder belongs to ("Gmail · me@x.com" → gmail; any other mail folder → outlook). */
+export const channelOfFolder = (folder: string): Exclude<InboxChannel, "teams"> =>
+  folder === "WhatsApp" ? "whatsapp" : folder === "Signal" ? "signal" : folder.startsWith("Gmail") ? "gmail" : "outlook";
+
 /** A chat's conversation (its id: "wa:<chat>", "sg:<chat>"). */
 export const isChatConv = (convId: string) => /^(wa|sg):/.test(convId);
 
