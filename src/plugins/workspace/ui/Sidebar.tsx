@@ -339,7 +339,9 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
 
   const roots = byParent.get(null) ?? [];
   return (
-    <div className="space-y-3 text-sm">
+    // The header and the search in the flow; only the tree (the explorer) below them scrolls — in its own box, the sidebar as
+    // high as the window.
+    <div className="flex flex-col gap-3 text-sm lg:h-[calc(100dvh-7rem)]">
       {templates && (
         <Modal title={t("Templates")} onClose={() => setTemplates(null)} wide>
           <TemplateGallery
@@ -355,8 +357,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
           />
         </Modal>
       )}
-      {/* The header and the search stay on top while the tree scrolls under them. */}
-      <div className="ws-side-head space-y-3">
+      <div className="ws-side-head shrink-0 space-y-3">
         <div className="flex items-center gap-1">
           <Link href="/workspace" className="flex-1 text-lg font-semibold hover:underline">
             {t("Workspace")}
@@ -466,6 +467,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
         </div>
       </div>
 
+      <div className="ws-side-tree min-h-0 flex-1 space-y-3 overflow-y-auto pr-1">
       {favorites.length > 0 && (
         <section>
           <h2 className="mb-0.5 px-1 text-xs font-semibold text-zinc-500 uppercase">{t("Favorites")}</h2>
@@ -556,6 +558,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
       <Link href="/workspace/trash" className="ws-tree-row px-1.5 text-zinc-500" data-active={path === "/workspace/trash"}>
         🗑 {t("Trash")}
       </Link>
+      </div>
 
       <ChatPanel />
     </div>

@@ -53,7 +53,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   const builtins = (await import("@/plugins/workspace/templates")).templateMetas().flatMap(({ key, name, icon, kind, category }) => (category === "mine" ? [] : [{ key, name, icon, kind, category }]));
   return (
     <div className="page">
-      <div className="page-aside">
+      <div className="page-aside ws-aside">
         <MobileAside>
           <Sidebar builtins={builtins} templateItems={templateTree()} appNav={await (await import("@/plugins/workspace/app-nav")).appNavs()} items={tree()} favorites={favorites()} unread={unreadCounts()} channels={(await import("@/plugins/workspace/derived")).channelKinds()} extSources={(await (await import("@/plugins/workspace/source-point")).extSources()).filter((x) => !x.relationOnly).map((x) => ({ id: x.id, label: x.label, icon: x.icon }))} />
         </MobileAside>

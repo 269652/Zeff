@@ -1261,14 +1261,15 @@
   }
 }
 
-/* The Workspace sidebar's header and search: on top while the page tree scrolls (the page aside is the scroller). */
-.ws-side-head {
-  position: sticky;
-  top: 0;
-  z-index: 30;
-  background: var(--background);
-  padding-bottom: 0.5rem;
-  margin-bottom: -0.5rem;
+/* The Workspace sidebar: its header in the flow, only the tree scrolls (Sidebar.tsx) — the page aside around it doesn't. */
+.ws-side-tree {
+  scrollbar-width: thin;
+}
+@media (min-width: 1024px) {
+  .page > .page-aside.ws-aside {
+    overflow: visible;
+    max-height: none;
+  }
 }
 
 /* A page's table (/Tabelle) as a spreadsheet: a formula cell shows its value (table-formulas.ts) — the formula while the caret is in it. */
