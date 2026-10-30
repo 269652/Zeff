@@ -1,25 +1,16 @@
 "use client";
 
 import { FormError } from "@/components/FormError";
-import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { lockEnable, lockStep } from "@/components/lock-client";
+import { useAction } from "@/components/useAction";
 
 /** Settings → Lock: switch the lock on (the key's PIN and a touch), lock now, switch it off. */
 export function LockSettings({ enabled, hasKeys }: { enabled: boolean; hasKeys: boolean }) {
   const t = useT();
-  const router = useRouter();
-  const [error, setError] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-
-  const run = (go: () => Promise<{ ok: true } | { ok: false; error: string }>) =>
-    start(async () => {
-      setError(null);
-      const r = await go();
-      if (!r.ok) setError(r.error);
-      router.refresh();
-    });
+  // (A failure shows under the buttons, not as a toast.)
+  const { run: act, pending, error } = useAction<{ ok: true } | { ok: false; error: string }>({ quiet: true, toastErrors: false });
+  const run = (go: () => Promise<{ ok: true } | { ok: false; error: string }>) => void act(go);
 
   const lockNow = () =>
     run(async () => {

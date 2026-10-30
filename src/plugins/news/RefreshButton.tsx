@@ -6,6 +6,7 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import type { RefreshStatus } from "./refresh";
 import { newsDigestAction, newsStartAction, refreshStatusAction, startRefreshAction } from "./server-actions";
+import { useAction } from "@/components/useAction";
 
 /**
  * "Refresh": fetches every source and, if that leaves fewer than 200 unseen cards, adds sources (the catalog first, then the
@@ -14,8 +15,7 @@ import { newsDigestAction, newsStartAction, refreshStatusAction, startRefreshAct
  */
 export function NewsRefreshButtons({ digest }: { digest: boolean }) {
   const t = useT();
-  const router = useRouter();
-  const [pending, start] = useTransition();
+  const { run, pending, start } = useAction<{ ok: boolean; error?: string; message?: string }>({ done: t("Done."), fallback: t("Didn't work.") });
   const [status, setStatus] = useState<RefreshStatus | null>(null);
   const running = !!status?.running;
   const wasRunning = useRef(false);
@@ -48,12 +48,6 @@ export function NewsRefreshButtons({ digest }: { digest: boolean }) {
       if (!r.ok) return void toast(r.error ?? t("Didn't work."), { tone: "error" });
       wasRunning.current = true;
       setStatus(r.status ?? null);
-    });
-  const run = (fn: () => Promise<{ ok: boolean; error?: string; message?: string }>) =>
-    start(async () => {
-      const r = await fn();
-      toast(r.ok ? (r.message ?? t("Done.")) : (r.error ?? t("Didn't work.")), { tone: r.ok ? "ok" : "error" });
-      router.refresh();
     });
   const pct = status ? Math.min(100, Math.round((status.unseen / Math.max(1, status.target)) * 100)) : 0;
   return (

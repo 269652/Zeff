@@ -1,16 +1,15 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useMenuKeys } from "@/components/useMenuKeys";
 import { linkEntryAction, unlinkEntryAction } from "@/app/entry-group-actions";
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
-import { toast } from "@/components/Toaster";
 import { setSpanModeAction, ungroupSpanAction } from "@/app/parallel-actions";
 import { modeText } from "./ParallelControls";
 import type { GroupOption } from "@/lib/entry-parallel";
 import { useDismiss } from "@/components/useDismiss";
+import { useAction } from "@/components/useAction";
 
 const GroupIcon = ({ filled }: { filled: boolean }) =>
   filled ? (
@@ -36,11 +35,10 @@ const GroupIcon = ({ filled }: { filled: boolean }) =>
  */
 export function GroupMenu({ entryId, currentSpanId, headOfSpan, options }: { entryId: number; currentSpanId: string | null; /** This entry is the head of that group. */ headOfSpan: string | null; options: GroupOption[] }) {
   const t = useT();
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   // The menu floats over the page (fixed, at the icon): inside the table's scrolling container it would be cut off or make it scroll.
   const [pos, setPos] = useState<{ top: number; left: number }>({ top: 0, left: 0 });
-  const [pending, start] = useTransition();
+  const { run: act, pending } = useAction<{ ok: boolean; error?: string; message?: string } | null>({ done: t("Done."), fallback: t("Didn't work.") });
   const box = useRef<HTMLSpanElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -73,13 +71,7 @@ export function GroupMenu({ entryId, currentSpanId, headOfSpan, options }: { ent
   const grp = options.find((o) => o.spanId === (headOfSpan ?? currentSpanId));
   const grouped = !!currentSpanId || !!headOfSpan;
   if (!grouped && !options.length) return null;
-  const run = (fn: () => Promise<{ ok: boolean; error?: string; message?: string } | null>) =>
-    start(async () => {
-      const r = await fn();
-      toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
-      setOpen(false);
-      router.refresh();
-    });
+  const run = (fn: () => Promise<{ ok: boolean; error?: string; message?: string } | null>) => void act(fn).then(() => setOpen(false));
   const m = modeText(t);
   // The ways a group books: a collecting entry of yours has all four; parallel work (or a combined entry of Zeff's) three.
   const ways = grp?.headOwn ? (["collect", "divide", "sequential", "remainder"] as const) : (["combine", "divide", "sequential"] as const);
