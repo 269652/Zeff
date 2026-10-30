@@ -1,8 +1,6 @@
-import { aiChoice, runAi } from "@/lib/ai";
 import { promptText } from "@/lib/prompts";
 import { throwIfAborted } from "@/lib/abort";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
-import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { getJiraTicket } from "@/lib/jira/store";
 import { mailsForTickets } from "@/lib/mail/store";
@@ -11,7 +9,7 @@ import type { MailView } from "@/lib/mail/shared";
 import { plain } from "./collect";
 import type { TodoView } from "./shared";
 import { listTodos, setTodoMailRefs } from "./store";
-import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
+import { promptRoom, relateInBatches, relateJob } from "@/lib/ai/batch-job";
 
 /** How many of a ticket's mails the run weighs (the newest) — more than the Ticket-Lage sees. */
 /** A prompt's room for tickets, todos and mails (Copilot takes it on the command line). */
@@ -31,7 +29,6 @@ const SCHEMA = {
   },
   required: ["todos"],
 };
-type Answer = { todos?: { id?: number; mails?: string[] }[] };
 
 export const INSTRUCTIONS = `Du ordnest E-Mails meinen offenen Todos zu. Unten stehen Jira-Tickets, je mit ihren offenen Todos (Nummer in eckigen Klammern) und den Mails aus meinem Posteingang, die das Ticket nennen (Kennung in eckigen Klammern, z. B. [mail:…], dann Datum, Absender, Betreff und die ersten Zeilen, wie Outlooks Liste sie zeigt).
 
@@ -57,9 +54,7 @@ export type MailRelationResult = { ok: boolean; todos: number; changed: number; 
  * (todo.mailRefs). In batches of tickets, each its own prompt; one run at a time.
  */
 export function relateMails(): Promise<MailRelationResult> {
-  const running = accountFlag<Promise<MailRelationResult>>("__zeffMailRelations");
-  if (running) return running;
-  const run = (async (): Promise<MailRelationResult> => {
+  return relateJob("__zeffMailRelations", "mail-relations", async () => {
     // Todos on a ticket (those from the Mail-Durchsicht, on none, have their mails already).
     const open = listTodos({ status: "open" }).filter((t) => t.ticket);
     const keys = [...new Set(open.flatMap((t) => [t.ticket, ...t.alsoTickets]))];
@@ -78,51 +73,30 @@ export function relateMails(): Promise<MailRelationResult> {
     // Todos without mails to weigh: nothing related.
     const picks = new Map<number, string[]>();
     for (const g of groups) if (!g.mails.length) for (const t of g.todos) picks.set(t.id, []);
-    const withMails = groups.filter((g) => g.mails.length);
-    const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
-    const batches: (typeof withMails)[] = [];
-    let size = 0;
-    for (const g of withMails) {
-      const n = block(g.key, g.todos, g.mails).length;
-      if (!batches.length || size + n > limit) {
-        batches.push([]);
-        size = 0;
-      }
-      batches[batches.length - 1].push(g);
-      size += n;
-    }
-    let failed = 0;
-    for (const batch of batches) {
-      throwIfAborted();
-      const instructions = promptText("mail-relations", INSTRUCTIONS) + extraBlock("relations");
-      const prompt = `${instructions}\n\n${batch.map((g) => block(g.key, g.todos, g.mails)).join("\n\n")}`.slice(0, limit + instructions.length + 200);
-      // A batch that fails: its todos keep the mails they have.
-      const answer = await runAi<Answer>(prompt, SCHEMA, { task: "mail-relations", timeoutMs: 10 * 60000, maxBudgetUsd: 1 }).catch((e) => {
-        console.error("[mail-relations]", errorMessage(e));
-        failed++;
-        return null;
-      });
-      if (!answer) continue;
-      const said = new Map((answer.output?.todos ?? []).filter((t) => Number.isInteger(t?.id)).map((t) => [t.id!, t.mails ?? []]));
-      for (const g of batch) {
+    const room = promptRoom(BATCH_CHARS);
+    // A batch that fails: its todos keep the mails they have.
+    const { batches, failed } = await relateInBatches({
+      task: "mail-relations",
+      groups: groups.filter((g) => g.mails.length),
+      block: (g) => block(g.key, g.todos, g.mails),
+      room,
+      beforeBatch: throwIfAborted,
+      prompt: (blocks) => {
+        const instructions = promptText("mail-relations", INSTRUCTIONS) + extraBlock("relations");
+        return `${instructions}\n\n${blocks}`.slice(0, room + instructions.length + 200);
+      },
+      schema: SCHEMA,
+      field: "mails",
+      take: (g, said) => {
         const known = new Set(g.mails.map((m) => `mail:${m.key}`));
         for (const t of g.todos) {
           // Only mails it was shown (as "mail:<key>", with or without the prefix); unanswered: none.
           const refs = (said.get(t.id) ?? []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (r.startsWith("mail:") ? r : `mail:${r}`));
           picks.set(t.id, refs.filter((r) => known.has(r)).slice(0, 8));
         }
-      }
-    }
-    const changed = setTodoMailRefs(picks);
-    return { ok: failed < batches.length || !batches.length, todos: picks.size, changed, batches: batches.length, ...(failed ? { error: t("{failed} of {n} parts failed", { failed, n: batches.length }) } : {}) };
-  })()
-    .catch((e): MailRelationResult => {
-      console.error("[mail-relations]", errorMessage(e));
-      return { ok: false, todos: 0, changed: 0, batches: 0, error: errorMessage(e) };
-    })
-    .finally(() => {
-      setAccountFlag("__zeffMailRelations", null);
+      },
     });
-  setAccountFlag("__zeffMailRelations", run);
-  return run;
+    const changed = setTodoMailRefs(picks);
+    return { todos: picks.size, changed, batches, failed };
+  });
 }
