@@ -25,6 +25,8 @@ const PROPOSE = {
 async function thinkAlong(page) {
   await editor(page).getByText(SEED.assistText).click();
   await page.keyboard.press("End");
+  // (The editor takes the caret over from the browser's selectionchange, a moment later: a key at once still finds it where it was.)
+  await page.waitForTimeout(200);
   await page.keyboard.press("Control+Shift+Space");
   const composer = page.getByRole("dialog", { name: /Zeff/ });
   await composer.getByRole("textbox").waitFor();
