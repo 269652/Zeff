@@ -21,11 +21,15 @@ const PROPOSE = {
   ],
 };
 
-/** Think along about the block the caret is in: the caret into the paragraph, Ctrl+Shift+Space. */
+/** Think along about the block the caret is in: the caret into the paragraph, Ctrl+Shift+Space opens the composer, Enter (nothing typed) thinks along. */
 async function thinkAlong(page) {
   await editor(page).getByText(SEED.assistText).click();
   await page.keyboard.press("End");
   await page.keyboard.press("Control+Shift+Space");
+  const composer = page.getByRole("dialog", { name: /Zeff/ });
+  await composer.getByRole("textbox").waitFor();
+  await page.keyboard.press("Enter");
+  await composer.waitFor({ state: "detached" });
 }
 
 test("think along: a question, then a proposal; Apply puts a calendar and a checklist in; ✨ again re-thinks the same card, no second calendar", (t) =>
