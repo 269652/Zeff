@@ -44,6 +44,7 @@ import { TodoQuickButtons, TodoQuickPanel, type QuickPanel } from "./TodoQuick";
 import { useTodoNew } from "./todo-seen";
 import { formatMinutes } from "@/lib/work/shared";
 import { amountIn, ibansIn } from "@/lib/girocode";
+import { TodoCheck } from "@/components/TodoCheck";
 
 const TICKET_KEY = /\b([A-Z][A-Z0-9]+-\d+)\b/g;
 const LINK =
@@ -244,14 +245,13 @@ export function TodoItem({
       title={asking ? t("The agent is waiting for you: {question}", { question: asking }) : running ? t("Being worked on (worker or agent)") : undefined}
     >
       <span className="relative mt-px flex size-[18px] shrink-0">
-      <input
-        type="checkbox"
+      <TodoCheck
         className={`peer size-[18px] shrink-0 cursor-pointer appearance-none rounded-full border-[1.5px] bg-white transition hover:border-indigo-500 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none disabled:cursor-not-allowed disabled:opacity-40 dark:bg-zinc-900 ${suggested ? "border-zinc-400 checked:border-zinc-400 checked:bg-zinc-400" : "border-zinc-300 checked:border-indigo-600 checked:bg-indigo-600 dark:border-zinc-600"}`}
         checked={status === "done" || suggested}
         disabled={running || doing}
         title={running || doing ? t("Being worked on — once the run is done") : suggested ? suggestedTip : undefined}
         onChange={() => set(closed ? "open" : "done")}
-        aria-label={closed ? t("{ref} open again", { ref: todo.ref }) : t("{ref} done", { ref: todo.ref })}
+        label={closed ? t("{ref} open again", { ref: todo.ref }) : t("{ref} done", { ref: todo.ref })}
       />
       <svg viewBox="0 0 16 16" className="pointer-events-none absolute inset-0 m-auto size-3 text-white opacity-0 peer-checked:opacity-100" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
         <path d="m3.5 8.5 3 3 6-7" />

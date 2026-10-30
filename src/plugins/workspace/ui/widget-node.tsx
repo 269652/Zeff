@@ -13,6 +13,7 @@ import type { WidgetData, WidgetItem, WidgetTile } from "../widget-point";
 import { WS_CHANGED } from "./ChatPanel";
 import { TemplateBody } from "./card-template";
 import { useComboboxKeys, useLatestSearch } from "@/components/Combobox";
+import { TodoCheck } from "@/components/TodoCheck";
 
 /**
  * A widget a plugin supplies, as a block of a page (the dashboard is a page of them): live data with an action right there. The plugin
@@ -107,12 +108,11 @@ function ItemRow({ item, busy, act }: { item: WidgetItem; busy: boolean; act: (a
   return (
     <li className={`group/item relative flex items-start gap-3 rounded-xl px-2 ${big ? "py-1.5" : "py-1"} transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50`}>
       {tick ? (
-        <input
-          type="checkbox"
+        <TodoCheck
           className="mt-0.5 size-4 shrink-0 cursor-pointer accent-indigo-600"
           checked={ticked}
           disabled={busy}
-          aria-label={item.text}
+          label={item.text}
           onChange={() => {
             setTicked(!ticked);
             act("toggle", item.id);

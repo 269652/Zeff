@@ -6,6 +6,7 @@ import { useT } from "@/components/I18nProvider";
 import { DateField } from "@/components/DateField";
 import { autoHideTitlesAction } from "../actions";
 import { Dropdown, MenuItem } from "./kit";
+import { TodoCheck } from "@/components/TodoCheck";
 
 /**
  * The one look of a to-do list, wherever it is: a list block in a page, a list shown in another page, a database with its Todo view. The
@@ -18,9 +19,8 @@ export const todayIso = (): string => {
   return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 };
 
-export function TodoCheck({ checked, onChange, disabled, label }: { checked: boolean; onChange: (v: boolean) => void; disabled?: boolean; label: string }) {
-  return <input type="checkbox" className="ws-todo-check" checked={checked} disabled={disabled} onChange={(e) => onChange(e.target.checked)} aria-label={label} contentEditable={false} />;
-}
+// (In src/components now: Today, the widgets and the boards tick with it too.)
+export { TodoCheck };
 
 /** A due date: red when it is past and the item is open; quiet (shown on hover) while there is none. */
 export function TodoDue({ value, onChange, disabled, done, label }: { value: string | null | undefined; onChange: (v: string | null) => void; disabled?: boolean; done?: boolean; label: string }) {
