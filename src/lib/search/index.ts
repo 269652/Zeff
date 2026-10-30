@@ -124,7 +124,7 @@ export async function searchAll(raw: string, opts: SearchOptions = {}): Promise<
     const terms = w.split(" ").filter(Boolean).slice(0, 4);
     const where = terms.map(() => "(lower(key) like ? or lower(summary) like ?)").join(" and ");
     const found = getSqlite().prepare(`select key, summary, status from jira_tickets where ${where} order by updated_at desc limit 30`).all(...terms.flatMap((x) => [`${x}%`, `%${x}%`])) as { key: string; summary: string; status: string | null }[];
-    add("tickets", found.map((r) => ({ id: `ticket:${r.key}`, label: `🎫 ${r.key} ${clip(r.summary, 110)}`, hint: r.status || undefined, href: `/tickets?ticket=${encodeURIComponent(r.key)}`, group: SOURCE_LABELS.tickets })));
+    add("tickets", found.map((r) => ({ id: `ticket:${r.key}`, label: `🎫 ${r.key} ${clip(r.summary, 110)}`, hint: r.status || undefined, href: `/todos?part=tickets&ticket=${encodeURIComponent(r.key)}`, group: SOURCE_LABELS.tickets })));
   });
 
   // Mails, messages (Teams) and documents: what Zeff keeps of them, found as the retrieval finds them.

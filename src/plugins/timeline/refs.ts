@@ -167,7 +167,7 @@ export function hrefOf(ref: string): string {
   const id = rest.join(":");
   if (kind === "page") return `/workspace/${id}`;
   if (kind === "todo") return `/t/${id}`;
-  if (kind === "ticket") return `/tickets?ticket=${encodeURIComponent(id)}`;
+  if (kind === "ticket") return `/todos?part=tickets&ticket=${encodeURIComponent(id)}`;
   if (kind === "person") {
     const row = safeAll<{ id: number }>("select id from ws_pages where archived_at is null and json_extract(props, '$.srcref') = ? limit 1", ref)[0];
     return row ? `/workspace/${row.id}` : peopleHome();

@@ -68,7 +68,7 @@ const headerTabs = () => {
   return appTabs().map((tab) => ({ href: tab.href, label: tab.label, short: tab.short, also: tab.also, menu: withMenu.has(tab.href) }));
 };
 /** The pages the setup assistant leads to: its steps, the plugins' settings, sign-ins, syncs, accounts. */
-const setupPages = () => ["/setup", "/logins", "/sync-settings", "/settings/connections", "/plugins", "/accounts", "/preferences", ...PLUGINS.flatMap((p) => (p.settings ? [p.settings.href.split(/[?#]/)[0]] : []))];
+const setupPages = () => ["/setup", "/settings/connections", "/plugins", "/accounts", "/preferences", ...PLUGINS.flatMap((p) => (p.settings ? [p.settings.href.split(/[?#]/)[0]] : []))];
 /** The account you're in and the others — only with the Accounts plugin. */
 const headerAccount = () => {
   if (!installedPlugins().has("accounts")) return undefined;

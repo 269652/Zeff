@@ -29,9 +29,11 @@ export function BankBar({ onChanged }: { onChanged: () => void }) {
     <div className="space-y-2">
       <div className="flex flex-wrap items-center gap-2">
         {bank?.statements && <ImportStatement onDone={say} />}
-        <Link href={bank?.debtsHref ?? "/vorgaenge/uebersicht"} className="btn btn-sm">
-          {t("Debt overview")}
-        </Link>
+        {bank?.debtsHref && (
+          <Link href={bank.debtsHref} className="btn btn-sm">
+            {t("Debt overview")}
+          </Link>
+        )}
         <button type="button" className={`btn btn-sm ${open ? "btn-primary" : ""}`} onClick={() => setOpen(!open)}>
           🏦 {bank?.connected ? t("Bank connected") : t("Connect bank")}
         </button>

@@ -9,6 +9,7 @@ import { ticketChats, type ChatItem } from "@/lib/boards/ticket-chat";
 import { contextByTicket, lageByTicket, openTodosByTicket, type Lage, type TicketContextItem } from "@/lib/boards/ticket-lage";
 import type { BoardSummary, RichBoard, RichCard, RichColumn } from "./shared";
 import { accountFlag } from "@/lib/sync/account-flags";
+import { jiraBoardHref } from "./to-workspace";
 
 /**
  * Jira Lage (built on Kanban): your Jira boards as Kanban boards — their columns as Jira has them
@@ -178,13 +179,13 @@ export function lageBoards(): BoardSummary[] {
   const open = (id: number) => counts.filter((c) => c.board === id && !c.resolved).length;
   const { tickets, at } = lageByTicket();
   return [
-    { id: "jira-lage", name: t("My briefing"), description: t("The briefing run's tickets — each with its briefing."), color: "violet", source: t("Jira briefing"), cards: tickets.length, open: tickets.filter((t) => t.statusCategory !== "done").length, href: "/kanban/jira-lage", updatedAt: at },
+    { id: "jira-lage", name: t("My briefing"), description: t("The briefing run's tickets — each with its briefing."), color: "violet", source: t("Jira briefing"), cards: tickets.length, open: tickets.filter((t) => t.statusCategory !== "done").length, href: jiraBoardHref("jira-lage") ?? "/kanban/jira-lage", updatedAt: at },
     ...getDb()
       .select()
       .from(jiraBoards)
       .where(eq(jiraBoards.enabled, true))
       .all()
-      .map((b) => ({ id: `jira-${b.id}`, name: b.name, description: t("Jira board{project} — mirrored, with the briefing per ticket.", { project: b.projectKey ? ` · ${b.projectKey}` : "" }), color: "sky", source: t("Jira briefing"), cards: open(b.id), open: open(b.id), href: `/kanban/jira-${b.id}`, updatedAt: b.syncedAt })),
+      .map((b) => ({ id: `jira-${b.id}`, name: b.name, description: t("Jira board{project} — mirrored, with the briefing per ticket.", { project: b.projectKey ? ` · ${b.projectKey}` : "" }), color: "sky", source: t("Jira briefing"), cards: open(b.id), open: open(b.id), href: jiraBoardHref(`jira-${b.id}`) ?? `/kanban/jira-${b.id}`, updatedAt: b.syncedAt })),
   ];
 }
 

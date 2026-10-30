@@ -5,6 +5,8 @@ import type { Collection, Item } from "@/lib/items/shared";
 import { isInstalled } from "@/plugins/state";
 import { listKeepBoards, listOwnNotes, notesByRefs, updateKeepBoard, type NoteView } from "./boards";
 import { allKeepNotes, keepCount, type KeepNote } from "./store";
+import { googleKeepHref } from "./google-workspace";
+import { movedKeepHref } from "@/plugins/workspace/legacy/keep";
 
 /**
  * Your Keep boards (keep:board:<id>) and Google Keep (keep:google, once notes are synced) as
@@ -59,7 +61,7 @@ export const keepCollections: CollectionProvider = {
         name: b.name,
         description: b.description,
         color: b.color,
-        href: `/keep/${b.id}`,
+        href: movedKeepHref(b.id) ?? "/workspace",
         readOnly: false,
         briefing: b.inLage,
         knowledge: b.inKnowledge,
@@ -75,7 +77,7 @@ export const keepCollections: CollectionProvider = {
       name: "Google Keep",
       description: "",
       color: null,
-      href: "/keep",
+      href: googleKeepHref() ?? "/workspace/settings/sources",
       readOnly: !isInstalled("keep-write"),
       briefing: true,
       knowledge: true,

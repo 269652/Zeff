@@ -162,7 +162,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
             </Link>
           )}
           {on("gmail") && (
-            <Link href="/gmail" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            <Link href="/settings/connections#gmail-accounts" className="text-indigo-600 hover:underline dark:text-indigo-400">
               {t("Gmail accounts")}
             </Link>
           )}

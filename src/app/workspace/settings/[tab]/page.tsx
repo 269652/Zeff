@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound, redirect } from "next/navigation";
+import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
@@ -23,13 +23,12 @@ export async function generateMetadata({ params }: { params: Promise<{ tab: stri
 /**
  * The Workspace's settings — a sidebar of their own: where its databases' rows come from (data sources), what goes out of
  * them (outputs: into the Ticket-Lage; the knowledge server picks for itself), the apps that show its databases (mail client,
- * chat). Its prompts are on the AI settings page (/settings/ai#prompts) — the old prompts tab leads there.
+ * chat). Its prompts are on the AI settings page (/settings/ai#prompts) — the old prompts tab leads there (next.config.ts).
  */
 export default async function WorkspaceSettingsPage({ params }: { params: Promise<{ tab: string }> }) {
   await connection();
   if (!isInstalled("workspace")) return null;
   const { tab } = await params;
-  if (tab === "prompts") redirect("/settings/ai#prompts");
   if (!isTab(tab)) notFound();
   return (
     <div className="grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)]">

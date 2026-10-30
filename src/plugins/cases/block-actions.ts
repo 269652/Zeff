@@ -74,7 +74,7 @@ export async function casesOverviewAction(): Promise<Result<{ overview: CasesOve
   });
 }
 
-export type BankStatus = { /** Statements can be imported (the Revolut plugin). */ statements: boolean; configured: boolean; connected: boolean; appId: string; aspsp: string; country: string; validUntil: string | null; lastSync: string | null; transactions: number; /** The debt overview: the debts database (the old address while there is none yet: it makes it, or says the plugin is missing). */ debtsHref: string };
+export type BankStatus = { /** Statements can be imported (the Revolut plugin). */ statements: boolean; configured: boolean; connected: boolean; appId: string; aspsp: string; country: string; validUntil: string | null; lastSync: string | null; transactions: number; /** The debt overview: the debts database (null: there is none — no Finances plugin; the link is hidden). */ debtsHref: string | null };
 
 /** How the bank connection stands (the key is never sent to the page). */
 export async function bankStatusAction(): Promise<Result<{ bank: BankStatus }>> {
@@ -83,7 +83,7 @@ export async function bankStatusAction(): Promise<Result<{ bank: BankStatus }>> 
     const s = sync.bankSettings();
     const { listTransactions } = await import("./bank");
     const debts = isInstalled("finances") ? await (await import("@/plugins/finances/database")).debtsDatabase() : null;
-    return { bank: { debtsHref: debts ? `/workspace/${debts}` : "/vorgaenge/uebersicht", statements: isInstalled("revolut"), configured: !!(s?.appId && s.privateKey), connected: sync.bankConnected(), appId: s?.appId ?? "", aspsp: s?.aspsp ?? "Revolut", country: s?.country ?? "DE", validUntil: s?.validUntil ?? null, lastSync: s?.lastSync ?? null, transactions: listTransactions(100000).length } };
+    return { bank: { debtsHref: debts ? `/workspace/${debts}` : null, statements: isInstalled("revolut"), configured: !!(s?.appId && s.privateKey), connected: sync.bankConnected(), appId: s?.appId ?? "", aspsp: s?.aspsp ?? "Revolut", country: s?.country ?? "DE", validUntil: s?.validUntil ?? null, lastSync: s?.lastSync ?? null, transactions: listTransactions(100000).length } };
   });
 }
 

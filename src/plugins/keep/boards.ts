@@ -3,6 +3,7 @@ import { emitChange } from "@/lib/events";
 import { allKeepNotes, type KeepNote } from "./store";
 import { isKeepColor } from "./colors";
 import type { KeepNoteBrief } from "./shared";
+import { movedKeepHref } from "@/plugins/workspace/legacy/keep";
 
 /**
  * Your own Keep boards (Google Keep plugin): note boards in Zeff — "Privat", "Ideen", "Einkauf" —
@@ -61,7 +62,7 @@ const toOwn = (r: OwnRow, boardName: string | null): NoteView => ({
   archived: !!r.archived,
   createdAt: r.created_at,
   updatedAt: r.updated_at,
-  url: `/keep/${r.board_id}#note-${r.id}`,
+  url: movedKeepHref(r.board_id) ?? "/workspace",
   ref: ownRef(r.id),
   source: "own",
   boardId: r.board_id,
