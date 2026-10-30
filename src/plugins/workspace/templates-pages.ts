@@ -8,7 +8,8 @@ import { widgetCatalog } from "./widgets";
 /**
  * The page templates' content: modern pages, not bare headings — a callout that says what the page is for, columns where things sit side
  * by side, to-do lists for what follows, toggles for what is looked up now and then, and live widgets where the page is about your work
- * (the weekly review shows the week's figures). In your language. Server only.
+ * (the weekly review shows the week's figures). Every list starts with a line that says what goes there — no empty placeholders. In
+ * your language. Server only.
  */
 
 const md = (s: string): DocNode[] => (markdownToDoc(s).content ?? []) as DocNode[];
@@ -35,31 +36,23 @@ function make(parentId: number | null, title: string, icon: string, content: Doc
   return id;
 }
 
+/** Meeting notes — and, folded below, what a recurring 1:1 adds (the topics of both, wins, blockers, feedback, the log). */
 export function meetingPage(parentId: number | null): number {
   return make(parentId, t("Meeting"), "🗓️", [
     ...md(`:::callout 🗓️ blue\n**${t("Date")}:** ${today()} · **${t("Attendees")}:** ${t("type @ to add people")}\n\n${t("Goal of the meeting, in one sentence.")}\n:::`),
     // Before it: who you meet, when you last met, what is open between you.
     ...widget("people.briefs", { limit: 4 }),
-    columns(`## ${t("Agenda")}\n\n1. \n2. \n3. `, [2, `## ${t("Notes")}\n\n- `]),
-    ...md(`## ${t("Decisions")}\n\n:::callout ✅ green\n- \n:::\n\n## ${t("Action items")}\n\n- [ ] ${t("Who does what — by when")}\n- [ ] \n\n:::toggle ${t("Parking lot — for another time")}\n- \n:::`),
-  ]);
-}
-
-export function oneOnOnePage(parentId: number | null): number {
-  return make(parentId, t("1:1"), "🤝", [
-    ...md(`:::callout 🤝 gray\n${t("A conversation that repeats. Keep the open points at the top; move what is done into the log below.")}\n:::`),
-    columns(`## ${t("Their topics")}\n\n- `, `## ${t("My topics")}\n\n- `),
-    // What is open between you (their name in the widget's settings).
-    ...widget("people.owed", { who: "all", person: "", limit: 6 }),
-    ...md(`## ${t("Wins since last time")}\n\n- \n\n## ${t("Blockers")}\n\n- \n\n## ${t("Next steps")}\n\n- [ ] \n\n:::toggle ${t("Feedback (both ways)")}\n- \n:::\n\n:::toggle ${t("Log of earlier conversations")}\n**${today()}** — \n:::`),
-  ]);
-}
-
-export function projectBriefPage(parentId: number | null): number {
-  return make(parentId, t("Project brief"), "🎯", [
-    ...md(`:::callout 🎯 blue\n**${t("In one sentence")}:** ${t("what we do, for whom, and why now.")}\n:::`),
-    columns(`## ${t("Goal")}\n\n${t("What is different when we are done — measurable.")}`, `## ${t("In scope")}\n\n- `, `## ${t("Out of scope")}\n\n- `),
-    ...md(`## ${t("People")}\n\n| ${t("Role")} | ${t("Who")} |\n| --- | --- |\n| ${t("Owner")} |  |\n| ${t("Stakeholders")} |  |\n\n## ${t("Milestones")}\n\n- [ ] ${t("Kick-off")}\n- [ ] ${t("First version")}\n- [ ] ${t("Launch")}\n\n## ${t("Risks")}\n\n| ${t("Risk")} | ${t("Impact")} | ${t("What we do")} |\n| --- | --- | --- |\n|  |  |  |\n\n:::toggle ${t("Open questions")}\n- \n:::`),
+    columns(
+      `## ${t("Agenda")}\n\n1. ${t("Where we stand — five minutes")}\n2. ${t("What needs a decision today")}\n3. ${t("Next steps and who takes them")}`,
+      [2, `## ${t("Notes")}\n\n- ${t("What was said, in short — type @ for people and pages")}`],
+    ),
+    ...md(
+      `## ${t("Decisions")}\n\n:::callout ✅ green\n- ${t("What was decided — and why, in one line")}\n:::\n\n## ${t("Action items")}\n\n- [ ] ${t("Who does what — by when")}\n\n:::toggle ${t("Parking lot — for another time")}\n- ${t("What came up but belongs to another meeting")}\n:::`,
+    ),
+    // A 1:1 is a meeting that repeats: what it adds, folded (open it when that is what this one is).
+    ...md(
+      `:::toggle ${t("1:1 — a conversation that repeats")}\n${t("Keep the open points at the top; move what is done into the log.")}\n\n- **${t("Their topics")}:** ${t("what they want to talk about")}\n- **${t("My topics")}:** ${t("what I want to bring up")}\n- **${t("Wins since last time")}:** ${t("what went well — say it")}\n- **${t("Blockers")}:** ${t("what is in the way, and who can help")}\n- **${t("Feedback (both ways)")}:** ${t("one thing to keep, one to change")}\n\n**${today()}** — ${t("the log: a line per conversation")}\n:::`,
+    ),
   ]);
 }
 
@@ -71,65 +64,14 @@ export function weeklyReviewPage(parentId: number | null): number {
     [
       ...md(`:::callout 🔁 gray\n${t("Fifteen minutes on Friday: what the week brought, what is left, what changes next week. The figures above are live.")}\n:::`),
       ...widget("workspace.overview"),
-      ...row(widget("todos.done", { since: "week", limit: 10 }), [...md(`## ⏳ ${t("Not done — and why")}\n\n- `), ...md(`## 🎯 ${t("Next week")}\n\n- [ ] `)]),
+      ...row(widget("todos.done", { since: "week", limit: 10 }), [...md(`## ⏳ ${t("Not done — and why")}\n\n- ${t("What slipped, and the one reason")}`), ...md(`## 🎯 ${t("Next week")}\n\n- [ ] ${t("The one thing that has to happen")}`)]),
       ...row(widget("calendar.agenda"), widget("people.upcoming", { days: 10, limit: 5 })),
-      ...md(`## ${t("One thing to change")}\n\n\n:::toggle ${t("Energy and mood (1–5)")}\n- \n:::`),
+      ...md(`## ${t("One thing to change")}\n\n${t("What I do differently next week — one sentence.")}\n\n:::toggle ${t("Energy and mood (1–5)")}\n- ${t("How the week felt — and what made the difference")}\n:::`),
     ],
     true,
   );
   weeklyDraftAgent(id);
   return id;
-}
-
-/** With the Finances plugin: your debts and claims as figures and the payments ahead (both ways), the deadlines from your letters; without it: the cases' figures. */
-export function financesPage(parentId: number | null): number {
-  const finances = widgetCatalog().some((w) => w.id === "finances.figures");
-  return make(
-    parentId,
-    t("Finances"),
-    "💶",
-    finances
-      ? [
-          ...md(`:::callout 💶 blue\n${t("Your money at a glance: what is open, what runs a month, when you are debt-free and what is left. Live — a payment leads to its debt, the overview has the plans and charts.")}\n:::`),
-          ...widget("finances.figures", { dir: "owe" }),
-          ...row(widget("finances.payments", { dir: "owe", days: 45, limit: 8 }), widget("finances.payments", { dir: "owed", days: 90, limit: 6 })),
-          ...widget("cases.due", { days: 30, limit: 8 }),
-          ...md(`:::toggle ${t("Budget notes")}\n- \n:::`),
-        ]
-      : [
-          ...md(`:::callout 💶 blue\n${t("Your cases at a glance: what is open, what is due, what you owe. The figures are live — a payment opens its case with the GiroCode.")}\n:::`),
-          ...widget("cases.figures"),
-          ...widget("cases.due", { days: 30, limit: 10 }),
-          ...widget("cases.open", { limit: 10 }),
-          ...md(`:::toggle ${t("Budget notes")}\n- \n:::`),
-        ],
-    true,
-  );
-}
-
-export function whoOwesPage(parentId: number | null): number {
-  return make(
-    parentId,
-    t("Who owes whom"),
-    "🤝",
-    [
-      ...md(`:::callout 🤝 gray\n${t("What was promised between you and your people — read from your messages. Tick one off when it is kept.")}\n:::`),
-      ...widget("people.owed", { who: "mine", limit: 12 }),
-      ...widget("people.owed", { who: "theirs", limit: 12 }),
-    ],
-    true,
-  );
-}
-
-export function authorityPage(parentId: number | null): number {
-  return make(parentId, t("Authority"), "🏛️", [
-    ...md(`:::callout 🏛️ gray\n${t("An office, a court, an insurer: who to reach, your numbers there, what runs and what you sent. Type @ to link the person and the case.")}\n:::`),
-    columns(
-      `## ${t("Contact")}\n\n| | |\n| --- | --- |\n| ${t("Address")} |  |\n| ${t("Phone")} |  |\n| ${t("Mail")} |  |\n| ${t("Office hours")} |  |`,
-      `## ${t("Your numbers")}\n\n| | |\n| --- | --- |\n| ${t("Case number")} |  |\n| ${t("Customer number")} |  |\n| ${t("Contact person")} |  |`,
-    ),
-    ...md(`## ${t("Running")}\n\n- [ ] \n\n## ${t("Deadlines")}\n\n- [ ] ${t("What — by when")}\n\n:::toggle ${t("Correspondence log")}\n**${today()}** — \n:::`),
-  ]);
 }
 
 /**

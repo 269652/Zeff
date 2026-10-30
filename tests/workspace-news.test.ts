@@ -75,7 +75,7 @@ test("two ways: taking the check from Saved or Liked takes it back in News — a
   assert.equal(w.rawRows(db).length, 0);
 });
 
-test("ensureNewsDatabase: made once with the News plugin — a gone one is not made again; a summary agent template reads it", async () => {
+test("ensureNewsDatabase: made once with the News plugin — a gone one is not made again", async () => {
   const { w } = await world();
   const { ensureNewsDatabase, newsDatabase } = await import("@/plugins/workspace/news-database");
   await ensureNewsDatabase();
@@ -88,14 +88,6 @@ test("ensureNewsDatabase: made once with the News plugin — a gone one is not m
   w.archivePage(db!);
   await ensureNewsDatabase();
   assert.equal(newsDatabase(), null, "not made again");
-
-  const { templateMetas, fromTemplate } = await import("@/plugins/workspace/templates");
-  assert.ok(templateMetas().some((m) => m.key === "news-summary"), "a template for the summary agent");
-  const r = await import("@/plugins/workspace/routines");
-  const agent = await fromTemplate("news-summary", null);
-  assert.equal(r.getRoutine(agent)!.kind, "agent");
-  const { buildAgentPrompt } = await import("@/plugins/workspace/routine-agent");
-  assert.match(buildAgentPrompt(agent, { kind: "manual" }), /Gemerkte News|Saved news/i, "it is told which database to read");
 });
 
 test("an article's picture comes along as the Image field — only a real address, never the 'none found' marker", async () => {

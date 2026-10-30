@@ -44,6 +44,11 @@ export async function templatesAction() {
   return run(async () => ({ templates: (await import("./templates")).templateMetas() }));
 }
 
+/** What the "+" menu's "Automation …" offers (an agent's page, an automation's, the jobs for agents, the rules). */
+export async function automationKindsAction() {
+  return run(async () => ({ kinds: (await import("./automation-new")).AUTOMATION_KINDS() }));
+}
+
 /** A built-in template made as a template of yours (to change it). Returns its page. */
 export async function duplicateTemplateAction(key: string) {
   return run(async () => ({ id: (await import("./templates")).duplicateBuiltin(String(key)) }));
@@ -91,8 +96,9 @@ export async function runJobDeliveryAction(rowId: number, only?: number[]) {
   });
 }
 
-export async function createPageAction(v: { parentId?: number | null; kind?: "page" | "database" | "form"; title?: string; templateKey?: string; /** A new template of yours (at the top of the templates). */ template?: boolean }) {
+export async function createPageAction(v: { parentId?: number | null; kind?: "page" | "database" | "form"; title?: string; templateKey?: string; /** A new template of yours (at the top of the templates). */ template?: boolean; /** One of "Automation …"'s (an agent, an automation, the jobs, the rules — automation-new.ts). */ automation?: string }) {
   return run(async () => {
+    if (v.automation) return { id: (await import("./automation-new")).createAutomation(v.automation, v.parentId ?? null) };
     if (v.templateKey) {
       const { fromTemplate } = await import("./templates");
       return { id: await fromTemplate(v.templateKey, v.parentId ?? null) };
