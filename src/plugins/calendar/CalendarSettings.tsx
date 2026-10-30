@@ -186,7 +186,7 @@ export function CalendarSettings({
                 </button>
                 <span className="text-xs text-zinc-500">
                   {t("Reads in this account's automation Chrome — signed in?")}{" "}
-                  <Link href="/logins" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                  <Link href="/settings/connections#sign-ins" className="text-indigo-600 hover:underline dark:text-indigo-400">
                     {t("Sign-ins")}
                   </Link>
                 </span>

@@ -101,7 +101,7 @@ export function CalcCell({ p, view, rows, dbId, setView, published }: { p: Prope
               {(close) => (
                 <>
                   <div className="px-2 pt-1 pb-1.5 text-xs text-zinc-500">
-                    {t("{name} = {fn} over {n} columns: {value}", { name: mine.label, fn: labels[mine.agg], n: mine.sources, value: typeValue(mine.value) })}
+                    {t("{name} = {fn} over {n} columns: {value}", { name: mine.label, fn: mine.agg === "count_unique" ? t("different values") : labels[mine.agg], n: mine.sources, value: typeValue(mine.value) })}
                   </div>
                   {CALC_FNS.map((f) => (
                     <MenuItem key={f} checked={mine.agg === f} onClick={() => (close(), void setValueAggregateAction(mine.key, f).then(() => published.reload()))}>

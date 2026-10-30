@@ -12,7 +12,7 @@ export async function GET(req: NextRequest) {
   if (!isInstalled("google-drive")) return new Response("Plugin not installed", { status: 404 });
   const row = driveRow();
   const origin = getPublicOrigin(req);
-  if (!row.clientId || !row.clientSecret) return NextResponse.redirect(new URL("/google-drive?error=client", origin));
+  if (!row.clientId || !row.clientSecret) return NextResponse.redirect(new URL("/settings/connections?error=client&provider=drive#google-drive", origin));
   const redirectUri = `${origin}/api/google-drive/callback`;
   const { verifier, challenge } = newPkce();
   const state = newState();

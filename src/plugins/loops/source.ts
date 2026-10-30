@@ -37,8 +37,7 @@ const all = <T>(sql: string, ...args: unknown[]): T[] => {
 
 /** A chat's or mail's link in Zeff (as the timeline makes them). */
 export function mailHref(conv: string, subject: string): string {
-  if (conv.startsWith("wa:")) return `/apps/whatsapp?chat=${encodeURIComponent(conv.slice(3))}`;
-  if (conv.startsWith("sg:")) return `/apps/signal?chat=${encodeURIComponent(conv.slice(3))}`;
+  if (conv.startsWith("wa:") || conv.startsWith("sg:")) return `/mail?${new URLSearchParams({ channel: conv.startsWith("wa:") ? "whatsapp" : "signal", open: conv })}`;
   return `/mail?q=${encodeURIComponent(subject)}`;
 }
 

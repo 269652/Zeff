@@ -15,22 +15,17 @@ import { rowKey } from "./collections";
 import { kindIcon, rowsToCsv, subtaskCounts, type DbSchema, type Row } from "./model";
 import * as store from "./store";
 import "./metrics"; // (kennzahl() in the databases' formulas reads the Kennzahlen)
+import { localDay } from "@/lib/dates";
+import { pluginAction, type Result as ActionResult } from "@/lib/action-result";
 
 /** The Workspace plugin's server actions: what its pages and editors call. Each says what came of it; none throws at the page. */
 
-export type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
+export type Result<T = unknown> = ActionResult<T>;
 
 function guard(): void {
   if (!isInstalled("workspace")) throw new Error(t("The Workspace plugin is not installed (Menu → Plugins)."));
 }
-async function run<T extends object>(fn: () => T | Promise<T>): Promise<Result<T>> {
-  try {
-    guard();
-    return { ok: true, ...(await fn()) };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-}
+const run = pluginAction("workspace", () => t("The Workspace plugin is not installed (Menu → Plugins)."));
 
 // ---------------------------------------------------------------------------
 // Pages
@@ -111,7 +106,7 @@ export async function createPageAction(v: { parentId?: number | null; kind?: "pa
 export async function todayPageAction() {
   return run(async () => {
     const d = new Date();
-    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const day = localDay(d);
     const topTitle = t("Daily notes");
     const top = store.tree().find((x) => x.parentId === null && x.title === topTitle) ?? null;
     const parentId = top ? top.id : store.createPage({ title: topTitle, icon: "🗓️" });
@@ -296,11 +291,6 @@ export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: stri
     // the chips stay as they were written
   }
   return out;
-}
-
-/** Pages of this workspace that name something (a person, a todo, a ticket) — for the other pages of Zeff. */
-export async function pagesMentioningAction(kind: DocRef["kind"], ref: string) {
-  return run(() => ({ pages: store.pagesMentioning(kind, ref) }));
 }
 
 // ---------------------------------------------------------------------------
@@ -1457,66 +1447,18 @@ export async function routineChoicesAction() {
 }
 
 // ---------------------------------------------------------------------------
-// The data blocks of a page: a figure, a chart, appointments, todos, a document, people (blocks.ts)
+// An old chart block of a page (legacy-blocks.ts): the chart view it becomes
 // ---------------------------------------------------------------------------
 
-type BlockSpecs = {
-  metric: import("./blocks").MetricSpec;
-  chart: import("./blocks").ChartSpec;
-  events: import("./blocks").EventsSpec;
-  tasks: import("./blocks").TasksSpec;
-  document: import("./blocks").DocumentSpec;
-  people: import("./blocks").PeopleSpec;
-};
-
-/** What a data block shows now - computed from what Zeff holds, never stored in the page. */
-export async function blockDataAction<K extends keyof BlockSpecs>(kind: K, spec: BlockSpecs[K]) {
+/** The chart view an old chart block's marker stands for — one of the same settings, else made now (data-block-migration.ts). */
+export async function chartViewAction(dbId: number, marker: string, title: string) {
   return run(async () => {
-    const b = await import("./blocks");
-    switch (kind) {
-      case "metric":
-        return { data: b.metricData(spec as BlockSpecs["metric"]) as unknown };
-      case "chart":
-        return { data: b.chartData(spec as BlockSpecs["chart"]) as unknown };
-      case "events":
-        return { data: (await b.eventsData(spec as BlockSpecs["events"])) as unknown };
-      case "tasks":
-        return { data: (await b.tasksData(spec as BlockSpecs["tasks"])) as unknown };
-      case "document":
-        return { data: (await b.documentData(spec as BlockSpecs["document"])) as unknown };
-      case "people":
-        return { data: (await b.peopleData(spec as BlockSpecs["people"])) as unknown };
-      default:
-        throw new Error(t("Unknown block."));
-    }
-  });
-}
-
-/** What a block can be pointed at: the views and fields of a database. */
-export async function blockChoicesAction(dbId: number) {
-  return run(() => {
-    const d = store.getDatabase(Number(dbId));
-    if (!d) throw new Error(t("No such database."));
-    return {
-      views: d.schema.views.map((v) => ({ id: v.id, name: v.name })),
-      properties: [{ id: "title", name: d.schema.titleName, type: "title" }, ...d.schema.properties.filter((p) => !["srcref", "srcedited", "srcurl", "ticketkey", "noteref"].includes(p.id)).map((p) => ({ id: p.id, name: p.name, type: p.type }))],
-    };
-  });
-}
-
-/** Documents or people to pick from for a block. */
-export async function blockPickAction(kind: "document" | "person", q: string) {
-  return run(async () => {
-    const b = await import("./blocks");
-    return kind === "document" ? { items: (await b.documentChoices(String(q ?? ""))).map((x) => ({ id: x.id, label: x.name })) } : { items: (await b.personChoices(String(q ?? ""))).map((x) => ({ id: x.id, label: x.name })) };
-  });
-}
-
-/** A todo ticked off (or back) in a todos block. */
-export async function taskDoneAction(id: number, done: boolean) {
-  return run(async () => {
-    await (await import("./blocks")).setTaskDone(Number(id), !!done);
-    return {};
+    const { parseChartMarker } = await import("./legacy-blocks");
+    const spec = parseChartMarker(String(marker ?? ""));
+    if (!spec) throw new Error(t("Unknown block."));
+    const viewId = (await import("./data-block-migration")).ensureChartView(Number(dbId), spec, String(title ?? ""));
+    if (!viewId) throw new Error(t("No such database."));
+    return { viewId };
   });
 }
 

@@ -2,10 +2,9 @@
 
 import { useT } from "@/components/I18nProvider";
 import { dateRange, groupRows, noLabels, type DbSchema, type Row, type View } from "../model";
-import type { ChartPoint } from "../blocks";
-import { BarChart, ColumnChart, LineChart, PieChart } from "./charts";
+import { BarChart, ColumnChart, LineChart, PieChart, type ChartPoint } from "./charts";
 
-/** The same colours the chart blocks draw with (blocks.ts holds them on the server; a view draws on the client). */
+/** The colours of options and groups, as the editor shows them. */
 const COLOR_HEX: Record<string, string> = { gray: "#94a3b8", brown: "#a16207", orange: "#f97316", yellow: "#eab308", green: "#22c55e", blue: "#3b82f6", purple: "#a855f7", pink: "#ec4899", red: "#ef4444" };
 const PALETTE = ["#6366f1", "#22c55e", "#f97316", "#ec4899", "#0ea5e9", "#eab308", "#a855f7", "#14b8a6", "#ef4444", "#84cc16", "#64748b", "#f43f5e"];
 

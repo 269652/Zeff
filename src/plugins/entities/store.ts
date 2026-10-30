@@ -9,7 +9,7 @@
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { updateProject } from "@/lib/projects";
-import { foldName, normalizeAddress } from "./normalize";
+import { foldName } from "./normalize";
 
 export const ENTITY_KINDS = ["org", "place", "project"] as const;
 export type EntityKind = (typeof ENTITY_KINDS)[number];
@@ -105,12 +105,6 @@ export function removeEntityLink(ref: string, rel: EntityRel, target: string): v
 }
 
 export const entityLinks = (ref: string): EntityLink[] => (entDb().prepare("select * from ent_links where ref = ? order by rel, id").all(ref) as LRow[]).map(toLink);
-
-/** The entities linked to a target ("domain", "acme.de" → the organisation's links). */
-export const linksTargeting = (rel: EntityRel, target: string): EntityLink[] => (entDb().prepare("select * from ent_links where rel = ? and target = ?").all(rel, cleanTarget(rel, target)) as LRow[]).map(toLink);
-
-/** All links of one kind (every domain, every job number …). */
-export const linksOfRel = (rel: EntityRel): EntityLink[] => (entDb().prepare("select * from ent_links where rel = ? order by id").all(rel) as LRow[]).map(toLink);
 
 export const addAlias = (ref: string, alias: string): boolean => addEntityLink(ref, "alias", alias);
 
@@ -244,9 +238,3 @@ export function deleteEntity(ref: string): void {
   changed();
 }
 
-/** Every way an entity is written, folded (its name, its other names; a place's address too). */
-export function formsOf(e: Entity): string[] {
-  const forms = [e.name, ...e.aliases].map(foldName);
-  if (e.kind === "place" && e.address) forms.push(normalizeAddress(e.address));
-  return [...new Set(forms.filter(Boolean))];
-}

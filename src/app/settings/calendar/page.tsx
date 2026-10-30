@@ -28,7 +28,7 @@ export default async function CalendarSettingsPage() {
         <Link href="/kalender" className="text-sm text-indigo-600 hover:underline dark:text-indigo-400">
           ← {t("Back to the calendar")}
         </Link>
-        <Link href="/settings/all" className="block text-sm text-zinc-500 hover:underline">
+        <Link href="/settings" className="block text-sm text-zinc-500 hover:underline">
           {t("All settings")}
         </Link>
       </div>

@@ -481,7 +481,7 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
                 <span className="text-zinc-500">{t("Header")}</span>
                 <input type="checkbox" className="size-4" checked={showHeader} onChange={(e) => updateAttributes({ header: e.target.checked ? "show" : "hide" })} />
               </label>
-              {def?.settings.map((s) => (
+              {def?.settings.filter((s) => !s.hidden).map((s) => (
                 <label key={s.key} className="flex flex-col gap-1">
                   <span className="text-zinc-500">{s.label}</span>
                   {s.kind === "select" ? (

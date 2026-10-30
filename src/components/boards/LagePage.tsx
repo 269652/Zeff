@@ -8,7 +8,7 @@ import { PRESYNC_ORDER } from "@/lib/boards/context-prefs-shared";
  * the Tickets tab (Tickets plugin — each ticket with its Lage). One base, two plugins: either tab
  * goes with its plugin.
  */
-export type LageSearch = { todos?: string; view?: string; day?: string };
+export type LageSearch = { todos?: string; view?: string; day?: string; /** "tickets": the Tickets toggle (the Tickets plugin's half). */ part?: string };
 
 import Link from "next/link";
 import { SidebarFrame } from "@/components/SidebarFrame";
@@ -84,7 +84,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
       sidebar={
         <>
           <WorkFollow active={busy.length > 0} />
-          {part === "todos" && <ViewTabs view="lage" />}
+          <ViewTabs view={part === "tickets" ? "tickets" : "lage"} />
           <div className="space-y-2">
           <h1 className="text-xl font-semibold tracking-tight">{part === "tickets" ? t("Tickets") : t("Todos")}</h1>
           {shown && (
@@ -176,13 +176,14 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
   );
 }
 
-/** The Todos tab's two views: the Ticket-Lage, and the recap of what you did on a day. */
-function ViewTabs({ view }: { view: "lage" | "recap" }) {
+/** The Todos tab's views: the Ticket-Lage, the same per ticket (Tickets plugin), and the recap of what you did on a day. */
+function ViewTabs({ view }: { view: "lage" | "tickets" | "recap" }) {
   return (
     <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" aria-label={t("Todos")}>
       {(
         [
           ["lage", t("Briefing"), "/todos"],
+          ...(isInstalled("tickets") ? ([["tickets", t("Tickets"), "/todos?part=tickets"]] as const) : []),
           ["recap", t("Recap"), "/todos?view=recap"],
         ] as const
       ).map(([key, label, href]) => (

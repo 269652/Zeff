@@ -253,7 +253,7 @@ export function SessionSidebar({
         </nav>
       )}
       <div className="flex items-center justify-between gap-2 border-t border-zinc-200 pt-2 text-xs dark:border-zinc-800">
-        <Link href="/settings#work" className="text-indigo-600 hover:underline dark:text-indigo-400">
+        <Link href="/settings/time#work" className="text-indigo-600 hover:underline dark:text-indigo-400">
           {t("Code settings")}
         </Link>
         {(archivedCount > 0 || showArchived) && (

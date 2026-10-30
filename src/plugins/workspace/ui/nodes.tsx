@@ -343,7 +343,7 @@ function DatabaseBlockView({ node, updateAttributes }: NodeViewProps) {
   const dbId = Number(node.attrs.dbId);
   return (
     <NodeViewWrapper className="ws-dbblock" contentEditable={false}>
-      <DatabaseBlock dbId={dbId} viewId={String(node.attrs.viewId ?? "")} onView={(viewId) => updateAttributes({ viewId })} />
+      <DatabaseBlock dbId={dbId} viewId={String(node.attrs.viewId ?? "")} blockTitle={String(node.attrs.title ?? "")} onView={(viewId) => updateAttributes({ viewId })} />
     </NodeViewWrapper>
   );
 }

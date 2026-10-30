@@ -75,7 +75,6 @@ export function verifyPassword(pw: string, stored: string): boolean {
 }
 
 export const hashToken = (token: string): string => createHash("sha256").update(token).digest("base64url");
-export const newToken = (): string => `zg_${randomBytes(24).toString("base64url")}`;
 export const newGateSecret = (): string => randomBytes(32).toString("base64url");
 
 export function signGate(secret: string, iat: number): string {

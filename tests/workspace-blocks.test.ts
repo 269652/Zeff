@@ -38,72 +38,89 @@ const setup = async () => {
   return { id, store, openView: store.getDatabase(id)!.schema.views.find((v) => v.name === "Open")!.id, amount: live.properties.find((p) => p.name === "Amount")!.id, status: live.properties.find((p) => p.name === "Status")!.id, closed: live.properties.find((p) => p.name === "Closed")!.id };
 };
 
-test("the figure block: a count, a sum, a share - over all rows or the filter of a view", async () => {
+test("the old figure blocks become Kennzahlen: a count, a sum, a share - over all rows or the filter of a view", async () => {
   const { id, openView, amount } = await setup();
-  const { metricData } = await import("@/plugins/workspace/blocks");
-  assert.equal(metricData({ dbId: id, calc: "count" }).value, 4);
-  assert.equal(metricData({ dbId: id, viewId: openView, calc: "count" }).value, 2, "the filter of the view");
-  assert.equal(metricData({ dbId: id, calc: "sum", prop: amount }).value, 475);
-  assert.equal(metricData({ dbId: id, viewId: openView, calc: "sum", prop: amount }).value, 75);
-  assert.equal(metricData({ dbId: id, calc: "avg", prop: amount }).value, 118.75);
-  assert.equal(metricData({ dbId: id, viewId: openView, calc: "share" }).text, "50 %");
-  assert.match(metricData({ dbId: id, calc: "sum", prop: amount }).text, /475,00 €/, "formatted as the field is");
+  const { defineBlockMetric } = await import("@/plugins/workspace/data-block-migration");
+  const { metricValue } = await import("@/plugins/workspace/metrics");
+  const value = async (spec: Parameters<typeof defineBlockMetric>[0]) => metricValue((await defineBlockMetric(spec))!).value;
+  assert.equal(await value({ dbId: id, viewId: "", calc: "count", prop: "", label: "" }), 4);
+  assert.equal(await value({ dbId: id, viewId: openView, calc: "count", prop: "", label: "" }), 2, "the filter of the view");
+  assert.equal(await value({ dbId: id, viewId: "", calc: "sum", prop: amount, label: "Revenue" }), 475);
+  assert.equal(await value({ dbId: id, viewId: openView, calc: "sum", prop: amount, label: "" }), 75);
+  assert.equal(await value({ dbId: id, viewId: "", calc: "avg", prop: amount, label: "" }), 118.75);
+  assert.equal(await value({ dbId: id, viewId: openView, calc: "share", prop: "", label: "Open share" }), 50);
+  assert.equal(await defineBlockMetric({ dbId: id, viewId: "", calc: "sum", prop: amount, label: "Revenue" }), "Revenue", "the same one again is taken");
+  assert.equal(await defineBlockMetric({ dbId: id, viewId: openView, calc: "sum", prop: amount, label: "Revenue" }), "Revenue (2)", "another of that name: a name of its own");
+  assert.equal(await defineBlockMetric({ dbId: 99999, viewId: "", calc: "count", prop: "", label: "" }), null);
 });
 
-test("the chart block: by a choice, by month of a date, sums", async () => {
-  const { id, status, closed, amount } = await setup();
-  const { chartData } = await import("@/plugins/workspace/blocks");
-  const byStatus = chartData({ dbId: id, type: "bar", groupBy: status, calc: "count" });
-  assert.deepEqual(byStatus.points.map((p) => [p.label, p.value]), [["Not started", 1], ["In progress", 1], ["Done", 2]]);
-  const byMonth = chartData({ dbId: id, type: "column", groupBy: closed, calc: "sum", prop: amount, bucket: "month" });
-  assert.deepEqual(byMonth.points.map((p) => [p.label, p.value]), [["2026-01", 400], ["2026-02", 50], ["2026-03", 25]]);
-  assert.equal(byMonth.unit, "€");
-  assert.throws(() => chartData({ dbId: id, type: "bar", groupBy: "nope", calc: "count" }), /group/i);
+test("a page with old data blocks moved over: widgets, a chart view, the document; markers settled, the page's edited time kept", async () => {
+  const { id, store, status } = await setup();
+  const { addDocument } = await import("@/plugins/documents/store");
+  const doc = addDocument("offer.txt", Buffer.from("Angebot")).doc;
+  const page = store.createPage({ title: "Dashboard" });
+  const old = {
+    type: "doc",
+    content: [
+      { type: "zeffMetric", attrs: { dbId: id, calc: "count", label: "Deals", style: "number" } },
+      { type: "zeffChart", attrs: { dbId: id, type: "pie", groupBy: status, calc: "count", title: "By status" } },
+      { type: "zeffEvents", attrs: { days: 14, q: "review", limit: 5 } },
+      { type: "zeffTasks", attrs: { status: "open", ticket: "PROJ-1", limit: 4 } },
+      { type: "zeffDocument", attrs: { docId: doc.id } },
+      { type: "zeffPeople", attrs: { ids: [1, 2] } },
+    ],
+  };
+  const { getSqlite } = await import("@/db");
+  getSqlite().prepare("update ws_pages set content = ?, updated_at = '2026-01-01T00:00:00.000Z' where id = ?").run(JSON.stringify(old), page);
+  const { migrateDataBlocks } = await import("@/plugins/workspace/data-block-migration");
+  assert.equal(await migrateDataBlocks(), 1);
+  const p = store.getPage(page)!;
+  assert.equal(p.updatedAt, "2026-01-01T00:00:00.000Z");
+  const [metric, chart, events, tasks, document, people] = p.content.content;
+  assert.deepEqual([metric.attrs!.widget, JSON.parse(String(metric.attrs!.config))], ["workspace.metrics", { names: "Deals" }]);
+  assert.equal(chart.type, "databaseView");
+  const view = store.getDatabase(id)!.schema.views.find((v) => v.id === chart.attrs!.viewId)!;
+  assert.deepEqual([view.type, view.chartKind, view.groupBy, view.name], ["chart", "pie", status, "By status"]);
+  assert.deepEqual([events.attrs!.widget, JSON.parse(String(events.attrs!.config))], ["calendar.agenda", { days: 14, q: "review", limit: 5 }]);
+  assert.deepEqual([tasks.attrs!.widget, JSON.parse(String(tasks.attrs!.config))], ["todos.list", { ticket: "PROJ-1", status: "open", limit: 4 }]);
+  assert.equal(document.type, "paragraph", "no document inbox here: a link to the document");
+  assert.match(JSON.stringify(document), new RegExp(`/documents\\?doc=${doc.id}`));
+  assert.deepEqual([people.attrs!.widget, JSON.parse(String(people.attrs!.config)).ids], ["people.list", "1,2"]);
+  assert.equal(await migrateDataBlocks(), 0, "once");
+  const views = store.getDatabase(id)!.schema.views.length;
+  const { ensureChartView } = await import("@/plugins/workspace/data-block-migration");
+  assert.equal(ensureChartView(id, { type: "pie", groupBy: status, calc: "count", prop: "", viewId: "" }), chart.attrs!.viewId, "the same chart view is taken");
+  assert.equal(store.getDatabase(id)!.schema.views.length, views);
 });
 
-test("the appointments, todos and document blocks read what Zeff holds", async () => {
+test("the old data blocks in Markdown: read as the widgets and views that replaced them; widgets and views written back the same", async () => {
+  const { markdownToDoc, docToMarkdown } = await import("@/plugins/workspace/doc");
+  const md = ':::block metric {"dbId":12,"calc":"sum","prop":"p1","label":"Revenue"}\n\n:::block chart {"dbId":12,"type":"pie","groupBy":"p2","calc":"count"}\n\n:::block events {"days":14,"q":"review"}\n\n:::block tasks {"status":"open","ticket":"PROJ-1"}\n\n:::block document {"docId":5}\n\n:::block people {"ids":[1,2]}\n';
+  const doc = markdownToDoc(md);
+  assert.deepEqual(doc.content.map((n) => String(n.attrs?.widget ?? n.type)), ["workspace.metrics", "databaseView", "calendar.agenda", "todos.list", "paragraph", "people.list"]);
+  assert.match(String(doc.content[1].attrs!.viewId), /^chart~pie~p2~count~~$/);
+  const out = docToMarkdown(doc);
+  assert.match(out, /:::widget calendar\.agenda \{"config":\{"days":14,"q":"review","limit":8\}\}/);
+  assert.match(out, /:::database 12 @chart~pie~p2~count~~/);
+  assert.equal(docToMarkdown(markdownToDoc(out)), out);
+});
+
+test("the widgets that took the old blocks' places: todos of a ticket or by words, ticked off in place", async () => {
   await setup();
-  const ir = await import("@/lib/calendar/ir");
-  const { dayOf } = await import("@/lib/calendar/ir-shared");
-  const tomorrow = new Date();
-  tomorrow.setDate(tomorrow.getDate() + 1);
-  const day = dayOf(tomorrow);
-  ir.addEvent(ir.zeffCalendar().id, { title: "Kickoff", start: `${day}T10:00`, end: `${day}T11:00`, allDay: false, location: "Room 4" });
-  ir.addEvent(ir.zeffCalendar().id, { title: "Dentist", start: `${day}T15:00`, end: `${day}T16:00`, allDay: false });
-  const b = await import("@/plugins/workspace/blocks");
-  const mine = ir.zeffCalendar().name;
-  assert.deepEqual((await b.eventsData({ days: 7, calendar: mine })).events.map((e) => e.title), ["Kickoff", "Dentist"]);
-  assert.deepEqual((await b.eventsData({ days: 7, q: "room", calendar: mine })).events.map((e) => e.title), ["Kickoff"], "by words");
   const { addFollowUp, getTodo } = await import("@/lib/boards/store");
   const a = addFollowUp({ ticket: "ABC-1", text: "Write the offer", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   addFollowUp({ ticket: "XYZ-2", text: "Call the bank", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
-  assert.deepEqual((await b.tasksData({ status: "open", ticket: "abc-1" })).tasks.map((x) => x.text), ["Write the offer"]);
-  assert.equal((await b.tasksData({ status: "open", q: "bank" })).tasks.length, 1);
-  await b.setTaskDone(a.id, true);
+  const { TODOS_WIDGETS } = await import("@/plugins/todos/widgets");
+  const w = TODOS_WIDGETS.find((x) => x.id === "todos.list")!;
+  const items = async (config: Record<string, string | number>) => {
+    const d = await w.data({ status: "open", limit: 10, q: "", ticket: "", ...config });
+    return d.kind === "list" ? d.items.map((x) => x.text) : [];
+  };
+  assert.deepEqual(await items({ ticket: "abc-1" }), ["Write the offer"]);
+  assert.deepEqual(await items({ q: "bank" }), ["Call the bank"]);
+  await w.act!("toggle", { id: String(a.id) }, {});
   assert.equal(getTodo(a.id)!.status, "done");
-  assert.equal((await b.tasksData({ status: "open", ticket: "ABC-1" })).tasks.length, 0);
-  const { addDocument } = await import("@/plugins/documents/store");
-  const doc = addDocument("offer.txt", Buffer.from("Angebot")).doc;
-  const d = await b.documentData({ docId: doc.id });
-  assert.equal(d.name, "offer.txt");
-  await assert.rejects(() => b.documentData({ docId: 9999 }), /gone/);
-});
-
-test("data blocks in a page's Markdown: one line each, written back they are the same block, strange values are cleaned", async () => {
-  const { markdownToDoc, docToMarkdown, sanitizeDoc } = await import("@/plugins/workspace/doc");
-  const md = ':::block metric {"dbId":12,"calc":"sum","prop":"p1","label":"Revenue","style":"progress"}\n\n:::block chart {"dbId":12,"type":"pie","groupBy":"p2","calc":"count","bucket":"month","limit":12}\n\n:::block events {"days":14,"q":"review"}\n\n:::block tasks {"status":"open","ticket":"PROJ-1"}\n\n:::block document {"docId":5}\n\n:::block people {"ids":[1,2]}\n';
-  const doc = markdownToDoc(md);
-  assert.deepEqual(doc.content.map((n) => n.type), ["zeffMetric", "zeffChart", "zeffEvents", "zeffTasks", "zeffDocument", "zeffPeople"]);
-  assert.equal(doc.content[0].attrs!.dbId, 12);
-  const out = docToMarkdown(doc);
-  assert.equal(docToMarkdown(markdownToDoc(out)), out);
-  const clean = sanitizeDoc({ type: "doc", content: [{ type: "zeffChart", attrs: { dbId: "7", limit: -4, title: "x".repeat(500), evil: "<script>" } }, { type: "zeffPeople", attrs: { ids: [1, 2, -3] } }] });
-  const [chart, people] = clean.content;
-  assert.equal(chart.attrs!.dbId, 7);
-  assert.equal(chart.attrs!.limit, undefined);
-  assert.equal(String(chart.attrs!.title).length, 200);
-  assert.equal("evil" in chart.attrs!, false);
-  assert.deepEqual(people.attrs!.ids, [1, 2]);
+  assert.deepEqual(await items({ ticket: "ABC-1" }), []);
 });
 
 test("the activity of a row: who changed what - you, the AI, a source - and the text edited once, not per keystroke", async () => {

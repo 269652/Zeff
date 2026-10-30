@@ -5,6 +5,7 @@ import type { DocNode } from "./doc";
 import { filesDir } from "./files";
 import { cellText, noLabels, SYSTEM_PROPS } from "./model";
 import { getPage, rowsOf } from "./store";
+import { escapeHtml } from "@/lib/html-text";
 
 /**
  * A page (or a database) as one HTML file that cannot be changed: its text, lists, tables, pictures (inside the file), callouts and
@@ -12,7 +13,6 @@ import { getPage, rowsOf } from "./store";
  * and what is not in the file cannot leak. The data blocks of a page (figures, charts) and the apps are left out. Server only.
  */
 
-const esc = (s: unknown) => String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 const MAX_IMAGE = 2 * 1024 * 1024;
 const MIME: Record<string, string> = { ".png": "image/png", ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".gif": "image/gif", ".webp": "image/webp" };
 
@@ -38,10 +38,10 @@ function inline(nodes: DocNode[] | undefined): string {
       if (n.type === "hardBreak") return "<br>";
       if (n.type === "image") {
         const src = imageSrc(String(n.attrs?.src ?? ""));
-        return src ? `<img src="${esc(src)}" alt="${esc(n.attrs?.alt)}">` : "";
+        return src ? `<img src="${escapeHtml(src)}" alt="${escapeHtml(n.attrs?.alt)}">` : "";
       }
-      if (n.type === "zeffRef") return `<span class="ref">${esc(n.attrs?.label)}</span>`;
-      let out = esc(n.text ?? "");
+      if (n.type === "zeffRef") return `<span class="ref">${escapeHtml(n.attrs?.label)}</span>`;
+      let out = escapeHtml(n.text ?? "");
       for (const m of n.marks ?? []) {
         if (m.type === "bold") out = `<strong>${out}</strong>`;
         else if (m.type === "italic") out = `<em>${out}</em>`;
@@ -51,7 +51,7 @@ function inline(nodes: DocNode[] | undefined): string {
         else if (m.type === "highlight") out = `<mark>${out}</mark>`;
         else if (m.type === "link") {
           const href = String(m.attrs?.href ?? "");
-          if (/^https?:\/\/|^mailto:/i.test(href)) out = `<a href="${esc(href)}" rel="noopener noreferrer">${out}</a>`;
+          if (/^https?:\/\/|^mailto:/i.test(href)) out = `<a href="${escapeHtml(href)}" rel="noopener noreferrer">${out}</a>`;
         }
       }
       return out;
@@ -82,24 +82,24 @@ function block(n: DocNode): string {
     case "blockquote":
       return `<blockquote>${all(kids)}</blockquote>`;
     case "codeBlock":
-      return `<pre><code>${esc(kids.map((c) => c.text ?? "").join(""))}</code></pre>`;
+      return `<pre><code>${escapeHtml(kids.map((c) => c.text ?? "").join(""))}</code></pre>`;
     case "horizontalRule":
       return "<hr>";
     case "image": {
       const src = imageSrc(String(n.attrs?.src ?? ""));
-      return src ? `<p><img src="${esc(src)}" alt="${esc(n.attrs?.alt)}"></p>` : "";
+      return src ? `<p><img src="${escapeHtml(src)}" alt="${escapeHtml(n.attrs?.alt)}"></p>` : "";
     }
     case "table":
       return `<table>${kids.map((r) => `<tr>${(r.content ?? []).map((c) => `<${c.type === "tableHeader" ? "th" : "td"}>${all(c.content ?? [])}</${c.type === "tableHeader" ? "th" : "td"}>`).join("")}</tr>`).join("")}</table>`;
     case "callout":
-      return `<div class="callout"><span class="icon">${esc(n.attrs?.icon ?? "💡")}</span><div>${all(kids)}</div></div>`;
+      return `<div class="callout"><span class="icon">${escapeHtml(n.attrs?.icon ?? "💡")}</span><div>${all(kids)}</div></div>`;
     case "details": {
       const summary = kids.find((c) => c.type === "detailsSummary");
       const body = kids.find((c) => c.type === "detailsContent");
       return `<details open><summary>${inline(summary?.content)}</summary>${all(body?.content ?? [])}</details>`;
     }
     case "zeffTabs":
-      return kids.map((tab) => `<section class="tab"><h3>${esc(tab.attrs?.title)}</h3>${all(tab.content ?? [])}</section>`).join("\n");
+      return kids.map((tab) => `<section class="tab"><h3>${escapeHtml(tab.attrs?.title)}</h3>${all(tab.content ?? [])}</section>`).join("\n");
     case "flexBox":
       return `<div class="flex">${all(kids)}</div>`;
     case "doc":
@@ -112,7 +112,7 @@ function block(n: DocNode): string {
 
 const PAGE = (title: string, icon: string, body: string) => `<!doctype html>
 <html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><meta name="robots" content="noindex">
-<title>${esc(title)}</title>
+<title>${escapeHtml(title)}</title>
 <style>
 :root{color-scheme:light dark}body{font:16px/1.6 system-ui,-apple-system,Segoe UI,sans-serif;max-width:46rem;margin:2.5rem auto;padding:0 1.25rem;color:#18181b;background:#fff}
 @media(prefers-color-scheme:dark){body{color:#e4e4e7;background:#09090b}table,th,td{border-color:#3f3f46!important}.callout{background:#1c1c20!important}code,pre{background:#1c1c20!important}}
@@ -122,9 +122,9 @@ blockquote{border-left:3px solid #a1a1aa;margin:1em 0;padding:.1em 1em;color:#52
 .callout{display:flex;gap:.7rem;background:#f4f4f5;border-radius:10px;padding:.8rem 1rem;margin:1em 0}.callout p{margin:.2em 0}ul.tasks{list-style:none;padding-left:.2rem}li.task{display:flex;gap:.5rem}li.task p{margin:0}
 .ref{background:rgba(99,102,241,.12);border-radius:4px;padding:0 .25em}.meta{color:#71717a;font-size:.85rem;margin-top:3rem;border-top:1px solid rgba(127,127,127,.3);padding-top:.8rem}.tab{margin:1.2em 0}
 </style></head><body>
-<h1>${icon ? `${esc(icon)} ` : ""}${esc(title)}</h1>
+<h1>${icon ? `${escapeHtml(icon)} ` : ""}${escapeHtml(title)}</h1>
 ${body}
-<p class="meta">${esc(t("A read-only copy from Zeff, {date}. It cannot be changed here.", { date: new Date().toLocaleString() }))}</p>
+<p class="meta">${escapeHtml(t("A read-only copy from Zeff, {date}. It cannot be changed here.", { date: new Date().toLocaleString() }))}</p>
 </body></html>`;
 
 /** A page, or a database as its table, as one HTML file - `filename` for saving. */
@@ -136,9 +136,9 @@ export function pageToHtml(pageId: number): { filename: string; html: string } {
     const d = rowsOf(p.id);
     if (d) {
       const props = d.schema.properties.filter((q) => !SYSTEM_PROPS.has(q.id) && q.id !== "srcurl" && !["person", "relation", "todo", "ai"].includes(q.type));
-      body = `<table><tr><th>${esc(d.schema.titleName)}</th>${props.map((q) => `<th>${esc(q.name)}</th>`).join("")}</tr>${d.rows
+      body = `<table><tr><th>${escapeHtml(d.schema.titleName)}</th>${props.map((q) => `<th>${escapeHtml(q.name)}</th>`).join("")}</tr>${d.rows
         .slice(0, 1000)
-        .map((r) => `<tr><td>${esc(`${r.icon ? `${r.icon} ` : ""}${r.title}`)}</td>${props.map((q) => `<td>${esc(cellText(q, r.cells[q.id], noLabels))}</td>`).join("")}</tr>`)
+        .map((r) => `<tr><td>${escapeHtml(`${r.icon ? `${r.icon} ` : ""}${r.title}`)}</td>${props.map((q) => `<td>${escapeHtml(cellText(q, r.cells[q.id], noLabels))}</td>`).join("")}</tr>`)
         .join("")}</table>`;
     }
   } else body = block(p.content as unknown as DocNode);

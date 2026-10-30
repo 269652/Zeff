@@ -21,12 +21,15 @@ import { currentAccount, listAccounts } from "@/db/accounts";
 const settingsGroup = (): MenuGroup => {
   const on = installedPlugins();
   const nav = new Map(PLUGINS.flatMap((p) => (p.nav ?? []).map((n) => [n.href, n] as const)));
-  // (Its overview first: every settings area on one page — "All settings" was an entry of its own beside this group.)
+  // (Its overview first: every settings area on one page; then General, AI, Connections — a plugin's settings that are a
+  // section of one of these (LLM → AI, Gmail and Google Drive → Connections) aren't listed again.)
   const items: MenuLink[] = [
-    { href: "/settings/all", label: t("Overview"), hint: t("Every settings area in one place") },
-    { href: "/preferences", label: t("General"), hint: t("AI provider, language, backups") },
+    { href: "/settings", label: t("Overview"), hint: t("Every settings area in one place") },
+    { href: "/preferences", label: t("General"), hint: t("Language, lock, backups") },
+    { href: "/settings/ai", label: t("AI"), hint: t("Backends, prompts, AI quality") },
+    { href: "/settings/connections", label: t("Connections"), hint: t("APIs, sign-ins, syncs") },
   ];
-  if (on.has("todos")) items.push({ href: "/settings/todos", label: t("Todos"), hint: t("What a todo shows, and which kinds of knowledge count") });
+  if (on.has("todos")) items.push({ href: "/settings/todos", label: t("Todos"), hint: t("The briefing, what a todo shows") });
   for (const p of PLUGINS) {
     if (!on.has(p.id) || p.category === "language" || !p.settings) continue;
     const href = p.settings.href;
@@ -65,7 +68,7 @@ const headerTabs = () => {
   return appTabs().map((tab) => ({ href: tab.href, label: tab.label, short: tab.short, also: tab.also, menu: withMenu.has(tab.href) }));
 };
 /** The pages the setup assistant leads to: its steps, the plugins' settings, sign-ins, syncs, accounts. */
-const setupPages = () => ["/setup", "/logins", "/sync-settings", "/plugins", "/accounts", "/preferences", ...PLUGINS.flatMap((p) => (p.settings ? [p.settings.href.split(/[?#]/)[0]] : []))];
+const setupPages = () => ["/setup", "/logins", "/sync-settings", "/settings/connections", "/plugins", "/accounts", "/preferences", ...PLUGINS.flatMap((p) => (p.settings ? [p.settings.href.split(/[?#]/)[0]] : []))];
 /** The account you're in and the others — only with the Accounts plugin. */
 const headerAccount = () => {
   if (!installedPlugins().has("accounts")) return undefined;

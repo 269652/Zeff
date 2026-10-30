@@ -9,6 +9,7 @@ import { markedAccounts } from "./accounts";
 import { debtPlans } from "./debts";
 import { monthlyIncome } from "./income";
 import { cashflowFlows, forecast, matchContracts, recurringFlows, type ContractRow, type Flowing, type Forecast, type InBooking, type PlannedPayment } from "./insights";
+import { addDays, localDay } from "@/lib/dates";
 
 /**
  * What the money insights read (the Finances plugin, insights.ts the figures): the bank's bookings of the last two years and a
@@ -16,12 +17,12 @@ import { cashflowFlows, forecast, matchContracts, recurringFlows, type ContractR
  * the one thing they write: a subscription added to Verträge as a row. Server only.
  */
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDay();
 
 /** The bookings since 800 days back (a yearly one shows twice), both directions — none kept (or no bank): none. */
 export function readBookings(day = today()): InBooking[] {
   try {
-    const from = new Date(Date.parse(day) - 800 * 864e5).toISOString().slice(0, 10);
+    const from = addDays(day, -800);
     return getSqlite().prepare("select date, amount, text, counterparty, coalesce(reference, '') reference from bank_transactions where date >= ? order by date").all(from) as InBooking[];
   } catch {
     return [];

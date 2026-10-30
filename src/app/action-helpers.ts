@@ -1,8 +1,8 @@
 /** What the server actions share: reading a form, refreshing the pages, an action's answer. Server-only (not "use server": its helpers aren't actions). */
 
 import { revalidatePath } from "next/cache";
-import { errorMessage } from "@/lib/errors";
 import type { EntryType } from "@/db/schema";
+import { errorMessage } from "@/lib/errors";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
 
@@ -43,10 +43,15 @@ export function revalidateAll() {
   }
 }
 
+export async function accountsOn(): Promise<string | null> {
+  const { t } = await import("@/lib/i18n/server");
+  return (await import("@/plugins/state")).isInstalled("accounts") ? null : t("Accounts is not installed (Menu → Plugins).");
+}
+
 /**
  * A call to a service in the automation Chrome, watched for "sign in first": then you're asked
  * (a request on every page, a notification) — Zeff never signs in itself; once it works again,
- * the request goes.
+ * the request goes. (integrations/booking's Chrono and Punch calls use it.)
  */
 export async function watchSignIn(service: string, fn: () => Promise<string>): Promise<string> {
   const { clearAttention, needsSignIn, raiseLogin } = await import("@/lib/attention");
@@ -60,9 +65,4 @@ export async function watchSignIn(service: string, fn: () => Promise<string>): P
     if (needsSignIn(message)) raiseLogin(service, message);
     throw e;
   }
-}
-
-export async function accountsOn(): Promise<string | null> {
-  const { t } = await import("@/lib/i18n/server");
-  return (await import("@/plugins/state")).isInstalled("accounts") ? null : t("Accounts is not installed (Menu → Plugins).");
 }

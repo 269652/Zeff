@@ -3,6 +3,7 @@ import { allows, refusal } from "@/lib/boundaries";
 import { isInstalled } from "@/plugins/state";
 import { labelResolver } from "@/plugins/workspace/sensitivity";
 import { clearanceOf, has, hasAny, type Condition, type Filters, type Item, type QueryContext, type QueryView } from "./view-types";
+import { addDays } from "@/lib/dates";
 
 /**
  * The views Zeff brings itself (structured questions, views.ts): time entries, bank transactions (Finances), calendar
@@ -203,11 +204,7 @@ const bankTransactions: QueryView = {
 // Calendar events
 // ---------------------------------------------------------------------------
 
-const nextDay = (day: string) => {
-  const d = new Date(`${day}T00:00:00Z`);
-  d.setUTCDate(d.getUTCDate() + 1);
-  return d.toISOString().slice(0, 10);
-};
+const nextDay = (day: string) => addDays(day, 1);
 const minutesOf = (s: string) => {
   const m = /^(\d{4}-\d{2}-\d{2})T(\d{2}):(\d{2})/.exec(s);
   return m ? Date.parse(`${m[1]}T00:00:00Z`) / 60000 + +m[2] * 60 + +m[3] : null;

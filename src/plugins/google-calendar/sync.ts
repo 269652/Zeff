@@ -35,9 +35,6 @@ export function rangesToRead(window: DayRange, asked?: DayRange): DayRange[] {
   return [window, asked];
 }
 
-/** One Google sync at a time across the whole server. */
-export const gcalSyncing = () => !!accountFlag("__zeffGcalSyncing");
-
 type Read = {
   calendars: { id: string; name: string; color: string; shown: boolean; role?: string }[];
   events: (Omit<EventInput, "key"> & { key: string; calendarId: string })[];

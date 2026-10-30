@@ -1,5 +1,5 @@
 import { getPref, setPref } from "@/lib/prefs";
-import { fillPrompt, promptText } from "@/lib/prompts";
+import { promptText } from "@/lib/prompts";
 import { analyze, cosine } from "./keyphrase";
 import { getPrefs, tasteSignals } from "./store";
 
@@ -89,7 +89,6 @@ export function fallbackTaste(current: Taste, signals: Signal[]): Update {
 export type TasteDeps = { ask?: (prompt: string) => Promise<Update>; profile?: () => Promise<string[]> | string[]; batch?: number; now?: () => number };
 
 let updating = false;
-export const isUpdatingTaste = () => updating;
 
 /** Feeds the queued signals (up to `batch` at a time) to the AI with the current description, and keeps what comes back. Returns how many signals were taken in. */
 export async function updateTaste(deps: TasteDeps = {}): Promise<number> {

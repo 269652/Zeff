@@ -7,7 +7,7 @@
  */
 import { getSqlite } from "@/db";
 import { promptText } from "@/lib/prompts";
-import { runAi, aiChoice } from "@/lib/ai";
+import { runAi } from "@/lib/ai";
 import { attributed } from "@/lib/boards/activity";
 import { plain } from "@/lib/boards/collect";
 import { isTodoKind, TODO_KINDS } from "@/lib/boards/shared";
@@ -21,6 +21,7 @@ import { isoDate } from "@/lib/week";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { readableDocuments, type ReadableDoc } from "./store";
 import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
+import { batchByChars, promptRoom } from "@/lib/ai/batch-job";
 
 const BATCH_CHARS = COPILOT_MAX_PROMPT - 6000;
 /** How much of a document the AI reads: its beginning and — where reports and letters put what's asked — its end. */
@@ -105,18 +106,8 @@ export function reviewDocumentsForTodos(runId: number | null = null): Promise<Do
 
     const tickets = lastGoodRun()?.tickets.map((x) => x.key) ?? [];
     const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
-    const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
-    const batches: ReadableDoc[][] = [];
-    let size = 0;
-    for (const d of todo) {
-      const len = line(d).length + 1;
-      if (!batches.length || size + len > limit) {
-        batches.push([]);
-        size = 0;
-      }
-      batches[batches.length - 1].push(d);
-      size += len;
-    }
+    const limit = promptRoom(BATCH_CHARS);
+    const batches = batchByChars(todo, (d) => line(d).length + 1, limit);
 
     let added = 0;
     let merged = 0;

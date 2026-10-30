@@ -24,6 +24,7 @@ import { followListRename, isDayList, startDayIfNew, writeDayLog } from "./day-l
 import { evalAuto, followRenames, withStamps } from "./auto-fill";
 import { cellFormula, cellText, coerceCellValue, computeRows, defaultSchema, formulaKey, isComputed, isFormulaInput, shareOf, SYSTEM_PROPS, newProperty, normalizeSchema, pageKind, propById, takesCellFormula, TITLE, type DbSchema, type PageKind, type Labels, type Property, type Row } from "./model";
 import { checkFormula } from "./formula";
+import { localDay, monthKey } from "@/lib/dates";
 
 function db() {
   const d = getSqlite();
@@ -370,7 +371,6 @@ export const touchOpened = (id: number) => void db().prepare("update ws_pages se
 // ---------------------------------------------------------------------------
 // Moving, trash, copies
 // ---------------------------------------------------------------------------
-
 
 /** Everything below a page: its sub-pages and, for a database, its rows (and theirs). */
 export function subtree(id: number): number[] {
@@ -992,10 +992,9 @@ export function templateParams(templateId: number): string[] {
 
 /** The placeholders every template knows without being asked: the day, the week (ISO number), the month, the weekday. */
 export function builtinParams(now = new Date()): Record<string, string> {
-  const p = (n: number) => String(n).padStart(2, "0");
   const thursday = new Date(Date.UTC(now.getFullYear(), now.getMonth(), now.getDate() + 3 - ((now.getDay() + 6) % 7)));
   const week = Math.ceil(((thursday.getTime() - Date.UTC(thursday.getUTCFullYear(), 0, 1)) / 86400000 + 1) / 7);
-  return { date: `${now.getFullYear()}-${p(now.getMonth() + 1)}-${p(now.getDate())}`, week: String(week), month: `${now.getFullYear()}-${p(now.getMonth() + 1)}`, weekday: now.toLocaleDateString(undefined, { weekday: "long" }) };
+  return { date: localDay(now), week: String(week), month: monthKey(now), weekday: now.toLocaleDateString(undefined, { weekday: "long" }) };
 }
 
 const fill = (s: string, params: Record<string, string>) => s.replace(PLACEHOLDER, (all, name: string) => (name in params ? params[name] : all));

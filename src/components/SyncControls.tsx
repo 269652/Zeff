@@ -49,7 +49,7 @@ export function SyncControls({
           </button>
           <span className="text-xs text-zinc-500">
             {t("By itself: {interval}", { interval: minutesText(syncMinutes, t) })} ·{" "}
-            <Link href={`/sync-settings#${syncKey}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
+            <Link href={`/settings/connections#${syncKey}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
               {t("change")}
             </Link>
           </span>

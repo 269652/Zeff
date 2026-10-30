@@ -3,6 +3,7 @@ import type { FormulaValue } from "@/plugins/workspace/formula";
 import type { FormulaFunction } from "@/plugins/workspace/formula-point";
 import { debtPlans, type DebtPlan } from "./debts";
 import type { Direction } from "./own";
+import { localDay } from "@/lib/dates";
 
 /**
  * The Finances plugin's formula functions (formula-point.ts): =Schulden(@Chris), =SUMME(Schulden(@Freunde)),
@@ -11,7 +12,7 @@ import type { Direction } from "./own";
  * total. In € (€/Monat for Rate): they go into the units of the formula. Server only.
  */
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDay();
 
 function perPerson(dir: Direction, fn: string, of: (d: DebtPlan) => number) {
   return (args: FormulaValue[]): FormulaValue => {

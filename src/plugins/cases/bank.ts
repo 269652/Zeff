@@ -12,6 +12,7 @@ import { partiesOf } from "./parties";
 import { caseTitle, type Case } from "./shared";
 import { caseByKey, getCase, listCases } from "./store";
 import { currentAccountId } from "@/db/accounts";
+import { localDay } from "@/lib/dates";
 
 /**
  * The bank (the Cases plugin): your account's bookings — read from a statement (the Revolut plugin) or fetched from a
@@ -155,7 +156,7 @@ export function matchPayments(): { matched: number } {
     if (!todo && !caseId) {
       // No todo and no case took it (a transfer you made without a todo): what it pays anyway — a promise to whoever it paid, a debt
       // of yours to them (lib/boards/todo-settle.ts). Kept as matched when it settled something; the last 60 days only.
-      if (tx.date >= new Date(Date.now() - 60 * 864e5).toISOString().slice(0, 10)) {
+      if (tx.date >= localDay(new Date(Date.now() - 60 * 864e5))) {
         const settled = settleEvidence({ key: `tx:${tx.id}`, label: `${t("Booking")} ${deDay(tx.date)}`, text: `${tx.text} ${tx.reference}`.trim(), refs: [], ops: [], todoId: null, amount: Math.abs(tx.amount), payee: { name: tx.counterparty, iban: tx.iban }, date: tx.date });
         if (settled.length) {
           d.prepare("update bank_transactions set matched_at = ? where id = ?").run(new Date().toISOString(), tx.id);
@@ -228,7 +229,7 @@ export type DebtOverview = { rows: DebtRow[]; totals: { total: number; open: num
 
 /** Every running case as a debt — and the next six months: the instalments due in each, what is left of your income. */
 export function debtOverview(opts: { income?: number | null; today?: string } = {}): DebtOverview {
-  const today = opts.today ?? new Date().toISOString().slice(0, 10);
+  const today = opts.today ?? localDay();
   const people = isInstalled("people");
   const rows: DebtRow[] = listCases()
     .filter((c) => c.status === "open" && !c.compiled?.done)

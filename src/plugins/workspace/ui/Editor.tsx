@@ -26,7 +26,6 @@ import { pickFile, uploadImage } from "./kit";
 import { MentionCommand } from "./mention";
 import { AiBlockNode, BlockGaps, Callout, DatabaseViewNode, FlexBox, RowViewNode, ZeffModuleNode, ZeffRef } from "./nodes";
 import { ZeffButton, ZeffField, ZeffRelated } from "./app-nodes";
-import { DATA_BLOCKS } from "./block-nodes";
 import { ROW_BLOCKS, ZeffActivity, ZeffBelongs } from "./row-blocks";
 import { ZeffTimeline } from "@/plugins/timeline/ui/node";
 import { CalendarEmbedNode } from "@/plugins/calendar/ui/calendar-embed";
@@ -382,7 +381,6 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       ZeffField.configure({ pageId: contextRowId ?? pageId }),
       ZeffRelated.configure({ pageId: contextRowId ?? pageId }),
       ZeffButton.configure({ pageId: contextRowId ?? pageId }),
-      ...DATA_BLOCKS,
       ...ROW_BLOCKS,
       ZeffActivity.configure({ pageId: contextRowId ?? pageId }),
       ZeffBelongs.configure({ pageId: contextRowId ?? pageId }),

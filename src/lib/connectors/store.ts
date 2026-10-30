@@ -51,9 +51,6 @@ export function clientOf(provider: Provider): { clientId: string; clientSecret: 
 /** How the service is reached now. */
 export const driverOf = (service: ApiService): DriverMode => (getConnector(service).driver === "api" ? "api" : "cdp");
 
-/** The sign-in a service's API uses (its provider's row). */
-export const signInOf = (service: ApiService): ConnectorRow => getConnector(PROVIDER_OF[service]);
-
 /** Signed in for the API: a token, or an OAuth refresh token. */
 export const apiConnected = (r: ConnectorRow): boolean => (r.authKind === "oauth" ? !!r.refreshToken : !!r.token);
 

@@ -16,6 +16,7 @@ import { addClaim, addLink, claimsOf, CLAIM_KINDS, deriveLinks, LINK_TYPES, reje
 import { buildPeopleIndex, mentionMatcher, splitMentions } from "./mentions";
 import { getPerson, listPeople, namesOf } from "./store";
 import type { Person } from "./shared";
+import { flatSlice } from "@/lib/text";
 
 const SCHEMA = {
   type: "object",
@@ -111,7 +112,6 @@ const markOfSaved = (source: string, fallback: string): string => (stateDb().pre
 const setMark = (source: string, mark: string) => stateDb().prepare("insert into people_extract_state (source, mark) values (?, ?) on conflict(source) do update set mark = excluded.mark").run(source, mark);
 
 const flag = globalThis as { __zeffPeopleExtract?: boolean };
-export const peopleExtracting = () => !!flag.__zeffPeopleExtract;
 
 /** How much of a letter is read: its summary and the start of its text, where the sender's details stand (account, file number). */
 const DOC_CHARS = 1800;
@@ -196,7 +196,6 @@ ${doc.text}`.slice(0, DOC_CHARS * 2);
   return { items, marks };
 }
 
-const clip = (s: unknown, n: number) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, n);
 
 /** A profile as the prompt shows it: its id, names and what is known of it already (not asked again). */
 export type ExtractProfile = { id: number; name: string; aliases: string[]; known: string[] };
@@ -242,7 +241,7 @@ export function extractPrompt(v: { instructions: string; profiles: ExtractProfil
     ...(rejected.claims.length || rejected.links.length ? ["", "# Abgelehnt (nicht noch einmal)", ...rejected.claims.map((x) => `- ${x}`), ...rejected.links.map((x) => `- ${x}`)] : []),
     "",
     "# Nachrichten",
-    ...v.items.map((i) => `[${i.id}] ${i.at.slice(0, 10)} ${i.where} · ${i.who}: ${clip(i.text, i.max ?? 500)}  (betrifft: ${i.people.join(", ")})`),
+    ...v.items.map((i) => `[${i.id}] ${i.at.slice(0, 10)} ${i.where} · ${i.who}: ${flatSlice(i.text, i.max ?? 500)}  (betrifft: ${i.people.join(", ")})`),
     "",
     "# Zu beurteilen",
     v.followUp
@@ -312,20 +311,20 @@ export function acceptFindings(answer: Answer, batch: Item[], allowed: Set<numbe
     const src = byId.get(String(c.source ?? ""));
     const kind = (CLAIM_KINDS as readonly string[]).includes(String(c.kind)) ? (c.kind as ClaimKind) : null;
     const confidence = Number(c.confidence);
-    if (!src || !kind || !allowed.has(Number(c.person)) || !src.people.includes(Number(c.person)) || !clip(c.evidence, 300) || !(confidence >= 0.5) || clip(c.text, 300).length < 8) continue;
+    if (!src || !kind || !allowed.has(Number(c.person)) || !src.people.includes(Number(c.person)) || !flatSlice(c.evidence, 300) || !(confidence >= 0.5) || flatSlice(c.text, 300).length < 8) continue;
     const direction = c.direction === "mine" || c.direction === "theirs" ? c.direction : "";
     if (kind === "commitment" && !direction) continue;
-    claims.push({ personId: Number(c.person), kind, text: clip(c.text, 300), evidence: clip(c.evidence, 300), sourceRef: src.ref, confidence, direction: kind === "commitment" ? direction : "", due: /^\d{4}-\d{2}-\d{2}$/.test(String(c.due ?? "")) ? String(c.due) : "" });
+    claims.push({ personId: Number(c.person), kind, text: flatSlice(c.text, 300), evidence: flatSlice(c.evidence, 300), sourceRef: src.ref, confidence, direction: kind === "commitment" ? direction : "", due: /^\d{4}-\d{2}-\d{2}$/.test(String(c.due ?? "")) ? String(c.due) : "" });
   }
   for (const l of answer.links ?? []) {
     const src = byId.get(String(l.source ?? ""));
     const rel = (LINK_TYPES as readonly string[]).includes(String(l.rel)) ? (l.rel as LinkType) : null;
     const targetType = (TARGET_TYPES as readonly string[]).includes(String(l.target_type)) ? (l.target_type as TargetType) : null;
     const confidence = Number(l.confidence);
-    const target = clip(l.target, 200);
-    if (!src || !rel || !targetType || !target || !allowed.has(Number(l.person)) || !src.people.includes(Number(l.person)) || !clip(l.evidence, 300) || !(confidence >= 0.5)) continue;
+    const target = flatSlice(l.target, 200);
+    if (!src || !rel || !targetType || !target || !allowed.has(Number(l.person)) || !src.people.includes(Number(l.person)) || !flatSlice(l.evidence, 300) || !(confidence >= 0.5)) continue;
     if (targetType === "person" && !personExists(Number(target))) continue;
-    links.push({ personId: Number(l.person), rel, targetType, targetRef: targetType === "ticket" ? target.toUpperCase() : target, evidence: clip(l.evidence, 300), source: "ai", sourceRef: src.ref, confidence });
+    links.push({ personId: Number(l.person), rel, targetType, targetRef: targetType === "ticket" ? target.toUpperCase() : target, evidence: flatSlice(l.evidence, 300), source: "ai", sourceRef: src.ref, confidence });
   }
   return { claims, links };
 }

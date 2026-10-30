@@ -148,10 +148,17 @@ export function mailsByKeys(keys: string[]): Map<string, MailView> {
 }
 
 /** The mails, newest first — those matching `q` (sender, subject, text). */
-export function listMails(opts: { q?: string; folder?: string; exceptFolder?: string; folderPrefix?: string; limit?: number } = {}): MailView[] {
+export function listMails(opts: { q?: string; folder?: string; folders?: string[]; exceptFolder?: string; folderPrefix?: string; limit?: number } = {}): MailView[] {
   const q = opts.q?.trim();
+  if (opts.folders && !opts.folders.length) return [];
   const words = q ? or(like(emails.subject, `%${q}%`), like(emails.preview, `%${q}%`), like(emails.fromName, `%${q}%`), like(emails.fromEmail, `%${q}%`)) : undefined;
-  const where = and(words, opts.folder ? sql`${emails.folder} = ${opts.folder}` : undefined, opts.exceptFolder ? sql`${emails.folder} <> ${opts.exceptFolder}` : undefined, opts.folderPrefix ? like(emails.folder, `${opts.folderPrefix}%`) : undefined);
+  const where = and(
+    words,
+    opts.folder ? sql`${emails.folder} = ${opts.folder}` : undefined,
+    opts.folders ? inArray(emails.folder, opts.folders) : undefined,
+    opts.exceptFolder ? sql`${emails.folder} <> ${opts.exceptFolder}` : undefined,
+    opts.folderPrefix ? like(emails.folder, `${opts.folderPrefix}%`) : undefined,
+  );
   return getDb()
     .select()
     .from(emails)

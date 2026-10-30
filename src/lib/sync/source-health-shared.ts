@@ -1,4 +1,5 @@
 import type { T } from "@/lib/i18n/shared";
+import { localDay } from "@/lib/dates";
 
 /**
  * How healthy each source is — judged from its data, not only from whether its last run said ok (client-safe, pure).
@@ -31,9 +32,8 @@ export const FAIL_RUNS = 2;
 export const FAIL_HOURS = 12;
 
 const DAY = 86400e3;
-const isoDate = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const isWeekend = (d: Date) => d.getDay() === 0 || d.getDay() === 6;
-const dayOff = (d: Date, a: Activity) => (!a.weekends && isWeekend(d)) || !!a.skipDays?.has(isoDate(d));
+const dayOff = (d: Date, a: Activity) => (!a.weekends && isWeekend(d)) || !!a.skipDays?.has(localDay(d));
 
 /** The minutes between two times that count (local days, their window outside the quiet hours). */
 export function activeMinutes(from: number, to: number, a: Activity): number {
@@ -106,7 +106,7 @@ export function baselineOf(gaps: number[], floorMin: number, ends?: number[]): B
   if (gaps.length < MIN_GAPS) return null;
   const byDay = new Map<string, number>();
   gaps.forEach((g, i) => {
-    const day = ends ? isoDate(new Date(ends[i])) : String(i);
+    const day = ends ? localDay(new Date(ends[i])) : String(i);
     byDay.set(day, Math.max(byDay.get(day) ?? 0, g));
   });
   if (ends && byDay.size < MIN_DAYS) return null;
@@ -187,11 +187,11 @@ function countsByDay(times: number[], now: number, days: number): { date: Date; 
   d.setDate(d.getDate() - (days - 1));
   const index = new Map<string, number>();
   for (let i = 0; i < days; i++, d.setDate(d.getDate() + 1)) {
-    index.set(isoDate(d), i);
+    index.set(localDay(d), i);
     out.push({ date: new Date(d), n: 0 });
   }
   for (const x of times) {
-    const i = index.get(isoDate(new Date(x)));
+    const i = index.get(localDay(new Date(x)));
     if (i !== undefined) out[i].n++;
   }
   return out;

@@ -5,6 +5,7 @@
  * backlinks), and a whitelist that cleans what a client sends. Client-safe.
  */
 
+import { legacyDataBlock, LEGACY_DATA_BLOCKS } from "./legacy-blocks";
 import { COLORS } from "./model";
 
 export type Mark = { type: string; attrs?: Record<string, unknown> };
@@ -249,18 +250,19 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
       return `:::tabs\n${kids.map((c) => block(c)).join("\n")}\n:::`;
     case "zeffTab":
       return `:::tab ${String(n.attrs?.title ?? "Tab")}\n${blocks(kids)}\n:::`;
-    case "zeffMetric":
-    case "zeffChart":
-    case "zeffEvents":
-    case "zeffTasks":
-    case "zeffDocument":
-    case "zeffPeople": {
-      // A data block as one line: its kind and what it looks at (lossless - written back it is the same block).
-      const a = Object.fromEntries(Object.entries(n.attrs ?? {}).filter(([, v]) => v !== "" && v !== null && v !== undefined && !(Array.isArray(v) && !v.length)));
-      return `:::block ${DATA_BLOCK_TYPES[n.type]} ${JSON.stringify(a)}`;
+    case "zeffWidget": {
+      // A widget as one line: which, its settings, its own title and header (lossless - written back it is the same block).
+      let config: unknown = {};
+      try {
+        config = JSON.parse(String(n.attrs?.config ?? "{}"));
+      } catch {
+        // no settings
+      }
+      const a = { ...(config && typeof config === "object" && Object.keys(config).length ? { config } : {}), ...(n.attrs?.title ? { title: String(n.attrs.title) } : {}), ...(n.attrs?.header ? { header: String(n.attrs.header) } : {}) };
+      return `:::widget ${String(n.attrs?.widget ?? "")}${Object.keys(a).length ? ` ${JSON.stringify(a)}` : ""}`;
     }
     case "databaseView":
-      return `:::database ${String(n.attrs?.dbId ?? "")}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
+      return `:::database ${String(n.attrs?.dbId ?? "")}${/^[\w~-]+$/.test(String(n.attrs?.viewId ?? "")) ? ` @${String(n.attrs!.viewId)}` : ""}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
     case "todoListEmbed":
       return `:::todolist ${String(n.attrs?.pageId ?? "")} ${String(n.attrs?.listId ?? "")}`;
     case "pageEmbed":
@@ -421,14 +423,29 @@ export function markdownToDoc(md: string): Doc {
         i++;
         continue;
       }
-      // :::database 12 [title]  - a database shown in the page
-      const db = /^:::database\s+(\d+)\s*(.*)$/.exec(l);
+      // :::database 12 [@view] [title]  - a database shown in the page (by one of its views)
+      const db = /^:::database\s+(\d+)(?:\s+@([\w~-]+))?\s*(.*)$/.exec(l);
       if (db) {
-        out.push({ type: "databaseView", attrs: { dbId: Number(db[1]), viewId: "", title: db[2].trim() } });
+        out.push({ type: "databaseView", attrs: { dbId: Number(db[1]), viewId: db[2] ?? "", title: db[3].trim() } });
         i++;
         continue;
       }
-      // :::block metric {"dbId":12,"calc":"count"}  - a data block (figure, chart, events, tasks, document, people)
+      // :::widget calendar.agenda {"config":{"days":3},"title":"Next"}  - a plugin's widget
+      const wg = /^:::widget\s+([\w.-]+)\s*(\{.*\})?\s*$/.exec(l);
+      if (wg) {
+        let a: Record<string, unknown> = {};
+        try {
+          a = wg[2] ? (JSON.parse(wg[2]) as Record<string, unknown>) : {};
+        } catch {
+          a = {};
+        }
+        const config = a.config && typeof a.config === "object" && !Array.isArray(a.config) ? a.config : {};
+        out.push({ type: "zeffWidget", attrs: { widget: wg[1], config: JSON.stringify(config), title: typeof a.title === "string" ? a.title : "", header: a.header === "show" || a.header === "hide" ? a.header : "" } });
+        i++;
+        continue;
+      }
+      // :::block activity {"limit":12}, belongs, timeline  - the entry's own blocks; and (read only, from before) the old data blocks
+      // metric, chart, events, tasks, document, people as the widgets and database views that replaced them (legacy-blocks.ts)
       const blk = /^:::block\s+(metric|chart|events|tasks|document|people|activity|belongs|timeline)\s*(\{.*\})?\s*$/.exec(l);
       if (blk) {
         let attrs: Record<string, unknown> = {};
@@ -437,7 +454,7 @@ export function markdownToDoc(md: string): Doc {
         } catch {
           attrs = {};
         }
-        const type = Object.keys(DATA_BLOCK_TYPES).find((k) => DATA_BLOCK_TYPES[k] === blk[1])!;
+        const type = Object.keys(LEGACY_DATA_BLOCKS).find((k) => LEGACY_DATA_BLOCKS[k] === blk[1]);
         if (!type && blk[1] === "timeline") {
           out.push({ type: "zeffTimeline", attrs: { ref: typeof attrs.ref === "string" ? attrs.ref : "", limit: typeof attrs.limit === "number" ? attrs.limit : 20 } });
           i++;
@@ -448,7 +465,8 @@ export function markdownToDoc(md: string): Doc {
           i++;
           continue;
         }
-        out.push({ type, attrs: Object.fromEntries(Object.entries(attrs).filter(([k]) => (NODE_ATTRS[type] ?? []).includes(k))) });
+        const made = legacyDataBlock(type, attrs);
+        if (made) out.push(made);
         i++;
         continue;
       }
@@ -587,18 +605,12 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffField: ["prop", "label"],
   zeffRelated: ["dbId", "prop"],
   zeffButton: ["label", "action", "prop", "value"],
-  zeffMetric: ["dbId", "viewId", "calc", "prop", "label", "style"],
-  zeffChart: ["dbId", "viewId", "type", "groupBy", "calc", "prop", "bucket", "limit", "title"],
-  zeffEvents: ["days", "q", "calendar", "limit", "title"],
-  zeffTasks: ["q", "ticket", "status", "limit", "title"],
-  zeffDocument: ["docId"],
   zeffActivity: ["limit"],
   zeffBelongs: [],
   zeffTimeline: ["ref", "limit"],
   calendarEmbed: ["calendarId", "view", "day", "also"],
   zeffTabs: ["active"],
   zeffTab: ["title"],
-  zeffPeople: ["ids", "q", "limit", "title"],
   zeffRef: ["kind", "ref", "label", "href"],
   inlineFormula: ["src"],
   databaseView: ["dbId", "viewId", "title"],
@@ -612,9 +624,6 @@ const NODE_ATTRS: Record<string, string[]> = {
 
 /** At most this much of a "✨ Think along" card's state (its questions, answers, proposal) is kept. */
 const ASSIST_STATE_MAX = 20000;
-
-/** The data blocks (figure, chart, appointments, todos, document, people) and the word each has in Markdown. */
-export const DATA_BLOCK_TYPES: Record<string, string> = { zeffMetric: "metric", zeffChart: "chart", zeffEvents: "events", zeffTasks: "tasks", zeffDocument: "document", zeffPeople: "people" };
 
 /** The modules a page can hold as a block (what Zeff knows about a ticket — of its row, or the key given). */
 export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat", "properties", "subtasks", "suggested", "page", "timeline", "know"] as const;
@@ -641,6 +650,11 @@ export function sanitizeDoc(input: unknown): Doc {
   const clean = (n: unknown, depth: number): DocNode | null => {
     if (!n || typeof n !== "object" || depth > MAX_DEPTH || ++count > MAX_NODES) return null;
     const o = n as DocNode;
+    // An old data block (a page from before, a version): the widget or database view that replaced it (legacy-blocks.ts).
+    if (o.type in LEGACY_DATA_BLOCKS) {
+      const made = legacyDataBlock(o.type, o.attrs ?? {});
+      return made ? clean(made, depth) : null;
+    }
     const allowed = NODE_ATTRS[o.type];
     if (!allowed) return null;
     const out: DocNode = { type: o.type };
@@ -719,18 +733,6 @@ export function sanitizeDoc(input: unknown): Doc {
         const id = Math.floor(Number(attrs.dbId));
         if (!(id > 0)) return null;
         attrs.dbId = id;
-      }
-      if (o.type in DATA_BLOCK_TYPES) {
-        // The data blocks keep what to look at: numbers and short words, nothing else.
-        for (const k of Object.keys(attrs)) {
-          const v = attrs[k];
-          if (k === "ids") attrs[k] = (Array.isArray(v) ? v : []).map((x) => Math.floor(Number(x))).filter((n) => n > 0).slice(0, 60);
-          else if (["dbId", "docId", "days", "limit"].includes(k)) {
-            const n = Math.floor(Number(v));
-            if (n > 0) attrs[k] = Math.min(n, 100000);
-            else delete attrs[k];
-          } else attrs[k] = String(v ?? "").slice(0, 200);
-        }
       }
       if (o.type === "zeffTabs") attrs.active = Math.max(0, Math.min(40, Math.floor(Number(attrs.active)) || 0));
       if (o.type === "zeffTab") attrs.title = String(attrs.title ?? "").trim().slice(0, 60) || "Tab";

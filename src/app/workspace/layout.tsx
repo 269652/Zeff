@@ -34,6 +34,8 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     } catch (e) {
       console.error("[workspace] moving the old forms failed", e);
     }
+    // The pages' old data blocks (figure, chart, appointments, todos, document, people) as Kennzahlen, widgets and views (once each).
+    await (await import("@/plugins/workspace/data-block-migration")).migrateDataBlocks().catch((e) => console.error("[workspace] moving the old data blocks failed", e));
     // Your calendar as a database (once; Calendar installed).
     await (await import("@/plugins/workspace/calendar-database")).ensureCalendarDatabase().catch((e) => console.error("[workspace] the calendar database failed", e));
     // Your unread documents as an inbox (once; Documents installed).

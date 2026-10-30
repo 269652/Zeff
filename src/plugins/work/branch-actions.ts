@@ -8,7 +8,7 @@ import { addArtifact, deleteArtifact } from "@/lib/work/branch-knowledge";
 /** The branch knowledge (Prompts → Branch names): one added by hand or deleted — forms post to these. */
 
 const str = (fd: FormData, k: string) => String(fd.get(k) ?? "").trim();
-const back = (error?: string): never => redirect(`/settings/prompts${error ? `?error=${encodeURIComponent(error)}` : ""}#branchname`);
+const back = (error?: string): never => redirect(`/settings/ai${error ? `?error=${encodeURIComponent(error)}` : ""}#branchname`);
 
 export async function addArtifactAction(fd: FormData): Promise<void> {
   let err: string | undefined;
@@ -19,12 +19,12 @@ export async function addArtifactAction(fd: FormData): Promise<void> {
   } catch (e) {
     err = errorMessage(e);
   }
-  revalidatePath("/settings/prompts");
+  revalidatePath("/settings/ai");
   back(err);
 }
 
 export async function deleteArtifactAction(fd: FormData): Promise<void> {
   deleteArtifact(Number(str(fd, "id")));
-  revalidatePath("/settings/prompts");
+  revalidatePath("/settings/ai");
   back();
 }

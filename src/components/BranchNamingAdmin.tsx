@@ -20,7 +20,7 @@ export function BranchNamingAdmin({ todoId }: { todoId?: number }) {
         <h3 className="text-sm font-medium">{t("Preview")}</h3>
         {todos.length ? (
           <>
-            <form method="get" action="/settings/prompts" className="flex flex-wrap items-center gap-2 text-sm">
+            <form method="get" action="/settings/ai" className="flex flex-wrap items-center gap-2 text-sm">
               <select name="todo" defaultValue={todo?.id} className="input w-auto max-w-full text-sm" aria-label={t("Todo")}>
                 {todos.map((x) => (
                   <option key={x.id} value={x.id}>

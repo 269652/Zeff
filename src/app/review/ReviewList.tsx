@@ -17,12 +17,13 @@ type Group = { source: string; kind: string; rows: { item: ReviewItem; index: nu
  * item goes at once (back, with the error, if it failed) and the next one has the focus — so the keys walk through
  * it: j/k or ↓/↑, y for the item's yes, n for no, e or Enter to open where it lives.
  */
-export function ReviewList({ items, links, errors }: Pick<ReviewQueue, "items" | "links" | "errors">) {
+export function ReviewList({ items, links, errors, scoped = false }: Pick<ReviewQueue, "items" | "links" | "errors"> & { /** On a page with more (Today): the keys only while the focus is in the list. */ scoped?: boolean }) {
   const t = useT();
   const router = useRouter();
   const [gone, setGone] = useState<ReadonlySet<string>>(() => new Set());
   const [cursor, setCursor] = useState(0);
   const rows = useRef(new Map<string, HTMLLIElement>());
+  const box = useRef<HTMLDivElement>(null);
   // The focus follows the cursor only after a key or an answer — not when the page loads or refreshes.
   const moved = useRef(false);
   const shown = useMemo(() => items.filter((i) => !gone.has(i.key)), [items, gone]);
@@ -71,7 +72,7 @@ export function ReviewList({ items, links, errors }: Pick<ReviewQueue, "items" |
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const k = reviewKey(e);
-      if (!k || !shown.length) return;
+      if (!k || !shown.length || (scoped && !box.current?.contains(e.target as Node))) return;
       e.preventDefault();
       if (k === "next" || k === "prev") {
         moved.current = true;
@@ -85,10 +86,10 @@ export function ReviewList({ items, links, errors }: Pick<ReviewQueue, "items" |
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
-  }, [shown, at, act, open]);
+  }, [shown, at, act, open, scoped]);
 
   return (
-    <>
+    <div ref={box} className="space-y-4">
       <section className="card p-4" aria-live="polite">
         <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("{n} waiting", { n: waiting })}</h2>
         {waiting === 0 && <EmptyState variant="centered">{t("Nothing to review — all caught up.")}</EmptyState>}
@@ -155,6 +156,6 @@ export function ReviewList({ items, links, errors }: Pick<ReviewQueue, "items" |
           </ul>
         </section>
       ))}
-    </>
+    </div>
   );
 }

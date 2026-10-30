@@ -1,9 +1,10 @@
 "use client";
 
-import type { ChartPoint } from "../blocks";
+/** A point of a chart: its label, its value, its colour. */
+export type ChartPoint = { label: string; value: number; color: string };
 
 /**
- * The charts of the chart block - plain SVG, no library: bars (horizontal, with the labels beside them), columns, a line over time,
+ * The charts of a chart view - plain SVG, no library: bars (horizontal, with the labels beside them), columns, a line over time,
  * a pie with its legend. Each takes the points (label, value, colour) and the unit to show after a value.
  */
 

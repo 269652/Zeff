@@ -22,7 +22,7 @@ export default async function MobileAccessPage() {
             "Zeff stays on this computer — the database, the chats, the syncs. Your phone reaches it through Tailscale: a private network of your own devices, encrypted end to end, nothing open to the internet. This computer has to be on.",
           )}
         </p>
-        <Link href="/settings/all" className="block text-sm text-zinc-500 hover:underline">
+        <Link href="/settings" className="block text-sm text-zinc-500 hover:underline">
           {t("All settings")}
         </Link>
       </div>

@@ -47,7 +47,7 @@ export type PluginShape<Id extends string = string> = {
   /** Its settings page — the setup's "Set up" step and the menu link to it. */
   settings?: { href: string; what: string };
   /** Its applications beside the tabs — views of what it reads (Mail, Gmail, WhatsApp …): under "Apps" in the menu by default (the layout settings move them). */
-  apps?: { href: string; label: string; short: string; hint: string }[];
+  apps?: { href: string; label: string; short: string; hint: string; /** Not shown while this plugin is installed (it brings the same entry). */ unless?: string }[];
   /** Its entries in the menu drawer. */
   nav?: { href: string; label: string; hint: string }[];
   /** The pages it owns (a prefix each) — "not installed" while it isn't. */

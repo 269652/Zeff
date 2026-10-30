@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
@@ -8,12 +8,12 @@ import { sourcesOverview } from "@/plugins/workspace/sources";
 import { SourcesView } from "@/plugins/workspace/ui/Sources";
 import { OutputsView } from "@/plugins/workspace/ui/Outputs";
 
-const TABS = ["sources", "outputs", "pipelines", "history", "prompts", "apps"] as const;
+const TABS = ["sources", "outputs", "pipelines", "history", "apps"] as const;
 type Tab = (typeof TABS)[number];
 const isTab = (v: string): v is Tab => (TABS as readonly string[]).includes(v);
 
-const label = (tab: Tab) => ({ sources: t("Data sources"), outputs: t("Outputs"), pipelines: t("Pipelines"), history: t("History"), prompts: t("Prompts"), apps: t("Apps") })[tab];
-const ICON: Record<Tab, string> = { sources: "🔌", outputs: "📤", pipelines: "⛓", history: "↩", prompts: "💬", apps: "◫" };
+const label = (tab: Tab) => ({ sources: t("Data sources"), outputs: t("Outputs"), pipelines: t("Pipelines"), history: t("History"), apps: t("Apps") })[tab];
+const ICON: Record<Tab, string> = { sources: "🔌", outputs: "📤", pipelines: "⛓", history: "↩", apps: "◫" };
 
 export async function generateMetadata({ params }: { params: Promise<{ tab: string }> }): Promise<Metadata> {
   const { tab } = await params;
@@ -22,13 +22,14 @@ export async function generateMetadata({ params }: { params: Promise<{ tab: stri
 
 /**
  * The Workspace's settings — a sidebar of their own: where its databases' rows come from (data sources), what goes out of
- * them (outputs: into the Ticket-Lage; the knowledge server picks for itself), its prompts (System → Prompts), the apps that
- * show its databases (mail client, chat).
+ * them (outputs: into the Ticket-Lage; the knowledge server picks for itself), the apps that show its databases (mail client,
+ * chat). Its prompts are on the AI settings page (/settings/ai#prompts) — the old prompts tab leads there.
  */
 export default async function WorkspaceSettingsPage({ params }: { params: Promise<{ tab: string }> }) {
   await connection();
   if (!isInstalled("workspace")) return null;
   const { tab } = await params;
+  if (tab === "prompts") redirect("/settings/ai#prompts");
   if (!isTab(tab)) notFound();
   return (
     <div className="grid gap-6 md:grid-cols-[13rem_minmax(0,1fr)]">
@@ -108,37 +109,6 @@ async function body(tab: Tab) {
       <div className="space-y-3">
         <p className="text-sm text-zinc-500">{t("What the AI, the automations and bulk edits did — each as one entry you can take back. Kept for 30 days (the last 40).")}</p>
         <HistoryList />
-      </div>
-    );
-  }
-  if (tab === "prompts") {
-    const { ensureSystemPrompts, systemPrompts, PROMPT_GROUPS } = await import("@/lib/prompts");
-    await ensureSystemPrompts();
-    const prompts = await systemPrompts();
-    return (
-      <div className="space-y-4">
-        <p className="text-sm text-zinc-500">{t("Every prompt is a page of the Workspace (System → Prompts): change it there like any page — it stays, and goes back to the built-in text with a click.")}</p>
-        <div className="grid gap-x-6 gap-y-3 sm:grid-cols-2">
-          {PROMPT_GROUPS.map((g) => {
-            const list = prompts.filter((x) => x.group === g && x.pageId);
-            if (!list.length) return null;
-            return (
-              <section key={g} className="card space-y-1 p-3">
-                <h2 className="text-xs font-semibold text-zinc-500 uppercase">{t(g)}</h2>
-                <ul className="space-y-0.5 text-sm">
-                  {list.map((x) => (
-                    <li key={x.key}>
-                      <Link href={`/workspace/${x.pageId}`} className="text-indigo-600 hover:underline dark:text-indigo-400">
-                        📝 {t(x.title)}
-                      </Link>
-                      {x.modified && <span className="ml-1.5 rounded bg-amber-100 px-1 text-xs text-amber-800 dark:bg-amber-950 dark:text-amber-300">{t("changed")}</span>}
-                    </li>
-                  ))}
-                </ul>
-              </section>
-            );
-          })}
-        </div>
       </div>
     );
   }

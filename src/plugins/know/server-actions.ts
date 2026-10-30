@@ -59,13 +59,3 @@ export async function knowRateAction(key: string, helpful: boolean): Promise<{ o
   }
 }
 
-/** Whether the summaries are made before your meetings by themselves (with the briefing). */
-export async function knowAutoAction(on: boolean): Promise<{ ok: boolean }> {
-  try {
-    if (off()) return { ok: false };
-    (await import("./summary")).setAutoSummary(!!on);
-    return { ok: true };
-  } catch {
-    return { ok: false };
-  }
-}

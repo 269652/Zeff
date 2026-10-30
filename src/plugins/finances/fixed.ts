@@ -19,7 +19,8 @@ export function fixedCosts(): FixedCosts {
   if (!isInstalled("workspace")) return { amount: null, agg: null, items: [] };
   const refs = valueSources("fixkosten");
   if (!refs.length) return { amount: null, agg: null, items: [] };
-  const agg = valueAggregate("fixkosten") ?? "sum";
+  const had = valueAggregate("fixkosten");
+  const agg: CalcFn = had && had !== "count_unique" ? had : "sum";
   const items = refs.flatMap((ref) => {
     const source = getPage(ref.dbId)?.title || "?";
     return refRows(ref).map((r) => ({ id: `${ref.dbId}:${r.rowId}`, title: r.title, amount: r.value, source }));

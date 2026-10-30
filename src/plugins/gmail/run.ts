@@ -66,8 +66,12 @@ export async function runGmailComposeOnTodo(todoId: number, index: number, mode:
 /** An inbox row's Gmail conversation archived (out of the inbox — nothing deleted) or marked unread. */
 export async function gmailRowChange(rowId: number, what: "archive" | "unread"): Promise<string> {
   const { rowMailConv } = await import("../workspace/row-actions");
-  const conv = rowMailConv(Number(rowId));
-  if (!conv?.startsWith("gmail:")) throw new Error(t("Not a Gmail conversation."));
+  return gmailConvChange(rowMailConv(Number(rowId)) ?? "", what);
+}
+
+/** A Gmail conversation ("gmail:…" — the inbox's) archived (out of the inbox — nothing deleted) or marked unread. */
+export async function gmailConvChange(conv: string, what: "archive" | "unread"): Promise<string> {
+  if (!conv.startsWith("gmail:")) throw new Error(t("Not a Gmail conversation."));
   if (!gmailCanWrite()) throw noRight();
   if (what === "archive") {
     await archiveGmail(conv);

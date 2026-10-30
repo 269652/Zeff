@@ -4,6 +4,7 @@ import { revalidateAll, type ActionState } from "@/app/action-helpers";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import type { SeriesScope } from "@/lib/calendar/ir-shared";
+import { pluginAction } from "@/lib/action-result";
 
 /** The Kalender app: its server actions (each answers an ActionState). */
 
@@ -31,20 +32,16 @@ export async function moveProposedEventAction(todoId: number, index: number, sta
 }
 
 const off = async () => (!(await import("@/plugins/state")).isInstalled("calendar") ? t("Calendar is not installed (Menu → Plugins).") : null);
-const run = async (fn: () => Promise<string> | string): Promise<ActionState> => {
-  try {
-    const no = await off();
-    if (no) return { ok: false, error: no };
+const inPlugin = pluginAction("calendar", () => t("Calendar is not installed (Menu → Plugins)."));
+const run = (fn: () => Promise<string> | string): Promise<ActionState> =>
+  inPlugin(async () => {
     const message = await fn();
     // Today's and tomorrow's appointments as todos, right away (calendars set so) — not only every 15 minutes.
     // (Not awaited: the AI may judge new appointments first — the next scheduled turn makes them if this one fails.)
     void (await import("@/lib/calendar/todos")).calendarTodos().catch(() => {});
     changed();
-    return { ok: true, message };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-};
+    return { message };
+  });
 
 /** A calendar shown or hidden, recoloured, renamed (Zeff's own), counted as busy, offered for booking. */
 export async function updateCalendarAction(id: number, patch: { name?: string; color?: string; visible?: boolean; busy?: boolean; book?: boolean; todos?: boolean }): Promise<ActionState> {

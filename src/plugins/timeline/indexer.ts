@@ -356,20 +356,3 @@ export async function indexTimeline(opts: { batch?: number; maxBatches?: number;
   return out;
 }
 
-/**
- * The backfill: everything the sources hold read into the timeline, in bounded runs one after the other (at most `rounds`).
- * `fromScratch`: every source read again from its beginning (what is recorded stays; what is missing is added).
- */
-export async function backfillTimeline(opts: { rounds?: number; fromScratch?: boolean; batch?: number } = {}): Promise<IndexResult> {
-  if (opts.fromScratch) marks().exec("delete from tl_marks");
-  const total: IndexResult = { ok: true, added: 0, read: 0, more: true, bySource: {} };
-  for (let i = 0; i < (opts.rounds ?? 50) && total.more; i++) {
-    const r = await indexTimeline({ batch: opts.batch, maxBatches: 10 });
-    total.added += r.added;
-    total.read += r.read;
-    total.more = r.more;
-    for (const [k, n] of Object.entries(r.bySource)) total.bySource[k] = (total.bySource[k] ?? 0) + n;
-    if (!r.ok) return { ...total, ok: false, error: r.error };
-  }
-  return total;
-}

@@ -3,8 +3,6 @@
 /** header: a tab in Zeff's header · menu: under "Apps" in the menu · hidden: nowhere (its page still works, under Apps). */
 export type Placement = "header" | "menu" | "hidden";
 
-export const PLACEMENT_LABELS: Record<Placement, string> = { header: "Header", menu: "Menu", hidden: "hidden" };
-
 export type MenuPrefs = {
   /** Each application's place, by its address — not set: its plugin's default. */
   place: Record<string, Placement>;
