@@ -6,7 +6,6 @@ import type { JSONContent } from "@tiptap/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { applyRowLayoutAction, archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, saveAsTemplateAction, savePageAction, setTemplateAction, versionAction } from "../actions";
@@ -460,7 +459,6 @@ export function PageView({ page, row, database, form, person }: { page: PageView
                 danger
                 onClick={async () => {
                   close();
-                  if (!confirmAction(t("Move “{title}” to the trash?", { title: title || t("Untitled") }))) return;
                   const r = await archivePageAction(page.id);
                   if (!r.ok) return toast(r.error, { tone: "error" });
                   toast(t("Moved to the trash."), {

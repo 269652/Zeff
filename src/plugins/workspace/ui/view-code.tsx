@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
@@ -64,7 +65,7 @@ export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, on
           ? {t("Language")}
         </button>
         {view.template && (
-          <button type="button" className="btn btn-sm" onClick={() => window.confirm(t("Back to the default view? Your changes are gone.")) && onSave(null)}>
+          <button type="button" className="btn btn-sm" onClick={() => confirmAction(t("Back to the default view? Your changes are gone.")) && onSave(null)}>
             ↺ {t("Reset to default")}
           </button>
         )}

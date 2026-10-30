@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { deleteDebtAction } from "../server-actions";
@@ -14,7 +15,7 @@ export function DeleteDebt({ rowId, name, onDone }: { rowId: number; name: strin
       title={t("Remove this debt")}
       aria-label={t("Remove the debt to {name}", { name })}
       onClick={async () => {
-        if (!window.confirm(t("Remove the debt to {name}?", { name }))) return;
+        if (!confirmAction(t("Remove the debt to {name}?", { name }))) return;
         const r = await deleteDebtAction(rowId);
         if (!r.ok) toast(r.error, { tone: "error" });
         else onDone();

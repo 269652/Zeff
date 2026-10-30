@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { actionHref } from "@/plugins/actions/catalog";
 import { useRouter } from "next/navigation";
 import { useState, useTransition, type ReactNode } from "react";
@@ -265,7 +266,7 @@ function ApiOpButtons({ op, todoId, index }: { op: TodoView["ops"][number]; todo
           className="btn btn-sm btn-primary"
           disabled={pending || !op.to}
           title={op.to ? t("Sends it now from your Gmail — replying in the conversation it answers") : t("No recipient — open it in Gmail")}
-          onClick={() => window.confirm(t("Send this mail to {to} now?", { to: op.to })) && go(() => runGmailComposeAction(todoId, index, "send"))}
+          onClick={() => confirmAction(t("Send this mail to {to} now?", { to: op.to })) && go(() => runGmailComposeAction(todoId, index, "send"))}
         >
           {pending ? "…" : t("Send")}
         </button>

@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -215,7 +216,7 @@ export function DatabaseMenu(p: {
                 <MenuItem checked={p.codeOpen} onClick={() => (close(), p.toggleCode())}>
                   &lt;/&gt; {t("Code")}
                 </MenuItem>
-                {view.template && <MenuItem onClick={() => (close(), window.confirm(t("Back to the default view? Your changes are gone.")) && p.resetTemplate())}>↺ {t("Reset to default")}</MenuItem>}
+                {view.template && <MenuItem onClick={() => (close(), confirmAction(t("Back to the default view? Your changes are gone.")) && p.resetTemplate())}>↺ {t("Reset to default")}</MenuItem>}
               </>
             )}
             {/* The rows hidden in the database: shown too (set back), or left out again. */}

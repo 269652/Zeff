@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import { useT } from "@/components/I18nProvider";
@@ -78,7 +79,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
 
   /** What a button does. */
   const run = async (a: Record<string, string>) => {
-    if (a.confirm && !window.confirm(a.confirm)) return;
+    if (a.confirm && !confirmAction(a.confirm)) return;
     const rowId = a.row ? Number(a.row) : null;
     const row = rowId ? byId.get(rowId) : undefined;
     const valueFor = (p: Property | undefined, v: string | undefined): unknown => {

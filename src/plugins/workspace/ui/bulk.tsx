@@ -87,7 +87,7 @@ export function BulkBar({ ids, schema, dbId, onChanged, onClear, onHide }: { ids
     onChanged();
   };
   const trash = async () => {
-    if (!confirmAction(t("Move {n} rows to the trash?", { n: ids.length }))) return;
+    // To the trash at once: the toast takes it back.
     setBusy(true);
     const r = await archiveRowsAction(ids);
     setBusy(false);

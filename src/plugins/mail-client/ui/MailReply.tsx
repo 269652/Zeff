@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -33,7 +34,7 @@ export function MailReply({ rowId, conv, account, to: to0, subject: subject0 }: 
     setOpen(true);
   };
   const send = async (mode?: "send" | "draft") => {
-    if (mode === "send" && !window.confirm(t("Send this mail to {to} now?", { to }))) return;
+    if (mode === "send" && !confirmAction(t("Send this mail to {to} now?", { to }))) return;
     setBusy(true);
     const op = { type: account === "Gmail" ? "gmail-compose" : "mail-compose", to, subject, body };
     const r = rowId != null ? await rowActionAction(rowId, op, mode) : await inboxReplyAction(conv?.id ?? "", conv?.mailKey ?? "", op, mode);

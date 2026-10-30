@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { routineChoicesAction, type DatabaseData } from "../actions";
@@ -581,7 +582,7 @@ export function SchemaModal({ schema, data, dbId, databases, onSave, onClose }: 
               sort={sort}
               onChange={(np) => setDraft({ ...draft, properties: draft.properties.map((x, j) => (j === i ? np : x)) })}
               onRemove={() => {
-                if (hasDependents(draft, p.id) && !window.confirm(t("Other properties use this one (a rollup or a relation's other side). Delete it anyway?"))) return;
+                if (hasDependents(draft, p.id) && !confirmAction(t("Other properties use this one (a rollup or a relation's other side). Delete it anyway?"))) return;
                 setDraft(removeProperty(draft, p.id));
               }}
             />

@@ -4,7 +4,6 @@ import Link from "next/link";
 import { openSearch } from "@/lib/search/shared";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, setTemplateAction, templatesAction } from "../actions";
@@ -285,7 +284,6 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
                     danger
                     onClick={async () => {
                       close();
-                      if (!confirmAction(t("Move “{title}” to the trash?", { title: item.title || t("Untitled") }))) return;
                       const r = await archivePageAction(item.id);
                       if (!r.ok) return toast(r.error, { tone: "error" });
                       if (current === item.id) router.push("/workspace");

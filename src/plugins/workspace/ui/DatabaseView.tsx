@@ -1296,7 +1296,7 @@ function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, set
                     onClick={() => {
                       close();
                       const note = hasDependents(schema, p.id) ? ` ${t("Other properties use this one (a rollup or a relation's other side).")}` : "";
-                      if (!window.confirm(`${t("Delete the property “{name}” and its values?", { name: p.name })}${note}`)) return;
+                      if (!confirmAction(`${t("Delete the property “{name}” and its values?", { name: p.name })}${note}`)) return;
                       api.changeSchema((s) => removeProperty(s, p.id));
                     }}
                   >

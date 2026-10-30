@@ -1,5 +1,6 @@
 "use client";
 
+import { confirmAction } from "@/components/confirm";
 import { EmptyState } from "@/components/EmptyState";
 import Link from "next/link";
 import { useEffect, useState, useSyncExternalStore } from "react";
@@ -151,7 +152,7 @@ function UndoRun({ run }: { run: number }) {
         className="text-zinc-500 hover:text-red-600 hover:underline dark:text-zinc-400"
         title={t("Dismiss the todos this run made that you haven't touched — those you worked on stay")}
         onClick={async () => {
-          if (!window.confirm(t("Take back run #{run}? Its todos you haven't touched are dismissed.", { run }))) return;
+          if (!confirmAction(t("Take back run #{run}? Its todos you haven't touched are dismissed.", { run }))) return;
           const r = await undoLageRunAction(run);
           if (!r.ok) return void toast(r.error, { tone: "error" });
           toast(`${t("{n} todos of the run dismissed, {kept} kept (you worked on them).", { n: r.dismissed, kept: r.kept })}${r.claims ? ` ${t("{n} promises and facts it read removed.", { n: r.claims })}` : ""}`, { tone: "ok" });
