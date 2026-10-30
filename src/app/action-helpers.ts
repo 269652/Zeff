@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import type { EntryType } from "@/db/schema";
+import { errorMessage } from "@/lib/errors";
 
 export type ActionState = { ok: boolean; error?: string; message?: string } | null;
 
@@ -45,4 +46,23 @@ export function revalidateAll() {
 export async function accountsOn(): Promise<string | null> {
   const { t } = await import("@/lib/i18n/server");
   return (await import("@/plugins/state")).isInstalled("accounts") ? null : t("Accounts is not installed (Menu → Plugins).");
+}
+
+/**
+ * A call to a service in the automation Chrome, watched for "sign in first": then you're asked
+ * (a request on every page, a notification) — Zeff never signs in itself; once it works again,
+ * the request goes. (integrations/booking's Chrono and Punch calls use it.)
+ */
+export async function watchSignIn(service: string, fn: () => Promise<string>): Promise<string> {
+  const { clearAttention, needsSignIn, raiseLogin } = await import("@/lib/attention");
+  try {
+    const out = await fn();
+    if (/not signed in/i.test(out)) raiseLogin(service, out);
+    else clearAttention(`login:${service}`);
+    return out;
+  } catch (e) {
+    const message = errorMessage(e);
+    if (needsSignIn(message)) raiseLogin(service, message);
+    throw e;
+  }
 }

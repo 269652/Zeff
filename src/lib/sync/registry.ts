@@ -659,3 +659,13 @@ export function startSyncAllHere(): { ok: boolean; message: string } {
     return { ok: true, message: t("Syncing all.") };
   });
 }
+
+/** The Monday ISO dates of the last and the current month's weeks (integrations/booking's Chrono step reads them). */
+export async function lastAndCurrentWeeks(): Promise<string[]> {
+  const { lastAndCurrentMonth } = await import("@/lib/month");
+  const { last, current } = lastAndCurrentMonth();
+  return [...last.weeks, ...current.weeks].map((w) => w.startIso);
+}
+
+/** Every account's running syncs (a deploy waits for all; the mirror copies all). */
+export const liveSyncsAll = (): [string, LiveSyncs][] => Object.entries(state.__zeffSyncsByAccount ?? {});
