@@ -11,6 +11,7 @@ import { cachedIssue, LIMITS, plain, ticketBlock } from "./collect";
 import { boardRunState } from "./run";
 import { DELIVERY_OP_TYPES, TODO_KINDS, todoRef, type TodoView } from "./shared";
 import { addTodoAiNote, getTodo, lastGoodRun, setTodoDue, setTodoStatus } from "./store";
+import { localDay } from "@/lib/dates";
 
 /**
  * One todo brought up to date with your new note — the Ticket-Lage's work for just this todo, at
@@ -101,7 +102,7 @@ function promptFor(t: TodoView): string {
     attached.length ? "ANHÄNGE (Bilder und Dokumente, die ich an das Todo gehängt habe — mein Kontext; oft Screenshots, Vorgaben oder Fehlerbilder):" : "",
     ...attached.map((d) => `- ${attachmentLine(d, 600)}`),
   ].filter(Boolean);
-  return `${fillPrompt("todo-refresh", TODO_REFRESH_INSTRUCTIONS, { attachments: attached.length ? "\n- Unter „ANHÄNGE“ stehen Bilder und Dokumente, die ich angehängt habe — Bilder siehst du hier nicht selbst, die Beschreibung steht dabei. Reicht sie für deine Entscheidung nicht aus, rate nicht: lies den Anhang nach (needs, where: documents).\n\n" + RAG_INSTRUCTIONS : "", today: new Date().toISOString().slice(0, 10) })}
+  return `${fillPrompt("todo-refresh", TODO_REFRESH_INSTRUCTIONS, { attachments: attached.length ? "\n- Unter „ANHÄNGE“ stehen Bilder und Dokumente, die ich angehängt habe — Bilder siehst du hier nicht selbst, die Beschreibung steht dabei. Reicht sie für deine Entscheidung nicht aus, rate nicht: lies den Anhang nach (needs, where: documents).\n\n" + RAG_INSTRUCTIONS : "", today: localDay() })}
 
 ${todo.join("\n")}
 

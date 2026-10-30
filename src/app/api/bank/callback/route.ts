@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { getPublicOrigin } from "mcp-handler";
 import { errorMessage } from "@/lib/errors";
 import { isInstalled } from "@/plugins/state";
+import { localDay } from "@/lib/dates";
 
 /** GET /api/bank/callback?code=…&state=… — your bank (through Enable Banking) sends you back here after you allowed access. */
 export async function GET(req: NextRequest) {
@@ -20,7 +21,7 @@ export async function GET(req: NextRequest) {
     await sync.syncBank();
     const bank = await import("@/plugins/cases/bank");
     bank.matchPayments();
-    bank.overdueWarnings(new Date().toISOString().slice(0, 10));
+    bank.overdueWarnings(localDay());
     return back("?bank=connected");
   } catch (e) {
     return back(`?bank=${encodeURIComponent(errorMessage(e))}`);

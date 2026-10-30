@@ -10,12 +10,13 @@ import { killPid, sleep } from "@/lib/abort";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
 import { closeOnHost, killOnHost, spawnOnHost, workHostFeatures, writeToHost } from "@/lib/work/host";
-import { errPath, inPath, lastJson, logPath, workDir } from "@/lib/work/log";
+import { errPath, inPath, logPath, workDir } from "@/lib/work/log";
 import { normalizeResult } from "@/lib/work/outcome";
 import { CLAUDE_MODE_INFO, CLAUDE_MODES, isClaudeMode, WORK_RESULT_SCHEMA, workRef, type AskAnswer, type ClaudeAsk, type ClaudeLiveView, type ClaudeMode, type Effort, type SessionMode, type SessionOptions, type WorkResult } from "@/lib/work/shared";
 import type { LiveDriver, LiveStart } from "@/lib/work/live-driver";
 import { findClaudeCli } from "./cli";
 import type { LiveView } from "@/plugins/copilot-cli/live-state";
+import { lastJson } from "@/lib/ai/json";
 
 /**
  * Live Claude sessions — Claude Code as you know it, on the Code tab: `claude -p` with stream-json

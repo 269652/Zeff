@@ -12,6 +12,7 @@ import { emitChange } from "@/lib/events";
 import { claimReviewed, flushSoon } from "./knowledge-sync";
 import { getPerson, listPeople, namesOf } from "./store";
 import { currentAccountId } from "@/db/accounts";
+import { trimSlice } from "@/lib/text";
 
 export const CLAIM_KINDS = ["fact", "role", "owns", "preference", "commitment"] as const;
 export type ClaimKind = (typeof CLAIM_KINDS)[number];
@@ -105,7 +106,6 @@ function db() {
 const now = () => new Date().toISOString();
 const days = (n: number) => new Date(Date.now() + n * 864e5).toISOString();
 const changed = () => emitChange("todos");
-const clip = (s: unknown, n: number) => String(s ?? "").trim().slice(0, n);
 
 type CRow = { id: number; person_id: number; kind: string; text: string; evidence: string; source_ref: string; confidence: number; status: string; direction: string; due: string; done_at: string | null; created_at: string; confirmed_at: string | null; expires_at: string | null };
 type LRow = { id: number; person_id: number; rel: string; target_type: string; target_ref: string; label: string; evidence: string; source: string; source_ref: string; confidence: number; status: string; created_at: string; confirmed_at: string | null; seen_at: string };
@@ -152,13 +152,13 @@ export type ClaimInput = { personId: number; kind: ClaimKind; text: string; evid
 
 /** A claim kept — the same (person, kind, text) once, whatever became of it (a rejected one stays rejected). Whether it is new. */
 export function addClaim(v: ClaimInput): boolean {
-  const text = clip(v.text, 300);
+  const text = trimSlice(v.text, 300);
   if (!text || !getPerson(v.personId)) return false;
   const confirmed = v.status === "confirmed";
   const shelf = SHELF_LIFE[v.kind];
   const r = db()
     .prepare("insert or ignore into people_claims (person_id, kind, text, evidence, source_ref, confidence, status, direction, due, created_at, confirmed_at, expires_at, run_id) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(v.personId, v.kind, text, clip(v.evidence, 300), clip(v.sourceRef, 120), Math.max(0, Math.min(1, v.confidence ?? 0.7)), v.status ?? "proposed", v.direction ?? "", clip(v.due, 10), now(), confirmed ? now() : null, shelf ? days(shelf) : null, runNow());
+    .run(v.personId, v.kind, text, trimSlice(v.evidence, 300), trimSlice(v.sourceRef, 120), Math.max(0, Math.min(1, v.confidence ?? 0.7)), v.status ?? "proposed", v.direction ?? "", trimSlice(v.due, 10), now(), confirmed ? now() : null, shelf ? days(shelf) : null, runNow());
   if (r.changes) changed();
   return r.changes > 0;
 }
@@ -191,7 +191,7 @@ export const claimsFrom = (ref: string, opts: { prefix?: boolean } = {}): Claim[
 
 /** A claim's text and evidence changed (its source changed); false when another claim of theirs says that already. */
 export function setClaimText(id: number, text: string, evidence: string): boolean {
-  const r = db().prepare("update or ignore people_claims set text = ?, evidence = ? where id = ?").run(clip(text, 300), clip(evidence, 300), id);
+  const r = db().prepare("update or ignore people_claims set text = ?, evidence = ? where id = ?").run(trimSlice(text, 300), trimSlice(evidence, 300), id);
   if (r.changes) changed();
   return r.changes > 0;
 }
@@ -232,13 +232,13 @@ export type LinkInput = { personId: number; rel: LinkType; targetType: TargetTyp
 
 /** A link kept — once per (person, type, target); seen again, it is marked so (a rule-derived one stays alive). Whether it is new. */
 export function addLink(v: LinkInput): boolean {
-  const ref = clip(v.targetRef, 200);
+  const ref = trimSlice(v.targetRef, 200);
   if (!ref || !getPerson(v.personId) || (v.targetType === "person" && (!getPerson(Number(ref)) || Number(ref) === v.personId))) return false;
   const d = db();
   const confirmed = v.status === "confirmed";
   const r = d
     .prepare("insert or ignore into people_links (person_id, rel, target_type, target_ref, label, evidence, source, source_ref, confidence, status, created_at, confirmed_at, seen_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(v.personId, v.rel, v.targetType, ref, clip(v.label, 160), clip(v.evidence, 300), v.source ?? "ai", clip(v.sourceRef, 120), Math.max(0, Math.min(1, v.confidence ?? 0.7)), v.status ?? "proposed", now(), confirmed ? now() : null, now());
+    .run(v.personId, v.rel, v.targetType, ref, trimSlice(v.label, 160), trimSlice(v.evidence, 300), v.source ?? "ai", trimSlice(v.sourceRef, 120), Math.max(0, Math.min(1, v.confidence ?? 0.7)), v.status ?? "proposed", now(), confirmed ? now() : null, now());
   if (r.changes) changed();
   else d.prepare("update people_links set seen_at = ? where person_id = ? and rel = ? and target_type = ? and target_ref = ?").run(now(), v.personId, v.rel, v.targetType, ref);
   return r.changes > 0;
@@ -360,7 +360,7 @@ export function whoKnows(text: string, opts: { ticket?: string; limit?: number }
   for (const c of db().prepare("select * from people_claims where status in ('proposed', 'confirmed') and kind in ('role','owns','fact') and (status = 'confirmed' or confidence >= ?)").all(SHOW_FROM) as CRow[]) {
     const t = c.text.toLowerCase();
     const hit = words.filter((w) => t.includes(w));
-    if (hit.length) add(c.person_id, nameOf(c.person_id), Math.min(3, hit.length) * (c.kind === "fact" ? 0.6 : 1), clip(c.text, 80));
+    if (hit.length) add(c.person_id, nameOf(c.person_id), Math.min(3, hit.length) * (c.kind === "fact" ? 0.6 : 1), trimSlice(c.text, 80));
   }
   return [...score.values()].sort((a, b) => b.score - a.score).slice(0, opts.limit ?? 5);
 }

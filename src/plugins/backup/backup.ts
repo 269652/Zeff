@@ -10,6 +10,7 @@ import { errorMessage, ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { CONFIG_FILE, exportConfig, importConfig, parseConfig } from "./config";
 import { createZip, readZip, type ZipEntry } from "./zip";
+import { localDay } from "@/lib/dates";
 
 /**
  * Backups: Zeff's data — the database (a consistent snapshot, its WAL in) and the files beside it
@@ -150,7 +151,7 @@ function dataFiles(): ZipEntry[] {
 }
 
 const stamp = (d = new Date()) => {
-  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
+  return `${localDay(d)}_${p(d.getHours())}${p(d.getMinutes())}${p(d.getSeconds())}`;
 };
 
 const state = globalThis as unknown as { __zeffBackups?: Map<string, Promise<{ ok: boolean; message: string; file?: string }>> };

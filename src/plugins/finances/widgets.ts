@@ -5,6 +5,7 @@ import { fixedCosts } from "./fixed";
 import { monthlyIncome } from "./income";
 import type { Direction } from "./own";
 import type { Rhythm } from "./recurring";
+import { localDay } from "@/lib/dates";
 
 /**
  * The widgets of Finances: your debts (or what you are owed) in figures — open, the instalments a month, when you are free of
@@ -12,7 +13,7 @@ import type { Rhythm } from "./recurring";
  */
 
 const euro = (v: number, digits = 0) => v.toLocaleString(undefined, { style: "currency", currency: "EUR", minimumFractionDigits: digits, maximumFractionDigits: digits });
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDay();
 const inDays = (day: string) => Math.round((Date.parse(day.slice(0, 10)) - Date.parse(today())) / 864e5);
 const whenText = (day: string) => {
   const n = inDays(day);
@@ -105,7 +106,7 @@ export const FINANCES_WIDGETS: WorkspaceWidget[] = [
     ttl: 60,
     data: (config) => {
       const dir = dirOf(config.dir);
-      const until = new Date(Date.now() + Number(config.days ?? 45) * 864e5).toISOString().slice(0, 10);
+      const until = localDay(new Date(Date.now() + Number(config.days ?? 45) * 864e5));
       const db = debtsDbId();
       const all = debtPlans(today(), dir)
         .debts.flatMap((d) => d.plan.payments.filter((p) => p.date <= until).map((p) => ({ d, p })))

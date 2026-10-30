@@ -7,6 +7,7 @@ import { withThem } from "./appointments";
 import type { Channel } from "./pulse";
 import type { Person } from "./shared";
 import { listPeople, namesOf } from "./store";
+import { localStamp } from "@/lib/dates";
 
 /**
  * The rhythm of a relationship (the People plugin's pulse, more than the last contact): over the last 12 months, on how many days you
@@ -55,8 +56,6 @@ const MAX_REPLY = 7 * DAY;
  * at least (someone you write daily isn't drifting after two quiet days).
  */
 export const DRIFT = { minDays: 4, factor: 2, minSilence: 7 };
-/** The window the insights look at. */
-export const PULSE_MONTHS = 12;
 
 /** A moment's local day ("YYYY-MM-DD"). */
 export const dayOf = (at: string | Date): string => (typeof at === "string" ? new Date(at) : at).toLocaleDateString("sv-SE");
@@ -165,17 +164,13 @@ export function pulseInsight(msgs: PulseMessage[], now = new Date()): PulseInsig
 // Reading a person's messages
 // ---------------------------------------------------------------------------
 
-const pad = (n: number) => String(n).padStart(2, "0");
-/** A local time as the calendar keeps it: "YYYY-MM-DDTHH:MM". */
-const local = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-
 type Event = { title: string; description: string; attendees: string[]; organizer: string; start: string; end: string; cancelled: boolean };
 
 /** The appointments in a period (none without the Calendar plugin) — read once for everyone. */
 export async function eventsIn(from: Date, to: Date): Promise<Event[]> {
   if (!isInstalled("calendar")) return [];
   const { eventsBetween } = await import("@/lib/calendar/ir");
-  return eventsBetween(local(from), local(to)).filter((e) => !e.cancelled);
+  return eventsBetween(localStamp(from), localStamp(to)).filter((e) => !e.cancelled);
 }
 
 /** The one sender of Teams' chats that is you: who wrote in chats but never a personal message or a mention to you (as the signals take it). */
@@ -248,7 +243,7 @@ export function pulseMessages(p: Person, from: string, to: string, events: Event
   for (const e of events) {
     const start = new Date(e.start.length === 10 ? `${e.start}T00:00` : e.start);
     const end = e.end.length === 10 ? `${e.end}T00:00` : e.end;
-    if (start.toISOString() >= from && end <= local(new Date(to)) && withThem(p, e)) out.push({ at: start.toISOString(), channel: "Appointment" });
+    if (start.toISOString() >= from && end <= localStamp(new Date(to)) && withThem(p, e)) out.push({ at: start.toISOString(), channel: "Appointment" });
   }
   return out.sort((a, b) => a.at.localeCompare(b.at));
 }

@@ -1,6 +1,6 @@
 import { getSqlite } from "@/db";
 import { addCalendarTodo, getTodo, setTodoDue, setTodoStatus, setTodoText, todoByRef } from "@/lib/boards/store";
-import { docText, withTaskIds, type Doc, type DocNode } from "./doc";
+import { docText, type Doc, type DocNode } from "./doc";
 import { newId } from "./model";
 import { breadcrumbs, getPage, updatePage } from "./store";
 
@@ -290,12 +290,4 @@ export function blockTodoDone(todoId: number): void {
   if (!ref) return;
   for (const l of allTaskLists()) if (l.items.some((i) => i.itemId === ref)) return void setItemChecked(l.pageId, l.listId, ref, true);
 }
-
-/** Used by tests and the scheduler: pages made with a list get their ids at once. */
-export const ensureIds = (pageId: number): void => {
-  const page = getPage(pageId);
-  if (!page) return;
-  const next = withTaskIds(page.content);
-  if (JSON.stringify(next) !== JSON.stringify(page.content)) updatePage(pageId, { content: next });
-};
 

@@ -28,24 +28,6 @@ export async function askKnowledgeAction(question: string, history: { role: "use
   }
 }
 
-/** The knowledge relevant to a todo (its words, its ticket and the ticket's summary) — pages and entities. */
-export async function todoKnowledgeAction(todoId: number): Promise<{ ok: true; pages: import("@/plugins/knowledge/shared").KnowledgePage[]; entities: import("@/plugins/knowledge/shared").KnowledgeEntity[] } | { ok: false; error: string }> {
-  try {
-    const off = await knowledgeOn();
-    if (off) return { ok: false, error: off };
-    const { getTodo } = await import("@/lib/boards/store");
-    const { getJiraTicket } = await import("@/lib/jira/store");
-    const todo = getTodo(Number(todoId));
-    if (!todo) return { ok: false, error: t("That todo doesn't exist.") };
-    const summary = todo.ticket ? (getJiraTicket(todo.ticket)?.summary ?? "") : "";
-    const { knowledgeRelated } = await import("@/plugins/knowledge/client");
-    const r = await knowledgeRelated([todo.text, summary].filter(Boolean).join(" — "), todo.ticket || null, 5);
-    return { ok: true, pages: r.pages, entities: r.entities };
-  } catch (err) {
-    return { ok: false, error: errorMessage(err) };
-  }
-}
-
 /** The knowledge server: read Confluence now, and compile what's new. */
 export async function knowledgeSyncAction(): Promise<ActionState> {
   try {

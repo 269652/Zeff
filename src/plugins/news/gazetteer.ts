@@ -67,8 +67,3 @@ export function aliasesOf(name: string): string[] {
   return [...out];
 }
 
-/** The longest gazetteer phrase length in words (for the scan). */
-export const GAZETTEER_MAX_WORDS = Math.max(...[...GAZETTEER.keys()].map((k) => k.split(" ").length));
-
-/** The spellings exactly as listed (short aliases like "US", "EU", "KI" must be written so to count). */
-export const GAZETTEER_EXACT: Set<string> = new Set(rows.flatMap(([, name, ...aliases]) => [name, ...aliases]));

@@ -53,9 +53,6 @@ export function round2(n: number): number {
 /** To the nearest quarter hour (a meeting's length). */
 export const roundQuarter = (h: number) => Math.round(h * 4) / 4;
 
-/** Up to the next quarter hour, at least one (time worked: never less than started). */
-export const ceilQuarter = (h: number) => Math.max(0.25, Math.ceil(h * 4 - 1e-9) / 4);
-
 const toDate = (d: Date | string | number) => (d instanceof Date ? d : new Date(typeof d === "string" && /^\d{4}-\d{2}-\d{2}$/.test(d) ? `${d}T00:00:00` : d));
 
 /** "Mon 12 Oct" — with `year`: "Mon 12 Oct 2026"; `weekday: false`: "12 Oct". A YYYY-MM-DD is a local day. */

@@ -114,27 +114,3 @@ export function updateCase(id: number, patch: { personId?: number | null; note?:
 
 export type MoneyOverrides = Partial<Pick<CaseSummary, "total" | "open" | "installment" | "nextDue">>;
 
-/** Your corrections of a case's money: a value set, or (null) taken back — the AI's again. */
-export function setOverrides(id: number, patch: { [K in keyof MoneyOverrides]?: MoneyOverrides[K] | null }): void {
-  const r = db().prepare("select overrides from cases where id = ?").get(id) as { overrides: string | null } | undefined;
-  if (!r) return;
-  const cur = (() => {
-    try {
-      return r.overrides ? (JSON.parse(r.overrides) as Record<string, unknown>) : {};
-    } catch {
-      return {};
-    }
-  })();
-  for (const [k, v] of Object.entries(patch)) {
-    if (v === null) delete cur[k];
-    else if (v !== undefined) cur[k] = v;
-  }
-  db().prepare("update cases set overrides = ?, updated_at = ? where id = ?").run(Object.keys(cur).length ? JSON.stringify(cur) : null, now(), id);
-  changed();
-}
-
-/** A person merged into another: their cases go along. */
-export function movePersonCases(from: number, to: number): void {
-  db().prepare("update cases set person_id = ? where person_id = ?").run(to, from);
-  db().prepare("update case_parties set person_id = ? where person_id = ?").run(to, from);
-}

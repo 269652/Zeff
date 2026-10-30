@@ -3,6 +3,7 @@ import { listLoops } from "@/plugins/loops/query";
 import { SHOW_FROM } from "@/plugins/people/graph";
 import { isInstalled } from "@/plugins/state";
 import type { BriefLoop } from "./shared";
+import { localDay } from "@/lib/dates";
 
 /** The Open loops plugin's open loops of these people, and those said in one of these sources — as the brief shows them. */
 function loopsOfPlugin(people: number[], sources: string[]): BriefLoop[] {
@@ -36,7 +37,7 @@ function loopsOfPlugin(people: number[], sources: string[]): BriefLoop[] {
  * The loops of the people among `refs` (person:<id>), and those read from one of the refs itself (a mail "mail:<key>", a Teams
  * message "teams:<key>" — a claim's source). Mine first, then the overdue, then by due day (none last). `today`: YYYY-MM-DD.
  */
-export function openLoopsFor(refs: string[], today = new Date().toISOString().slice(0, 10)): BriefLoop[] {
+export function openLoopsFor(refs: string[], today = localDay()): BriefLoop[] {
   const people = [...new Set(refs.flatMap((r) => (/^person:\d+$/.test(r) ? [Number(r.slice(7))] : [])))];
   const sources = [...new Set(refs.filter((r) => /^(mail|teams|jira-comment|doc):/.test(r)))];
   if (!people.length && !sources.length) return [];

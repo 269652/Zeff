@@ -1,3 +1,5 @@
+import { escapeRegExp } from "@/lib/text";
+
 /**
  * People named in a text (a todo's): every way a person is called — their name, aliases, WhatsApp
  * chat, and the parts of their name nobody else shares ("Hoffmann" for Peter Hoffmann, also as
@@ -11,7 +13,6 @@ export type PersonIndexEntry = { id: number; name: string; forms: string[] };
 /** Words in front of a name that belong to the mention ("Herr Hoffmann", "Frau Dr. Meier"). */
 const HONORIFIC = String.raw`(?:(?:Herrn?|Frau|Fr\.|Hr\.|Dr\.|Prof\.)\s+){0,2}`;
 const TITLES = new Set(["herr", "herrn", "frau", "dr.", "prof.", "hr.", "fr."]);
-const esc = (s: string) => s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
  * The index of everyone: their own forms, plus their name's first and last word when no one else
@@ -40,7 +41,7 @@ export function mentionMatcher(index: PersonIndexEntry[]): { re: RegExp; who: Ma
   const who = new Map<string, PersonIndexEntry>();
   for (const p of index) for (const f of p.forms) who.set(f.toLowerCase(), p);
   if (!who.size) return null;
-  const forms = [...who.keys()].sort((a, b) => b.length - a.length).map(esc);
+  const forms = [...who.keys()].sort((a, b) => b.length - a.length).map(escapeRegExp);
   // A whole word (letters and digits around it end it), maybe with an honorific before and a genitive after.
   const re = new RegExp(String.raw`(?<![\p{L}\p{N}])(${HONORIFIC})(${forms.join("|")})((?:s|['’]s?)?)(?![\p{L}\p{N}])`, "giu");
   return { re, who };
@@ -73,7 +74,7 @@ export function splitMentions(text: string, m: ReturnType<typeof mentionMatcher>
  */
 export function splitTags(text: string, m: ReturnType<typeof mentionMatcher>): Mention[] {
   if (!m || !text.includes("@")) return [{ text }];
-  const forms = [...m.who.keys()].sort((a, b) => b.length - a.length).map(esc);
+  const forms = [...m.who.keys()].sort((a, b) => b.length - a.length).map(escapeRegExp);
   const re = new RegExp(String.raw`(?<![\p{L}\p{N}_.@])@(${forms.join("|")})(?![\p{L}\p{N}_])`, "giu");
   const out: Mention[] = [];
   let at = 0;

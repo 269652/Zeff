@@ -3,6 +3,7 @@ import { inAgentScope } from "./agent-scope";
 import { causeNow } from "@/lib/cause";
 import { isQuiet } from "./events";
 import { currentAccountId } from "@/db/accounts";
+import { flatSlice } from "@/lib/text";
 
 /**
  * What happened to a page or a row, one line each: a field changed (from → to), the title, the text edited, put in the trash and
@@ -32,7 +33,7 @@ function table() {
 }
 
 const actorNow = (): Actor => (inAgentScope() ? "ai" : isQuiet() ? "source" : "you");
-const clip = (s: unknown) => String(s ?? "").replace(/\s+/g, " ").trim().slice(0, 240);
+const clip = (s: unknown) => flatSlice(s, 240);
 
 /** A change told: `field` is a property's name, or "title", "text", "created", "trash", "restored". Nothing is told when nothing changed. */
 export function logChange(pageId: number, field: string, from: unknown = "", to: unknown = ""): void {

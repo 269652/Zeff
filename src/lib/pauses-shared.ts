@@ -104,12 +104,6 @@ function segmentsOf(text: string): string[] {
     .filter(Boolean);
 }
 
-/** Give a break a new length, keeping its start (moved earlier only if it would pass midnight). */
-export function withLength(p: PauseRange, minutes: number): PauseRange {
-  const start = Math.max(0, Math.min(toMinutes(p.start), DAY_END - minutes));
-  return { start: fromMinutes(start), end: fromMinutes(start + minutes) };
-}
-
 // ---------------------------------------------------------------------------
 // Locked length while editing the text: change a break's start and its end follows
 // (or the other way round), so a 1 h break stays 1 h.

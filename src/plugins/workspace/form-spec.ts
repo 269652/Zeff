@@ -62,7 +62,6 @@ export function formProps(schema: { titleName: string; properties: Property[] })
 export const formItemId = (): string => newId("f");
 export const newStep = (title = ""): FormStep => ({ id: newId("s"), title, items: [] });
 export const fieldItem = (prop: string, extra: Partial<FieldItem> = {}): FieldItem => ({ id: formItemId(), kind: "field", prop, width: "full", ...extra });
-export const flexItem = (dir: "row" | "col", items: FormItem[] = []): FlexItem => ({ id: formItemId(), kind: "flex", dir, items });
 
 /** Every part of these, boxes and what is in them (depth first, in the order they show). */
 export const flatItems = (items: FormItem[]): FormItem[] => items.flatMap((i) => (i.kind === "flex" ? [i, ...flatItems(i.items)] : [i]));

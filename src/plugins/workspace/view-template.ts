@@ -17,6 +17,7 @@
 import { evalFormula } from "./formula";
 import { ANY_TAG_ATTRS, cardScope, CARD_TAGS, checkAttr, FILTERS as CARD_FILTERS, isField, isNode, KEYWORDS, numOf, parseFilter, parseTemplate, splitPipes, textOf, type AttrKind, type CardScope, type Ctx as CardCtx, type Field, type TagDef, type TNode, type TplError, type VNode } from "./card-template";
 import { noLabels, type Labels, type Property, type Row } from "./model";
+import { localDay } from "@/lib/dates";
 
 export type { VNode, TplError };
 
@@ -162,7 +163,7 @@ function resolve(ctx: Ctx, path: string): { found: boolean; value: unknown } {
   if (h === "state") return { found: true, value: rest.length ? (ctx.state[rest.join(".")] ?? null) : ctx.state };
   if (h === "app") return { found: true, value: walk(ctx.data.app, rest) ?? null };
   if (h === "db") return { found: true, value: walk(ctx.data.db, rest) ?? null };
-  if (h === "now") return { found: true, value: (ctx.data.now ?? new Date()).toISOString().slice(0, 10) };
+  if (h === "now") return { found: true, value: localDay(ctx.data.now ?? new Date()) };
   if (h === "this") return { found: true, value: ctx.item ? walk(ctx.item, rest) : ctx.row ? (rest.length ? fieldOf(ctx, ctx.row, rest.join(".")) : ctx.row.title) : null };
   if (ctx.item && head in ctx.item) return { found: true, value: walk(ctx.item, [head, ...rest]) ?? null };
   if (ctx.row && !rest.length) {
@@ -217,7 +218,7 @@ function evaluate(expr: string, ctx: Ctx, line: number): unknown {
       },
     });
     if ("error" in r) throw new Error(r.error);
-    return r.value instanceof Date ? r.value.toISOString().slice(0, 10) : r.value;
+    return r.value instanceof Date ? localDay(r.value) : r.value;
   } catch (e) {
     ctx.errors.push({ line, message: `${expr.trim()}: ${(e as Error).message}` });
     return null;

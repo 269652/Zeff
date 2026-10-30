@@ -5,6 +5,7 @@ import { docRefs, docText, docToMarkdown, markdownToDoc, sanitizeDoc, type DocNo
 import { ASSIST_ACTION_KINDS, MAX_ASSIST_ACTIONS, MAX_ASSIST_QUESTIONS, MAX_ASSIST_ROUNDS, type AssistAction, type AssistActionBody, type AssistActionKind, type AssistCreated, type AssistEvent, type AssistQuestion, type AssistQuestionKind, type AssistState } from "./assist-shared";
 import { newId } from "./model";
 import * as store from "./store";
+import { localDay } from "@/lib/dates";
 
 /**
  * "✨ Think along" (Mitdenken) on a page — only when the user presses its button. One AI call per step: it understands
@@ -29,8 +30,7 @@ export type AssistCheck = {
 };
 
 const two = (n: number) => String(n).padStart(2, "0");
-const dayOf = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}`;
-const stampOf = (d: Date) => `${dayOf(d)} ${two(d.getHours())}:${two(d.getMinutes())}`;
+const stampOf = (d: Date) => `${localDay(d)} ${two(d.getHours())}:${two(d.getMinutes())}`;
 const str = (v: unknown, max: number) => (typeof v === "string" || typeof v === "number" ? String(v).replace(/\s+/g, " ").trim().slice(0, max) : "");
 
 // ---------------------------------------------------------------------------
@@ -101,7 +101,7 @@ function when(v: unknown): Date | null {
   const s = String(v ?? "");
   if (!DAY.test(s) && !TIME.test(s)) return null;
   const d = new Date(DAY.test(s) ? `${s}T00:00` : s);
-  return !Number.isNaN(d.getTime()) && (DAY.test(s) ? dayOf(d) : `${dayOf(d)}T${two(d.getHours())}:${two(d.getMinutes())}`) === s ? d : null;
+  return !Number.isNaN(d.getTime()) && (DAY.test(s) ? localDay(d) : `${localDay(d)}T${two(d.getHours())}:${two(d.getMinutes())}`) === s ? d : null;
 }
 
 /** A suggested appointment as the calendar takes it (a whole day ends the day after), flagged with what of yours it overlaps. */
@@ -119,7 +119,7 @@ function cleanEvent(raw: unknown, busy: Busy[]): AssistEvent | null {
     from = new Date(start.getFullYear(), start.getMonth(), start.getDate());
     // Its end: the day after the last (a time given on that last day: the day after it).
     end = !end || end <= from ? new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1) : new Date(end.getFullYear(), end.getMonth(), end.getDate() + (DAY.test(String(o.end)) ? 0 : 1));
-    ev = { title, start: dayOf(from), end: dayOf(end), allDay: true };
+    ev = { title, start: localDay(from), end: localDay(end), allDay: true };
   } else {
     if (!end || end <= start) return null;
     ev = { title, start: String(o.start), end: String(o.end) };
@@ -313,7 +313,7 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
   return [
     "Du denkst auf einer Seite in Zeff mit — der Nutzer hat dich per Knopf gerufen. Verstehe, was er vorhat; frage nur, was den Plan wirklich ändert; schlage dann wenige, wertvolle Schritte vor. Antworte in der Sprache des Textes.",
     "",
-    `Heute: ${dayOf(v.today)} (${v.today.toLocaleDateString("de-DE", { weekday: "long" })})`,
+    `Heute: ${localDay(v.today)} (${v.today.toLocaleDateString("de-DE", { weekday: "long" })})`,
     `Seite: ${v.title || "(ohne Titel)"}`,
     "",
     ...(v.state.wish ? ["# Was der Nutzer möchte (seine Worte)", v.state.wish, ""] : []),
@@ -324,7 +324,7 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
     "# Genannte Personen ([[person:id|Name]])",
     ...(v.people.length ? v.people : ["(keine)"]),
     "",
-    `# Deine belegten Zeiten ${dayOf(v.period.from)} – ${dayOf(v.period.to)}`,
+    `# Deine belegten Zeiten ${localDay(v.period.from)} – ${localDay(v.period.to)}`,
     ...(v.busy.length ? v.busy.map((b) => `- ${stampOf(b.start)}–${stampOf(b.end).slice(11)} ${b.title}`) : ["(keine)"]),
     ...(v.history.length ? ["", "# Deine Fragen und die Antworten", ...v.history.map((h) => `- ${h.q} → ${h.a}`)] : []),
     ...(v.state.summary ? ["", `Bisher verstanden: ${v.state.summary}`] : []),

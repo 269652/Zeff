@@ -1,19 +1,15 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
+import { run as runAction, type Result } from "@/lib/action-result";
 
-type Result<T = object> = ({ ok: true } & T) | { ok: false; error: string };
-const run = async <T extends object>(fn: () => Promise<T> | T): Promise<Result<T>> => {
-  try {
+const run = <T extends object>(fn: () => Promise<T> | T): Promise<Result<T>> =>
+  runAction(async () => {
     const v = await fn();
     revalidatePath("/first-look");
-    return { ok: true, ...v };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-};
+    return v;
+  });
 
 /** The first look: a todo for a promise (yours, or one to remind them of) — once. */
 export async function promiseTodoAction(claimId: number) {

@@ -2,7 +2,7 @@ import { eq } from "drizzle-orm";
 import { promptText } from "@/lib/prompts";
 import { throwIfAborted } from "@/lib/abort";
 import { getDb, schema } from "@/db";
-import { aiChoice, runAi } from "@/lib/ai";
+import { runAi } from "@/lib/ai";
 import { extraBlock, getContextPrefs } from "@/lib/boards/context-prefs";
 import { listTodos } from "@/lib/boards/store";
 import type { TodoView } from "@/lib/boards/shared";
@@ -15,7 +15,7 @@ import { getTodoDisplayOff } from "@/lib/todo-display-store";
 import { kindOfPage, kindOn } from "@/lib/todo-display";
 import { relateRepoSystems } from "./repo-systems";
 import { entitiesFor, parseTodoKnowledge, type KnowledgeEntity, type KnowledgePage, type TodoKnowledge, type TodoLink } from "./shared";
-import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
+import { batchByChars, promptRoom, singleFlight } from "@/lib/ai/batch-job";
 
 export type { TodoKnowledge } from "./shared";
 
@@ -61,9 +61,7 @@ const clip = (s: string, n: number) => (s.length > n ? `${s.slice(0, n)}…` : s
  * really fit. Stored on the todo: the "Knowledge" toggle shows just them.
  */
 export function relateKnowledge(): Promise<KnowledgeRelationResult> {
-  const running = accountFlag<Promise<KnowledgeRelationResult>>("__zeffKnowledgeRelations");
-  if (running) return running;
-  const run = (async (): Promise<KnowledgeRelationResult> => {
+  return singleFlight("__zeffKnowledgeRelations", async (): Promise<KnowledgeRelationResult> => {
     const cp = getContextPrefs().knowledge;
     const db = getDb();
     // The systems (Prod, Test/Stage, Dev) are read once per repo, from the knowledge — not per todo.
@@ -114,18 +112,7 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
         ...c.links.map((l, i) => `- [l:${i}] ${l.env === "other" ? "System" : l.env.toUpperCase()} ${l.label ? `„${clip(l.label, 40)}“ ` : ""}${l.url} (Seite „${clip(l.page, 60)}“)`),
       ].join("\n");
     };
-    const limit = aiChoice().provider === "copilot" ? COPILOT_MAX_PROMPT - 5000 : 3 * (COPILOT_MAX_PROMPT - 5000);
-    const batches: TodoView[][] = [];
-    let size = 0;
-    for (const t of withCandidates) {
-      const n = block(t).length + 2;
-      if (!batches.length || size + n > limit || batches[batches.length - 1].length >= 8) {
-        batches.push([]);
-        size = 0;
-      }
-      batches[batches.length - 1].push(t);
-      size += n;
-    }
+    const batches = batchByChars(withCandidates, (t) => block(t).length + 2, promptRoom(COPILOT_MAX_PROMPT - 5000), 8);
 
     let assigned = 0;
     let failed = 0;
@@ -153,10 +140,5 @@ export function relateKnowledge(): Promise<KnowledgeRelationResult> {
     }
     emitChange("todos");
     return failed && failed === batches.length ? { ok: false, todos: due.length, assigned, error: t("The AI didn't answer.") } : { ok: true, todos: due.length, assigned };
-  })();
-  setAccountFlag("__zeffKnowledgeRelations", run);
-  void run.finally(() => {
-    setAccountFlag("__zeffKnowledgeRelations", null);
   });
-  return run;
 }

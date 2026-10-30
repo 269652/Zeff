@@ -13,7 +13,7 @@ import { throwIfAborted } from "@/lib/abort";
 import { extraBlock } from "@/lib/boards/context-prefs";
 import { and, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { aiChoice, runAi } from "@/lib/ai";
+import { runAi } from "@/lib/ai";
 import { emitChange } from "@/lib/events";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
@@ -34,6 +34,7 @@ import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { opAvailable } from "@/plugins/ops";
 import { OFFERED_ACTIONS } from "@/plugins/actions/catalog";
 import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
+import { batchByChars, promptRoom } from "@/lib/ai/batch-job";
 
 const { todos, emails } = schema;
 
@@ -359,18 +360,8 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
       .flatMap((o) => (o.type === "calendar-event" || o.type === "calendar-entry" || o.type === "gcal-event" ? [o] : []))
       .map((o) => ({ start: new Date(`${o.start.slice(0, 16)}:00`), end: new Date(new Date(`${o.start.slice(0, 16)}:00`).getTime() + o.minutes * 60000) }))
       .filter((b) => !Number.isNaN(b.start.getTime()));
-    const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
-    const batches: (typeof blocks)[] = [];
-    let size = 0;
-    for (const b of blocks) {
-      const n = b.text.length + 2;
-      if (!batches.length || size + n > limit - dictionary.length || batches[batches.length - 1].length >= BATCH_TODOS) {
-        batches.push([]);
-        size = 0;
-      }
-      batches[batches.length - 1].push(b);
-      size += n;
-    }
+    const limit = promptRoom(BATCH_CHARS);
+    const batches = batchByChars(blocks, (b) => b.text.length + 2, limit - dictionary.length, BATCH_TODOS);
     let withActions = 0;
     let failed = 0;
     const now = new Date().toISOString();

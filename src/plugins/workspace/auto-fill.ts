@@ -1,5 +1,6 @@
 import { evalFormula, formulaRefs, formulaToStored, type FormulaValue } from "./formula";
 import { newProperty, type DbSchema, type Property } from "./model";
+import { localDay, localStamp } from "@/lib/dates";
 
 /**
  * Fields filled by themselves (the Workspace): a field with `auto` watches some fields of its row — when one of them changes, its
@@ -16,14 +17,11 @@ export const AUTO_TYPES: readonly Property["type"][] = ["text", "number", "date"
 /** The formula of a checkbox's time field: the time it was ticked, none when unticked. */
 export const stampFormula = (tick: string): string => `if(prop(${JSON.stringify(tick)}), now(), "")`;
 
-const pad = (n: number) => String(n).padStart(2, "0");
-
 /** A formula's result as the field keeps it: a date with the time when the field has one (also at 0:00), "" as nothing. */
 export function autoValue(p: Property, v: FormulaValue): unknown {
   if (v === "" || v === null) return null;
   if (v instanceof Date && p.type === "date") {
-    const day = `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
-    return p.includeTime ? `${day}T${pad(v.getHours())}:${pad(v.getMinutes())}` : day;
+    return p.includeTime ? localStamp(v) : localDay(v);
   }
   return formulaToStored(v);
 }

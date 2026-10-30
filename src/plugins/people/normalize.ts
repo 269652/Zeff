@@ -117,8 +117,6 @@ function mentions(people: Person[]): Map<number, string> {
   return out;
 }
 
-export const peopleNormalizing = () => !!accountFlag<boolean>("__zeffPeopleNormalize");
-
 export type NormalizeResult = { ok: boolean; aliases: number; created: number; merged: number; relations: number; claims?: number; links?: number; error?: string };
 
 /** The step after each briefing: names matched (AI), then what the new messages say about people read (extract.ts). */

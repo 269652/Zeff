@@ -10,14 +10,6 @@ import { type T, translator } from "@/lib/i18n/shared";
 /** …mr: open the merge request for a pushed branch; ops: run a todo's operations (both Zeff itself, no AI). */
 export type WorkMode = "code" | "draft" | "send" | "mr" | "ops" | "instruct";
 export const WORK_MODE_LABELS: Record<WorkMode, string> = { code: "implement", draft: "write the draft", send: "post to Jira", mr: "open the MR", ops: "run", instruct: "follow your instruction" };
-export const workModeLabels = (t: T): Record<WorkMode, string> => ({
-  code: t("implement"),
-  draft: t("write the draft"),
-  send: t("post to Jira"),
-  mr: t("open the MR"),
-  ops: t("run"),
-  instruct: t("follow your instruction"),
-});
 export function parseMrTarget(target: string | null | undefined): { project: string; source: string; target: string } | null {
   const m = /^gitlab-mr:([^|]+)\|([^|]+)\|([^|]+)$/.exec(target ?? "");
   return m ? { project: m[1], source: m[2], target: m[3] } : null;
@@ -32,14 +24,6 @@ export const WORK_STATUS_LABELS: Record<WorkStatus, string> = {
   cancelled: "stopped",
   interrupted: "interrupted",
 };
-export const workStatusLabels = (t: T): Record<WorkStatus, string> => ({
-  queued: t("queued"),
-  running: t("running"),
-  done: t("done"),
-  failed: t("failed"),
-  cancelled: t("stopped"),
-  interrupted: t("interrupted"),
-});
 export const isActive = (s: WorkStatus) => s === "queued" || s === "running";
 
 /** A work run's reference: "W-12". */
@@ -232,11 +216,6 @@ export type WorkRunView = {
 /** Claude Code's permission modes a worker can run in (with --print nobody answers a prompt: what would ask is refused). */
 export const PERMISSION_MODES = ["auto", "acceptEdits", "bypassPermissions"] as const;
 export type PermissionMode = (typeof PERMISSION_MODES)[number];
-export const PERMISSION_MODE_INFO: Record<PermissionMode, { label: string; hint: string }> = {
-  auto: { label: "Auto (recommended)", hint: "Claude's classifier approves or refuses each action — risky ones (pushing, deleting, reaching out) are refused." },
-  acceptEdits: { label: "Edits only", hint: "File edits yes; commands only those you already allowed in Claude Code — tests won't run otherwise." },
-  bypassPermissions: { label: "Allow everything", hint: "No checks at all. Only if you fully trust the workers." },
-};
 export const permissionModeInfo = (t: T): Record<PermissionMode, { label: string; hint: string }> => ({
   auto: {
     label: t("Auto (recommended)"),
@@ -366,11 +345,6 @@ export type ClaudeLiveView = SessionLiveView;
 /** How Copilot workers run: a live session asking you (interactive), one allowed everything (autopilot), or a one-shot run (headless). */
 export const COPILOT_MODES = ["interactive", "autopilot", "headless"] as const;
 export type CopilotMode = (typeof COPILOT_MODES)[number];
-export const COPILOT_MODE_LABELS: Record<CopilotMode, string> = {
-  interactive: "Interactive — asks you for permission",
-  autopilot: "Autopilot — allows everything, runs through",
-  headless: "No questions (as before) — refuses what isn't allowed",
-};
 export const copilotModeLabels = (t: T): Record<CopilotMode, string> => ({
   interactive: t("Interactive — asks you for permission"),
   autopilot: t("Autopilot — allows everything, runs through"),

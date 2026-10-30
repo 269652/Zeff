@@ -11,7 +11,6 @@ const EN = translator("en");
 
 export const DATE_KINDS = ["birthday", "anniversary", "other"] as const;
 export type DateKind = (typeof DATE_KINDS)[number];
-export const DATE_KIND_LABELS: Record<DateKind, string> = { birthday: "Birthday", anniversary: "Anniversary", other: "Date" };
 /** The kinds' names in the language of `t`. */
 export const dateKindLabels = (t: T): Record<DateKind, string> => ({ birthday: t("Birthday"), anniversary: t("Anniversary"), other: t("Date") });
 export const isDateKind = (v: unknown): v is DateKind => (DATE_KINDS as readonly unknown[]).includes(v);

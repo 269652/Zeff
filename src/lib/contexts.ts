@@ -3,21 +3,7 @@ import path from "node:path";
 import { and, asc, desc, eq, inArray, like, or, sql } from "drizzle-orm";
 import { dataDir, getDb, schema } from "@/db";
 import type { Context } from "@/db/schema";
-import {
-  cleanLinks,
-  contextBriefItem,
-  isContextKind,
-  itemSource,
-  jiraSyncHash,
-  jiraSyncState,
-  normalizeTicket,
-  parseLinks,
-  type ContextBrief,
-  type ContextFileInfo,
-  type ContextInput,
-  type ContextItem,
-  type ContextUse,
-} from "./contexts-shared";
+import { cleanLinks, isContextKind, itemSource, jiraSyncHash, jiraSyncState, normalizeTicket, parseLinks, type ContextFileInfo, type ContextInput, type ContextItem, type ContextUse } from "./contexts-shared";
 import { readInbox } from "./calendar/inbox";
 import { resolveLinks } from "./context-links";
 import { entityHeadline, entityKey, entityText, entityWhoWhen, type Entity, type EntityMap } from "./entities-shared";
@@ -180,38 +166,6 @@ export function reorderEntryContexts(entryId: number, ids: number[]): void {
       tx.update(entryContexts).set({ position }).where(and(eq(entryContexts.entryId, entryId), eq(entryContexts.contextId, id))).run(),
     );
   });
-}
-
-/** For entry lists: which entries have context — how many items, the first one's headline, and each item at a glance. */
-export function contextBriefs(entryIds: number[]): Record<number, ContextBrief> {
-  const out: Record<number, ContextBrief> = {};
-  if (!entryIds.length) return out;
-  const rows = getDb()
-    .select({ entryId: entryContexts.entryId, c: contexts })
-    .from(entryContexts)
-    .innerJoin(contexts, eq(contexts.id, entryContexts.contextId))
-    .where(inArray(entryContexts.entryId, entryIds))
-    .orderBy(asc(entryContexts.position), asc(entryContexts.createdAt), asc(contexts.id))
-    .all();
-  const full = toItems([...new Map(rows.map((r) => [r.c.id, r.c])).values()]);
-  // A source is told by its message / item: who, where, and their words.
-  const entities = resolveLinks(full.flatMap((i) => i.links.map((l) => l.url)));
-  const briefOf = (i: ContextItem) => {
-    const b = contextBriefItem(i, t);
-    const source = itemSource(i, entities);
-    if (!source) return b;
-    const e = entities[source.url];
-    const text = entityText(e).replace(/\s+\n/g, "\n").trim();
-    return { ...b, headline: entityHeadline(e), excerpt: text.length > 600 ? `${text.slice(0, 598)}…` : text };
-  };
-  const items = new Map(full.map((i) => [i.id, briefOf(i)]));
-  for (const r of rows) {
-    const item = items.get(r.c.id)!;
-    const b = (out[r.entryId] ??= { count: 0, headline: item.headline, items: [] });
-    b.count += 1;
-    b.items.push(item);
-  }
-  return out;
 }
 
 const safeName = (name: string) => (name || "file").replace(/[\\/:*?"<>|\u0000-\u001f]+/g, "_").trim().slice(-120) || "file";

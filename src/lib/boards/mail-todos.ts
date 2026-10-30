@@ -2,7 +2,7 @@ import { and, asc, desc, gte, inArray, isNull, sql } from "drizzle-orm";
 import { promptText } from "@/lib/prompts";
 import { throwIfAborted } from "@/lib/abort";
 import { getDb, schema } from "@/db";
-import { aiChoice, runAi } from "@/lib/ai";
+import { runAi } from "@/lib/ai";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
@@ -23,6 +23,7 @@ import { mustDo } from "./must-do";
 import { STEPS } from "@/lib/learning/ledger";
 import { learnedRules, mailRuleFor } from "@/lib/learning/rules";
 import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
+import { batchByChars, promptRoom } from "@/lib/ai/batch-job";
 
 export { mustDo };
 
@@ -361,18 +362,8 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
 
     const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
     const line = mailLine;
-    const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
-    const batches: (typeof mails)[] = mails.length ? [] : [[]];
-    let size = 0;
-    for (const m of mails) {
-      const n = line(m).length + 1;
-      if (!batches.length || size + n > limit) {
-        batches.push([]);
-        size = 0;
-      }
-      batches[batches.length - 1].push(m);
-      size += n;
-    }
+    const limit = promptRoom(BATCH_CHARS);
+    const batches: (typeof mails)[] = mails.length ? batchByChars(mails, (m) => line(m).length + 1, limit) : [[]];
 
     let added = 0;
     let merged = 0;

@@ -15,22 +15,17 @@ import { rowKey } from "./collections";
 import { kindIcon, rowsToCsv, subtaskCounts, type DbSchema, type Row } from "./model";
 import * as store from "./store";
 import "./metrics"; // (kennzahl() in the databases' formulas reads the Kennzahlen)
+import { localDay } from "@/lib/dates";
+import { pluginAction, type Result as ActionResult } from "@/lib/action-result";
 
 /** The Workspace plugin's server actions: what its pages and editors call. Each says what came of it; none throws at the page. */
 
-export type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
+export type Result<T = unknown> = ActionResult<T>;
 
 function guard(): void {
   if (!isInstalled("workspace")) throw new Error(t("The Workspace plugin is not installed (Menu → Plugins)."));
 }
-async function run<T extends object>(fn: () => T | Promise<T>): Promise<Result<T>> {
-  try {
-    guard();
-    return { ok: true, ...(await fn()) };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-}
+const run = pluginAction("workspace", () => t("The Workspace plugin is not installed (Menu → Plugins)."));
 
 // ---------------------------------------------------------------------------
 // Pages
@@ -111,7 +106,7 @@ export async function createPageAction(v: { parentId?: number | null; kind?: "pa
 export async function todayPageAction() {
   return run(async () => {
     const d = new Date();
-    const day = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+    const day = localDay(d);
     const topTitle = t("Daily notes");
     const top = store.tree().find((x) => x.parentId === null && x.title === topTitle) ?? null;
     const parentId = top ? top.id : store.createPage({ title: topTitle, icon: "🗓️" });
@@ -296,11 +291,6 @@ export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: stri
     // the chips stay as they were written
   }
   return out;
-}
-
-/** Pages of this workspace that name something (a person, a todo, a ticket) — for the other pages of Zeff. */
-export async function pagesMentioningAction(kind: DocRef["kind"], ref: string) {
-  return run(() => ({ pages: store.pagesMentioning(kind, ref) }));
 }
 
 // ---------------------------------------------------------------------------
