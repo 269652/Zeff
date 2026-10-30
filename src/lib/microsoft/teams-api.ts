@@ -7,6 +7,7 @@
  */
 import { apiGet } from "@/lib/connectors/http";
 import type { TeamsMessageInput } from "@/lib/teams/store";
+import { escapeHtml } from "@/lib/html-text";
 
 type Member = { userId?: string; displayName?: string };
 type Chat = { id: string; topic?: string | null; chatType?: string; members?: Member[]; lastMessagePreview?: { createdDateTime?: string } | null };
@@ -41,8 +42,6 @@ const textOf = (html: string) =>
     .replace(/&amp;/g, "&")
     .replace(/\s+/g, " ")
     .trim();
-
-const escapeHtml = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 
 async function chatsOf(): Promise<Chat[]> {
   const out: Chat[] = [];

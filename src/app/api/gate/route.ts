@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 import { cookies } from "next/headers";
 import { GATE_COOKIE, GATE_SESSION_MS, readGate, signGate, verifyPassword } from "@/lib/gate";
+import { sleep } from "@/lib/abort";
 
 /**
  * The gate's way in (src/lib/gate.ts). POST {password} → the session cookie; POST {logout: true} → the cookie gone. At most ten
@@ -26,7 +27,7 @@ export async function POST(req: Request) {
   if (recent.length >= MAX) return Response.json({ ok: false }, { status: 429 });
   if (typeof body.password !== "string" || !verifyPassword(body.password, cfg.password)) {
     tries.set(who, [...recent, now]);
-    await new Promise((r) => setTimeout(r, 500));
+    await sleep(500);
     return Response.json({ ok: false }, { status: 401 });
   }
   tries.delete(who);

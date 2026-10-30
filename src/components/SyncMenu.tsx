@@ -241,10 +241,10 @@ export function SyncMenu() {
             {!data && <LoadingRow>{t("Loading…")}</LoadingRow>}
           </ul>
           <div className="flex shrink-0 justify-between gap-3 border-t border-zinc-200 px-3 py-2 text-xs dark:border-zinc-800">
-            <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
+            <Link href="/settings/connections#syncs" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
               {t("Set intervals")}
             </Link>
-            <Link href="/logins" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
+            <Link href="/settings/connections#sign-ins" className="text-indigo-600 hover:underline dark:text-indigo-400" onClick={() => setOpen(false)}>
               {t("Sign-ins")}
             </Link>
           </div>

@@ -275,7 +275,7 @@ export function BackupSettings({ s, backups, drive }: { s: BackupSettingsView; b
               <span className="block text-xs text-zinc-400">
                 {t("Only encrypted backups (set a password) go up, unless you allow others on the Google Drive page.")}{" "}
                 {drive.on && !drive.connected ? <span className="text-amber-700 dark:text-amber-400">{t("Not signed in yet —")} </span> : null}
-                <Link href="/google-drive" className="text-indigo-600 hover:underline dark:text-indigo-400">
+                <Link href="/settings/connections#google-drive" className="text-indigo-600 hover:underline dark:text-indigo-400">
                   {t("Google Drive settings")}
                 </Link>
               </span>

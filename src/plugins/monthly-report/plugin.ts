@@ -9,8 +9,7 @@ export default definePlugin({
   category: "app",
   defaultInstalled: true,
   dependsOn: ["zeiterfassung"],
-  tabs: [
-    { href: "/month", label: "Monthly report", short: "Monthly" },
-  ],
+  // The report's month view (the week/month toggle); its own menu entry only without the weekly report.
+  apps: [{ href: "/month", label: "Report", short: "Report", hint: "Week and month: hours, bookings, what's missing", unless: "weekly-report" }],
   routes: ["/month"],
 });

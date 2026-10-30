@@ -4,7 +4,8 @@ import { isInstalled } from "@/plugins/state";
 import { withThem } from "./appointments";
 import { claimsOf, openCommitments, proposedClaims, proposedLinks, reviewClaim, reviewLink } from "./graph";
 import type { Person } from "./shared";
-import { contactsOf, getPerson, listPeople, namesOf, relationsOf } from "./store";
+import { contactsOf, listPeople, namesOf, relationsOf } from "./store";
+import { localStamp } from "@/lib/dates";
 
 /**
  * The pulse of your people (the People plugin): when you were last in touch with each — their chat either way, a mail thread
@@ -17,9 +18,6 @@ export type Channel = "WhatsApp" | "Signal" | "Mail" | "Teams" | "Appointment";
 export type LastContact = { at: string; channel: Channel };
 
 const DAY = 864e5;
-const pad = (n: number) => String(n).padStart(2, "0");
-/** A local time as the calendar keeps it: "YYYY-MM-DDTHH:MM". */
-const local = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
 /** A calendar time ("YYYY-MM-DDTHH:MM", local) as an instant (ISO). */
 const instant = (s: string) => new Date(s.length === 10 ? `${s}T00:00` : s).toISOString();
 
@@ -27,7 +25,7 @@ const instant = (s: string) => new Date(s.length === 10 ? `${s}T00:00` : s).toIS
 async function pastEvents(now: Date) {
   if (!isInstalled("calendar")) return [];
   const { eventsBetween } = await import("@/lib/calendar/ir");
-  return eventsBetween(local(new Date(now.getTime() - 365 * DAY)), local(now)).filter((e) => !e.cancelled && (e.end.length === 10 ? `${e.end}T00:00` : e.end) <= local(now));
+  return eventsBetween(localStamp(new Date(now.getTime() - 365 * DAY)), localStamp(now)).filter((e) => !e.cancelled && (e.end.length === 10 ? `${e.end}T00:00` : e.end) <= localStamp(now));
 }
 
 function chatLast(d: ReturnType<typeof getSqlite>, p: Person, now: string): LastContact | null {
@@ -194,7 +192,7 @@ export type MeetingBrief = {
 export async function meetingBriefs(now = new Date()): Promise<MeetingBrief[]> {
   if (!isInstalled("calendar")) return [];
   const { eventsBetween } = await import("@/lib/calendar/ir");
-  const coming = eventsBetween(local(now), local(new Date(now.getTime() + DAY))).filter((e) => !e.cancelled && (e.end.length === 10 ? `${e.end}T00:00` : e.end) > local(now));
+  const coming = eventsBetween(localStamp(now), localStamp(new Date(now.getTime() + DAY))).filter((e) => !e.cancelled && (e.end.length === 10 ? `${e.end}T00:00` : e.end) > localStamp(now));
   if (!coming.length) return [];
   const past = await pastEvents(now);
   const me = new Set(myNames());
@@ -232,9 +230,6 @@ export async function meetingBriefs(now = new Date()): Promise<MeetingBrief[]> {
   }
   return out.sort((a, b) => a.start.localeCompare(b.start));
 }
-
-/** A person as the pulse needs them (for the actions). */
-export const personForPulse = (id: number) => getPerson(id);
 
 /**
  * After each briefing (the People matching step), with the LLM plugin: the contacts not placed yet — person or organisation,

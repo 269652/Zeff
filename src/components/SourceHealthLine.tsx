@@ -44,7 +44,7 @@ export function SourceHealthLine({ issues }: { issues: SourceIssue[] }) {
           </button>
         )}
         {issues.some((i) => i.state === "drift") && (
-          <Link href="/logins" className="btn btn-sm" title={t("Check the app against what its driver expects (Sign-ins → Check)")}>
+          <Link href="/settings/connections#sign-ins" className="btn btn-sm" title={t("Check the app against what its driver expects (Sign-ins → Check)")}>
             {t("Open self-test")}
           </Link>
         )}

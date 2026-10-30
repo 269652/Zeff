@@ -148,7 +148,7 @@ export function branchKnowledgeDocs(zeffUrl: string): { id: string; space: strin
       id: `zeff:branchctx:${a.id}`,
       space: "Zeff · Branch-Kontext",
       title: `${a.kind === "rule" ? "Branch-Regel" : "Code Change"} ${a.ticket}: ${a.text.slice(0, 90)}`,
-      url: `${zeffUrl}/settings/prompts#branchname`,
+      url: `${zeffUrl}/settings/ai#branchname`,
       updatedAt: a.createdAt,
       author: null,
       body: `Tags: ${a.tags.join(", ")}\n\n${a.text}${a.source ? `\n\n## Woher\n- ${a.source.label}: „${a.source.text}“` : ""}`,

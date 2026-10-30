@@ -11,6 +11,7 @@
  */
 
 import { combine, conversion, formatUnit, isUnitWord, numberWithUnit, parseUnit, sameUnit, simplify, type Unit } from "./units";
+import { localDay, localStamp } from "@/lib/dates";
 
 export type FormulaValue = number | string | boolean | null | Date | EntityRef | FormulaValue[];
 
@@ -448,7 +449,7 @@ const bool = (v: FormulaValue): boolean => {
 
 const pad = (n: number, w = 2) => String(n).padStart(w, "0");
 function dateText(d: Date): string {
-  const day = `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+  const day = localDay(d);
   return d.getHours() || d.getMinutes() ? `${day} ${pad(d.getHours())}:${pad(d.getMinutes())}` : day;
 }
 const asDate = (v: FormulaValue): Date => {
@@ -1000,7 +1001,7 @@ function inferUnits(root: Node, ctx: FormulaContext): { node: Node; label: strin
 /** A formula result as it is stored and shown: dates as ISO text, the rest as it is. */
 export function formulaToStored(v: FormulaValue): string | number | boolean | null | (string | number | boolean | null)[] {
   if (v instanceof EntityRef) return v.label;
-  if (v instanceof Date) return v.getHours() || v.getMinutes() ? `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}T${pad(v.getHours())}:${pad(v.getMinutes())}` : `${v.getFullYear()}-${pad(v.getMonth() + 1)}-${pad(v.getDate())}`;
+  if (v instanceof Date) return v.getHours() || v.getMinutes() ? localStamp(v) : localDay(v);
   if (Array.isArray(v)) return v.map((x) => formulaToStored(x) as string | number | boolean | null);
   return v;
 }

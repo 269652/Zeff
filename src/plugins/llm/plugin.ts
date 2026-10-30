@@ -8,9 +8,6 @@ export default definePlugin({
   description: "The AI layer: all AI tasks (briefing, recap, mail steps, auto actions, workers) run through it — each with its own backend and model or the default, all with your instructions and your context. The backends are the CLI plugins.",
   category: "ai",
   defaultInstalled: true,
-  settings: { href: "/llm", what: "AI backend and model per task, instructions" },
-  nav: [
-    { href: "/llm", label: "LLM", hint: "AI backends, instructions & tasks" },
-  ],
+  settings: { href: "/settings/ai", what: "AI backend and model per task, instructions" },
   routes: ["/llm"],
 });

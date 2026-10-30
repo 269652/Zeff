@@ -1,6 +1,6 @@
 import { getSqlite } from "@/db";
 import { promptText } from "@/lib/prompts";
-import { aiChoice, runAi } from "@/lib/ai";
+import { runAi } from "@/lib/ai";
 import { attributed } from "@/lib/boards/activity";
 import { plain } from "@/lib/boards/collect";
 import { isTodoKind, TODO_KINDS } from "@/lib/boards/shared";
@@ -14,6 +14,7 @@ import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { briefingNotes, type Item } from "@/lib/items";
 import { isoDate } from "@/lib/week";
 import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
+import { batchByChars, promptRoom } from "@/lib/ai/batch-job";
 
 /**
  * The Notiz-Durchsicht (Google Keep's extension for Todos, a step after the Ticket-Lage): the AI
@@ -129,18 +130,8 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
     const tickets = lastGoodRun()?.tickets.map((t) => t.key) ?? [];
     const ticketLines = tickets.map((k) => `- ${k}${getJiraTicket(k)?.summary ? ` — ${plain(getJiraTicket(k)!.summary, 120)}` : ""}`);
     const line = noteLine;
-    const limit = aiChoice().provider === "copilot" ? BATCH_CHARS : 3 * BATCH_CHARS;
-    const batches: Note[][] = [];
-    let size = 0;
-    for (const n of todo) {
-      const len = line(n).length + 1;
-      if (!batches.length || size + len > limit) {
-        batches.push([]);
-        size = 0;
-      }
-      batches[batches.length - 1].push(n);
-      size += len;
-    }
+    const limit = promptRoom(BATCH_CHARS);
+    const batches = batchByChars(todo, (n) => line(n).length + 1, limit);
 
     let added = 0;
     let merged = 0;

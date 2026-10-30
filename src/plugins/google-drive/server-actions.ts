@@ -26,7 +26,7 @@ export async function saveDriveClientAction(v: { clientId: string; clientSecret?
     // (Another client may be another Google project's — and any account: connect again; the same account's files are recognised.)
     if (changed && row.refreshToken) disconnect();
     updateDrive({ clientId, ...(secret ? { clientSecret: secret } : {}) });
-    revalidatePath("/google-drive");
+    revalidatePath("/settings/connections");
     return { ok: true, message: changed && row.refreshToken ? t("Saved. The new client needs you to connect again.") : t("Saved.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -50,7 +50,7 @@ export async function saveDriveSettingsAction(v: { folderName: string; mirrorBac
       // Another folder: made (or found) at the next sync.
       ...(folderName !== before.folderName ? { rootFolderId: "", backupsFolderId: "", documentsFolderId: "" } : {}),
     });
-    revalidatePath("/google-drive");
+    revalidatePath("/settings/connections");
     const needsFull = !!v.pullDocuments && isConnected(before) && !hasFullAccess(before);
     return { ok: true, message: needsFull ? t("Saved. To read the files you add in Drive, connect again — Google then asks for access to all of Drive.") : t("Saved.") };
   } catch (err) {
@@ -64,7 +64,7 @@ export async function disconnectDriveAction(): Promise<ActionState> {
     const no = await installed();
     if (no) return no;
     (await import("./config")).disconnect();
-    revalidatePath("/google-drive");
+    revalidatePath("/settings/connections");
     return { ok: true, message: t("Disconnected. What is in Drive stays there.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -78,7 +78,7 @@ export async function syncDriveNowAction(step: string): Promise<ActionState> {
     if (no) return no;
     if (step !== "drivebackup" && step !== "drivedocs") return { ok: false, error: t("Unknown step.") };
     const r = await (await import("@/lib/sync/registry")).startSync(step);
-    revalidatePath("/google-drive");
+    revalidatePath("/settings/connections");
     return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
@@ -100,7 +100,7 @@ export async function addPullFolderAction(f: { id: string; path: string }): Prom
     const { addPullFolder } = await import("./folders");
     const { driveRow, hasFullAccess, isConnected } = await import("./config");
     addPullFolder({ id: String(f.id), path: String(f.path ?? "") });
-    revalidatePath("/google-drive");
+    revalidatePath("/settings/connections");
     const row = driveRow();
     return { ok: true, message: isConnected(row) && !hasFullAccess(row) ? t("Added. To read the files you put there, connect again — Google then asks for access to all of Drive.") : t("Added — its files come in with the next sync.") };
   } catch (e) {
@@ -111,7 +111,7 @@ export async function addPullFolderAction(f: { id: string; path: string }): Prom
 export async function removePullFolderAction(id: string): Promise<ActionState> {
   try {
     (await import("./folders")).removePullFolder(String(id));
-    revalidatePath("/google-drive");
+    revalidatePath("/settings/connections");
     return { ok: true, message: t("Removed — what came in from it stays in the documents.") };
   } catch (e) {
     return { ok: false, error: errorMessage(e) };

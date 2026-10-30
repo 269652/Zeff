@@ -36,7 +36,7 @@ export default async function GitlabSettingsPage({ searchParams }: { searchParam
   return (
     <div className="page">
       <div className="page-aside">
-        <Link href="/settings/all" className="text-sm text-zinc-500 hover:underline">
+        <Link href="/settings" className="text-sm text-zinc-500 hover:underline">
           ← {t("All settings")}
         </Link>
         <h1 className="text-lg font-semibold">{t("GitLab settings")}</h1>

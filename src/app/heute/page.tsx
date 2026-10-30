@@ -17,7 +17,11 @@ import type { TodayAppointment } from "@/lib/heute-today";
 import { MeetingSoon } from "@/plugins/know/ui/MeetingSoon";
 import type { TodoView } from "@/lib/boards/shared";
 import { promiseKeptFormAction, remindedFormAction } from "@/plugins/people/server-actions";
-import { loopFormAction } from "@/plugins/loops/server-actions";
+import { LOOP_VIEWS, type LoopView } from "@/plugins/loops/shared";
+import { LoopsList } from "@/plugins/loops/ui/LoopsList";
+import { reviewItems } from "@/lib/review";
+import { ReviewList } from "@/app/review/ReviewList";
+import { TodayNoteLink } from "./TodayNoteLink";
 import { peopleHome, personHref } from "@/plugins/workspace/people-database";
 import { inDaysText, upcomingTitle } from "@/plugins/people/shared";
 import { isInstalled } from "@/plugins/state";
@@ -71,17 +75,17 @@ async function heuteData() {
     // One line per chat, while the last word isn't yours; a group only when something in it is to you.
     const { whatsappChatsWaiting } = await import("@/lib/mail/store");
     for (const c of whatsappChatsWaiting(7, now))
-      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/apps/whatsapp?chat=${encodeURIComponent(c.who)}`, source: "WhatsApp" });
+      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/mail?${new URLSearchParams({ channel: "whatsapp", open: c.convId })}`, source: "WhatsApp" });
   }
   if (isInstalled("signal")) {
     const { chatsWaiting } = await import("@/lib/mail/store");
     for (const c of chatsWaiting("Signal", 7, now))
-      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/apps/signal?chat=${encodeURIComponent(c.who)}`, source: "Signal" });
+      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/mail?${new URLSearchParams({ channel: "signal", open: c.convId })}`, source: "Signal" });
   }
   if (isInstalled("teams")) {
     // One line per chat (not per message), and only while the last word isn't yours.
     const { teamsChatsWaiting } = await import("@/lib/teams/store");
-    for (const c of teamsChatsWaiting(3, now)) unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: c.link || "/teams", source: "Teams" });
+    for (const c of teamsChatsWaiting(3, now)) unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: c.link || "/mail?channel=teams", source: "Teams" });
   }
   unanswered.sort((a, b) => b.at.localeCompare(a.at));
 
@@ -247,11 +251,15 @@ const LINK_BUTTON = "text-xs text-zinc-400 hover:text-zinc-700 hover:underline d
  * the appointments of today and tomorrow morning (whom to prepare for), the todos due and overdue (ticked or dismissed here),
  * the promises due, who waits on you and whom you wait on, what is new since yesterday, and "✨ Plan my day" (the AI's time
  * blocks for the todos around the appointments, applied as suggestions into the day's plan calendar). Above it the greeting with
- * the one thing to start with; below it what else asks for you (agents, workers, reminders, open loops).
+ * the one thing to start with; below it what else asks for you (agents, workers, reminders), the review queue (#review) and the
+ * open loops (#loops).
  */
-export default async function HeutePage() {
+export default async function HeutePage({ searchParams }: { searchParams: Promise<{ loops?: string }> }) {
   await connection();
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
+  const sp = await searchParams;
+  // The review queue and the open loops are parts of Today (/review and /loops lead here).
+  const review = await reviewItems();
   const { run, asking, reportedDone, waiting, meetings, appointments, day, unanswered, hours, problems, sourceIssues, reminders, loopNudges, next, today, now } = await heuteData();
 
   const problem = problemLabels();
@@ -336,6 +344,7 @@ export default async function HeutePage() {
             <span className="block text-zinc-600 dark:text-zinc-300">{t("What Zeff found in your last 30 days — forgotten promises, what falls due, unbooked time.")}</span>
           </Link>
         )}
+        {isInstalled("workspace") && <TodayNoteLink />}
         {hours && (
           <Link href="/feierabend" className="block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
             {hours.suggestions
@@ -356,7 +365,7 @@ export default async function HeutePage() {
             {problems.map((p) => (
               <li key={p.key} className="text-sm">
                 <div className="flex flex-wrap items-baseline gap-x-2">
-                  <Link href={p.kind === "login" ? "/logins" : p.href} className="shrink-0 font-medium hover:underline">
+                  <Link href={p.kind === "login" ? "/settings/connections#sign-ins" : p.href} className="shrink-0 font-medium hover:underline">
                     {p.label}
                   </Link>
                   <span className="min-w-0 flex-1 text-red-700 dark:text-red-300">{problem[p.kind]}</span>
@@ -497,7 +506,7 @@ export default async function HeutePage() {
           <ul className="space-y-1.5 text-sm">
             {day.learned.length > 0 && (
               <li>
-                <Link href="/review" className="hover:underline">
+                <Link href="#review" className="hover:underline">
                   {day.learned.length === 1 ? t("1 thing learned about people — confirm it") : t("{n} things learned about people — confirm them", { n: day.learned.length })}
                 </Link>
                 <span className="block truncate text-xs text-zinc-500">
@@ -532,7 +541,7 @@ export default async function HeutePage() {
       )}
 
       {/* What else asks for you. */}
-      {(reportedDone.length > 0 || asking.length > 0 || reminders.length > 0 || (loopNudges && loopNudges.loops.length > 0)) && (
+      {(reportedDone.length > 0 || asking.length > 0 || reminders.length > 0) && (
         <div className="grid gap-4 xl:grid-cols-2">
           {asking.length > 0 && (
             <Section id="asking" title={t("Agents ask you")} count={asking.length}>
@@ -542,40 +551,6 @@ export default async function HeutePage() {
           {reportedDone.length > 0 && (
             <Section id="done" title={t("Reported done by workers")} count={reportedDone.length} href="/todos">
               <ul className="space-y-1.5">{reportedDone.map((x) => todo(x, <span className="shrink-0 text-xs text-emerald-600 dark:text-emerald-400">✓</span>))}</ul>
-            </Section>
-          )}
-          {loopNudges && loopNudges.loops.length > 0 && (
-            <Section id="loops" title={t("Open loops overdue")} count={loopNudges.total} href="/loops?view=overdue">
-              <ul className="space-y-1.5">
-                {loopNudges.loops.map((l) => (
-                  <li key={l.ref} className="flex items-baseline gap-2 text-sm">
-                    <span className={`shrink-0 text-xs font-medium ${l.mine ? "text-amber-700 dark:text-amber-400" : "text-sky-700 dark:text-sky-400"}`}>{l.mine ? t("I owe") : t("They owe")}</span>
-                    <Link href={l.personId ? personHref(l.personId) : "/loops?view=overdue"} className="min-w-0 flex-1 hover:underline">
-                      {l.who}: {l.text}
-                    </Link>
-                    <span className="shrink-0 text-xs text-zinc-500">{l.due || l.at.slice(0, 10)}</span>
-                    <form action={loopFormAction} className="shrink-0">
-                      <input type="hidden" name="ref" value={l.ref} />
-                      <input type="hidden" name="op" value="later" />
-                      <button className={LINK_BUTTON} title={t("Not on the Today page for a few days")}>
-                        {t("later")}
-                      </button>
-                    </form>
-                    <form action={loopFormAction} className="shrink-0">
-                      <input type="hidden" name="ref" value={l.ref} />
-                      <input type="hidden" name="op" value="close" />
-                      <button className={LINK_BUTTON} title={t("Kept or answered — closed")}>
-                        {t("done")}
-                      </button>
-                    </form>
-                  </li>
-                ))}
-              </ul>
-              {loopNudges.total > loopNudges.loops.length && (
-                <Link href="/loops?view=overdue" className="mt-1 block text-xs text-indigo-600 hover:underline dark:text-indigo-400">
-                  {t("{n} more →", { n: loopNudges.total - loopNudges.loops.length })}
-                </Link>
-              )}
             </Section>
           )}
           {reminders.length > 0 && (
@@ -601,6 +576,22 @@ export default async function HeutePage() {
             </Section>
           )}
         </div>
+      )}
+
+      {/* The review queue: everything waiting for your yes or no, from all plugins (was /review). */}
+      <section id="review" aria-labelledby="review-h" className="scroll-mt-4 space-y-2">
+        <h2 id="review-h" className="text-sm font-semibold text-zinc-500 uppercase">
+          {t("Review")}
+        </h2>
+        <p className="text-xs text-zinc-500">{t("Everything waiting for your yes or no, from all plugins. Keys (in the list): j/k or ↓/↑ to move, y yes, n no, e or Enter opens it.")}</p>
+        <ReviewList items={review.items} links={review.links} errors={review.errors} scoped />
+      </section>
+
+      {/* The open loops: what you owe, what you are owed, overdue first when there are (was /loops). */}
+      {isInstalled("loops") && (
+        <Section id="loops" title={t("Open loops")}>
+          <LoopsList initialView={(LOOP_VIEWS as readonly string[]).includes(sp.loops ?? "") ? (sp.loops as LoopView) : loopNudges?.total ? "overdue" : "all"} />
+        </Section>
       )}
     </div>
   );

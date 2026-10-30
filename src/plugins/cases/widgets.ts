@@ -4,6 +4,7 @@ import { caseHref } from "./database";
 import { caseTitle, type Case } from "./shared";
 import { openOf } from "./bank";
 import { listCases } from "./store";
+import { localDay } from "@/lib/dates";
 
 /**
  * The widgets of Cases: the money of the open cases as figures, and the payments and deadlines coming up — the Finances
@@ -11,7 +12,7 @@ import { listCases } from "./store";
  */
 
 const euro = (v: number) => v.toLocaleString(undefined, { style: "currency", currency: "EUR" });
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDay();
 const inDays = (day: string) => Math.round((Date.parse(day) - Date.parse(today())) / 864e5);
 const whenText = (day: string) => {
   const n = inDays(day);

@@ -9,7 +9,7 @@ export function LoopChip({ mine, theirs, overdue, texts }: { mine: number; their
   const tone = overdue ? "bg-red-50 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-amber-50 text-amber-800 dark:bg-amber-950 dark:text-amber-300";
   const label = [mine ? t("I owe {n}", { n: mine }) : "", theirs ? t("owed {n}", { n: theirs }) : ""].filter(Boolean).join(" · ");
   return (
-    <a href={overdue ? "/loops?view=overdue" : "/loops"} className={`shrink-0 rounded px-1.5 text-xs ${tone}`} title={texts.slice(0, 5).join("\n")}>
+    <a href={overdue ? "/heute?loops=overdue#loops" : "/heute#loops"} className={`shrink-0 rounded px-1.5 text-xs ${tone}`} title={texts.slice(0, 5).join("\n")}>
       ⟳ {label}
     </a>
   );

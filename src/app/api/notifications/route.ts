@@ -1,6 +1,7 @@
 import { isoDay } from "@/lib/text";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
+import { localDay } from "@/lib/dates";
 
 /**
  * What's worth a desktop notification right now (the launcher polls it and shows each id once):
@@ -11,7 +12,7 @@ export async function GET() {
   await connection();
   const items: { id: string; title: string; body: string; href: string; at: string }[] = [];
   const { listAttention } = await import("@/lib/attention");
-  for (const a of await listAttention()) items.push({ id: a.key, title: a.title, body: a.body.slice(0, 200), href: a.href ?? (a.kind === "login" ? "/logins" : "/heute"), at: a.at });
+  for (const a of await listAttention()) items.push({ id: a.key, title: a.title, body: a.body.slice(0, 200), href: a.href ?? (a.kind === "login" ? "/settings/connections#sign-ins" : "/heute"), at: a.at });
   const { isInstalled } = await import("@/plugins/state");
   if (isInstalled("todos")) {
     const { listTodos } = await import("@/lib/boards/store");
@@ -47,7 +48,7 @@ export async function GET() {
     const { openCommitments } = await import("@/plugins/people/graph");
     const { personHref } = await import("@/plugins/workspace/people-database");
     const now = new Date();
-    const day = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+    const day = localDay(now);
     for (const c of openCommitments().filter((x) => x.due && x.due <= day).slice(0, 5))
       items.push({
         id: `commitment:${c.id}:${day}`,

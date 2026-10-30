@@ -92,9 +92,6 @@ export function openClock(todoId: number, agent?: string | null, now = Date.now(
   return { ...c, minutes: ranMs(c, now) / 60000, state: !c.pausedAt ? "running" : c.silent ? "silent" : "waiting" };
 }
 
-/** All open clocks (the Code tab, the brief). */
-export const openClocks = (): Clock[] => Object.values(read());
-
 /**
  * The agent's own record of a stretch — for when its clock went quiet (it didn't ping): times it READ, not guessed — from its
  * session (its steps' times), or taken with `date -u +%FT%TZ` / new Date().toISOString() when it began and when it ended.

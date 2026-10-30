@@ -95,7 +95,7 @@ const template = (t: T) => `<state name="circle" value="all"/>
 
   {{#if app.toCheck}}
   <box>
-    <row gap=2 align=baseline><heading level=3>${t("To check")}</heading><grow/><button action="url" href="/review" label="${t("{n} in the review queue", { n: "{{ app.toCheck }}" })} →" variant=quiet/></row>
+    <row gap=2 align=baseline><heading level=3>${t("To check")}</heading><grow/><button action="url" href="/heute#review" label="${t("{n} in the review queue", { n: "{{ app.toCheck }}" })} →" variant=quiet/></row>
     {{#if app.confident}}
       <part name="people.tool" tool="acceptConfident" wide=true label="${t("Take all from 90 % ({n})", { n: "{{ app.confident }}" })}" title="${t("Claims and links the AI is sure of (90 % and more) — identity suggestions still wait for you.")}"/>
     {{/if}}

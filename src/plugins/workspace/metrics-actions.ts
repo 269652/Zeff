@@ -1,22 +1,14 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { errorMessage } from "@/lib/errors";
-import { isInstalled } from "@/plugins/state";
 import { evalFormula } from "./formula";
 import { defineFormulaMetric, forgetMetricValues, formatMetric, getMetric, listMetrics, metricHistory, metricValue, removeMetric, setMetricMeta, type Metric, type MetricAlert, type MetricGoal } from "./metrics";
+import { pluginAction, type Result } from "@/lib/action-result";
 
 /** The Kennzahlen page's actions (Workspace → Kennzahlen). */
 
-type Res<T = object> = ({ ok: true } & T) | { ok: false; error: string };
-const run = async <T extends object>(fn: () => T | Promise<T>): Promise<Res<T>> => {
-  try {
-    if (!isInstalled("workspace")) return { ok: false, error: "The Workspace is not installed." };
-    return { ok: true, ...(await fn()) };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-};
+type Res<T = object> = Result<T>;
+const run = pluginAction("workspace", () => "The Workspace is not installed.");
 
 export type MetricView = Metric & { shown: string; history: { day: string; value: number }[] };
 

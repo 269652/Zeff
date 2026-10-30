@@ -30,7 +30,7 @@ export default async function MailSettingsPage() {
   return (
     <div className="page">
       <div className="page-aside">
-        <Link href="/settings/all" className="text-sm text-zinc-500 hover:underline">
+        <Link href="/settings" className="text-sm text-zinc-500 hover:underline">
           ← {t("All settings")}
         </Link>
         <h1 className="text-lg font-semibold">{t("Mail settings")}</h1>
@@ -44,12 +44,12 @@ export default async function MailSettingsPage() {
         <ul className="space-y-1 text-sm">
           {gmail && (
             <li>
-              <Link href="/gmail" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Gmail accounts")}</Link>
+              <Link href="/settings/connections#gmail-accounts" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Gmail accounts")}</Link>
               <span className="text-xs text-zinc-500"> — {t("Which Gmail accounts are read")}</span>
             </li>
           )}
           <li>
-            <Link href="/sync-settings" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Sync settings")}</Link>
+            <Link href="/settings/connections#syncs" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Sync settings")}</Link>
             <span className="text-xs text-zinc-500"> — {t("How often the mail sync runs")}</span>
           </li>
           <li>

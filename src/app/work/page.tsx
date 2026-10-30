@@ -37,7 +37,7 @@ export default async function WorkPage({
   if (!isInstalled("work")) return <PluginNotInstalled id="work" />;
   const sp = await searchParams;
   // The tabs from before (todos, runs, branches, settings): their settings are on the Settings page now.
-  if (sp.tab === "settings") redirect("/settings#work");
+  if (sp.tab === "settings") redirect("/settings/time#work");
   if (sp.tab) redirect("/work");
   // The sidebar: tickets with sessions (archived ones on asking); a new session's tickets: all with work.
   const showArchived = sp.archived === "1";

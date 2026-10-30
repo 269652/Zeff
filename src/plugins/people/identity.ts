@@ -64,9 +64,6 @@ const toSuggestion = (r: Row): Suggestion => ({
 /** The proposals waiting, the surest first. */
 export const pendingSuggestions = (): Suggestion[] => (db().prepare("select * from people_suggestions where status = 'pending' order by confidence desc, id").all() as Row[]).map(toSuggestion);
 
-/** Rejected proposals, as the extraction is told what not to propose again. */
-export const rejectedSuggestions = (limit = 30): Suggestion[] => (db().prepare("select * from people_suggestions where status = 'rejected' order by decided_at desc limit ?").all(limit) as Row[]).map(toSuggestion);
-
 /** A proposal queued — once per key, whatever became of it; one still waiting gets the evidence of now. Whether it is new. */
 function propose(s: Omit<Suggestion, "id" | "createdAt"> & { key: string }): boolean {
   const r = db()

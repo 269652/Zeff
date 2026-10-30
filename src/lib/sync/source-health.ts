@@ -5,6 +5,7 @@ import { getPref, setPref } from "@/lib/prefs";
 import { syncHealthRecords } from "./health";
 import type { SyncView } from "./shared";
 import { DEFAULT_QUIET, healthLabel, healthReason, judgeStep, trackIncidents, type HealthState, type Incident, type SourceHealth } from "./source-health-shared";
+import { localDay } from "@/lib/dates";
 
 /**
  * Source health from the data (see source-health-shared.ts for how it judges): each step's runs (the sync menu's record and
@@ -55,11 +56,11 @@ export function arrivalsOf(key: string, now = Date.now()): number[] | null {
 function daysOff(now: number): Set<string> {
   const out = new Set<string>();
   try {
-    const from = new Date(now - 43 * 86400e3).toISOString().slice(0, 10);
+    const from = localDay(new Date(now - 43 * 86400e3));
     const rows = getSqlite().prepare("select start_date as s, end_date as e from absences where hours is null and end_date >= ?").all(from) as { s: string; e: string }[];
     for (const r of rows)
       for (let d = new Date(`${r.s}T12:00:00`); d <= new Date(`${r.e}T12:00:00`) && out.size < 400; d.setDate(d.getDate() + 1))
-        out.add(`${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`);
+        out.add(localDay(d));
   } catch {
     // no absences table: no days off
   }

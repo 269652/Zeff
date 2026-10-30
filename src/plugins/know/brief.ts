@@ -26,6 +26,7 @@ import { eventById, eventsBetween } from "@/lib/calendar/ir";
 import { getEntity } from "@/plugins/entities/store";
 import { openLoopsFor } from "./loops";
 import type { Brief, BriefEvent, BriefFact, BriefLink, BriefMeeting, BriefPerson, BriefStale } from "./shared";
+import { localStamp } from "@/lib/dates";
 
 /** How far back the brief reads the timeline, and how much of it shows. */
 const SINCE_DAYS = 180;
@@ -133,10 +134,7 @@ export function rowRefs(rowId: number): string[] {
   return [...out];
 }
 
-const pad = (n: number) => String(n).padStart(2, "0");
-/** A local time as the calendar keeps it: "YYYY-MM-DDTHH:MM". */
-const localAt = (d: Date) => `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-const dayOf = (d: Date) => localAt(d).slice(0, 10);
+const dayOf = (d: Date) => localStamp(d).slice(0, 10);
 
 type CalEvent = { id: number; title: string; start: string; end: string; allDay: boolean; cancelled: boolean; location: string; online: boolean; organizer: string; attendees: string[]; description: string; private: boolean; occurrence: string | null };
 
@@ -164,13 +162,13 @@ export function upcomingMeetings(opts: { now?: Date; withinMinutes?: number; sta
   const to = new Date(now.getTime() + (opts.withinMinutes ?? 30) * 60e3);
   let events: CalEvent[] = [];
   try {
-    events = eventsBetween(localAt(new Date(from.getTime() - 864e5)), localAt(new Date(to.getTime() + 864e5)));
+    events = eventsBetween(localStamp(new Date(from.getTime() - 864e5)), localStamp(new Date(to.getTime() + 864e5)));
   } catch {
     return [];
   }
   const resolver = makeResolver();
   return events
-    .filter((e) => !e.cancelled && !e.allDay && e.start >= localAt(from) && e.start <= localAt(to))
+    .filter((e) => !e.cancelled && !e.allDay && e.start >= localStamp(from) && e.start <= localStamp(to))
     .map((e) => ({ id: e.id, occurrence: e.occurrence, title: e.title, start: e.start, refs: meetingRefs(e, resolver) }))
     .filter((m) => m.refs.some((r) => r.startsWith("person:")))
     .sort((a, b) => a.start.localeCompare(b.start));

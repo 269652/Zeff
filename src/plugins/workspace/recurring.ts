@@ -1,6 +1,7 @@
 import { randomUUID } from "node:crypto";
 import { getPref, setPref } from "@/lib/prefs";
 import { addRow, getDatabase, getPage } from "./store";
+import { localDay } from "@/lib/dates";
 
 /**
  * Rows that come back by themselves: a rule per database - from a row template, every N days, on some weekdays every N weeks, or on a
@@ -30,7 +31,6 @@ export type Recurrence = {
 };
 
 const KEY = "workspace.recurring";
-const day = (d: Date) => `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
 const at = (d: Date, time: string) => {
   const m = /^(\d{2}):(\d{2})$/.exec(time);
   return new Date(d.getFullYear(), d.getMonth(), d.getDate(), m ? Number(m[1]) : 8, m ? Number(m[2]) : 0);
@@ -94,7 +94,7 @@ export function saveRecurrence(v: RecurrenceInput, now = new Date()): Recurrence
     interval: Math.max(1, Math.min(365, Math.round(Number(v.interval) || 1))),
     ...(v.unit === "week" && v.weekdays?.length ? { weekdays: [...new Set(v.weekdays.filter((d) => d >= 0 && d <= 6))].sort() } : {}),
     at: /^\d{2}:\d{2}$/.test(v.at) ? v.at : "08:00",
-    start: /^\d{4}-\d{2}-\d{2}$/.test(v.start) ? v.start : day(now),
+    start: /^\d{4}-\d{2}-\d{2}$/.test(v.start) ? v.start : localDay(now),
     ...(prop ? { dateProp: prop.id } : {}),
     ...(v.paused ? { paused: true } : {}),
     nextAt: "",
@@ -116,7 +116,7 @@ export function runDueRecurrences(now = new Date()): number {
   const rules = all();
   for (const r of rules) {
     if (r.paused || Date.parse(r.nextAt) > now.getTime()) continue;
-    const dueDay = day(new Date(r.nextAt));
+    const dueDay = localDay(new Date(r.nextAt));
     r.nextAt = (nextDue(r, now) ?? new Date(now.getTime() + 365 * 86400000)).toISOString();
     try {
       const database = getDatabase(r.db);

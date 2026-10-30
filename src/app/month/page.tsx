@@ -1,4 +1,5 @@
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { ReportToggle } from "@/components/ReportToggle";
 import { Fragment } from "react";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
@@ -119,6 +120,7 @@ export default async function MonthPage({
   return (
     <div className="page">
       <div className="page-aside">
+        <ReportToggle view="month" />
         <MonthNav month={month} by={by} reporters={listReporters()} />
       </div>
 

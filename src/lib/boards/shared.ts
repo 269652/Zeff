@@ -22,16 +22,6 @@ export const ATTENTIONS = [
 ] as const;
 export type Attention = (typeof ATTENTIONS)[number];
 
-export const ATTENTION_LABELS: Record<Attention, string> = {
-  feedback: "Open question",
-  active: "In progress",
-  check: "Testing / Review",
-  spec: "Spec",
-  blocked: "Waiting on others",
-  ready: "Ready",
-  stale: "Stalled",
-};
-
 /** The same in a language (`t`) — for what's shown. */
 export const attentionLabels = (t: T): Record<Attention, string> => ({
   feedback: t("Open question"),
@@ -378,16 +368,6 @@ export const planLine = (plan: TodoPath[]) =>
 
 /** The default instructions an agent gets for a todo (Work → Settings changes them). */
 export const AGENT_INSTRUCTION_DEFAULTS = { code: "Implement $todo.id", other: "Do $todo.id" };
-
-/**
- * What to tell an agent (Copilot, Claude Code) to do a todo — the template for code todos
- * (implement, fix, test) or the other one, with $todo.id ("T-35"), $todo.ticket and $todo.text filled in.
- */
-export const agentInstruction = (t: Pick<TodoView, "id" | "kind" | "ticket" | "text">, templates: { code: string; other: string } = AGENT_INSTRUCTION_DEFAULTS) =>
-  (["implement", "fix", "test"].includes(t.kind) ? templates.code : templates.other)
-    .replace(/\$todo\.id\b/g, () => todoRef(t.id))
-    .replace(/\$todo\.ticket\b/g, () => t.ticket)
-    .replace(/\$todo\.text\b/g, () => t.text);
 
 /** A todo's reference: "T-12". */
 export const todoRef = (id: number) => `T-${id}`;

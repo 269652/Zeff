@@ -2,6 +2,7 @@ import type { T } from "@/lib/i18n/shared";
 import type { Row } from "@/plugins/workspace/model";
 import { CIRCLES, circleLabels, type Circle } from "./shared";
 import type { PeopleOverview } from "./tools";
+import { localDay } from "@/lib/dates";
 
 /**
  * What the people view's template reads as app.* (view-template.ts): the people filtered and sorted as the view's state says
@@ -35,7 +36,7 @@ export function agoText(t: T, iso: string, now: number): string {
 type Sort = "name" | "quiet" | "recent" | "next" | "todos";
 
 /** The day `days` from `now` (ISO). */
-const dayFrom = (now: number, days = 0) => new Date(now + days * 864e5).toISOString().slice(0, 10);
+const dayFrom = (now: number, days = 0) => localDay(new Date(now + days * 864e5));
 
 export function peopleAppData(o: PeopleOverview, rows: Row[], v: { t: T; state: Record<string, string>; now: number; locale?: string }): Record<string, unknown> {
   const { t, state, now, locale } = v;

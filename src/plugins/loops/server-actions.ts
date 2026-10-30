@@ -64,20 +64,6 @@ export async function decideLoopAction(ref: string, op: LoopOp): Promise<{ ok: t
   }
 }
 
-/** The open loops of messages (their source refs: "mail:<key>", "teams:<key>" …) — the chips in the inbox and the chats. */
-export async function loopsOfMessagesAction(sourceRefs: string[]): Promise<Record<string, { direction: Loop["direction"]; kind: Loop["kind"]; text: string; overdue: boolean }[]>> {
-  try {
-    if (off() || !sourceRefs.length) return {};
-    const want = new Set(sourceRefs.slice(0, 500).map(String));
-    const { listLoops } = await import("./query");
-    const out: Record<string, { direction: Loop["direction"]; kind: Loop["kind"]; text: string; overdue: boolean }[]> = {};
-    for (const l of listLoops({})) if (want.has(l.sourceRef)) (out[l.sourceRef] ??= []).push({ direction: l.direction, kind: l.kind, text: l.text, overdue: l.overdue });
-    return out;
-  } catch {
-    return {};
-  }
-}
-
 /** A form's word on a loop (the Today page's nudges): `ref`, `op` (later, close), back to `to`. */
 export async function loopFormAction(fd: FormData): Promise<void> {
   const { revalidatePath } = await import("next/cache");

@@ -29,6 +29,7 @@ import { resolvedCommentIds } from "@/lib/resolved";
 import { listTodos } from "./store";
 import { planLine, type BoardRunView, type BoardTicket } from "./shared";
 import { pushTo } from "@/lib/collections";
+import { localDay } from "@/lib/dates";
 
 const { timeEntries, contexts, entryContexts, teamsMessages, gitlabItems } =
   schema;
@@ -156,7 +157,7 @@ const refOf = (e: Entity) =>
 /** What Zeff knows of a ticket: bookings, context, Teams, GitLab. `cited`: refs given already (the comments' originals) — not again. */
 function zeffLines(key: string, cited = new Set<string>()): string[] {
   const db = getDb();
-  const since = new Date(Date.now() - 45 * 864e5).toISOString().slice(0, 10);
+  const since = localDay(new Date(Date.now() - 45 * 864e5));
   const lines: string[] = [];
   const booked = db
     .select({

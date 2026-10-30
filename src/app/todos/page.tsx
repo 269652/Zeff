@@ -5,13 +5,15 @@ import { LagePage, type LageSearch } from "@/components/boards/LagePage";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 
-export async function generateMetadata(): Promise<Metadata> {
-  return { title: t("Todos") };
+export async function generateMetadata({ searchParams }: { searchParams: Promise<LageSearch> }): Promise<Metadata> {
+  return { title: (await searchParams).part === "tickets" ? t("Tickets") : t("Todos") };
 }
 
-/** Todos (Todos plugin): your todos from the Ticket-Lage — done, activity — and the recap of a day. */
+/** Todos (Todos plugin): your todos from the Ticket-Lage — done, activity —, the same per ticket (?part=tickets, Tickets plugin) and the recap of a day. */
 export default async function TodosPage({ searchParams }: { searchParams: Promise<LageSearch> }) {
   await connection();
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
-  return LagePage({ searchParams, part: "todos" });
+  const sp = await searchParams;
+  const tickets = sp.part === "tickets" && isInstalled("tickets");
+  return LagePage({ searchParams: Promise.resolve(sp), part: tickets ? "tickets" : "todos" });
 }

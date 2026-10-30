@@ -7,19 +7,11 @@ import { isInstalled } from "@/plugins/state";
 import { personBundle, personOfRow, personOp, type PersonBundle, type PersonOperation } from "./blocks";
 import { getPerson, rememberEntity } from "./store";
 import { currentAccountId } from "@/db/accounts";
+import { pluginAction, type Result } from "@/lib/action-result";
 
 /** What the blocks of a person's page call: the bundle of what is known, an operation, what the knowledge knows. None throws at the page. */
 
-type Result<T = unknown> = ({ ok: true } & T) | { ok: false; error: string };
-
-async function run<T extends object>(fn: () => T | Promise<T>): Promise<Result<T>> {
-  try {
-    if (!isInstalled("people")) throw new Error(t("The People plugin is not installed (Menu → Plugins)."));
-    return { ok: true, ...(await fn()) };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-}
+const run = pluginAction("people", () => t("The People plugin is not installed (Menu → Plugins)."));
 
 const personId = (rowId: number): number => {
   const id = personOfRow(Number(rowId));

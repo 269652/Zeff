@@ -10,6 +10,6 @@ export default definePlugin({
   category: "app",
   defaultInstalled: false,
   dependsOn: ["people"],
-  apps: [{ href: "/loops", label: "Open loops", short: "Loops", hint: "What you owe, what you are owed" }],
+  // A part of Today (/heute#loops; /loops leads there) — no app of its own.
   routes: ["/loops"],
 });

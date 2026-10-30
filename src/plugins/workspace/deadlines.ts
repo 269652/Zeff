@@ -1,6 +1,7 @@
 import { getSqlite } from "@/db";
 import { dateRange, normalizeSchema, type Row } from "./model";
 import { getPage, rawRows } from "./store";
+import { localDay } from "@/lib/dates";
 
 /**
  * The deadline radar (the Workspace plugin): every date field set to remind (`remind`: so many days before) in any database —
@@ -14,7 +15,7 @@ const DAY = 864e5;
 const dayOf = (iso: string) => Date.parse(`${iso.slice(0, 10)}T00:00:00Z`);
 
 /** The deadlines within their reminder (and the past ones), the nearest first. `today`: YYYY-MM-DD. */
-export function deadlines(today = new Date().toISOString().slice(0, 10)): Deadline[] {
+export function deadlines(today = localDay()): Deadline[] {
   let dbs: { id: number; title: string; schema: string | null }[] = [];
   try {
     dbs = getSqlite().prepare("select id, title, schema from ws_pages where kind = 'database' and archived_at is null and schema like '%\"remind\"%'").all() as typeof dbs;

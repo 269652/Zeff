@@ -26,7 +26,7 @@ export async function pullSignalHistoryAction(chat: string): Promise<{ ok: boole
   if (!name) return { ok: false, error: t("Which chat?") };
   const { pullSignalHistory } = await import("./history");
   const r = await pullSignalHistory(name);
-  revalidatePath("/apps/signal");
+  revalidatePath("/mail");
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
 }
 
@@ -35,7 +35,7 @@ export async function startSignalAction(): Promise<ActionState> {
   if (!isInstalled("signal")) return notInstalled();
   const { openSignal } = await import("./open");
   const r = await openSignal();
-  revalidatePath("/apps/signal");
+  revalidatePath("/mail");
   return r.ok ? { ok: true, message: r.message } : { ok: false, error: r.message };
 }
 
@@ -45,7 +45,7 @@ export async function setupSignalAutostartAction(): Promise<ActionState> {
   try {
     const { setupSignalAutostart } = await import("./autostart");
     const r = await setupSignalAutostart();
-    revalidatePath("/apps/signal");
+    revalidatePath("/mail");
     return r.withPort ? { ok: true, message: t("Signal now starts with its debug port after every login.") } : { ok: false, error: t("Signal's autostart couldn't be set up here (Windows only).") };
   } catch (e) {
     return { ok: false, error: errorMessage(e).slice(0, 300) };

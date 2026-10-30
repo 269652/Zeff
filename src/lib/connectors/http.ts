@@ -6,6 +6,7 @@ import { t } from "@/lib/i18n/server";
 import { accessToken } from "./oauth";
 import { PROVIDERS } from "./providers";
 import type { Provider } from "./store";
+import { sleep } from "@/lib/abort";
 
 export type ApiResponse<T = unknown> = { status: number; body: T; headers: Headers };
 
@@ -16,7 +17,6 @@ export const apiBase = (provider: "google" | "microsoft"): string =>
 const RATE_RETRIES = 5;
 /** The first wait after "too many requests" (doubles each time; the service's Retry-After wins, up to 30 s). */
 const retryBaseMs = () => Number(process.env.ZEFF_API_RETRY_MS) || 1000;
-const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Google answers a rate limit with 429, or with 403 and a reason like rateLimitExceeded / userRateLimitExceeded; Graph with 429 / 503. */
 function rateLimited(status: number, body: unknown): boolean {

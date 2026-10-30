@@ -1,6 +1,7 @@
 import { createSign, randomUUID } from "node:crypto";
 import { getPref, setPref } from "@/lib/prefs";
 import { addBookings, type Booking } from "./bank";
+import { localDay } from "@/lib/dates";
 
 /**
  * The bank connection (the Cases plugin): your account's bookings fetched through Enable Banking, an Open Banking service
@@ -102,7 +103,7 @@ export async function syncBank(opts: { fetch?: Fetch } = {}): Promise<{ added: n
   const s = bankSettings();
   if (!s || !bankConnected()) throw new Error("The bank isn't connected.");
   if (s.validUntil && s.validUntil < new Date().toISOString()) throw new Error("The bank's access has expired — connect again.");
-  const from = new Date(s.lastSync ? Date.parse(s.lastSync) - 7 * 864e5 : Date.now() - 90 * 864e5).toISOString().slice(0, 10);
+  const from = localDay(new Date(s.lastSync ? Date.parse(s.lastSync) - 7 * 864e5 : Date.now() - 90 * 864e5));
   let added = 0;
   let total = 0;
   for (const uid of s.accounts) {

@@ -1,4 +1,5 @@
 import { getSqlite } from "@/db";
+import { localDay } from "@/lib/dates";
 import { t } from "@/lib/i18n/server";
 import type { WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
 
@@ -48,7 +49,7 @@ export const TODOS_WIDGETS: WorkspaceWidget[] = [
       const q = String(config.q ?? "").trim().toLowerCase();
       const ticket = String(config.ticket ?? "").trim().toUpperCase();
       const status = config.status === "done" || config.status === "all" ? config.status : "open";
-      const today = new Date().toISOString().slice(0, 10);
+      const today = localDay();
       const all = listTodos({ status, ...(ticket ? { ticket } : {}) }).filter((x) => !x.byWorker && (!q || `${x.ref} ${x.text} ${x.ticket}`.toLowerCase().includes(q)));
       const items = all.slice(0, Number(config.limit) || 10).map((x) => ({
         id: String(x.id),

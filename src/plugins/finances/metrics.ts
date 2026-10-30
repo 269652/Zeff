@@ -5,13 +5,14 @@ import { monthlyIncome } from "./income";
 import { bookingsBetween, creditPayments, lastThreeMonths, markedAccounts, type AccountKind } from "./accounts";
 import { movedOnly } from "./insights";
 import { recipientKey } from "./recurring";
+import { localDay } from "@/lib/dates";
 
 /**
  * The Finances plugin's Kennzahlen (metric-point.ts): what its overview shows, by name — kennzahl("Tilgungsrate") in a
  * formula, @Schuldenstand in a page. Read now, from the debts, the income, the fixed costs and the bank statements.
  */
 
-const today = () => new Date().toISOString().slice(0, 10);
+const today = () => localDay();
 const href = () => {
   const db = debtsDbId();
   return db ? `/workspace/${db}` : undefined;

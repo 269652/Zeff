@@ -9,6 +9,7 @@ import { answerOpenQuestions } from "./questions";
 import { BOARD_RESULT_SCHEMA, isAttention, TICKET_ACTION_TYPES, type BoardResult, type BoardTicket } from "./shared";
 import { closeTodosOfDoneTickets, finishRun, getBoardSettings, lastGoodRun, reconcileTodos, startRun } from "./store";
 import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
+import { localDay } from "@/lib/dates";
 
 /** What a run is doing right now — one at a time per account (each runs its own; kept across the server's module copies: lib/sync/account-flags.ts). */
 type BoardRunNow = { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "documents" | "docrelations" | "knowledge" | "people" | "autoactions"; since: number; provider: string };
@@ -197,7 +198,7 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
             if ((await import("@/plugins/cases/bank-sync")).bankConnected()) await (await import("@/plugins/cases/bank-sync")).syncBank().catch((e) => console.error("[cases] the bank:", errorMessage(e)));
             if ((await import("@/plugins/state")).isInstalled("revolut")) (await import("@/plugins/revolut/statement")).importStatementDocuments();
             bank.matchPayments();
-            bank.overdueWarnings(new Date().toISOString().slice(0, 10));
+            bank.overdueWarnings(localDay());
             // Your income as the knowledge read it off your statements (it compiles them as a source of its own).
             if ((await import("@/plugins/state")).isInstalled("finances")) await (await import("@/plugins/finances/income")).refreshIncome();
           } catch (e) {

@@ -12,7 +12,4 @@ export function initials(name: string | null | undefined): string {
   return two.toLocaleUpperCase("de").replace(/[^A-ZÄÖÜ]/g, "").slice(0, 2);
 }
 
-export const clip = (s: string | null | undefined, n: number) => {
-  const v = (s ?? "").replace(/\s+/g, " ").trim();
-  return v.length > n ? `${v.slice(0, n - 1)}…` : v;
-};
+export { flatTruncate as clip } from "@/lib/text";

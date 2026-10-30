@@ -6,14 +6,15 @@ import { useT } from "@/components/I18nProvider";
 import { useGrant } from "@/components/PluginFlags";
 import { gmailRowChangeAction } from "@/plugins/gmail/server-actions";
 import { draftRowReplyAction, rowActionAction } from "@/plugins/workspace/actions";
+import { inboxDraftReplyAction, inboxGmailChangeAction, inboxReplyAction } from "@/app/mail/actions";
 
 /**
  * A reply to a mail: to, subject, text — written, or drafted by the AI from the conversation — opened as a draft in
  * Outlook (Gmail) to send there (Zeff's mail action: you send it yourself). Gmail, once Google holds Gmail's write access:
  * sent from here on your click (or saved in Gmail's drafts), in the mail's conversation — and the conversation archived or
- * marked unread.
+ * marked unread. For a Workspace row (`rowId`) or a conversation of the inbox (`conv`, its newest message `mailKey`).
  */
-export function MailReply({ rowId, account, to: to0, subject: subject0 }: { rowId: number; account: string; to: string; subject: string }) {
+export function MailReply({ rowId, conv, account, to: to0, subject: subject0 }: { rowId?: number; conv?: { id: string; mailKey: string }; account: string; to: string; subject: string }) {
   const t = useT();
   const [open, setOpen] = useState(false);
   const [to, setTo] = useState(to0);
@@ -24,7 +25,7 @@ export function MailReply({ rowId, account, to: to0, subject: subject0 }: { rowI
   const api = account === "Gmail" && gmailSends;
   const draft = async () => {
     setBusy(true);
-    const r = await draftRowReplyAction(rowId);
+    const r = rowId != null ? await draftRowReplyAction(rowId) : await inboxDraftReplyAction({ channel: account, to: to0, subject: subject0, conv: conv?.id ?? "" });
     setBusy(false);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     setBody(r.text);
@@ -34,7 +35,8 @@ export function MailReply({ rowId, account, to: to0, subject: subject0 }: { rowI
   const send = async (mode?: "send" | "draft") => {
     if (mode === "send" && !window.confirm(t("Send this mail to {to} now?", { to }))) return;
     setBusy(true);
-    const r = await rowActionAction(rowId, { type: account === "Gmail" ? "gmail-compose" : "mail-compose", to, subject, body }, mode);
+    const op = { type: account === "Gmail" ? "gmail-compose" : "mail-compose", to, subject, body };
+    const r = rowId != null ? await rowActionAction(rowId, op, mode) : await inboxReplyAction(conv?.id ?? "", conv?.mailKey ?? "", op, mode);
     setBusy(false);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     if (r.href) window.open(r.href, "_blank");
@@ -46,7 +48,7 @@ export function MailReply({ rowId, account, to: to0, subject: subject0 }: { rowI
   };
   const change = async (what: "archive" | "unread") => {
     setBusy(true);
-    const r = await gmailRowChangeAction(rowId, what);
+    const r: { ok: boolean; message?: string; error?: string } | null = rowId != null ? await gmailRowChangeAction(rowId, what) : await inboxGmailChangeAction(conv?.id ?? "", what);
     setBusy(false);
     toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
   };

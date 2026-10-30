@@ -32,15 +32,9 @@ const menuEntries = (t: T) => [
   { href: "/tags", label: t("Tags"), hint: t("Tags & entry types") },
   { href: "/context", label: t("Context"), hint: t("Colleagues' messages & links") },
   { href: "/mcp", label: "MCP", hint: t("Connect an agent") },
-  { href: "/preferences", label: t("Settings"), hint: t("AI provider") },
   { href: "/first-look", label: t("Your first look"), hint: t("What Zeff found in your last 30 days") },
   { href: "/privacy/boundaries", label: t("Data flows"), hint: t("Where each source and database flows — personal, secret, into the Lage") },
   { href: "/settings/mail", label: t("Mail settings"), hint: t("Folders, attachments → Documents") },
-  { href: "/settings/prompts", label: t("Prompts"), hint: t("What the AI reads at each step") },
-  { href: "/settings/ai-quality", label: t("AI quality"), hint: t("Which AI step is useful") },
-  { href: "/sync-settings", label: t("Sync settings"), hint: t("How often each sync runs") },
-  { href: "/logins", label: t("Browser sign-ins"), hint: t("Logins in the automation Chrome") },
-  { href: "/settings/connections", label: t("Connections"), hint: t("Chrome or API, per service") },
   { href: "/plugins", label: t("Plugins"), hint: t("Connectors & AI tools") },
 ];
 
@@ -93,11 +87,11 @@ export function SiteHeader({
   // The menu: the apps, the installed plugins' pages (a group each), then Zeff's own.
   // (An entry a group already has - Settings' /settings/mail, /settings/connections … - is not listed twice.)
   const grouped = new Set([...pluginGroups, ...(settingsGroup ? [settingsGroup] : [])].flatMap((g) => g.items.map((i) => i.href.split("#")[0])));
-  const zeff = inOrder(menuEntries(t), (l) => l.href, order).filter((l) => !(settingsGroup && l.href === "/preferences") && !grouped.has(l.href.split("#")[0]));
+  const zeff = inOrder(menuEntries(t), (l) => l.href, order).filter((l) => !grouped.has(l.href.split("#")[0]));
   const menu = [...apps.filter((a) => a.place === "menu"), ...pluginGroups.flatMap((g) => g.items), ...(settingsGroup?.items ?? []), ...zeff];
-  // The command palette finds every page the menu has (the hidden ones too).
+  // The command palette finds every page the menu has (the hidden ones too) — each once (a section's link counts as its page).
   const palettePages = [...apps, ...pluginGroups.flatMap((g) => g.items), ...(settingsGroup?.items ?? []), ...menuEntries(t)]
-    .filter((l, i, all) => all.findIndex((x) => x.href === l.href) === i)
+    .filter((l, i, all) => all.findIndex((x) => x.href.split("#")[0] === l.href.split("#")[0]) === i)
     .map((l) => ({ id: l.href, label: l.label, hint: l.hint, href: l.href, group: "Pages" }));
   const pathname = usePathname();
   const router = useRouter();
@@ -193,7 +187,8 @@ export function SiteHeader({
   const [shownFor, setShownFor] = useState(pathname);
   const burger = useRef<HTMLButtonElement>(null);
   const panel = useRef<HTMLDivElement>(null);
-  const isAt = (href: string) => pathname === href.split("#")[0] || pathname.startsWith(`${href.split("#")[0]}/`);
+  // (The settings overview is only itself — every settings page is under /settings/.)
+  const isAt = (href: string) => pathname === href.split("#")[0] || (href !== "/settings" && pathname.startsWith(`${href.split("#")[0]}/`));
   const inMenu = menu.find((l) => isAt(l.href));
   // The plugin you're on: its group open.
   const [expanded, setExpanded] = useState<Set<string>>(() => new Set([...pluginGroups, ...(settingsGroup ? [settingsGroup] : [])].filter((g) => g.items.some((i) => isAt(i.href))).map((g) => g.id)));

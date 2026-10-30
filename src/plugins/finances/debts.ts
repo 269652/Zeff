@@ -10,6 +10,7 @@ import { casePayment, type CasePayment } from "@/plugins/cases/payments";
 import { DEBT } from "./fields";
 import type { Direction } from "./own";
 import { schedule, summarize, type PlanSummary, type Schedule } from "./plans";
+import { localDay } from "@/lib/dates";
 
 /**
  * Your debts and what you are owed, with their payment plans (the Finances plugin), read off the debts database — your own rows
@@ -109,7 +110,7 @@ function planOf(r: Row, today: string): DebtPlan | null {
 }
 
 /** The debts of one direction (you owe them — or, "owed", what you are owed) with their plans, and the plans together. */
-export function debtPlans(today = new Date().toISOString().slice(0, 10), dir: Direction = "owe"): { debts: DebtPlan[]; summary: PlanSummary } {
+export function debtPlans(today = localDay(), dir: Direction = "owe"): { debts: DebtPlan[]; summary: PlanSummary } {
   const db = debtsDbId();
   const debts = db ? rawRows(db).flatMap((r) => planOf(r, today) ?? []).filter((d) => d.dir === dir) : [];
   // The next due first, those without a day last.

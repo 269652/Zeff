@@ -1,5 +1,5 @@
 import { parseLocalDateTime } from "@/lib/calendar/meetings";
-import { pad2 as two } from "@/lib/text";
+import { localStamp } from "@/lib/dates";
 
 /**
  * Where the appointments the actions review suggests go: into a free time from the one asked for — clear of my appointments and of
@@ -15,7 +15,6 @@ export const PRIVATE_WINDOW: Window = { workdays: false, from: 8, to: 21 };
 /** At most this many suggested appointments a day. */
 export const SUGGESTIONS_PER_DAY = 3;
 
-const localStamp = (d: Date) => `${d.getFullYear()}-${two(d.getMonth() + 1)}-${two(d.getDate())}T${two(d.getHours())}:${two(d.getMinutes())}`;
 const dayKey = (d: Date) => `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
 
 /**

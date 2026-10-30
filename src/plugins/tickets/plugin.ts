@@ -9,8 +9,6 @@ export default definePlugin({
   category: "app",
   defaultInstalled: true,
   dependsOn: ["todos"],
-  tabs: [
-    { href: "/tickets", label: "Tickets", short: "Tickets" },
-  ],
+  // No tab of its own: a toggle inside Todos (/todos?part=tickets; /tickets redirects there).
   routes: ["/tickets"],
 });

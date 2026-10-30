@@ -1,4 +1,5 @@
 import type { Condition } from "./routines";
+import { localDay } from "@/lib/dates";
 
 /**
  * Conditions and templates of the routines' steps — on a record (the row in hand: its fields by name, lower case) as a filter's
@@ -36,8 +37,6 @@ export function conditionHolds(cond: Condition | undefined, rec: RecordOf): bool
 
 export type TemplateContext = { row?: RecordOf; trigger?: { kind: string }; payload?: Record<string, string>; now?: Date };
 
-const ymd = (d: Date) => d.toISOString().slice(0, 10);
-
 /** A text with its `{{…}}` placeholders filled in; what is unknown becomes empty. */
 export function fillTemplate(text: string, ctx: TemplateContext): string {
   const now = ctx.now ?? new Date();
@@ -46,7 +45,7 @@ export function fillTemplate(text: string, ctx: TemplateContext): string {
     const dot = key.indexOf(".");
     const head = (dot < 0 ? key : key.slice(0, dot)).toLowerCase();
     const rest = dot < 0 ? "" : key.slice(dot + 1).trim().toLowerCase();
-    if (head === "today" && dot < 0) return ymd(now);
+    if (head === "today" && dot < 0) return localDay(now);
     if (head === "now" && dot < 0) return now.toISOString();
     if (head === "row") return String(ctx.row?.[rest] ?? "");
     if (head === "trigger") return rest === "kind" ? (ctx.trigger?.kind ?? "") : "";

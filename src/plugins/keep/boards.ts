@@ -151,14 +151,6 @@ export function listOwnNotes(boardId: number, { q = "", archived = false }: { q?
   return rows.map((r) => toOwn(r, board?.name ?? null));
 }
 
-/** Your notes on the boards that go into the knowledge (archived notes too — as Google Keep's do; not those of archived boards). */
-export function knowledgeOwnNotes(): NoteView[] {
-  const rows = db()
-    .prepare("select n.*, b.name board_name from keep_own_notes n join keep_boards b on b.id = n.board_id where b.archived = 0 and b.in_knowledge = 1 order by n.updated_at desc")
-    .all() as (OwnRow & { board_name: string })[];
-  return rows.map((r) => toOwn(r, r.board_name));
-}
-
 /** All your notes on the boards in the Lage (not archived) — the Lage's and the Durchsicht's. */
 export function lageOwnNotes(): NoteView[] {
   const rows = db()
@@ -298,11 +290,6 @@ export function notesByRefs(refs: string[]): NoteView[] {
   }
   if (wanted.length > own.length) for (const n of allKeepNotes({ linked: true })) if (wanted.includes(`keep:${n.id}`)) out.set(`keep:${n.id}`, googleView(n));
   return wanted.flatMap((r) => (out.has(r) ? [out.get(r)!] : []));
-}
-
-/** Every note the Lage may read: your boards in the Lage, and Google Keep's (not archived). */
-export function lageNotes(): NoteView[] {
-  return [...lageOwnNotes(), ...allKeepNotes().filter((n) => !n.archived).map(googleView)];
 }
 
 /** A note as a todo's source (client-safe brief). */

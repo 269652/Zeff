@@ -111,7 +111,7 @@ export default async function CalendarPage({
           ),
           {
             rules: (s) => (
-              <Link href="/settings" className="underline">
+              <Link href="/settings/time#meetings" className="underline">
                 {s}
               </Link>
             ),
