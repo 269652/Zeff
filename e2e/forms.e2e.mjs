@@ -43,7 +43,8 @@ test("forms: a form with the database's rows ticks a row's checkbox in place, an
 test("forms: “Make a form from this table” in the ⋯ menu makes a form asking every column and opens it", (t) =>
   withPage(t, async (page) => {
     await open(page, `/workspace/${SEED.dbId}`);
-    await page.getByRole("button", { name: rx("More", "Mehr") }).first().click();
+    // (The table's own ⋯ — the sidebar's and the page's ⋯ come before it.)
+    await page.locator("main").getByRole("button", { name: /^(More|Mehr)$/ }).last().click();
     await page.getByRole("menuitem", { name: rx("Make a form from this table", "Formular aus dieser Tabelle machen") }).click();
     await page.waitForURL((u) => /\/workspace\/\d+$/.test(u.pathname) && !u.pathname.endsWith(`/${SEED.dbId}`), { timeout: 60_000 });
     // The designer's canvas: the title and both columns as fields.
@@ -64,7 +65,8 @@ test("forms: “New with a form …” makes the entry form, and a board column'
       await page.keyboard.press("Escape");
       await page.getByRole("button", { name: rx("New", "Neu"), exact: true }).first().click();
     }
-    const dialog = page.getByRole("dialog");
+    // (Not the closed site menu: it is a dialog too, inert and off-screen.)
+    const dialog = page.locator('[role="dialog"]:not(#site-menu)');
     await dialog.getByLabel("Fällig").waitFor({ timeout: 20_000 }).catch(() => {
       throw new Error("The entry form opened by “New with a form …” doesn't ask the date column.");
     });
@@ -76,7 +78,7 @@ test("forms: “New with a form …” makes the entry form, and a board column'
     await dialog.getByLabel("Status").waitFor({ timeout: 20_000 });
     assert.equal(await dialog.getByLabel("Status").inputValue(), "e2eDone", "the status isn't the column's");
     const title = `Aus der Spalte ${Date.now()}`;
-    await dialog.getByLabel(/Aufgabe/).fill(title);
+    await dialog.getByRole("textbox", { name: /^Aufgabe/ }).fill(title); // (the form is named after the board: "E2E Aufgabenboard – Form")
     await dialog.getByRole("button", { name: rx("Send", "Senden") }).click();
     await page.locator(".ws-column", { hasText: "Erledigt" }).getByText(title).waitFor({ timeout: 20_000 }).catch(() => {
       throw new Error(`The row "${title}" isn't in the column "Erledigt".`);
