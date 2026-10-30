@@ -240,6 +240,9 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
     const end = c.pos + c.node.nodeSize + Fragment.from(nodes).size;
     tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(end, tr.doc.content.size)), 1));
     view.dispatch(tr);
+    // Into the editor, so the browser's caret goes there too: left where it was (the editor didn't have the focus — Apply had),
+    // a click back on that same spot changes nothing the editor sees, and it keeps thinking the caret is after the new blocks.
+    view.focus();
     setLive(t("Set up: {summary}. Ctrl+Z takes back what went into the page.", { summary: r.summary }));
   };
 
