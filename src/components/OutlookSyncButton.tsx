@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { syncOutlookAction } from "@/plugins/outlook-calendar/server-actions";
+import { syncOutlookAction } from "@/plugins/outlook/calendar-actions";
 import { formatDateTime, formatFull } from "@/lib/format";
 import type { ActionState } from "@/app/action-helpers";
 import { useT } from "@/components/I18nProvider";

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { useT } from "@/components/I18nProvider";
-import { pollDeviceCodeAction, startDeviceCodeAction, type DeviceCodeInfo } from "@/plugins/outlook-calendar/server-actions";
+import { pollDeviceCodeAction, startDeviceCodeAction, type DeviceCodeInfo } from "@/plugins/outlook/calendar-actions";
 
 type Phase = "idle" | "starting" | "waiting" | "done" | "error";
 

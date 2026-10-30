@@ -5,7 +5,7 @@ export default definePlugin({
   id: "zeiterfassung",
   order: 10,
   name: "Time tracking",
-  description: "The foundation of booking: jobs and projects, working hours and absences, the analysis of your entries. The weekly and monthly reports and the time-sheet systems build on it.",
+  description: "Booking your time: jobs and projects, working hours and absences, the analysis of your entries — with the weekly and the monthly report as its parts. The time-sheet systems build on it.",
   category: "app",
   defaultInstalled: true,
   settings: { href: "/settings", what: "Working hours, absences, rules for meetings and reports" },
@@ -17,4 +17,25 @@ export default definePlugin({
     { href: "/feierabend", label: "End of day", hint: "Book the day in one click" },
   ],
   routes: ["/jobs", "/projects", "/settings", "/analysis", "/feierabend"],
+  // The reports were plugins of their own: they keep their ids (and what you set for them).
+  features: [
+    {
+      id: "weekly-report",
+      order: 20,
+      name: "Weekly report",
+      description: "Booking with the week in view: hours per job and day, breaks, flex time, the week's report, suggestions and “Done today” to take over.",
+      defaultInstalled: true,
+      tabs: [{ href: "/", label: "Weekly report", short: "Weekly", also: ["/entries", "/export"] }],
+      routes: ["/"],
+    },
+    {
+      id: "monthly-report",
+      order: 30,
+      name: "Monthly report",
+      description: "The month as a calendar and per job: what's booked, what's missing, what's approved.",
+      defaultInstalled: true,
+      tabs: [{ href: "/month", label: "Monthly report", short: "Monthly" }],
+      routes: ["/month"],
+    },
+  ],
 });

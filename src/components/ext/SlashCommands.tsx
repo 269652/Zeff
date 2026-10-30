@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useMemo, useRef, useState, type RefObject } from "react";
-import { listWorkCommandsAction } from "@/plugins/ext/actions";
+import { listWorkCommandsAction } from "@/lib/ext/actions";
 import { useT } from "../I18nProvider";
 
 type Command = { id: string; plugin: string; label: string; description: string; template: string };

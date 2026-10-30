@@ -371,7 +371,7 @@ test("panel files are served sandboxed, from ui/ only, and only while the plugin
 });
 
 test('the "/" commands reach the message box through the server action', async () => {
-  const { listWorkCommandsAction } = await import("@/plugins/ext/actions");
+  const { listWorkCommandsAction } = await import("@/lib/ext/actions");
   const cmds = await listWorkCommandsAction();
   assert.ok(cmds.some((c) => c.id === "work-p:review" && c.template === "Review {{x}}"));
 });

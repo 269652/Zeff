@@ -2,7 +2,7 @@
 
 import { FormError } from "@/components/FormError";
 import { useActionState } from "react";
-import { pasteEventsAction } from "@/plugins/outlook-calendar/server-actions";
+import { pasteEventsAction } from "@/plugins/outlook/calendar-actions";
 import type { ActionState } from "@/app/action-helpers";
 import { useT } from "@/components/I18nProvider";
 import { SubmitButton } from "./SubmitButton";

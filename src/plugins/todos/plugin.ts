@@ -17,4 +17,16 @@ export default definePlugin({
   nav: [{ href: "/review", label: "Review", hint: "Everything waiting for your yes or no" }],
   routes: ["/heute", "/todos", "/t", "/api/boards"],
   syncSteps: ["boards", "recap"],
+  // Tickets was a plugin of its own: it keeps its id (and what you set for it).
+  features: [
+    {
+      id: "tickets",
+      order: 50,
+      name: "Tickets",
+      description: "The Tickets tab: the briefing per ticket — where it stands, what happened, its todos, comments, mails, merge requests and suggested actions — filterable by state. Builds on Todos (the same briefing run).",
+      defaultInstalled: true,
+      tabs: [{ href: "/tickets", label: "Tickets", short: "Tickets" }],
+      routes: ["/tickets"],
+    },
+  ],
 });

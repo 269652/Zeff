@@ -19,7 +19,6 @@ import "./people/server";
 import "./revolut/server";
 import "./timeline/server";
 import "./todos/server";
-import "./weekly-report/server";
 import "./work/server";
 import "./workspace/server";
 import "./zeiterfassung/server";

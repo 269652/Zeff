@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
-import { importMeetingsAction } from "@/plugins/outlook-calendar/server-actions";
+import { importMeetingsAction } from "@/plugins/outlook/calendar-actions";
 import type { ActionState } from "@/app/action-helpers";
 import type { MeetingFlag } from "@/lib/calendar/meetings";
 import type { CalendarDay, CalendarEvent, CalendarEventState } from "@/lib/calendar/week-view";

@@ -2,7 +2,7 @@
 
 import { EmptyState } from "@/components/EmptyState";
 import { useState, useTransition } from "react";
-import { importMeetingsAction } from "@/plugins/outlook-calendar/server-actions";
+import { importMeetingsAction } from "@/plugins/outlook/calendar-actions";
 import { setMeetingExcludedAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { isExcludedMeeting, jobForMeeting, type Meeting, type MeetingFlag, type MeetingJobRule } from "@/lib/calendar/meetings";

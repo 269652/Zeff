@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { setExtPluginEnabledAction } from "@/plugins/ext/actions";
+import { setExtPluginEnabledAction } from "@/lib/ext/actions";
 
 /**
  * Turn an external plugin on or off. Turning on asks first, naming what it may do (its manifest's
