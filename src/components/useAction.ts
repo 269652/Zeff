@@ -15,8 +15,10 @@ type ActionResult = { ok: boolean; error?: string; message?: string } | null | u
  *   done      the toast for a success that has no message of its own ("Done.")
  *   fallback  the toast for a failure that has no error of its own (default "That didn't work.")
  *   refresh   refresh the route afterwards (default yes)
+ *   toastErrors  a failure as a toast (default yes; no: the caller shows `error` itself)
+ * `start` is the same transition, for the component's other work (one `pending`).
  */
-export function useAction<R extends ActionResult = ActionResult>({ quiet = [], done, fallback, refresh = true }: { quiet?: string[] | true; done?: string; fallback?: string; refresh?: boolean } = {}) {
+export function useAction<R extends ActionResult = ActionResult>({ quiet = [], done, fallback, refresh = true, toastErrors = true }: { quiet?: string[] | true; done?: string; fallback?: string; refresh?: boolean; toastErrors?: boolean } = {}) {
   const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -25,6 +27,7 @@ export function useAction<R extends ActionResult = ActionResult>({ quiet = [], d
     new Promise<boolean>((resolve) => {
       start(async () => {
         let r: ActionResult;
+        setError(null);
         try {
           r = await fn();
         } catch (e) {
@@ -33,7 +36,7 @@ export function useAction<R extends ActionResult = ActionResult>({ quiet = [], d
         if (!r?.ok) {
           const text = r?.error ?? fallback ?? t("That didn't work.");
           setError(text);
-          toast(text, { tone: "error" });
+          if (toastErrors) toast(text, { tone: "error" });
         } else {
           setError(null);
           const text = r.message ?? done;
@@ -44,5 +47,5 @@ export function useAction<R extends ActionResult = ActionResult>({ quiet = [], d
         resolve(!!r?.ok);
       });
     });
-  return { run, pending, error };
+  return { run, pending, error, start };
 }

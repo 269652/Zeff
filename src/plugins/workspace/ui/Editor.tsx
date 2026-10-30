@@ -302,7 +302,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       });
     },
     linkDatabase: () => void databasesAction().then((r) => (r.ok ? setDbPicker(r.databases) : toast(r.error, { tone: "error" }))),
-    ai: (mode) => (mode === "custom" ? setComposer({ ...here(), chip: "write" }) : void runAi(mode)),
+    ai: (mode) => (mode === "custom" ? setComposer({ ...here(), chip: "write" }) : mode === "composer" ? setComposer(here()) : void runAi(mode)),
     todosFromPage: () => {
       setTodosBusy(true);
       setTodos([]);

@@ -8,6 +8,7 @@ import { tabMenuAction } from "@/app/actions";
 import type { TabMenuItem } from "@/plugins/tab-menus-shared";
 import type { HeaderTab } from "./SiteHeader";
 import { useT } from "@/components/I18nProvider";
+import { useDismiss } from "@/components/useDismiss";
 
 // Where you last were under a tab ("/kanban/3", or "/kanban" itself) — kept in this browser.
 const lastKey = (tab: string) => `zeff-tab-last:${tab}`;
@@ -63,16 +64,11 @@ export function TabSplit({ tab, current, pathname, className, active, children }
     if (!open) return;
     let live = true;
     void tabMenuAction(tab.href).then((r) => live && setItems(r));
-    const away = (e: MouseEvent) => !root.current?.contains(e.target as Node) && !menu.current?.contains(e.target as Node) && setOpen(false);
-    const esc = (e: KeyboardEvent) => e.key === "Escape" && setOpen(false);
-    document.addEventListener("mousedown", away);
-    document.addEventListener("keydown", esc);
     return () => {
       live = false;
-      document.removeEventListener("mousedown", away);
-      document.removeEventListener("keydown", esc);
     };
   }, [open, tab.href]);
+  useDismiss([root, menu], open, () => setOpen(false));
 
   return (
     <div ref={root} className="relative flex items-stretch">

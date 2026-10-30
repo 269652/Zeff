@@ -53,7 +53,7 @@ test("facts: a fact about one profile is that person's (person:<id> + birthday) 
   assert.equal(listFacts().filter((f) => /Lotte/.test(f.subject)).length, 1, "not kept beside it");
   const item = await disputeOf("Lotte Brandt");
   assert.ok(item);
-  assert.equal(item!.href, `/personen/${lotte}`);
+  assert.equal(item!.href, (await import("@/plugins/workspace/people-database")).personHref(lotte)); // (the person's page, not the /personen redirect)
 
   const { knowledgeDocs } = await import("@/plugins/knowledge/export");
   const facts = knowledgeDocs("http://zeff").docs.filter((d) => d.id.startsWith("zeff:fact:") && /Lotte/.test(d.title));

@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { setTodoStatusConfirmed } from "@/components/boards/todo-status";
 import { useT } from "@/components/I18nProvider";
+import { TodoCheck } from "@/components/TodoCheck";
 
 /**
  * A todo of Today's due list, done in place: its checkbox ticks it (done), ✕ dismisses it — either way it leaves the list (as in
@@ -27,7 +28,7 @@ export function TodayTodo({ id, todoRef, text, when, overdue }: { id: number; to
     });
   return (
     <li className="group flex items-baseline gap-2 text-sm">
-      <input type="checkbox" aria-label={text} disabled={pending} onChange={() => set("done")} className="translate-y-0.5 accent-indigo-600" />
+      <TodoCheck label={text} disabled={pending} onChange={() => set("done")} className="translate-y-0.5 accent-indigo-600" />
       <span className="min-w-0 flex-1">
         {text}
         {error && <span className="ml-2 text-xs text-red-600 dark:text-red-400">{error}</span>}

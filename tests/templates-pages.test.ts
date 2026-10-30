@@ -16,12 +16,6 @@ const widgetsOf = async (id: number) => {
   return [...JSON.stringify(getPage(id)!.content).matchAll(/"widget":"([a-z.]+)"/g)].map((m) => m[1]);
 };
 
-test("the Finances page with the Finances plugin: your debts in figures, the payments ahead both ways, the deadlines from your letters", async () => {
-  await setup();
-  const { fromTemplate } = await import("@/plugins/workspace/templates");
-  assert.deepEqual(await widgetsOf(await fromTemplate("finances", null)), ["finances.figures", "finances.payments", "finances.payments", "cases.due"]);
-});
-
 test("the Finances widgets: the figures and the payments coming up, from the debts database — the overdue first, each leading to its row", async () => {
   await setup();
   const { ensureDebtsDatabase } = await import("@/plugins/finances/database");
@@ -56,6 +50,11 @@ test("the weekly review shows what you got done this week, the agenda and the da
   const done = await widgetData("todos.done", { since: "week", limit: 10 });
   assert.ok(done.kind === "list" && done.items.some((i) => i.text === "Angebot verschickt") && !done.items.some((i) => i.text === "Vor Monaten"));
   assert.equal((await widgetsOf(await fromTemplate("meeting", null)))[0], "people.briefs");
+  // Only the widgets of installed plugins: without People no dates of your people.
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("people", false);
+  assert.ok(!(await widgetsOf(await fromTemplate("weekly-review", null))).includes("people.upcoming"));
+  setInstalled("people", true);
   // The review writes itself: an agent under it, on Fridays at three.
   const reviewPage = await fromTemplate("weekly-review", null);
   const { tree } = await import("@/plugins/workspace/store");

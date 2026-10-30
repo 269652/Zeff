@@ -1,6 +1,7 @@
 import { t } from "@/lib/i18n/server";
 import type { ReviewAction, ReviewSource } from "@/lib/review/point";
 import { decideVersion, disputes, getVersion, staleBatch, type Decision, type FactVersion } from "./store";
+import { peopleHome, personHref } from "@/plugins/workspace/people-database";
 
 /**
  * Trust in facts, in the review queue (server only): a value that contradicts what Zeff holds — "IBAN of
@@ -45,7 +46,7 @@ const subjectName = (v: FactVersion) => v.subjectLabel || v.subject.replace(/^su
 /** Where a subject lives in Zeff. */
 export function subjectHref(subject: string): string | undefined {
   const [kind, id] = [subject.slice(0, subject.indexOf(":")), subject.slice(subject.indexOf(":") + 1)];
-  if (kind === "person") return `/personen/${id}`;
+  if (kind === "person") return Number(id) > 0 ? personHref(Number(id)) : peopleHome();
   if (kind === "repo") return "/settings/todos";
   return undefined;
 }

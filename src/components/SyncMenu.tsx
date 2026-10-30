@@ -11,6 +11,7 @@ import { SyncIcon } from "./icons";
 import { currentLocale, formatAgo, formatTime } from "@/lib/format";
 import { useT } from "./I18nProvider";
 import type { T } from "@/lib/i18n/shared";
+import { useDismiss } from "@/components/useDismiss";
 
 /** Now, outside render (the clock isn't a render input). */
 const now = () => Date.now();
@@ -168,29 +169,22 @@ export function SyncMenu() {
   useEffect(() => {
     if (!open) return;
     const clock = setInterval(() => setTick((n) => n + 1), 15000);
-    const onDown = (e: MouseEvent) => {
-      if (!root.current?.contains(e.target as Node)) setOpen(false);
-    };
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key === "Escape") {
-        setOpen(false);
-        trigger.current?.focus();
-      }
-    };
     // Focus leaving the menu (Tab out) closes it, without pulling focus back.
     const onFocusIn = (e: FocusEvent) => {
       if (!root.current?.contains(e.target as Node)) setOpen(false);
     };
-    document.addEventListener("mousedown", onDown);
-    document.addEventListener("keydown", onKey);
     document.addEventListener("focusin", onFocusIn);
     return () => {
       clearInterval(clock);
-      document.removeEventListener("mousedown", onDown);
-      document.removeEventListener("keydown", onKey);
       document.removeEventListener("focusin", onFocusIn);
     };
   }, [open]);
+  useDismiss(root, open, () => setOpen(false), {
+    onEscape: () => {
+      setOpen(false);
+      trigger.current?.focus();
+    },
+  });
 
   const go = (fn: () => Promise<{ ok?: boolean; error?: string } | null>) =>
     start(async () => {

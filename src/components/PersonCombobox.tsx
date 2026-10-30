@@ -1,6 +1,7 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
+import { useComboboxKeys } from "@/components/Combobox";
 
 export type PersonOption = { name: string; hint: string };
 
@@ -25,9 +26,7 @@ export function PersonCombobox({
   placeholder?: string;
 }) {
   const [open, setOpen] = useState(false);
-  const [active, setActive] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
-  const listId = useId();
 
   const q = value.trim().toLowerCase();
   // Names starting with what's typed (or with a word that does) come first.
@@ -42,8 +41,10 @@ export function PersonCombobox({
   const pick = (p: PersonOption) => {
     onChange(p.name);
     setOpen(false);
-    setActive(-1);
+    keys.reset();
   };
+  const keys = useComboboxKeys({ count: shown.length, open, setOpen, onPick: (i) => pick(shown[i]) });
+  const { active, setActive, listId } = keys;
 
   return (
     <div className="relative">
@@ -54,6 +55,7 @@ export function PersonCombobox({
         role="combobox"
         aria-expanded={open && shown.length > 0}
         aria-controls={listId}
+        aria-activedescendant={keys.activeDescendant}
         aria-autocomplete="list"
         autoComplete="off"
         className="input"
@@ -62,27 +64,13 @@ export function PersonCombobox({
         onChange={(e) => {
           onChange(e.target.value);
           setOpen(true);
-          setActive(-1);
+          keys.reset();
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => {
           closeTimer.current = setTimeout(() => setOpen(false), 150); // let a click land first
         }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setOpen(true);
-            setActive((a) => Math.min(a + 1, shown.length - 1));
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setActive((a) => Math.max(a - 1, 0));
-          } else if (e.key === "Enter" && open && active >= 0 && shown[active]) {
-            e.preventDefault();
-            pick(shown[active]);
-          } else if (e.key === "Escape") {
-            setOpen(false);
-          }
-        }}
+        onKeyDown={keys.onKeyDown}
       />
       {open && shown.length > 0 && (
         <ul
@@ -98,6 +86,7 @@ export function PersonCombobox({
           {shown.map((p, i) => (
             <li
               key={p.name}
+              id={keys.optionId(i)}
               role="option"
               aria-selected={i === active}
               className={`flex cursor-pointer items-baseline justify-between gap-3 px-3 py-1.5 text-sm ${

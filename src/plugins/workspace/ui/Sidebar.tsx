@@ -12,6 +12,7 @@ import type { TreeItem } from "../store";
 import type { AppNav } from "../app-nav";
 import { ChatPanel } from "./ChatPanel";
 import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
+import { AutomationChooser } from "./AutomationChooser";
 import { TemplateGallery } from "./TemplateGallery";
 import "./workspace.css";
 
@@ -61,6 +62,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
   const navParam = useSearchParams().get("nav");
   const [hits, setHits] = useState<Hit[] | null>(null);
   const [templates, setTemplates] = useState<Meta[] | null>(null);
+  const [automation, setAutomation] = useState(false);
   const [making, setMaking] = useState<string | null>(null);
   const [over, setOver] = useState<{ id: number; where: "before" | "into" | "after" } | null>(null);
   const dragging = useRef<number | null>(null);
@@ -357,6 +359,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
           />
         </Modal>
       )}
+      {automation && <AutomationChooser onClose={() => setAutomation(false)} onPick={(key) => void create({ automation: key })} />}
       <div className="ws-side-head shrink-0 space-y-3">
         <div className="flex items-center gap-1">
           <Link href="/workspace" className="flex-1 text-lg font-semibold hover:underline">
@@ -386,6 +389,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
                 <MenuItem onClick={() => (close(), void create({}))}>📄 {t("Page")}</MenuItem>
                 <MenuItem onClick={() => (close(), void create({ kind: "database", title: t("Database") }))}>🗂️ {t("Database")}</MenuItem>
                 <MenuItem onClick={() => (close(), void create({ kind: "form", title: t("Form") }))}>📝 {t("Form")}</MenuItem>
+                <MenuItem onClick={() => (close(), setAutomation(true))}>⚙️ {t("Automation …")}</MenuItem>
                 {((channels && (channels.mail || channels.messages)) || extSources.length > 0) && (
                   <>
                     <div className="px-2 pt-1 text-xs font-semibold text-zinc-500 uppercase">{t("From channels")}</div>

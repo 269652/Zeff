@@ -2,11 +2,12 @@
 
 import { confirmAction } from "@/components/confirm";
 import { FormError } from "@/components/FormError";
-import { useState, useTransition } from "react";
+import { useState } from "react";
 import { createEntryTypeAction, deleteEntryTypeAction, saveEntryTypesAction } from "@/app/actions";
 import type { ActionState } from "@/app/action-helpers";
 import { typeColorStyle, type EntryTypeDef } from "@/lib/entry-types-shared";
 import { useT } from "./I18nProvider";
+import { useAction } from "@/components/useAction";
 
 /**
  * Rename and recolor entry types, add new ones, delete unused ones. Built-in types (the
@@ -18,7 +19,7 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
   const [newLabel, setNewLabel] = useState("");
   const [newColor, setNewColor] = useState("#14b8a6");
   const [state, setState] = useState<ActionState>(null);
-  const [pending, startTransition] = useTransition();
+  const { run: act, pending } = useAction<ActionState>({ quiet: true, toastErrors: false, refresh: false });
 
   const changed = rows.filter((r) => {
     const orig = types.find((x) => x.key === r.key);
@@ -28,7 +29,13 @@ export function EntryTypesEditor({ types, usage }: { types: EntryTypeDef[]; usag
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
     setState(null);
   };
-  const run = (fn: () => Promise<ActionState>) => startTransition(async () => setState(await fn()));
+  // (The answer shows in the form, not as a toast.)
+  const run = (fn: () => Promise<ActionState>) =>
+    void act(async () => {
+      const r = await fn();
+      setState(r);
+      return r;
+    });
 
   return (
     <div className="space-y-4">

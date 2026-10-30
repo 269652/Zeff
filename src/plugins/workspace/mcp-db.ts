@@ -171,7 +171,7 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
     "workspace_templates",
     {
       title: "Ready-made workspace pages",
-      description: "Without `create`: the templates (meeting notes, 1:1, project brief, weekly review, team wiki, tasks database tied to Zeff todos, decision log, reading list, projects with tasks …). With `create` (a key from the list): make that one, under `parent`.",
+      description: "Without `create`: the templates (tasks database tied to Zeff todos, projects with tasks, journal, meeting notes with a 1:1 section, weekly review, reading list, contracts, decision log …). With `create` (a key from the list): make that one, under `parent`. (Agents, automations, jobs and rules are no templates: the Workspace's + menu → Automation … makes them.)",
       inputSchema: z.object({ create: z.string().optional(), parent: ref.optional() }),
       annotations: rw,
     },

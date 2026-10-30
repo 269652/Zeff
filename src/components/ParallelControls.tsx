@@ -1,11 +1,9 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import { useTransition } from "react";
 import { applyParallelAction, setDefaultParallelModeAction } from "@/app/parallel-actions";
 import { useT } from "@/components/I18nProvider";
-import { toast } from "@/components/Toaster";
 import type { T } from "@/lib/i18n/shared";
+import { useAction } from "@/components/useAction";
 
 type Result = { ok: boolean; error?: string; message?: string } | null;
 type Mode = "combine" | "divide" | "sequential";
@@ -21,15 +19,7 @@ export const modeText = (t: T) => ({
 
 function useRun() {
   const t = useT();
-  const router = useRouter();
-  const [pending, start] = useTransition();
-  const run = (fn: () => Promise<Result>) =>
-    start(async () => {
-      const r = await fn();
-      toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" });
-      router.refresh();
-    });
-  return { run, pending };
+  return useAction<Result>({ done: t("Done."), fallback: t("Didn't work.") });
 }
 
 /** Detected parallel work: group it, booked combined, divided, or one after the other. */

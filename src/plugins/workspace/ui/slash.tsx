@@ -31,17 +31,38 @@ export type SlashContext = {
   embedTodoList: () => void;
   /** A new todo list (a database with its Todo view) under this page, shown here. */
   newTodoList: () => void;
-  /** The AI works: `mode` on the text before the caret (or the page), the answer inserted. */
-  ai: (mode: "continue" | "summarize" | "actions" | "custom") => void;
+  /** The AI works: `mode` on the text before the caret (or the page), the answer inserted; "composer": the page's one ✨ field. */
+  ai: (mode: "continue" | "summarize" | "actions" | "custom" | "composer") => void;
   /** Make todos of the page (the AI proposes, you choose). */
   todosFromPage: () => void;
-  /** The plugins' widgets (read once per page): each its own item — /todo, /versprechen find them. */
+  /** The plugins' widgets (read once per page): in the "Widget …" picker — /todo, /versprechen find them too. */
   widgets?: () => { id: string; label: string; icon: string; description: string }[];
 };
 
-export type SlashItem = { key: string; title: string; hint: string; icon: string; group: string; keywords: string[]; run: (c: { editor: Editor; range: Range; ctx: SlashContext }) => void };
+export type SlashItem = {
+  key: string;
+  title: string;
+  hint: string;
+  icon: string;
+  group: string;
+  keywords: string[];
+  /** In the picker "/<under> …" (and found by a search), not in the menu a bare slash opens. */
+  under?: string;
+  /** A picker: picking it writes "/<opens> " — the menu then lists what is `under` it. */
+  opens?: string;
+  run: (c: { editor: Editor; range: Range; ctx: SlashContext }) => void;
+};
 
 const chain = (editor: Editor, range: Range) => editor.chain().focus().deleteRange(range);
+
+/** A picker's item: the slash text becomes "/<word> ", so the same menu lists its items (Backspace goes back). */
+const picker = (word: string, item: Omit<SlashItem, "key" | "opens" | "run">): SlashItem => ({
+  ...item,
+  key: `pick-${word}`,
+  opens: word,
+  keywords: [word, ...item.keywords],
+  run: ({ editor, range }) => editor.chain().focus().insertContentAt(range, `/${word} `).run(),
+});
 
 const today = () => {
   const d = new Date();
@@ -86,7 +107,7 @@ export const slashItems = (t: T): SlashItem[] => [
   // A formula in the text ({=…}): its value shows where it stands — the caret put where the formula is written.
   ...[
     { key: "formula", title: t("Formula"), hint: t("A value worked out in the text: {=@Kennzahl * 12}"), icon: "=", src: "", keywords: ["formula", "formel", "rechnen", "calc", "=", "berechnen"] },
-    { key: "formula-date", title: t("Date from a duration"), hint: t("{=Datum(@Schuldenfrei in)} — the day a duration from today ends"), icon: "📅", src: "Datum(", keywords: ["datum", "date", "formel", "formula", "wann", "when"] },
+    { key: "formula-date", title: t("Date from a duration"), hint: t("{=Datum(@Schuldenfrei in)} — the day a duration from today ends"), icon: "📅", src: "Datum(", keywords: ["datum", "date", "formel", "formula", "wann", "when"], under: "formula" },
   ].map(
     ({ src, ...item }): SlashItem => ({
       ...item,
@@ -103,14 +124,17 @@ export const slashItems = (t: T): SlashItem[] => [
   { key: "image", title: t("Image"), hint: t("Upload a picture"), icon: "🖼", group: t("Media"), keywords: ["image", "picture", "photo", "upload", "screenshot"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.pickImage()) },
   { key: "subpage", title: t("Sub-page"), hint: t("A page inside this one"), icon: "📄", group: t("Pages & databases"), keywords: ["page", "subpage", "child", "new page"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.newSubPage()) },
   { key: "database", title: t("Database"), hint: t("A new table, board or calendar here"), icon: "🗂", group: t("Pages & databases"), keywords: ["database", "table", "board", "kanban", "calendar", "gallery", "new"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.newDatabase()) },
-  { key: "linked-db", title: t("Linked database"), hint: t("A view of an existing database"), icon: "🔗", group: t("Pages & databases"), keywords: ["linked", "database", "view", "embed"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.linkDatabase()) },
-  { key: "embed", title: t("Embed page"), hint: t("A page or database shown right here — editable, not just a link"), icon: "⧉", group: t("Pages & databases"), keywords: ["embed", "inline", "page", "subpage", "database", "synced", "einbetten", "seite"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.embedPage()) },
-  { key: "todo-embed", title: t("Embed a to-do list"), hint: t("A to-do list of another page, ticked and written right here"), icon: "☑", group: t("Pages & databases"), keywords: ["todo", "to-do", "list", "task", "embed", "aufgaben", "einbetten", "liste"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.embedTodoList()) },
+  picker("embed", { title: t("Embed …"), hint: t("A linked database, a page, a to-do list or a new inline sub-page — shown right here"), icon: "⧉", group: t("Pages & databases"), keywords: ["einbetten", "linked", "inline"] }),
+  { key: "linked-db", under: "embed", title: t("Linked database"), hint: t("A view of an existing database"), icon: "🔗", group: t("Pages & databases"), keywords: ["linked", "database", "view", "embed"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.linkDatabase()) },
+  { key: "embed", under: "embed", title: t("Embed page"), hint: t("A page or database shown right here — editable, not just a link"), icon: "⧉", group: t("Pages & databases"), keywords: ["embed", "inline", "page", "subpage", "database", "synced", "einbetten", "seite"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.embedPage()) },
+  { key: "todo-embed", under: "embed", title: t("Embed a to-do list"), hint: t("A to-do list of another page, ticked and written right here"), icon: "☑", group: t("Pages & databases"), keywords: ["todo", "to-do", "list", "task", "embed", "aufgaben", "einbetten", "liste"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.embedTodoList()) },
   { key: "todo-db", title: t("Todo list (database)"), hint: t("A database with a Todo view - it can feed the Todo engine"), icon: "✅", group: t("Pages & databases"), keywords: ["todo", "to-do", "list", "task", "database", "aufgaben", "datenbank"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.newTodoList()) },
-  { key: "subpage-inline", title: t("Sub-page (inline)"), hint: t("A new page below this one, written right here"), icon: "📑", group: t("Pages & databases"), keywords: ["page", "subpage", "inline", "embed", "new page", "unterseite", "einbetten"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.newInlinePage()) },
+  { key: "subpage-inline", under: "embed", title: t("Sub-page (inline)"), hint: t("A new page below this one, written right here"), icon: "📑", group: t("Pages & databases"), keywords: ["page", "subpage", "inline", "embed", "new page", "unterseite", "einbetten"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.newInlinePage()) },
   { key: "mention", title: t("Mention"), hint: t("A person, page, todo or ticket"), icon: "@", group: t("Zeff"), keywords: ["mention", "person", "page", "todo", "ticket", "link", "@"], run: ({ editor, range }) => chain(editor, range).insertContent("@").run() },
-  { key: "ai-block", title: t("AI block"), hint: t("The AI writes here — from this page and the databases in it"), icon: "✨", group: t("Zeff"), keywords: ["ai", "ki", "write", "summary", "briefing", "lage", "gpt", "claude"], run: ({ editor, range }) => chain(editor, range).insertContent({ type: "aiBlock", attrs: { prompt: "", text: "", at: "", auto: false } }).run() },
+  { key: "ai", title: t("AI …"), hint: t("What should Zeff do? Think along, write, or ask about this page"), icon: "✨", group: t("Zeff"), keywords: ["ai", "ki", "assist", "think", "write", "ask", "gpt", "claude"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("composer")) },
+  { key: "ai-block", under: "ai", title: t("AI block"), hint: t("The AI writes here — from this page and the databases in it"), icon: "✨", group: t("Zeff"), keywords: ["ai", "ki", "write", "summary", "briefing", "lage", "gpt", "claude"], run: ({ editor, range }) => chain(editor, range).insertContent({ type: "aiBlock", attrs: { prompt: "", text: "", at: "", auto: false } }).run() },
   // What Zeff knows about a ticket — of the row whose page it is, or the key given in the block: the modules of a detail view.
+  picker("ticket", { title: t("Ticket …"), hint: t("What Zeff knows about this row's ticket — briefing, todos, questions, chat …"), icon: "🎫", group: t("Zeff"), keywords: ["zeff", "module", "briefing"] }),
   ...(
     [
       ["briefing", t("Briefing"), "🧭", ["lage", "briefing", "status", "attention"]],
@@ -131,6 +155,7 @@ export const slashItems = (t: T): SlashItem[] => [
     hint: t("About this row's ticket — or the key you give the block"),
     icon,
     group: t("Zeff"),
+    under: "ticket",
     keywords: [...keywords, "ticket", "zeff"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffModule", attrs: { module, key: "" } }).run(),
   })),
@@ -143,8 +168,10 @@ export const slashItems = (t: T): SlashItem[] => [
     keywords: ["form", "formular", "eingabe", "umfrage", "survey", "input", "submit", "new row", "intake", "wizard"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffForm", attrs: { formId: null } }).run(),
   },
+  picker("parts", { title: t("Entry parts …"), hint: t("A field, related rows, a button, or blocks shown only if — what an entry's layout is made of"), icon: "▭", group: t("App blocks"), keywords: ["field", "feld", "button", "related", "condition", "layout"] }),
   {
     key: "app-if",
+    under: "parts",
     title: t("Shown only if …"),
     hint: t("Blocks that show only when a field of the entry has a value"),
     icon: "🔍",
@@ -161,8 +188,10 @@ export const slashItems = (t: T): SlashItem[] => [
     keywords: ["calendar", "kalender", "schattenkalender", "shadow", "day", "week", "month", "tag", "woche", "monat", "plan"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "calendarEmbed", attrs: { calendarId: 0, view: "week", day: "" } }).run(),
   },
+  picker("widget", { title: t("Widget …"), hint: t("What a plugin shows live — unread, dates coming up, workers, news — with its buttons"), icon: "🧩", group: t("App blocks"), keywords: ["dashboard", "live", "plugin"] }),
   {
     key: "widget",
+    under: "widget",
     title: t("Widget"),
     hint: t("What a plugin shows live — unread, dates coming up, workers, news — with its buttons"),
     icon: "🧩",
@@ -182,6 +211,7 @@ export const slashItems = (t: T): SlashItem[] => [
   // The parts an app's layout is made of.
   {
     key: "app-field",
+    under: "parts",
     title: t("Field"),
     hint: t("One field of the entry, edited in place — pick which"),
     icon: "▭",
@@ -191,6 +221,7 @@ export const slashItems = (t: T): SlashItem[] => [
   },
   {
     key: "app-related",
+    under: "parts",
     title: t("Related rows"),
     hint: t("The rows of another database that belong to the entry — with a field to add one"),
     icon: "⛓",
@@ -200,6 +231,7 @@ export const slashItems = (t: T): SlashItem[] => [
   },
   {
     key: "app-button",
+    under: "parts",
     title: t("Button"),
     hint: t("Sets a field of the entry, moves it to the trash, or reads the sources again"),
     icon: "◉",
@@ -255,6 +287,7 @@ export const slashItems = (t: T): SlashItem[] => [
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffTimeline", attrs: { ref: "", limit: 20 } }).run(),
   },
   // Blocks that show what Zeff holds - read when the page is shown, never stored in it.
+  picker("data", { title: t("Data …"), hint: t("A figure, a chart, appointments, todos, a document or people — read live from Zeff"), icon: "📊", group: t("Data"), keywords: ["figure", "chart", "kennzahl", "diagramm"] }),
   ...(
     [
       ["metric", "zeffMetric", t("Figure"), t("A number from a database — a count, a sum, a share — with an optional progress bar"), "🔢", { dbId: null, viewId: "", calc: "count", prop: "", label: "", style: "number" }, ["figure", "metric", "number", "kpi", "kennzahl", "zahl", "count", "sum"]],
@@ -270,6 +303,7 @@ export const slashItems = (t: T): SlashItem[] => [
     hint,
     icon,
     group: t("Data"),
+    under: "data",
     keywords: [...keywords],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type, attrs }).run(),
   })),
@@ -284,14 +318,14 @@ export const slashItems = (t: T): SlashItem[] => [
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "rowView" }).run(),
   },
   { key: "date", title: t("Today's date"), hint: t("Insert the date"), icon: "📅", group: t("Zeff"), keywords: ["date", "today", "now"], run: ({ editor, range }) => chain(editor, range).insertContent(today()).run() },
-  { key: "ai-continue", title: t("Continue writing"), hint: t("The AI goes on from here"), icon: "✨", group: t("AI"), keywords: ["ai", "continue", "write", "go on"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("continue")) },
-  { key: "ai-summarize", title: t("Summarize the page"), hint: t("Key points of what's above"), icon: "✨", group: t("AI"), keywords: ["ai", "summarize", "summary", "tldr"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("summarize")) },
-  { key: "ai-actions", title: t("Action items"), hint: t("Tasks and decisions from the page"), icon: "✨", group: t("AI"), keywords: ["ai", "action", "tasks", "decisions"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("actions")) },
-  { key: "ai-ask", title: t("Ask AI…"), hint: t("Tell it what to write"), icon: "✨", group: t("AI"), keywords: ["ai", "ask", "prompt", "write", "draft"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("custom")) },
-  { key: "ai-todos", title: t("Make Zeff todos"), hint: t("The AI finds todos in this page"), icon: "☑️", group: t("AI"), keywords: ["ai", "todos", "tasks", "zeff"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.todosFromPage()) },
+  { key: "ai-continue", under: "ai", title: t("Continue writing"), hint: t("The AI goes on from here"), icon: "✨", group: t("AI"), keywords: ["ai", "continue", "write", "go on"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("continue")) },
+  { key: "ai-summarize", under: "ai", title: t("Summarize the page"), hint: t("Key points of what's above"), icon: "✨", group: t("AI"), keywords: ["ai", "summarize", "summary", "tldr"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("summarize")) },
+  { key: "ai-actions", under: "ai", title: t("Action items"), hint: t("Tasks and decisions from the page"), icon: "✨", group: t("AI"), keywords: ["ai", "action", "tasks", "decisions"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("actions")) },
+  { key: "ai-ask", under: "ai", title: t("Ask AI…"), hint: t("Tell it what to write"), icon: "✨", group: t("AI"), keywords: ["ai", "ask", "prompt", "write", "draft"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("custom")) },
+  { key: "ai-todos", under: "ai", title: t("Make Zeff todos"), hint: t("The AI finds todos in this page"), icon: "☑️", group: t("AI"), keywords: ["ai", "todos", "tasks", "zeff"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.todosFromPage()) },
 ];
 
-/** Each widget a plugin brings as an item of its own (its name and what it shows are what it is found by). */
+/** Each widget a plugin brings, in the "Widget …" picker (its name and what it shows are what a search finds it by). */
 function widgetItems(ctx: SlashContext): SlashItem[] {
   const words = (s: string) => s.toLowerCase().split(/[^\p{L}\p{N}]+/u).filter((w) => w.length >= 3);
   return (ctx.widgets?.() ?? []).map((w) => ({
@@ -300,13 +334,25 @@ function widgetItems(ctx: SlashContext): SlashItem[] {
     hint: w.description,
     icon: w.icon || "🧩",
     group: ctx.t("Widgets"),
+    under: "widget",
     keywords: ["widget", ...w.id.split(/[._-]/), ...words(w.label), ...words(w.description)],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "zeffWidget", attrs: { widget: w.id, config: "{}" } }).run(),
   }));
 }
 
-function filterItems(all: SlashItem[], query: string): SlashItem[] {
-  const q = query.trim().toLowerCase();
+/**
+ * What the menu lists for `query`: a bare slash the main items (not what is in a picker); "/ticket " (a picker's word and a space) what
+ * is in that picker; anything else every item that matches — the ones in pickers too ("/todos" finds the widget).
+ */
+export function filterItems(all: SlashItem[], query: string): SlashItem[] {
+  const raw = query.toLowerCase().trimStart();
+  const pick = all.find((i) => i.opens && raw.startsWith(`${i.opens} `));
+  if (pick) return rank(all.filter((i) => i.under === pick.opens), raw.slice(pick.opens!.length + 1).trim());
+  const q = raw.trim();
+  return q ? rank(all, q) : all.filter((i) => !i.under);
+}
+
+function rank(all: SlashItem[], q: string): SlashItem[] {
   if (!q) return all;
   const score = (i: SlashItem) => (i.title.toLowerCase().startsWith(q) ? 0 : i.keywords.some((k) => k.startsWith(q)) ? 1 : i.title.toLowerCase().includes(q) || i.keywords.some((k) => k.includes(q)) ? 2 : 9);
   return all.map((i) => [i, score(i)] as const).filter(([, s]) => s < 9).sort((a, b) => a[1] - b[1]).map(([i]) => i);

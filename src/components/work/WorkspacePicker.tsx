@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { useDismiss } from "@/components/useDismiss";
 
 /** What a new session works in: a folder in a git repo, the branch, and how (a worktree of its own, or the repo itself). */
 export type Workspace = { path: string; branch: string; mode: "" | "worktree" | "branch" | "checkout" };
@@ -32,13 +33,7 @@ function FolderPopover({ repos, value, onPick, onClose }: { repos: { id: number;
   };
   useEffect(() => load(value || ""), []); // eslint-disable-line react-hooks/exhaustive-deps
   const ref = useRef<HTMLDivElement>(null);
-  useEffect(() => {
-    const away = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) onClose();
-    };
-    document.addEventListener("mousedown", away);
-    return () => document.removeEventListener("mousedown", away);
-  }, [onClose]);
+  useDismiss(ref, true, onClose, { escape: false });
   return (
     <div ref={ref} className="absolute bottom-full left-0 z-30 mb-1 w-96 max-w-[90vw] rounded-lg border border-zinc-200 bg-white p-2 text-xs shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
       <button type="button" className="mb-1 block w-full rounded px-2 py-1 text-left hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => onPick("")}>

@@ -1,8 +1,9 @@
 "use client";
 
-import { useId, useRef, useState } from "react";
+import { useRef, useState } from "react";
 import type { TicketSuggestionLite } from "./EntryForm";
 import { useT } from "@/components/I18nProvider";
+import { useComboboxKeys } from "@/components/Combobox";
 
 /**
  * A ticket autocomplete that replaces the native <datalist>. Unlike a datalist —
@@ -29,8 +30,6 @@ export function TicketCombobox({
 }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const list = useId();
-  const [active, setActive] = useState(-1);
   const closeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
 
   const q = value.trim().toLowerCase();
@@ -47,8 +46,10 @@ export function TicketCombobox({
   const pick = (s: TicketSuggestionLite) => {
     onChange(s.ticket);
     setOpen(false);
-    setActive(-1);
+    keys.reset();
   };
+  const keys = useComboboxKeys({ count: shown.length, open, setOpen, onPick: (i) => pick(shown[i]) });
+  const { active, setActive, listId: list } = keys;
 
   return (
     <div className="relative">
@@ -59,7 +60,7 @@ export function TicketCombobox({
         role="combobox"
         aria-expanded={open && shown.length > 0}
         aria-controls={list}
-        aria-activedescendant={open && active >= 0 && shown[active] ? `${list}-${active}` : undefined}
+        aria-activedescendant={keys.activeDescendant}
         aria-autocomplete="list"
         autoComplete="off"
         className="input"
@@ -69,27 +70,13 @@ export function TicketCombobox({
         onChange={(e) => {
           onChange(e.target.value);
           setOpen(true);
-          setActive(-1);
+          keys.reset();
         }}
         onFocus={() => setOpen(true)}
         onBlur={() => {
           closeTimer.current = setTimeout(() => setOpen(false), 150); // let a click land first
         }}
-        onKeyDown={(e) => {
-          if (e.key === "ArrowDown") {
-            e.preventDefault();
-            setOpen(true);
-            setActive((a) => Math.min(a + 1, shown.length - 1));
-          } else if (e.key === "ArrowUp") {
-            e.preventDefault();
-            setActive((a) => Math.max(a - 1, 0));
-          } else if (e.key === "Enter" && open && active >= 0 && shown[active]) {
-            e.preventDefault();
-            pick(shown[active]);
-          } else if (e.key === "Escape") {
-            setOpen(false);
-          }
-        }}
+        onKeyDown={keys.onKeyDown}
       />
       {open && shown.length > 0 && (
         <ul
@@ -105,7 +92,7 @@ export function TicketCombobox({
           {shown.map((s, i) => (
             <li
               key={s.ticket}
-              id={`${list}-${i}`}
+              id={keys.optionId(i)}
               role="option"
               aria-selected={i === active}
               className={`cursor-pointer px-3 py-1.5 text-sm ${

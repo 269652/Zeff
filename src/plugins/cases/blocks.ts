@@ -64,10 +64,11 @@ export async function caseBundle(caseId: number): Promise<CaseBundle> {
     const { listPeople, getPerson } = await import("@/plugins/people/store");
     people = listPeople().map((p) => ({ id: p.id, name: p.name, kind: p.kind }));
     const p = c.personId ? getPerson(c.personId) : null;
-    if (p) person = { id: p.id, name: p.name, href: isInstalled("workspace") ? (await import("@/plugins/workspace/people-database")).personHref(p.id) : "/personen" };
+    if (p) person = { id: p.id, name: p.name, href: (await import("@/plugins/workspace/people-database")).personHref(p.id) };
   }
   const { partiesOf } = await import("./parties");
-  const hrefOf = async (id: number) => (isInstalled("workspace") ? (await import("@/plugins/workspace/people-database")).personHref(id) : "/personen");
+  // (Without the Workspace: its home, where /personen would send it too.)
+  const hrefOf = async (id: number) => (await import("@/plugins/workspace/people-database")).personHref(id);
   const parties: CaseBundle["parties"] = {};
   for (const [role, p] of Object.entries(partiesOf(caseId))) if (p) parties[role as keyof CaseBundle["parties"]] = { ...p, href: await hrefOf(p.personId) };
   return {

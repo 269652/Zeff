@@ -39,6 +39,11 @@ export async function templatesAction() {
   return run(async () => ({ templates: (await import("./templates")).templateMetas() }));
 }
 
+/** What the "+" menu's "Automation …" offers (an agent's page, an automation's, the jobs for agents, the rules). */
+export async function automationKindsAction() {
+  return run(async () => ({ kinds: (await import("./automation-new")).AUTOMATION_KINDS() }));
+}
+
 /** A built-in template made as a template of yours (to change it). Returns its page. */
 export async function duplicateTemplateAction(key: string) {
   return run(async () => ({ id: (await import("./templates")).duplicateBuiltin(String(key)) }));
@@ -86,8 +91,9 @@ export async function runJobDeliveryAction(rowId: number, only?: number[]) {
   });
 }
 
-export async function createPageAction(v: { parentId?: number | null; kind?: "page" | "database" | "form"; title?: string; templateKey?: string; /** A new template of yours (at the top of the templates). */ template?: boolean }) {
+export async function createPageAction(v: { parentId?: number | null; kind?: "page" | "database" | "form"; title?: string; templateKey?: string; /** A new template of yours (at the top of the templates). */ template?: boolean; /** One of "Automation …"'s (an agent, an automation, the jobs, the rules — automation-new.ts). */ automation?: string }) {
   return run(async () => {
+    if (v.automation) return { id: (await import("./automation-new")).createAutomation(v.automation, v.parentId ?? null) };
     if (v.templateKey) {
       const { fromTemplate } = await import("./templates");
       return { id: await fromTemplate(v.templateKey, v.parentId ?? null) };
@@ -221,7 +227,7 @@ export async function mentionSearchAction(q: string): Promise<MentionItem[]> {
     if (isInstalled("people")) {
       // The circles (Familie, Freunde, Arbeit, Behörden & Gläubiger, Dienste): a whole group at once — Schulden(@Freunde).
       for (const c of (await import("@/plugins/people/formulas")).circlesFor(w)) items.push({ kind: "circle", ref: c.key, label: c.label, hint: c.count === 1 ? t("Circle · 1 person") : t("Circle · {n} people", { n: c.count }), icon: "👥", href: "" });
-      const { searchPeopleAction } = await import("@/plugins/todos/server-actions");
+      const { searchPeopleAction } = await import("@/plugins/people/server-actions");
       for (const p of await searchPeopleAction(w)) items.push({ kind: "person", ref: String(p.id), label: p.name, hint: t("Person"), icon: "👤", href: (await import("./people-database")).personHref(p.id) });
     }
     if (isInstalled("todos")) {

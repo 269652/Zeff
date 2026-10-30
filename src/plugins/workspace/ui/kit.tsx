@@ -4,56 +4,13 @@ import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "@/components/I18nProvider";
 import { useMenuKeys } from "@/components/useMenuKeys";
-import { useOverlayFocus } from "@/components/Overlay";
+import { useDismiss } from "@/components/useDismiss";
 
 /** Small building blocks of the Workspace plugin's UI: a dialog, a dropdown, an emoji picker. */
 
-/** Calls `fn` on a click outside `ref` or on Escape — while `active`. */
-export function useDismiss(ref: React.RefObject<HTMLElement | null>, active: boolean, fn: () => void) {
-  const cb = useRef(fn);
-  useEffect(() => {
-    cb.current = fn;
-  });
-  useEffect(() => {
-    if (!active) return;
-    const down = (e: MouseEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) cb.current();
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") cb.current();
-    };
-    document.addEventListener("mousedown", down);
-    document.addEventListener("keydown", key);
-    return () => {
-      document.removeEventListener("mousedown", down);
-      document.removeEventListener("keydown", key);
-    };
-  }, [active, ref]);
-}
-
-/** A dialog over the page: a backdrop, Escape and a click outside close it. */
-export function Modal({ title, onClose, children, wide = false }: { title: string; onClose: () => void; children: ReactNode; wide?: boolean }) {
-  const t = useT();
-  const box = useRef<HTMLDivElement>(null);
-  useDismiss(box, true, onClose);
-  // The focus goes in, Tab stays in it, and goes back to where it was when it closes (Escape: useDismiss).
-  useOverlayFocus(box, true);
-  if (typeof document === "undefined") return null;
-  return createPortal(
-    <div className="fixed inset-0 z-[70] flex items-start justify-center overflow-y-auto bg-black/40 p-4 pt-[10vh]">
-      <div ref={box} tabIndex={-1} role="dialog" aria-modal="true" aria-label={title} className={`card w-full ${wide ? "max-w-3xl" : "max-w-lg"} space-y-3 p-4 shadow-xl outline-none`}>
-        <div className="flex items-center justify-between gap-2">
-          <h2 className="text-base font-semibold">{title}</h2>
-          <button type="button" className="icon-btn" onClick={onClose} aria-label={t("Close")}>
-            ✕
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>,
-    document.body,
-  );
-}
+/** (Moved to src/components: kept here for the plugin's own imports.) */
+export { useDismiss };
+export { Modal } from "@/components/Modal";
 
 /**
  * A button with a dropdown under it (any content); closes on a click outside, Escape, a scroll or when `close` is called.
@@ -67,6 +24,7 @@ export function Dropdown({ label, children, align = "left", title, ariaLabel, cl
   const close = () => setOpen(false);
   const id = useId();
   useMenuKeys(open && !!at, menu, button, close);
+  useDismiss([menu, button], open, close);
   const cb = useRef(close);
   useEffect(() => {
     cb.current = close;
@@ -79,24 +37,13 @@ export function Dropdown({ label, children, align = "left", title, ariaLabel, cl
       setAt({ top: r.bottom + 4, ...(align === "right" ? { right: Math.max(8, window.innerWidth - r.right) } : { left: Math.max(8, Math.min(r.left, window.innerWidth - 200)) }) });
     };
     place();
-    const down = (e: MouseEvent) => {
-      const n = e.target as Node;
-      if (!menu.current?.contains(n) && !button.current?.contains(n)) cb.current();
-    };
-    const key = (e: KeyboardEvent) => {
-      if (e.key === "Escape") cb.current();
-    };
     // A scroll elsewhere (the sidebar, the page) moves the button: the menu goes with it - closed is simplest.
     const scroll = (e: Event) => {
       if (!menu.current?.contains(e.target as Node)) cb.current();
     };
-    document.addEventListener("mousedown", down);
-    document.addEventListener("keydown", key);
     window.addEventListener("scroll", scroll, true);
     window.addEventListener("resize", place);
     return () => {
-      document.removeEventListener("mousedown", down);
-      document.removeEventListener("keydown", key);
       window.removeEventListener("scroll", scroll, true);
       window.removeEventListener("resize", place);
     };

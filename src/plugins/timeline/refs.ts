@@ -10,6 +10,7 @@ import { buildPeopleIndex, mentionMatcher, splitMentions } from "@/plugins/peopl
 import { listPeople, namesOf } from "@/plugins/people/store";
 import type { Person } from "@/plugins/people/shared";
 import { normRef } from "./store";
+import { peopleHome } from "@/plugins/workspace/people-database";
 
 const KEY = /\b[A-Z][A-Z0-9]{1,9}-\d{1,6}\b/g;
 /** Look like keys, aren't tickets — when Zeff knows no projects to go by. */
@@ -169,7 +170,7 @@ export function hrefOf(ref: string): string {
   if (kind === "ticket") return `/tickets?ticket=${encodeURIComponent(id)}`;
   if (kind === "person") {
     const row = safeAll<{ id: number }>("select id from ws_pages where archived_at is null and json_extract(props, '$.srcref') = ? limit 1", ref)[0];
-    return row ? `/workspace/${row.id}` : `/personen`;
+    return row ? `/workspace/${row.id}` : peopleHome();
   }
   if (kind === "doc") return `/api/documents/${id}/file`;
   if (kind === "entry") return `/entries/${id}`;

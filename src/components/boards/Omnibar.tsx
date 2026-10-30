@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
+import { useDismiss } from "@/components/useDismiss";
 
 export type OmniChip = { key: string; kind: string; title: string; todoIds: number[] };
 type Hit = OmniChip & { sub: string };
@@ -46,13 +47,7 @@ export function Omnibar({ chips, onChange }: { chips: OmniChip[]; onChange: (chi
     };
   }, [q]);
 
-  useEffect(() => {
-    const away = (e: MouseEvent) => {
-      if (box.current && !box.current.contains(e.target as Node)) setOpen(false);
-    };
-    document.addEventListener("mousedown", away);
-    return () => document.removeEventListener("mousedown", away);
-  }, []);
+  useDismiss(box, true, () => setOpen(false), { escape: false });
 
   const searching = q.trim().length >= 2;
   const hits = searching ? res.hits : [];

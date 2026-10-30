@@ -8,6 +8,7 @@ import { DateField } from "@/components/DateField";
 import type { ExtraTodo } from "@/lib/items/shared";
 import { setTodoStatusConfirmed } from "@/components/boards/todo-status";
 import { addCardTodoAction, setTodoDueAction, setTodoStatusAction, setTodoTextAction } from "@/plugins/todos/server-actions";
+import { TodoCheck } from "@/components/TodoCheck";
 
 /**
  * The todos of a ticket, a card, a row — the one block that shows them everywhere (a card's checklist, a row's panel, a
@@ -45,7 +46,7 @@ export function TodoBlock({ k, todos, onChanged, compact = false }: { k: string;
     <ul className={`space-y-1 ${size}`} data-todo-block onClick={(e) => e.stopPropagation()} onKeyDown={(e) => e.stopPropagation()}>
       {todos.map((x) => (
         <li key={x.id} className="group/todo flex items-start gap-1.5">
-          <input type="checkbox" className="mt-0.5 size-3.5 shrink-0" checked={x.status === "done"} disabled={pending} onChange={(e) => act(() => setTodoStatusConfirmed(x.id, e.target.checked ? "done" : "open"))} aria-label={x.text} />
+          <TodoCheck className="mt-0.5 size-3.5 shrink-0" checked={x.status === "done"} disabled={pending} onChange={(v) => act(() => setTodoStatusConfirmed(x.id, v ? "done" : "open"))} label={x.text} />
           {editing === x.id ? (
             <input
               autoFocus

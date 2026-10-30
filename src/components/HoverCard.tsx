@@ -3,6 +3,7 @@
 import { createContext, useContext, useEffect, useId, useMemo, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { useT } from "./I18nProvider";
+import { useDismiss } from "@/components/useDismiss";
 
 type Place = { left: number; width: number; top?: number; bottom?: number; maxHeight: number };
 
@@ -45,26 +46,14 @@ export function HoverCard({ card, children, width = 420, className = "", side: s
   }, [isOpen, id]);
 
   // Open: Escape closes (1.4.13); a tap outside closes (touch).
-  useEffect(() => {
-    if (!isOpen) return;
-    const onKey = (e: KeyboardEvent) => {
-      if (e.key !== "Escape") return;
+  useDismiss([ref, cardRef], isOpen, () => setPlace(null), {
+    event: "pointerdown",
+    filter: (e) => (e as PointerEvent).pointerType !== "mouse",
+    onEscape: () => {
       if (timer.current) clearTimeout(timer.current);
       setPlace(null);
-    };
-    const onDown = (e: PointerEvent) => {
-      if (e.pointerType === "mouse") return;
-      const n = e.target as Node;
-      if (ref.current?.contains(n) || cardRef.current?.contains(n)) return;
-      setPlace(null);
-    };
-    window.addEventListener("keydown", onKey);
-    document.addEventListener("pointerdown", onDown);
-    return () => {
-      window.removeEventListener("keydown", onKey);
-      document.removeEventListener("pointerdown", onDown);
-    };
-  }, [isOpen]);
+    },
+  });
 
   useEffect(
     () => () => {

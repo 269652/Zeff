@@ -1,12 +1,13 @@
 "use client";
 
-import { useEffect, useRef, useState, useTransition } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { postJson } from "@/lib/post-json";
 import { ListenButton } from "./Listen";
 import { newsReadAction, newsSourceAction, newsStateAction, newsStoryAction, newsTopicAction, newsVoteAction } from "./server-actions";
 import type { NewsItem } from "./shared";
+import { useAction } from "@/components/useAction";
 
 /** Cards that were on screen are reported in batches (every few seconds, and when the page goes away). */
 const seenQueue = new Set<number>();
@@ -47,7 +48,7 @@ async function peek(id: number): Promise<{ ok: boolean; image: string; hasConten
  */
 export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, following, onMoreLike }: { item: NewsItem & { fromTopic?: string }; ago: string; showImage: boolean; onChange: (patch: Partial<NewsItem>) => void; /** A name on the card was clicked: the feed follows that topic below this card (no navigation). */ onFollow?: (term: string) => void; /** The topic being followed now. */ following?: string | null; /** The feed this card is from is off: all its cards leave. */ onDrop: (gone: (i: NewsItem) => boolean) => void; /** More like this: the AI reads it, looks at what you like and know, searches the internet — the finds open below this card. */ onMoreLike?: () => void }) {
   const t = useT();
-  const [pending, start] = useTransition();
+  const { run: act, pending, start } = useAction<{ ok: boolean; error?: string }>({ quiet: true, refresh: false, fallback: t("Didn't work.") });
   const [broken, setBroken] = useState(false);
   const [menu, setMenu] = useState(false);
   // A double click on the picture likes it (a heart pops up).
@@ -113,12 +114,7 @@ export function NewsCard({ item, ago, showImage, onChange, onDrop, onFollow, fol
     // eslint-disable-next-line react-hooks/exhaustive-deps -- once per card
   }, [wantsPicture, item.id]);
   const [reader, setReader] = useState<{ open: boolean; busy: boolean; text: string; error: string }>({ open: false, busy: false, text: "", error: "" });
-  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, patch: Partial<NewsItem>) =>
-    start(async () => {
-      const r = await fn();
-      if (!r.ok) toast(r.error ?? t("Didn't work."), { tone: "error" });
-      else onChange(patch);
-    });
+  const run = (fn: () => Promise<{ ok: boolean; error?: string }>, patch: Partial<NewsItem>) => void act(fn, () => onChange(patch));
   const read = item.state === "read";
   const btn = (on: boolean) => `btn btn-sm ${on ? "btn-primary" : ""}`;
   const ico = (on: boolean) => `px-3 py-1 text-sm transition-colors hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800 ${on ? "bg-indigo-100 dark:bg-indigo-950" : ""}`;
