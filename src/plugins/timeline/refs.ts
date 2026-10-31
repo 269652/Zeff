@@ -6,9 +6,9 @@
  */
 import { getSqlite } from "@/db";
 import { isTicketKey } from "@/lib/ticket-keys";
-import { buildPeopleIndex, mentionMatcher, splitMentions } from "@/plugins/people/mentions";
-import { listPeople, namesOf } from "@/plugins/people/store";
-import type { Person } from "@/plugins/people/shared";
+import { buildPeopleIndex } from "@/plugins/people/mentions";
+import { makePersonResolver, type PersonResolver } from "@/plugins/people/resolve";
+import { namesOf } from "@/plugins/people/store";
 import { normRef } from "./store";
 import { peopleHome } from "@/plugins/workspace/people-database";
 
@@ -24,45 +24,16 @@ const safeAll = <T>(sql: string, ...args: unknown[]): T[] => {
   }
 };
 
-/** The people and tickets of the texts the indexer reads — built once per run (the people and the known projects read once). */
-export type Resolver = {
-  people: Person[];
-  /** The people a text and its senders (names, addresses, Jira usernames, chat names) concern. */
-  peopleIn: (text: string, ...senders: (string | null | undefined)[]) => number[];
-  /** One sender (an address or a name) as a person; null: not one we know (or two have that name). */
-  person: (who: string | null | undefined) => number | null;
+/**
+ * The people and tickets of the texts the indexer reads — built once per run (the people and the known projects read once). The
+ * people part is the People plugin's one resolver (people/resolve.ts: addresses, names, chats, numbers, Jira users, IBANs).
+ */
+export type Resolver = PersonResolver & {
   /** The ticket keys in a text. */
   tickets: (text: string | null | undefined) => string[];
 };
 
 export function makeResolver(): Resolver {
-  let people: Person[] = [];
-  try {
-    people = listPeople();
-  } catch {
-    people = [];
-  }
-  const byName = new Map<string, number>();
-  const clash = new Set<string>();
-  const put = (k: string, id: number) => {
-    const key = k.trim().toLowerCase();
-    if (key.length < 2) return;
-    if (byName.has(key) && byName.get(key) !== id) clash.add(key);
-    byName.set(key, id);
-  };
-  for (const p of people) {
-    for (const n of namesOf(p)) put(n, p.id);
-    for (const e of p.emails) put(e, p.id);
-    for (const a of p.accounts) put(a.value, p.id);
-  }
-  for (const k of clash) byName.delete(k);
-  const addresses = people.flatMap((p) => p.emails.map((e) => [e.toLowerCase(), p.id] as const));
-  const matcher = mentionMatcher(buildPeopleIndex(people));
-  const person = (who: string | null | undefined): number | null => {
-    const w = String(who ?? "").trim().toLowerCase();
-    if (!w) return null;
-    return byName.get(w) ?? byName.get(w.replace(/^.*<([^>]+)>.*$/, "$1")) ?? null;
-  };
   const projects = new Set<string>();
   for (const r of safeAll<{ key: string }>("select key from jira_tickets union select ticket key from jira_comments union select distinct ticket key from todos")) {
     const m = /^([A-Z][A-Z0-9]+)-\d+$/i.exec(r.key ?? "");
@@ -78,18 +49,7 @@ export function makeResolver(): Resolver {
     }
     return [...out];
   };
-  const peopleIn = (text: string, ...senders: (string | null | undefined)[]): number[] => {
-    const ids = new Set<number>();
-    for (const m of splitMentions(text, matcher)) if (m.person) ids.add(m.person.id);
-    const lower = text.toLowerCase();
-    for (const [e, id] of addresses) if (lower.includes(e)) ids.add(id);
-    for (const s of senders) {
-      const id = person(s);
-      if (id) ids.add(id);
-    }
-    return [...ids];
-  };
-  return { people, peopleIn, person, tickets };
+  return { ...makePersonResolver(), tickets };
 }
 
 /** The refs a ref names, as kinds the timeline knows. */

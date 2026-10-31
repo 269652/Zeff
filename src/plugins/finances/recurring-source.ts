@@ -13,25 +13,37 @@ import { addDays, localDay } from "@/lib/dates";
  * of the row yours. Server only.
  */
 export async function recurringRecords(today = localDay()): Promise<SourceRecord[]> {
-  let all: { date: string; amount: number; text: string; counterparty: string }[] = [];
+  type B = { date: string; amount: number; text: string; counterparty: string; iban: string; person_id: number | null };
+  let all: B[] = [];
   try {
     // The last two years and a bit — enough for a yearly one to show twice (both directions: money that comes back is moved).
     const from = addDays(today, -800);
-    all = getSqlite().prepare("select date, amount, text, counterparty from bank_transactions where date >= ? order by date").all(from) as typeof all;
+    // (The bank's table made, with whom each booking went to — cases/bank.ts.)
+    (await import("@/plugins/cases/bank")).listTransactions(1);
+    all = getSqlite().prepare("select date, amount, text, counterparty, iban, person_id from bank_transactions where date >= ? order by date").all(from) as B[];
   } catch {
     return [];
   }
   // What is no contract: money only moved (a pocket, savings, an account of your own — it comes back too), the bank's own pocket
-  // moves by their words ("… einzustecken", round-ups), and money to a person you know.
+  // moves by their words ("… einzustecken", round-ups), and money to a person you know (by the booking's person — its account or
+  // its name, people/resolve.ts; an organisation among your contacts can be a contract).
   const moved = movedOnly(all);
   const POCKET = /einzustecken|pocket|spartopf|ersparnis|round[- ]?up|aufrund|sparen|savings|vault/i;
-  const people = new Set<string>();
+  const persons = new Set<number>();
+  let who: import("@/plugins/people/resolve").PersonResolver | null = null;
   try {
-    if ((await import("@/plugins/state")).isInstalled("people")) for (const p of (await import("@/plugins/people/store")).listPeople()) people.add(p.name.trim().toLowerCase());
+    if ((await import("@/plugins/state")).isInstalled("people")) {
+      who = (await import("@/plugins/people/resolve")).makePersonResolver();
+      for (const p of who.people) if (p.kind !== "organization") persons.add(p.id);
+    }
   } catch {
     // no people: none
   }
-  const rows = all.filter((b) => b.amount < 0 && !POCKET.test(`${b.text} ${b.counterparty}`) && !people.has(b.counterparty.trim().toLowerCase()));
+  const toPerson = (b: B) => {
+    const id = b.person_id ?? who?.byIban(b.iban) ?? null;
+    return id !== null && persons.has(id);
+  };
+  const rows = all.filter((b) => b.amount < 0 && !POCKET.test(`${b.text} ${b.counterparty}`) && !toPerson(b));
   const label: Record<Rhythm, string> = { monthly: t("Monthly"), quarterly: t("Quarterly"), yearly: t("Yearly") };
   // An account you marked as yours (your own, a credit account) is no contract.
   const marked = markedAccounts();

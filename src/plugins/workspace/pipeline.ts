@@ -175,11 +175,27 @@ const COMM_FIELDS: Record<string, { id: string; name: string; type: TypedField["
   msgunread: { id: "communread", name: "Unread", type: "checkbox" },
   mailconv: { id: "commconv", name: "Conversation", type: "text" },
   msgconv: { id: "commconv", name: "Conversation", type: "text" },
+  mailperson: { id: "commperson", name: "Person", type: "person" },
+  msgperson: { id: "commperson", name: "Person", type: "person" },
 };
 export function unifyComm(r: SourceRecord): SourceRecord {
   if (r.dataType !== "mail" && r.dataType !== "message") return r;
   return { ...r, dataType: "inbox", typed: (r.typed ?? []).map((f) => (COMM_FIELDS[f.id] ? { ...f, ...COMM_FIELDS[f.id] } : f)) };
 }
+
+/**
+ * The People plugin's one resolver for a run's records (people/resolve.ts), and a record's person field from it: the profile ids
+ * of the senders (or attendees) it knows — null for none (a field that stays empty, not an empty list).
+ */
+async function personResolver(): Promise<import("@/plugins/people/resolve").PersonResolver | null> {
+  const { isInstalled } = await import("@/plugins/state");
+  if (!isInstalled("people")) return null;
+  return (await import("@/plugins/people/resolve")).makePersonResolver();
+}
+const personField = (id: string, name: string, ids: (number | null)[]): TypedField => {
+  const v = [...new Set(ids.filter((x): x is number => !!x))];
+  return { id, name, type: "person", value: v.length ? v : null };
+};
 
 /** An account of a mail by where it's kept (Gmail's conversations: gmail:…; the rest: Outlook). */
 const accountOf = (convId: string): "outlook" | "gmail" => (convId.startsWith("gmail:") ? "gmail" : "outlook");
@@ -190,6 +206,7 @@ async function mailRecords(c: NonNullable<PipelineStep["mail"]>): Promise<Source
   const { isSideFolder } = await import("@/lib/mail/mirror");
   const from = since(c.recentDays);
   const folders = c.folders?.map((f) => f.toLowerCase());
+  const who = await personResolver();
   return listMails({ limit: 2000 })
     .filter((m) => !isChatFolder(m.folder) && !/^(wa|sg):/.test(m.convId))
     // (a mirrored folder's archive and sent folder — what left the inbox, what you sent — only when the folder is asked for)
@@ -208,6 +225,7 @@ async function mailRecords(c: NonNullable<PipelineStep["mail"]>): Promise<Source
         { id: "mailreceived", name: "Received", type: "date" as const, value: m.receivedAt ? new Date(at(m.receivedAt)).toISOString().slice(0, 16) : null },
         { id: "mailunread", name: "Unread", type: "checkbox" as const, value: m.unread || null },
         { id: "mailconv", name: "Conversation", type: "text" as const, value: m.convId },
+        ...(who && m.fromName !== ME_SENDER ? [personField("mailperson", "Person", [who.person(m.fromEmail) ?? who.person(m.fromName)])] : []),
       ],
       dataType: "mail" as const,
       text: m.preview,
@@ -221,6 +239,9 @@ async function messageRecords(c: NonNullable<PipelineStep["messages"]>): Promise
   const from = since(c.recentDays);
   const chat = c.chat?.toLowerCase();
   const out: SourceRecord[] = [];
+  const who = await personResolver();
+  // The person a message is from: its sender — or, when the sender isn't known, the chat's person (a chat with one person).
+  const personOf = (v: { sender: string; mine: boolean; conv: string }) => (v.mine ? null : (who!.person(v.sender) ?? (/^(wa|sg):/.test(v.conv) ? who!.byChat(v.conv) : null)));
   const message = (v: { ref: string; text: string; sender: string; chat: string; channel: string; sent: string | null; mine: boolean; unread?: boolean; conv: string; url?: string }): SourceRecord => ({
     ref: v.ref,
     title: v.text.split(/\r?\n/)[0].slice(0, 140) || "…",
@@ -233,6 +254,7 @@ async function messageRecords(c: NonNullable<PipelineStep["messages"]>): Promise
       { id: "msgmine", name: "Mine", type: "checkbox", value: v.mine || null },
       { id: "msgunread", name: "Unread", type: "checkbox", value: v.unread || null },
       { id: "msgconv", name: "Conversation", type: "text", value: v.conv },
+      ...(who ? [personField("msgperson", "Person", [personOf(v)])] : []),
     ],
     dataType: "message",
     text: v.text,

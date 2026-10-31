@@ -18,6 +18,7 @@ import { onTrustDecision, recordFact, setStatus, versionsOf, type FactVersion } 
 import { sameValue } from "@/lib/trust/normalize";
 import { isInstalled } from "@/plugins/state";
 import { claimsOf, reviewClaim } from "./graph";
+import { makePersonResolver } from "./resolve";
 import { getPerson, listPeople, namesThem } from "./store";
 
 export const DETAIL_KEYS = ["iban", "bic", "bank", "revtag", "address", "phone", "hours"] as const;
@@ -197,6 +198,8 @@ export function addDetail(personId: number, key: DetailKey, value: string, from?
  */
 export function rememberAccount(name: string, iban: string, bic = ""): string | null {
   if (!isInstalled("people") || !ibanValid(iban)) return null;
+  // An account someone has already: theirs (not a second owner's).
+  if (makePersonResolver().byIban(iban)) return null;
   const who = listPeople().filter((p) => p.name.toLowerCase() === name.trim().toLowerCase());
   const matches = who.length ? who : listPeople().filter((p) => namesThem(p, name));
   if (matches.length !== 1) return null;

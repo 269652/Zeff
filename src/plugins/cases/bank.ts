@@ -6,7 +6,9 @@ import { settleEvidence } from "@/lib/boards/todo-settle";
 import * as ledger from "@/lib/money/ledger";
 import { t } from "@/lib/i18n/server";
 import { detailsOf } from "@/plugins/people/details";
+import { makePersonResolver } from "@/plugins/people/resolve";
 import { getPerson } from "@/plugins/people/store";
+import { onceDone } from "@/lib/once-done";
 import { isInstalled } from "@/plugins/state";
 import { partiesOf } from "./parties";
 import { caseTitle, type Case } from "./shared";
@@ -23,7 +25,7 @@ import { localDay } from "@/lib/dates";
  */
 
 export type Booking = { date: string; amount: number; currency: string; text: string; counterparty: string; iban: string; reference: string };
-export type Transaction = Booking & { id: string; account: string; caseId: number | null; todoId: number | null };
+export type Transaction = Booking & { id: string; account: string; caseId: number | null; todoId: number | null; /** Whom it went to or came from (a person of the People plugin), when known. */ personId: number | null };
 
 // ---------------------------------------------------------------------------
 // Kept
@@ -37,11 +39,39 @@ function db() {
     create table if not exists case_payments (case_id integer not null references cases(id) on delete cascade, tx_id text not null unique, amount real not null, date text not null);
     create table if not exists case_warnings (case_id integer not null, due text not null, todo_id integer, at text not null, primary key (case_id, due));
   `);
+  // (Who the other side is came later: added to a table from before — and filled once for the bookings kept before.)
+  if (!withPerson.has(currentAccountId())) {
+    withPerson.add(currentAccountId());
+    if (!(d.prepare("pragma table_info(bank_transactions)").all() as { name: string }[]).some((c) => c.name === "person_id")) d.exec("alter table bank_transactions add column person_id integer");
+    d.exec("create index if not exists bank_transactions_person on bank_transactions (person_id)");
+    void onceDone("bank.personId@1", () => fillBookingPeople(), (n) => n !== null).catch(() => undefined);
+  }
   return d;
 }
+/** Done for these accounts' databases (each its own — two accounts run side by side). */
+const withPerson = new Set<string>();
 
-type TRow = { id: string; account: string; date: string; amount: number; currency: string; text: string; counterparty: string; iban: string; reference: string; case_id: number | null; todo_id: number | null };
-const toTx = (r: TRow): Transaction => ({ id: r.id, account: r.account, date: r.date, amount: r.amount, currency: r.currency, text: r.text, counterparty: r.counterparty, iban: r.iban, reference: r.reference, caseId: r.case_id, todoId: r.todo_id });
+/**
+ * The bookings whose other side isn't known yet, given their person: the owner of the account (an IBAN of someone's details),
+ * else the one person the counterparty's name is (people/resolve.ts). How many were found; null without the People plugin.
+ */
+export function fillBookingPeople(): number | null {
+  if (!isInstalled("people")) return null;
+  const d = db();
+  const r = makePersonResolver();
+  const update = d.prepare("update bank_transactions set person_id = ? where id = ?");
+  let n = 0;
+  d.transaction(() => {
+    for (const b of d.prepare("select id, iban, counterparty from bank_transactions where person_id is null").all() as { id: string; iban: string; counterparty: string }[]) {
+      const id = r.byIban(b.iban) ?? r.person(b.counterparty);
+      if (id) n += update.run(id, b.id).changes;
+    }
+  })();
+  return n;
+}
+
+type TRow = { id: string; account: string; date: string; amount: number; currency: string; text: string; counterparty: string; iban: string; reference: string; case_id: number | null; todo_id: number | null; person_id?: number | null };
+const toTx = (r: TRow): Transaction => ({ id: r.id, account: r.account, date: r.date, amount: r.amount, currency: r.currency, text: r.text, counterparty: r.counterparty, iban: r.iban, reference: r.reference, caseId: r.case_id, todoId: r.todo_id, personId: r.person_id ?? null });
 
 /** Bookings kept — the same booking (account, day, amount, text, and which of its like it is) once, however often it is read. */
 export function addBookings(bookings: Booking[], account: string): { added: number; total: number } {
@@ -55,6 +85,8 @@ export function addBookings(bookings: Booking[], account: string): { added: numb
     const id = createHash("sha1").update(`${sig}|${n}`).digest("hex").slice(0, 20);
     added += insert.run(id, account, b.date, b.amount, b.currency, b.text.slice(0, 300), b.counterparty.slice(0, 120), b.iban, b.reference.slice(0, 300), new Date().toISOString()).changes;
   }
+  // Whom they went to (or came from): the new ones — and the older ones of someone known since.
+  if (added) fillBookingPeople();
   return { added, total: bookings.length };
 }
 

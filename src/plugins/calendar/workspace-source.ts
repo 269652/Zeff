@@ -4,6 +4,8 @@ import { dayOf, SOURCE_LABELS, stampOf, type CalendarEventView } from "@/lib/cal
 import { t } from "@/lib/i18n/server";
 import { dateRange, type Row } from "@/plugins/workspace/model";
 import type { WorkspaceSource } from "@/plugins/workspace/source-point";
+import { makePersonResolver } from "@/plugins/people/resolve";
+import { isInstalled } from "@/plugins/state";
 
 /**
  * Your appointments as a source of the Workspace's pipelines - one record per appointment (a series' occurrences each) from Zeff's
@@ -20,7 +22,7 @@ import type { WorkspaceSource } from "@/plugins/workspace/source-point";
 const REF = /^event:(\d+)(?:@(\d{4}-\d{2}-\d{2}))?$/;
 const SRC = "srcref";
 const EDITED = "srcedited";
-const F = { start: "calstart", end: "calend", allDay: "calallday", calendar: "calcalendar", source: "calsource", location: "calplace", organizer: "calorganizer", attendees: "calattendees", online: "calonline", showAs: "calshow", response: "calresponse" };
+const F = { start: "calstart", end: "calend", allDay: "calallday", calendar: "calcalendar", source: "calsource", location: "calplace", organizer: "calorganizer", attendees: "calattendees", online: "calonline", showAs: "calshow", response: "calresponse", people: "calpeople" };
 const DAYS_BACK = 31;
 const DAYS_AHEAD = 92;
 
@@ -36,6 +38,12 @@ export function eventStamp(e: Pick<CalendarEventView, "title" | "start" | "end" 
 }
 
 export function calendarRecords() {
+  // The people it is with: its attendees and organizer as the People plugin knows them (people/resolve.ts).
+  const who = isInstalled("people") ? makePersonResolver() : null;
+  const people = (e: CalendarEventView) => {
+    const ids = [...new Set([e.organizer, ...e.attendees].map((a) => who!.person(a)).filter((x): x is number => !!x))];
+    return ids.length ? ids : null;
+  };
   return eventsBetween(shift(-DAYS_BACK), shift(DAYS_AHEAD))
     .filter((e) => !e.cancelled)
     .map((e) => ({
@@ -58,6 +66,7 @@ export function calendarRecords() {
         { id: F.online, name: "Online", type: "checkbox" as const, value: e.online || null },
         { id: F.showAs, name: "Shown as", type: "text" as const, value: e.showAs },
         { id: F.response, name: "Response", type: "text" as const, value: e.response ?? "" },
+        ...(who ? [{ id: F.people, name: "People", type: "person" as const, value: people(e) }] : []),
       ],
     }));
 }
