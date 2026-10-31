@@ -124,7 +124,7 @@ function existing(p: ImportedPerson, people: Person[]): Person | undefined {
 }
 
 const realDeps = (): ImportDeps => ({
-  ask: async (prompt) => (await runAi<{ people?: ImportedPerson[] }>(prompt, SCHEMA, { task: "people-normalize", timeoutMs: 8 * 60000, maxBudgetUsd: 1 })).output,
+  ask: async (prompt) => (await runAi<{ people?: ImportedPerson[] }>(prompt, SCHEMA, { task: "people-import", timeoutMs: 8 * 60000, maxBudgetUsd: 1 })).output,
 });
 
 /**

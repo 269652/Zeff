@@ -956,7 +956,7 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
         const r = await runAi<{ rows?: { n?: number; keep?: boolean; why?: string }[] }>(
           [...(told ? ["Grundsätze:", told, ""] : []), fillPrompt("ai-filter", AI_FILTER, { instruction: step.prompt || "Behalte nur, was wichtig oder dringend ist oder bei dem ich handeln muss." }), "", ...batch.map((b, k) => `## [${k + 1}]\n${recordText(b)}`)].join("\n"),
           SCHEMA,
-          { task: "general", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 },
+          { task: "ai-filter", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 },
         );
         noteAi(r);
         const verdicts = new Map((r.output?.rows ?? []).map((x) => [Number(x.n), x]));
@@ -1091,7 +1091,7 @@ export async function previewAiFilter(dbId: number, steps: PipelineStep[], stepI
   const r = await runAi<{ rows?: { n?: number; keep?: boolean; why?: string }[] }>(
     [...(told ? ["Grundsätze:", told, ""] : []), fillPrompt("ai-filter", AI_FILTER, { instruction: step.prompt || "" }), "", ...sample.map((b, k) => `## [${k + 1}]\n${recordText(b)}`)].join("\n"),
     SCHEMA,
-    { task: "general", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 },
+    { task: "ai-filter", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 },
   );
   const verdicts = new Map((r.output?.rows ?? []).map((x) => [Number(x.n), x]));
   return sample.map((b, k) => ({ title: b.title, keep: !!verdicts.get(k + 1)?.keep, why: String(verdicts.get(k + 1)?.why ?? "").slice(0, 300) }));
@@ -1206,7 +1206,7 @@ async function runAiSteps(dbId: number, out: PipelineResult, force?: boolean): P
     const r = await runAi<{ text?: string }>(
       [...(told ? ["Grundsätze:", told, ""] : []), fillPrompt("pipeline-summary", PIPELINE_SUMMARY, { instruction: s.prompt || "Fasse die Lage über alle Zeilen zusammen.", today }), "", lines].join("\n"),
       { type: "object", required: ["text"], properties: { text: { type: "string" } } },
-      { task: "general", timeoutMs: 4 * 60000, maxBudgetUsd: 0.5 },
+      { task: "pipeline-summary", timeoutMs: 4 * 60000, maxBudgetUsd: 0.5 },
     );
     noteAi(r);
     const text = String(r.output?.text ?? "").trim().slice(0, 8000);

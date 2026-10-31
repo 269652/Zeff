@@ -102,7 +102,7 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
   const { runAi } = await import("@/lib/ai");
   for (const batch of batches) {
     try {
-      const r = await runAi<{ rows?: { id?: number; values?: Record<string, unknown> }[] }>(`${instructions(ai, grounds)}\n\n${batch.map((b) => b.text).join("\n\n")}`, SCHEMA, { task: "general", timeoutMs: 6 * 60000, maxBudgetUsd: 1 });
+      const r = await runAi<{ rows?: { id?: number; values?: Record<string, unknown> }[] }>(`${instructions(ai, grounds)}\n\n${batch.map((b) => b.text).join("\n\n")}`, SCHEMA, { task: "ai-field", timeoutMs: 6 * 60000, maxBudgetUsd: 1 });
       noteAi(r);
       const byId = new Map((r.output?.rows ?? []).map((x) => [Number(x.id), x.values ?? {}]));
       for (const b of batch) {

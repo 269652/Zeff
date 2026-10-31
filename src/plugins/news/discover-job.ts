@@ -75,7 +75,7 @@ async function run(deps: DiscoverDeps): Promise<DiscoverStatus> {
         const { isInstalled } = await import("@/plugins/state");
         if (!isInstalled("llm")) return null;
         const { runAi } = await import("@/lib/ai");
-        return async (prompt: string) => (await runAi<Plan>(prompt, SCHEMA, { task: "news-digest", timeoutMs: 3 * 60000, maxBudgetUsd: 0.2 })).output;
+        return async (prompt: string) => (await runAi<Plan>(prompt, SCHEMA, { task: "news-discover", timeoutMs: 3 * 60000, maxBudgetUsd: 0.2 })).output;
       })());
     if (ask) queries = ((await ask(planPrompt(taste, interests, recent))).queries ?? []).map((q) => String(q).trim()).filter((q) => q.length >= 3 && q.length <= 80);
   } catch {

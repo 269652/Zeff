@@ -170,7 +170,7 @@ export async function moreLikeThis(itemId: number, deps: SimilarDeps = {}): Prom
           const { isInstalled } = await import("@/plugins/state");
           if (!isInstalled("llm")) return null;
           const { runAi } = await import("@/lib/ai");
-          return async (prompt: string) => (await runAi<Plan>(prompt, SCHEMA, { task: "news-digest", timeoutMs: 3 * 60000, maxBudgetUsd: 0.3 })).output;
+          return async (prompt: string) => (await runAi<Plan>(prompt, SCHEMA, { task: "news-similar", timeoutMs: 3 * 60000, maxBudgetUsd: 0.3 })).output;
         })());
       if (ask) {
         plan = await ask(similarPrompt(article, profile));

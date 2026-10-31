@@ -107,7 +107,7 @@ export async function updateTaste(deps: TasteDeps = {}): Promise<number> {
           const { isInstalled } = await import("@/plugins/state");
           if (!isInstalled("llm")) return null;
           const { runAi } = await import("@/lib/ai");
-          return async (prompt: string) => (await runAi<Update>(prompt, SCHEMA, { task: "news-digest", timeoutMs: 3 * 60000, maxBudgetUsd: 0.2 })).output;
+          return async (prompt: string) => (await runAi<Update>(prompt, SCHEMA, { task: "news-taste", timeoutMs: 3 * 60000, maxBudgetUsd: 0.2 })).output;
         })());
       if (ask) out = await ask(tastePrompt(cur, batch, profile));
     } catch {
