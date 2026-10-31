@@ -5,7 +5,7 @@ import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, use
 import { confirmAction } from "@/components/confirm";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { chartViewAction, templateParamsAction, tryRulesAction, pressButtonAction, closeDayAction, undoCloseDayAction, discardIfUntouchedAction, addRowAction, formFromTableAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, loadDatabaseAction, addSubtaskAction, makeInboxAction, placeRowAction, refreshPipelineAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
+import { chartViewAction, templateParamsAction, tryRulesAction, pressButtonAction, discardIfUntouchedAction, addRowAction, formFromTableAction, archivePageAction, savePageAction, restorePageAction, databasesAction, duplicateRowAction, loadDatabaseAction, addSubtaskAction, makeInboxAction, placeRowAction, refreshPipelineAction, rowsMatchingAction, receivingDatabasesAction, runJobAction, setAgentsAction, runPipelineAction, sendRowAction, setCellAction, setReceiveAction, unlinkRowAction, updateSchemaAction, type DatabaseData } from "../actions";
 import { DEFAULT_COLUMN, fitWidth, hideRows, shownRows, PROP_LABELS, PROP_TYPES, retype, type PropType, WIDTH_MIN, withWidths, cellText, columnOrder, dateRange, dropValue, filterByPeople, mineKeys, moveOption, moveOptionTo, panelProperties, personChips, personPropOf, removeOption, renameOption, setOptionDone, setWipLimit, type Group, filterRows, groupRows, isComputed, isDayList, newId, hasDependents, moveBefore, newView, removeProperty, sortRows, TITLE, withCell, dropBetween, type DbSchema, type Labels, type Property, type Row, type View, type ViewType } from "../model";
 import { Cell, PopCell, type CellCtx } from "./cells";
 import { RowCard } from "./cards";
@@ -32,6 +32,7 @@ import { CalcCell, usePublished } from "./calc-row";
 import { ShareDialog } from "./sheet";
 import { DatabaseMenu, PLAIN_VIEWS, VIEW_ICON } from "./db-menu";
 import { parseChartMarker } from "../legacy-blocks";
+import { DAY_TABS, DayListTab, isDayTab, useDayTabLabels, type DayTab } from "./day-list";
 
 /** The fields that hold where a row came from (keep:…, a source's key, when it was edited there). */
 const INTERNAL_REFS = new Set(["noteref", "srcref", "srcedited"]);
@@ -289,8 +290,11 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const t = useT();
   const router = useRouter();
   const api = useDatabase(initial, dbId);
+  const dayLabels = useDayTabLabels();
   const { data } = api;
-  const [current, setCurrent] = useState(viewId ?? "");
+  const search = useSearchParams();
+  // (A day list's own tab asked for by the link: ?day=stats.)
+  const [current, setCurrent] = useState(viewId ?? (search.get("day") ? `day:${search.get("day")}` : ""));
   const [q, setQ] = useState("");
   // What was typed found on the rows' pages too (a document's whole text, a mail's body) — the server's answer, a moment later.
   const [pageHits, setPageHits] = useState<{ q: string; ids: Set<number> } | null>(null);
@@ -307,7 +311,6 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const onPage = q.trim() && pageHits?.q === q.trim() ? pageHits.ids : undefined;
   const [schemaOpen, setSchemaOpen] = useState(false);
   const [cardOpen, setCardOpen] = useState(false);
-  const search = useSearchParams();
   // ?steps=1 (a derived database just made): its Sources & steps open, to say what it keeps.
   const [pipelineOpen, setPipelineOpen] = useState(() => search.get("steps") === "1");
   const [justAdded, setJustAdded] = useState<number | null>(null);
@@ -384,6 +387,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   if (!data || !view) return <p className="py-6 text-sm text-zinc-500">{t("Loading …")}</p>;
 
   const schema = data.schema;
+  // A day list (day-lists.ts): its own tabs first — Today unless a view was picked.
+  const dayTab: DayTab | null = isDayList(schema) ? (isDayTab(current) ? current : current && schema.views.some((v) => v.id === current) ? null : "day:today") : null;
   // A locked database (one a sync keeps, as Jira's) is shown, not changed: its cells, cards and columns stay as they are.
   const ctx: CellCtx = { data, set: api.set, pending: api.isPending, press: api.press, addOption: api.addOption, editable: !data.locked, openRow: (id) => openRow(id) };
   const withRow = (id: number | null) => {
@@ -606,8 +611,14 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
         <div className={`flex min-w-0 items-center gap-0.5 ${narrow ? "flex-1 flex-nowrap overflow-x-auto [scrollbar-width:none]" : "flex-wrap"}`}>
           {/* The views are the tabs; "+" beside them is no tab. */}
           <div role="tablist" aria-label={t("Views")} className="contents">
+            {isDayList(schema) &&
+              DAY_TABS.map((d) => (
+                <button key={d} type="button" role="tab" aria-selected={d === dayTab} onClick={() => pick(d)} className={`shrink-0 rounded-md px-2 py-1 text-sm whitespace-nowrap ${d === dayTab ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
+                  {dayLabels[d]}
+                </button>
+              ))}
             {schema.views.map((v) => (
-              <button key={v.id} type="button" role="tab" aria-selected={v.id === view.id} onClick={() => pick(v.id)} className={`shrink-0 rounded-md px-2 py-1 text-sm whitespace-nowrap ${v.id === view.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
+              <button key={v.id} type="button" role="tab" aria-selected={!dayTab && v.id === view.id} onClick={() => pick(v.id)} className={`shrink-0 rounded-md px-2 py-1 text-sm whitespace-nowrap ${!dayTab && v.id === view.id ? "bg-zinc-100 font-medium dark:bg-zinc-800" : "text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}>
                 {v.type === "app" ? (data.extras?.appViews?.find((a) => a.id === v.app)?.icon ?? VIEW_ICON.app) : VIEW_ICON[v.type]} {v.name}
               </button>
             ))}
@@ -672,8 +683,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             🔍
           </button>
         )}
-        {!narrow && controlsNode}
-        {narrow && viewMenu}
+        {!narrow && !dayTab && controlsNode}
+        {narrow && !dayTab && viewMenu}
         {!narrow && schema.pipeline?.steps.some((s) => s.kind === "source") && !data.extras?.source && (
           <button
             type="button"
@@ -691,38 +702,10 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             {data.extras?.running ? <span className="inline-block animate-spin">↻</span> : "↻"}
           </button>
         )}
-        {!narrow && propsDropdown}
+        {!narrow && !dayTab && propsDropdown}
         {/* A rules database: its rules tried on what the pipelines read — per rule, what it would hit; nothing written (rules.ts). */}
         {data.schema.rules && <TryRules dbId={dbId} />}
-        {/* A list ticked through every day (day-log.ts): the day closed by hand — the day the ticks were made on (the turn at 4:00 missed: the day before). */}
-        {isDayList(data.schema) && (
-          <button
-            type="button"
-            className="btn btn-sm shrink-0"
-            title={t("Close the day: its entry in the log is locked and every tick goes off. It is the day the ticks were made on — closed in the morning before the list turned at 4:00, the day before")}
-            onClick={async () => {
-              const r = await closeDayAction(dbId);
-              if (!r.ok) return void toast(r.error, { tone: "error" });
-              await api.reload();
-              router.refresh();
-              toast(t("Closed: {day}.", { day: new Date(`${r.day}T12:00:00`).toLocaleDateString(undefined, { weekday: "long", day: "numeric", month: "long" }) }), {
-                tone: "ok",
-                action: {
-                  label: t("Undo"),
-                  run: async () => {
-                    const u = await undoCloseDayAction(dbId);
-                    if (!u.ok) return void toast(u.error, { tone: "error" });
-                    await api.reload();
-                    router.refresh();
-                  },
-                },
-              });
-            }}
-          >
-            ✓ {t("Close the day")}
-          </button>
-        )}
-        {!narrow && (view.type === "board" || view.type === "gallery") && (
+        {!narrow && !dayTab && (view.type === "board" || view.type === "gallery") && (
           <button type="button" className={`btn btn-sm ${view.card ? "text-indigo-600 dark:text-indigo-400" : ""}`} title={t("How the cards look — a card template")} onClick={() => setCardOpen(true)}>
             {t("Card")}
           </button>
@@ -746,7 +729,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           ranText={ranText}
         />
         <div className={`flex shrink-0 ${data.locked || data.noNewRows ? "hidden" : ""}`}>
-          <button type="button" className="btn btn-primary btn-sm rounded-r-none" title={t("New")} aria-label={t("New")} onClick={() => (view.type === "app" && appNew.current ? appNew.current() : void newRow({}, undefined, !inPlace))}>
+          <button type="button" className="btn btn-primary btn-sm rounded-r-none" title={t("New")} aria-label={t("New")} onClick={() => (!dayTab && view.type === "app" && appNew.current ? appNew.current() : void newRow({}, undefined, !inPlace || !!dayTab))}>
             {narrow ? "+" : t("New")}
           </button>
           <Dropdown label="▾" align="right" title={t("New from a template")} wrapClassName="relative flex" className="btn btn-primary btn-sm h-auto rounded-l-none border-l border-indigo-400 px-1.5">
@@ -788,7 +771,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       </div>
 
       {/* Not over an app's view (the creditors overview, the cases): it has its own say of whom it shows. */}
-      {personProp && view.type !== "app" && (
+      {personProp && !dayTab && view.type !== "app" && (
         <PeopleBar
           chips={personChips(data.rows, personProp, (k) => labels.person(Number(k)))}
           picked={people}
@@ -809,7 +792,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
 
       {data.extras?.running && <p className="text-sm text-indigo-600 dark:text-indigo-400" data-running>✨ {t("The AI is going through the rows — they change as it writes them …")}</p>}
       <PipelineSummaries pipeline={schema.pipeline} />
-      {view.type === "app" && code?.viewId === view.id && (
+      {dayTab && <DayListTab tab={dayTab} dbId={dbId} data={data} set={api.set} reload={api.reload} logView={(logId) => <DatabaseView initial={null} dbId={logId} embedded />} />}
+      {!dayTab && view.type === "app" && code?.viewId === view.id && (
         <ViewCode
           view={view}
           dbId={dbId}
@@ -831,16 +815,16 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           }}
         />
       )}
-      {view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} onNew={setAppNew} ctx={ctx} rowOps={rowOps} src={code?.viewId === view.id ? code.draft : undefined} onErrors={code?.viewId === view.id ? setCodeErrors : undefined} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
-      {view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} onHide={(hide) => (api.changeSchema((s) => hideRows(s, [...picked], hide)), setPicked(new Set()))} />}
-      {view.type === "table" && <TableView onForm={onForm} fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
-      {view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} onForm={onForm} />}
-      {view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
-      {view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} onForm={onForm} locked={!!data.locked || !!data.noNewRows} template={view.card} />}
-      {view.type === "timeline" && <TimelineView view={view} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} />}
-      {view.type === "todo" && <TodoView dbId={dbId} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} canAdd={!data.noNewRows} />}
-      {view.type === "chart" && <ChartView view={view} rows={rows} schema={schema} />}
-      {view.type === "calendar" && <CalendarView canAdd={!data.noNewRows} view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
+      {!dayTab && view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} onNew={setAppNew} ctx={ctx} rowOps={rowOps} src={code?.viewId === view.id ? code.draft : undefined} onErrors={code?.viewId === view.id ? setCodeErrors : undefined} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
+      {!dayTab && view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} onHide={(hide) => (api.changeSchema((s) => hideRows(s, [...picked], hide)), setPicked(new Set()))} />}
+      {!dayTab && view.type === "table" && <TableView onForm={onForm} fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
+      {!dayTab && view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} onForm={onForm} />}
+      {!dayTab && view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
+      {!dayTab && view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} onForm={onForm} locked={!!data.locked || !!data.noNewRows} template={view.card} />}
+      {!dayTab && view.type === "timeline" && <TimelineView view={view} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} />}
+      {!dayTab && view.type === "todo" && <TodoView dbId={dbId} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} canAdd={!data.noNewRows} />}
+      {!dayTab && view.type === "chart" && <ChartView view={view} rows={rows} schema={schema} />}
+      {!dayTab && view.type === "calendar" && <CalendarView canAdd={!data.noNewRows} view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
       <p className="text-xs text-zinc-500">
         {rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}
         {hiddenCount > 0 && (

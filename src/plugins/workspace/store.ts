@@ -20,7 +20,7 @@ import { made, touch } from "./undo";
 import { docRefs, docText, emptyDoc, sanitizeDoc, withTaskIds, type Doc, type DocRef } from "./doc";
 import { sourceTable } from "./source-table";
 import { t } from "@/lib/i18n/server";
-import { followListRename, isDayList, startDayIfNew, writeDayLog } from "./day-log";
+import { dayLogIds, followListRename, isDayList, startDayIfNew, writeDayLog } from "./day-log";
 import { evalAuto, followRenames, withStamps } from "./auto-fill";
 import { cellFormula, cellText, coerceCellValue, computeRows, defaultSchema, formulaKey, isComputed, isFormulaInput, shareOf, SYSTEM_PROPS, newProperty, normalizeSchema, pageKind, propById, takesCellFormula, TITLE, type DbSchema, type PageKind, type Labels, type Property, type Row } from "./model";
 import { checkFormula } from "./formula";
@@ -118,12 +118,14 @@ export function getPage(id: number): Page | null {
 // The tree
 // ---------------------------------------------------------------------------
 
-export type TreeItem = { id: number; parentId: number | null; kind: PageKind; title: string; icon: string; favorite: boolean; position: number; /** A system page: stays (not to the trash, not moved away). */ system?: boolean; /** Marked a template (your own; what is below it belongs to it). */ template?: boolean };
+export type TreeItem = { id: number; parentId: number | null; kind: PageKind; title: string; icon: string; favorite: boolean; position: number; /** A system page: stays (not to the trash, not moved away). */ system?: boolean; /** Marked a template (your own; what is below it belongs to it). */ template?: boolean; /** A day list (day-log.ts): ticked through every day. */ dayList?: boolean; /** A day list's log: shown in its list's "History" tab, not in the tree (its list's id). */ dayLogOf?: number };
 
 /** The pages of the tree (not the rows of databases, not the trash), split: the page tree, and your templates (a page marked one and what is below it — its top at the top). */
 function splitTree(): { pages: TreeItem[]; templates: TreeItem[] } {
   const system = new Set(systemPageIds());
-  const rows = db().prepare("select id, parent_id, kind, title, icon, favorite, position, template from ws_pages where db_id is null and archived_at is null order by position, id").all() as { id: number; parent_id: number | null; kind: string; title: string; icon: string; favorite: number; position: number; template: number }[];
+  // (A day list: switched on, or a checkbox recording the time and not switched off — model.ts's isDayList without reading each schema.)
+  const rows = db().prepare("select id, parent_id, kind, title, icon, favorite, position, template, (kind = 'database' and (instr(schema, '\"dayList\":true') > 0 or (instr(schema, '\"dayList\":false') = 0 and instr(schema, '\"stampTime\":true') > 0))) day from ws_pages where db_id is null and archived_at is null order by position, id").all() as { id: number; parent_id: number | null; kind: string; title: string; icon: string; favorite: number; position: number; template: number; day: number }[];
+  const logs = dayLogIds();
   const byId = new Map(rows.map((r) => [r.id, r]));
   const known = new Map<number, boolean>();
   const isTpl = (id: number, hops = 0): boolean => {
@@ -136,7 +138,7 @@ function splitTree(): { pages: TreeItem[]; templates: TreeItem[] } {
   const out = { pages: [] as TreeItem[], templates: [] as TreeItem[] };
   for (const r of rows) {
     const tpl = isTpl(r.id);
-    const item: TreeItem = { id: r.id, parentId: r.parent_id, kind: pageKind(r.kind), title: r.title, icon: r.icon, favorite: !!r.favorite, position: r.position, ...(system.has(r.id) ? { system: true } : {}), ...(r.template ? { template: true } : {}) };
+    const item: TreeItem = { id: r.id, parentId: r.parent_id, kind: pageKind(r.kind), title: r.title, icon: r.icon, favorite: !!r.favorite, position: r.position, ...(system.has(r.id) ? { system: true } : {}), ...(r.template ? { template: true } : {}), ...(r.day ? { dayList: true } : {}), ...(logs.has(r.id) && byId.get(logs.get(r.id)!)?.day ? { dayLogOf: logs.get(r.id)! } : {}) };
     if (tpl && r.parent_id !== null && !isTpl(r.parent_id)) item.parentId = null;
     out[tpl ? "templates" : "pages"].push(item);
   }

@@ -168,6 +168,16 @@ async function compute(): Promise<Kept> {
     const b = badgeOf([{ tone: "unread", count: n, label: t("{n} unread", { n }) }]);
     if (b) own[Number(id)] = b;
   }
+  // A day list: after 18:00, what is still open today (day-lists.ts).
+  try {
+    const { dayListBadges } = await import("./day-lists");
+    for (const [id, x] of dayListBadges()) {
+      const b = sumBadges([own[id], badgeOf([{ tone: "unread", count: x.count, label: x.label }])]);
+      if (b) own[id] = b;
+    }
+  } catch {
+    // a badge is a bonus
+  }
   for (const [page, parts] of await widgetParts()) {
     const b = sumBadges([own[page], badgeOf(parts)]);
     if (b) own[page] = b;

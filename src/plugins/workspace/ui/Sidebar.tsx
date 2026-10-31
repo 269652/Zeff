@@ -6,7 +6,7 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, setTemplateAction, templatesAction } from "../actions";
+import { createDayListAction, setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, setTemplateAction, templatesAction } from "../actions";
 import { kindIcon, moveBefore } from "../model";
 import { countLabel, noBadges, shownBadge, shownMessages, sumBadges, type Badge, type PageBadges } from "../badge-shared";
 import { pageBadgesAction } from "../badge-actions";
@@ -154,8 +154,10 @@ function badgeTip(title: string, own: Badge | null | undefined, below: Badge | n
 }
 
 /** The page tree, favorites, search and "new" — the left column of the Workspace. */
-export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), channels, extSources = [], builtins = [], templateItems = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** The pages' badges (badges.ts): their own, their rows', the rows' — read again here after a change. */ badges?: PageBadges & { stale?: boolean }; /** The built-in templates (read only — opened as a preview). */ builtins?: Pick<Meta, "key" | "name" | "icon" | "kind" | "category">[]; /** Your templates' pages (each marked a template, with what is below it). */ templateItems?: TreeItem[] }) {
+export function Sidebar({ appNav = {}, items: treeItems, favorites, badges = noBadges(), channels, extSources = [], builtins = [], templateItems = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** The pages' badges (badges.ts): their own, their rows', the rows' — read again here after a change. */ badges?: PageBadges & { stale?: boolean }; /** The built-in templates (read only — opened as a preview). */ builtins?: Pick<Meta, "key" | "name" | "icon" | "kind" | "category">[]; /** Your templates' pages (each marked a template, with what is below it). */ templateItems?: TreeItem[] }) {
   const t = useT();
+  // A day list's log isn't a page of the tree: it is its list's "History" tab (still found by the search).
+  const items = useMemo(() => treeItems.filter((i) => !i.dayLogOf), [treeItems]);
   const router = useRouter();
   const path = usePathname();
   const current = Number(/^\/workspace\/(\d+)/.exec(path)?.[1] ?? 0) || null;
@@ -364,6 +366,11 @@ export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), ch
           <Link href={`/workspace/${item.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5" title={badgeTip(item.title || t("Untitled"), own, sub, t("Below"))}>
             <span className="shrink-0">{item.icon || kindIcon(item.kind)}</span>
             <span className="truncate">{item.title || t("Untitled")}</span>
+            {item.dayList && (
+              <span className="shrink-0 text-xs opacity-70" title={t("Day list: ticked through every day, it starts again at 4:00")} aria-label={t("Day list")}>
+                🔁
+              </span>
+            )}
             {/* What waits on it (a mail inbox's unread, as a mail client's folders show it; a person's open todos …), and below it. */}
             <BadgePill badge={own} />
             {(shownBadge(sub) || shownMessages(sub) > 0) && <span className={own ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={sub} dim /></span>}
@@ -494,6 +501,29 @@ export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), ch
                 <MenuItem onClick={() => (close(), void create({}))}>📄 {t("Page")}</MenuItem>
                 <MenuItem onClick={() => (close(), void create({ kind: "database", title: t("Database") }))}>🗂️ {t("Database")}</MenuItem>
                 <MenuItem onClick={() => (close(), void create({ kind: "form", title: t("Form") }))}>📝 {t("Form")}</MenuItem>
+                <div className="px-2 pt-1 text-xs font-semibold text-zinc-500 uppercase">{t("Day list")}</div>
+                {(
+                  [
+                    ["meds", "💊", t("Medicines (dose + time)")],
+                    ["routine", "🔁", t("Routine (tick + time)")],
+                    ["habits", "🌱", t("Habits (tick)")],
+                  ] as const
+                ).map(([kind, icon, label]) => (
+                  <MenuItem
+                    key={kind}
+                    onClick={() =>
+                      void (async () => {
+                        close();
+                        const r = await createDayListAction(kind);
+                        if (!r.ok) return toast(r.error, { tone: "error" });
+                        router.push(`/workspace/${r.id}`);
+                        router.refresh();
+                      })()
+                    }
+                  >
+                    {icon} {label}
+                  </MenuItem>
+                ))}
                 <MenuItem onClick={() => (close(), setAutomation(true))}>⚙️ {t("Automation …")}</MenuItem>
                 {((channels && (channels.mail || channels.messages)) || extSources.length > 0) && (
                   <>

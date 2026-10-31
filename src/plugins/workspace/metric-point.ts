@@ -23,4 +23,5 @@ export type MetricProvider = {
   available?: () => boolean;
 };
 
-export const workspaceMetrics = extensionPoint<MetricProvider[]>("workspace.metrics");
+/** A plugin's Kennzahlen: a list, or one read when asked (one per thing of yours: each day list's). */
+export const workspaceMetrics = extensionPoint<MetricProvider[] | (() => MetricProvider[])>("workspace.metrics");

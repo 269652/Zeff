@@ -4,8 +4,8 @@ import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { createDerivedDatabaseAction, exportDatabaseCsvAction, formFromTableAction, refreshPipelineAction, reviewDatabaseAction, runOpenJobsAction, setDatabaseLabelAction, setNavPlaceAction, type DatabaseData } from "../actions";
-import { newId, VIEW_TYPES, type DbSchema, type View, type ViewType } from "../model";
+import { createDerivedDatabaseAction, exportDatabaseCsvAction, formFromTableAction, refreshPipelineAction, reviewDatabaseAction, runOpenJobsAction, setDatabaseLabelAction, setDayListAction, setNavPlaceAction, type DatabaseData } from "../actions";
+import { isDayList, newId, VIEW_TYPES, type DbSchema, type View, type ViewType } from "../model";
 import { viewAppMeta } from "../view-apps";
 import { appAvailable } from "./app-view";
 import { Dropdown, MenuItem, MenuSection } from "./kit";
@@ -112,6 +112,21 @@ export function DatabaseMenu(p: {
 
           <MenuSection title={t("Automation")}>
             <MenuItem onClick={() => (close(), p.open("repeat"))}>🔁 {t("Repeating rows …")}</MenuItem>
+            {/* A day list (day-lists.ts): ticked through every day, its days kept in a log — its tabs Today, History, Figures. */}
+            <MenuItem
+              onClick={async () => {
+                close();
+                const on = !isDayList(schema);
+                if (!on && !confirmAction(t("Stop being a day list? It no longer starts again at 4:00; its history stays (as a database under it)."))) return;
+                const r = await setDayListAction(dbId, on);
+                if (!r.ok) return void toast(r.error, { tone: "error" });
+                await p.reload();
+                if (on) p.pick("day:today");
+                router.refresh();
+              }}
+            >
+              🔁 {isDayList(schema) ? t("Stop being a day list") : t("Use as a day list")}
+            </MenuItem>
             {schema.jobs && <MenuItem onClick={() => (close(), p.open("agents"))}>🤖 {t("Agents …")}</MenuItem>}
             {schema.jobs && (
               <MenuItem

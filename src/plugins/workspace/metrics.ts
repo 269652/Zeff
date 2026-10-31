@@ -62,7 +62,7 @@ const saveMetas = (m: Record<string, Meta>) => setPref(META, m);
 /** The plugins' Kennzahlen (installed plugins only), by key. */
 function providers(): Map<string, MetricProvider & { plugin: string }> {
   const out = new Map<string, MetricProvider & { plugin: string }>();
-  for (const c of workspaceMetrics.list()) for (const p of c.impl) if (p.available?.() !== false) out.set(valueKey(p.label), { ...p, plugin: c.plugin });
+  for (const c of workspaceMetrics.list()) for (const p of typeof c.impl === "function" ? c.impl() : c.impl) if (p.available?.() !== false) out.set(valueKey(p.label), { ...p, plugin: c.plugin });
   return out;
 }
 
