@@ -41,10 +41,10 @@ test("identity: the names the sources write become proposals — nothing is appl
   assert.deepEqual([merge?.personId, merge?.otherId].sort(), [jonas, jonasTwo].sort());
   assert.equal(findIdentitySuggestions(), 0, "nothing twice");
 
-  acceptSuggestion(by("alias", "Lorenz, Chris")!.id);
+  await acceptSuggestion(by("alias", "Lorenz, Chris")!.id);
   assert.ok(getPerson(chris)!.aliases.includes("Lorenz, Chris"));
-  rejectSuggestion(by("person", "Nikolai Townsend")!.id);
-  acceptSuggestion(merge!.id);
+  await rejectSuggestion(by("person", "Nikolai Townsend")!.id);
+  await acceptSuggestion(merge!.id);
   assert.equal(listPeople().length, before - 1);
   assert.equal(findIdentitySuggestions(), 0, "a rejected one isn't proposed again");
   assert.equal(pendingSuggestions().some((s) => s.name.includes("Nikolai")), false);
@@ -85,7 +85,7 @@ test("identity: one address written as several names is one person — the addre
   assert.match(her.evidence, /you wrote back/);
   // Accepting tells which profile it made — the one to read back for.
   const { getPerson } = await import("@/plugins/people/store");
-  const made = acceptSuggestion(found[0].id);
+  const made = await acceptSuggestion(found[0].id);
   assert.deepEqual(getPerson(made!)?.emails, ["ogv.nathanael@gvjustiz.de"]);
 });
 

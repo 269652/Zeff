@@ -54,7 +54,7 @@ test("entities: a mail domain becomes an organisation to confirm — freemail ne
   assert.equal(open.some((s) => /gmail|web\.de|Gmail|Web/.test(s.name + JSON.stringify(s.data))), false, "freemail is no organisation");
   assert.equal(findEntitySuggestions(), 0, "nothing twice");
 
-  const ref = acceptEntitySuggestion(org!.id);
+  const ref = await acceptEntitySuggestion(org!.id);
   assert.match(ref ?? "", /^org:\d+$/);
   deriveEntityLinks();
   const works = linksOf(anna).find((l) => l.rel === "works-at");
@@ -97,15 +97,15 @@ test("entities: names of one organisation are merged or aliased only when you sa
   const northwind = open.find((s) => s.kind === "org" && s.name === "Northwind AG");
   assert.ok(northwind, "a job's customer is an organisation to confirm");
 
-  acceptEntitySuggestion(merge!.id);
+  await acceptEntitySuggestion(merge!.id);
   assert.equal(listEntities("org").filter((o) => o.name.startsWith("Contoso")).length, 1);
   const kept = getEntity(merge!.ref)!;
   assert.ok([kept.name, ...kept.aliases].includes("Contoso GmbH") && [kept.name, ...kept.aliases].includes("Contoso"));
   assert.ok(entityLinks(merge!.ref).some((l) => l.rel === "domain" && l.target === "contoso.de"));
 
-  acceptEntitySuggestion(alias!.id);
+  await acceptEntitySuggestion(alias!.id);
   assert.ok(getEntity(`org:${c}`)!.aliases.includes("Fabrikam Werke"));
-  rejectEntitySuggestion(northwind!.id);
+  await rejectEntitySuggestion(northwind!.id);
   findEntitySuggestions();
   assert.equal(pendingEntitySuggestions().some((s) => s.name === "Northwind AG"), false, "rejected stays rejected");
 });
@@ -142,11 +142,11 @@ test("entities: a project gathers its job number, Jira key and board, repos and 
   const typoLink = open.find((s) => s.kind === "link" && s.ref === `project:${typo.id}`);
   assert.ok(typoLink?.data.links?.some((l) => l.rel === "board" && l.target === "77"), JSON.stringify(typoLink));
 
-  const ref = acceptEntitySuggestion(support!.id)!;
+  const ref = (await acceptEntitySuggestion(support!.id))!;
   const id = Number(ref.split(":")[1]);
   assert.equal(getProject(id)?.job?.number, "AB123-000001-00");
   assert.ok(entityLinks(ref).some((l) => l.rel === "repo" && l.target === String(repo.id)));
-  acceptEntitySuggestion(typoLink!.id);
+  await acceptEntitySuggestion(typoLink!.id);
 
   assert.equal(projectOf("ticket:PROJ-12"), ref, "the ticket's board says which");
   assert.equal(projectOf("ticket:PROJ-40"), null, "PROJ is two jobs — Relaunch has no project yet");
@@ -185,8 +185,8 @@ test("entities: places from appointments and addresses — online ones never; an
   assert.ok(open.find((s) => /Lindenallee 7/.test(s.data.address ?? "")));
   assert.equal(open.some((s) => /Teams/.test(s.name)), false);
 
-  const berlin = acceptEntitySuggestion(open.find((s) => /10115/.test(s.data.address ?? ""))!.id)!;
-  const home = acceptEntitySuggestion(open.find((s) => /Lindenallee/.test(s.data.address ?? ""))!.id)!;
+  const berlin = (await acceptEntitySuggestion(open.find((s) => /10115/.test(s.data.address ?? ""))!.id))!;
+  const home = (await acceptEntitySuggestion(open.find((s) => /Lindenallee/.test(s.data.address ?? ""))!.id))!;
   findEntitySuggestions();
   const short = pendingEntitySuggestions().find((s) => s.kind === "alias" && s.name === "Hauptstr. 3");
   assert.equal(short?.ref, berlin, "a shorter way of writing it is an alias");
@@ -201,18 +201,17 @@ test("entities: places from appointments and addresses — online ones never; an
 
 test("entities: the review queue lists the proposals and its buttons decide them; MCP search and get show an entity with its links", async () => {
   const { createEntity, addEntityLink } = await import("@/plugins/entities/store");
-  const { ENTITIES_REVIEW } = await import("@/plugins/entities/review");
+  const { reviewAct, reviewItems } = await import("@/lib/review");
   const { entitySearch, entityGet } = await import("@/plugins/entities/tools");
   await mail("Shop", "orders@tailspin.example");
   await mail("Shop", "orders@tailspin.example");
   const { findEntitySuggestions } = await import("@/plugins/entities/suggest");
   findEntitySuggestions();
-  const src = ENTITIES_REVIEW[0];
-  const items = await src.list();
+  const items = (await reviewItems()).items.filter((i) => i.source === "entities");
   const item = items.find((i) => i.title.includes("Tailspin"));
   assert.ok(item, JSON.stringify(items.map((i) => i.title)));
-  await src.act(item!.id, "yes");
-  assert.equal((await src.list()).some((i) => i.title.includes("Tailspin")), false);
+  await reviewAct(item!.key, "yes");
+  assert.equal((await reviewItems()).items.some((i) => i.source === "entities" && i.title.includes("Tailspin")), false);
 
   const w = createEntity("org", "Woodgrove Bank");
   addEntityLink(`org:${w}`, "domain", "woodgrove.example");

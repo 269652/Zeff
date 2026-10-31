@@ -33,6 +33,9 @@ export const STEPS = {
   wsAiField: "ws-ai-field",
   todoDone: "todo-done",
   openLoops: "open-loops",
+  entities: "entities",
+  shadowCalendar: "shadow-calendar",
+  dayPlan: "day-plan",
 } as const;
 
 export type Feedback = {

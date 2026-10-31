@@ -4,13 +4,16 @@
  * "Thomas B."); this reads those names and the addresses and usernames that come with them and
  * proposes — never applies by itself — which are the same person: a name to add as an alias, two
  * profiles to merge, a profile for someone who keeps turning up. A proposal waits in the review
- * queue until you accept it; a rejected one is remembered and not made again. Server only.
+ * queue until you accept it; a rejected one is remembered and not made again. The proposals live in the one store of all
+ * (@/lib/proposals, source "people-identity"); accepting one is `applyIdentity`, run by its `decide()`. Server only.
  */
 import { getSqlite } from "@/db";
 import { NOT_A_PERSON } from "@/lib/noise";
-import { recordFeedback } from "@/lib/learning/ledger";
+import type { Feedback } from "@/lib/learning/ledger";
 import { identityFeedback } from "@/lib/learning/sources";
 import { emitChange } from "@/lib/events";
+import { isDone, markDone } from "@/lib/once-done";
+import { adoptProposals, decide, expireProposals, openProposals, propose as putProposal, type Proposal, type ProposalStatus, type ProposalVerdict } from "@/lib/proposals";
 import { nameSimilar, normalizeName } from "./accounts";
 import type { Person } from "./shared";
 import { addAccount, addAliases, createPerson, getPerson, listPeople, mergePeople, namesOf, updatePerson } from "./store";
@@ -33,45 +36,85 @@ export type Suggestion = {
   createdAt: string;
 };
 
-function db() {
+/** The proposals' source (@/lib/proposals): its handler is People's (./proposals). */
+export const IDENTITY_SOURCE = "people-identity";
+
+/** What a proposal of it carries; `legacyId`: its id in the table of before (people_suggestions) — the ledger's key of then. */
+type IdentityPayload = { personId: number; otherId: number; name: string; emails: string[]; jira: string; legacyId?: number };
+
+const asKind = (k: string): SuggestionKind => (k === "merge" || k === "person" ? k : "alias");
+
+const migrated = new WeakSet<object>();
+
+/**
+ * The proposals of before (people_suggestions) taken over once per account — each with its key as the input hash, so one
+ * rejected then is never made again; the old table stays as it was (the learning backfill reads it).
+ */
+function migrate(): void {
   const d = getSqlite();
-  d.exec(`
-    create table if not exists people_suggestions (id integer primary key autoincrement, key text not null unique, kind text not null, person_id integer not null default 0, other_id integer not null default 0, name text not null default '', emails text not null default '[]', jira text not null default '', evidence text not null default '', confidence real not null default 0.5, status text not null default 'pending', created_at text not null, decided_at text);
-  `);
-  return d;
+  if (migrated.has(d)) return;
+  const KEY = "proposals.people-identity@1";
+  if (!isDone(KEY)) {
+    if (d.prepare("select 1 from sqlite_master where type = 'table' and name = 'people_suggestions'").get()) {
+      type Old = { id: number; key: string; kind: string; person_id: number; other_id: number; name: string; emails: string; jira: string; evidence: string; confidence: number; status: string; created_at: string; decided_at: string | null };
+      const status = (s: string): ProposalStatus => (s === "pending" ? "open" : s === "accepted" ? "accepted" : s === "rejected" ? "dismissed" : "expired");
+      adoptProposals(
+        (d.prepare("select * from people_suggestions").all() as Old[]).map((r) => ({
+          source: IDENTITY_SOURCE,
+          inputHash: r.key,
+          kind: asKind(r.kind),
+          subjectRef: r.person_id ? `person:${r.person_id}` : "",
+          payload: { personId: r.person_id, otherId: r.other_id, name: r.name, emails: parseList(r.emails), jira: r.jira, legacyId: r.id } satisfies IdentityPayload,
+          why: r.evidence,
+          confidence: r.confidence,
+          status: status(r.status),
+          createdAt: r.created_at,
+          decidedAt: r.decided_at,
+        })),
+      );
+    }
+    markDone(KEY);
+  }
+  migrated.add(d);
 }
 
-const now = () => new Date().toISOString();
-type Row = { id: number; key: string; kind: string; person_id: number; other_id: number; name: string; emails: string; jira: string; evidence: string; confidence: number; created_at: string };
-const toSuggestion = (r: Row): Suggestion => ({
-  id: r.id,
-  kind: r.kind === "merge" || r.kind === "person" ? r.kind : "alias",
-  personId: r.person_id,
-  otherId: r.other_id,
-  name: r.name,
-  emails: (() => {
-    try {
-      return JSON.parse(r.emails) as string[];
-    } catch {
-      return [];
-    }
-  })(),
-  jira: r.jira,
-  evidence: r.evidence,
-  confidence: r.confidence,
-  createdAt: r.created_at,
-});
+function parseList(s: string): string[] {
+  try {
+    const v = JSON.parse(s) as unknown;
+    return Array.isArray(v) ? v.map(String) : [];
+  } catch {
+    return [];
+  }
+}
+
+const payloadOf = (p: Proposal): IdentityPayload => {
+  const x = p.payload as Partial<IdentityPayload>;
+  return { personId: Number(x.personId) || 0, otherId: Number(x.otherId) || 0, name: String(x.name ?? ""), emails: Array.isArray(x.emails) ? x.emails.map(String) : [], jira: String(x.jira ?? ""), ...(x.legacyId ? { legacyId: Number(x.legacyId) } : {}) };
+};
+
+const toSuggestion = (p: Proposal): Suggestion => {
+  const x = payloadOf(p);
+  return { id: p.id, kind: asKind(p.kind), personId: x.personId, otherId: x.otherId, name: x.name, emails: x.emails, jira: x.jira, evidence: p.why, confidence: p.confidence ?? 0.5, createdAt: p.createdAt };
+};
 
 /** The proposals waiting, the surest first. */
-export const pendingSuggestions = (): Suggestion[] => (db().prepare("select * from people_suggestions where status = 'pending' order by confidence desc, id").all() as Row[]).map(toSuggestion);
+export function pendingSuggestions(): Suggestion[] {
+  migrate();
+  return openProposals(IDENTITY_SOURCE).map(toSuggestion);
+}
 
 /** A proposal queued — once per key, whatever became of it; one still waiting gets the evidence of now. Whether it is new. */
 function propose(s: Omit<Suggestion, "id" | "createdAt"> & { key: string }): boolean {
-  const r = db()
-    .prepare("insert or ignore into people_suggestions (key, kind, person_id, other_id, name, emails, jira, evidence, confidence, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(s.key, s.kind, s.personId, s.otherId, s.name, JSON.stringify(s.emails), s.jira, s.evidence.slice(0, 300), s.confidence, now());
-  if (!r.changes) db().prepare("update people_suggestions set name = ?, emails = ?, evidence = ?, confidence = ? where key = ? and status = 'pending'").run(s.name, JSON.stringify(s.emails), s.evidence.slice(0, 300), s.confidence, s.key);
-  return r.changes > 0;
+  migrate();
+  return putProposal({
+    source: IDENTITY_SOURCE,
+    inputHash: s.key,
+    kind: s.kind,
+    subjectRef: s.personId ? `person:${s.personId}` : "",
+    payload: { personId: s.personId, otherId: s.otherId, name: s.name, emails: s.emails, jira: s.jira } satisfies IdentityPayload,
+    why: s.evidence.slice(0, 300),
+    confidence: s.confidence,
+  }).created;
 }
 
 // ---------------------------------------------------------------------------
@@ -268,20 +311,18 @@ export function findIdentitySuggestions(): number {
     }
   }
   // The waiting new-profile proposals this run no longer makes (a shop from before the rules above) go.
-  const stale = (db().prepare("select key from people_suggestions where status = 'pending' and kind = 'person'").all() as { key: string }[]).filter((r) => !wanted.has(r.key));
-  for (const r of stale) db().prepare("update people_suggestions set status = 'obsolete', decided_at = ? where key = ?").run(now(), r.key);
+  const stale = openProposals(IDENTITY_SOURCE).filter((p) => p.kind === "person" && !wanted.has(p.inputHash));
+  expireProposals(stale.map((p) => p.id));
   if (queued || stale.length) emitChange("todos");
   return queued;
 }
 
 /**
- * Accept a proposal: do what it says. Throws when it no longer fits (the profiles are gone). The profile
- * that is new or got a new name or address — the one whose past messages are worth reading again.
+ * A proposal accepted (People's handler, through `decide()`): do what it says. Throws when it no longer fits (the profiles are
+ * gone). The profile that is new or got a new name or address — the one whose past messages are worth reading again — as its ref.
  */
-export function acceptSuggestion(id: number): number | undefined {
-  const r = db().prepare("select * from people_suggestions where id = ? and status = 'pending'").get(id) as Row | undefined;
-  if (!r) return undefined;
-  const s = toSuggestion(r);
+export function applyIdentity(p: Proposal): { ref?: string } {
+  const s = toSuggestion(p);
   let touched: number | undefined;
   if (s.kind === "merge") mergePeople(s.personId, s.otherId);
   else if (s.kind === "alias") {
@@ -294,17 +335,25 @@ export function acceptSuggestion(id: number): number | undefined {
     touched = createPerson({ name: s.name, emails: s.emails });
     if (s.jira) addAccount(touched, "jira", s.jira);
   }
-  db().prepare("update people_suggestions set status = 'accepted', decided_at = ? where id = ?").run(now(), id);
-  recordFeedback(identityFeedback(r, "accepted"));
   // Others that concerned a profile that is gone now.
-  db().prepare("update people_suggestions set status = 'obsolete', decided_at = ? where status = 'pending' and kind != 'person' and ((person_id != 0 and person_id not in (select id from people)) or (other_id != 0 and other_id not in (select id from people)))").run(now());
-  emitChange("todos");
-  return touched;
+  const gone = (id: number) => id !== 0 && !getPerson(id);
+  expireProposals(pendingSuggestions().filter((o) => o.id !== p.id && o.kind !== "person" && (gone(o.personId) || gone(o.otherId))).map((o) => o.id));
+  return touched ? { ref: `person:${touched}` } : {};
 }
 
-export function rejectSuggestion(id: number): void {
-  const r = db().prepare("select * from people_suggestions where id = ? and status = 'pending'").get(id) as Row | undefined;
-  db().prepare("update people_suggestions set status = 'rejected', decided_at = ? where id = ? and status = 'pending'").run(now(), id);
-  if (r) recordFeedback(identityFeedback(r, "rejected"));
-  emitChange("todos");
+/** The ledger's row of a decision: the key of before for one taken over from people_suggestions (counted once with the backfill). */
+export function identityProposalFeedback(p: Proposal, verdict: ProposalVerdict): Feedback {
+  const x = payloadOf(p);
+  const f = identityFeedback({ id: x.legacyId ?? p.id, kind: p.kind, name: x.name, evidence: p.why, confidence: p.confidence }, verdict === "accepted" ? "accepted" : "rejected");
+  return x.legacyId ? f : { ...f, itemRef: `proposal:${p.id}`, key: `proposal:${p.id}` };
+}
+
+/** Accept a proposal (the people overview's button, its tool): through `decide()`. The profile it touched. */
+export async function acceptSuggestion(id: number): Promise<number | undefined> {
+  const { ref } = await decide(id, "accepted");
+  return ref ? Number(ref.slice("person:".length)) : undefined;
+}
+
+export async function rejectSuggestion(id: number): Promise<void> {
+  await decide(id, "dismissed");
 }

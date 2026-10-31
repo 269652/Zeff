@@ -1,4 +1,6 @@
 import { reviewSources } from "@/lib/review/point";
+import { proposalSources } from "@/lib/proposals/point";
+import { PEOPLE_PROPOSALS } from "./proposals";
 import { correlationSeries } from "@/plugins/correlations/series-point";
 import { workspaceSources } from "@/plugins/workspace/source-point";
 import { workspaceWidgets } from "@/plugins/workspace/widget-point";
@@ -23,5 +25,7 @@ rowBadgeSources.contribute("people", [PEOPLE_ROW_BADGES]);
 workspaceFormulaFunctions.contribute("people", PEOPLE_FORMULAS);
 /** … and what it has you confirm, for the review queue. */
 reviewSources.contribute("people", PEOPLE_REVIEW);
+// … its proposals (the names that may be one person), decided through the one store's decide() (@/lib/proposals).
+proposalSources.contribute("people", PEOPLE_PROPOSALS);
 // The days with the people you are most in touch with, as daily series for the Correlations (a journal's mood with them and without).
 correlationSeries.contribute("people", [PEOPLE_SERIES]);

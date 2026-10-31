@@ -4,11 +4,14 @@
  * counterparty with a legal form; a place an appointment is at, an address someone lives at or a letter names; a project for a
  * job that has a Jira board, tickets or a repo — with its job number, Jira key and board, repos and Workspace databases. Also
  * another name of one you have (an alias), a domain or link it lacks, two that are one (merge). Deterministic, no AI: only what
- * the sources carry. A proposal waits in the review queue until you accept it; a rejected one is remembered and not made again.
+ * the sources carry. A proposal waits in the review queue until you accept it; a rejected one is remembered and not made again
+ * (the one proposals store, @/lib/proposals, source "entities"; accepting is `applyEntitySuggestion`, run by `decide()`).
  * What follows from what you confirmed — who works at an organisation (their address is at its domain), who lives at a place —
  * is linked by rule (deriveEntityLinks). Server only.
  */
 import { getSqlite } from "@/db";
+import { isDone, markDone } from "@/lib/once-done";
+import { adoptProposals, decide, expireProposals, openProposals, propose as putProposal, type Proposal, type ProposalStatus } from "@/lib/proposals";
 import { emitChange } from "@/lib/events";
 import { SYSTEM_LABELS } from "@/lib/noise";
 import { createProject, getProjectByTitle } from "@/lib/projects";
@@ -35,47 +38,79 @@ export type EntitySuggestion = {
   createdAt: string;
 };
 
-function db() {
+/** The proposals' source (@/lib/proposals): its handler is this plugin's (./proposals). */
+export const ENTITY_SOURCE = "entities";
+
+type EntityPayload = { ref: string; otherRef: string; name: string; data: EntitySuggestion["data"] };
+
+const KINDS: readonly string[] = ["org", "place", "project", "alias", "merge", "link"];
+const asKind = (k: string) => (KINDS.includes(k) ? k : "alias") as EntitySuggestionKind;
+
+const migrated = new WeakSet<object>();
+
+/** The proposals of before (ent_suggestions) taken over once per account, their key the input hash; the old table stays as it was. */
+function migrate(): void {
   const d = entDb();
-  d.exec(`create table if not exists ent_suggestions (id integer primary key autoincrement, key text not null unique, kind text not null, ref text not null default '', other_ref text not null default '', name text not null default '', data text not null default '{}', evidence text not null default '', confidence real not null default 0.5, status text not null default 'pending', created_at text not null, decided_at text);`);
-  return d;
+  if (migrated.has(d)) return;
+  const KEY = "proposals.entities@1";
+  if (!isDone(KEY)) {
+    if (d.prepare("select 1 from sqlite_master where type = 'table' and name = 'ent_suggestions'").get()) {
+      type Old = { id: number; key: string; kind: string; ref: string; other_ref: string; name: string; data: string; evidence: string; confidence: number; status: string; created_at: string; decided_at: string | null };
+      const status = (x: string): ProposalStatus => (x === "pending" ? "open" : x === "accepted" ? "accepted" : x === "rejected" ? "dismissed" : "expired");
+      adoptProposals(
+        (d.prepare("select * from ent_suggestions").all() as Old[]).map((r) => ({
+          source: ENTITY_SOURCE,
+          inputHash: r.key,
+          kind: asKind(r.kind),
+          subjectRef: r.ref,
+          payload: { ref: r.ref, otherRef: r.other_ref, name: r.name, data: parseData(r.data) } satisfies EntityPayload,
+          why: r.evidence,
+          confidence: r.confidence,
+          status: status(r.status),
+          createdAt: r.created_at,
+          decidedAt: r.decided_at,
+        })),
+      );
+    }
+    markDone(KEY);
+  }
+  migrated.add(d);
 }
 
-const now = () => new Date().toISOString();
-type Row = { id: number; key: string; kind: string; ref: string; other_ref: string; name: string; data: string; evidence: string; confidence: number; created_at: string };
-const KINDS: readonly string[] = ["org", "place", "project", "alias", "merge", "link"];
-const toSuggestion = (r: Row): EntitySuggestion => ({
-  id: r.id,
-  kind: (KINDS.includes(r.kind) ? r.kind : "alias") as EntitySuggestionKind,
-  ref: r.ref,
-  otherRef: r.other_ref,
-  name: r.name,
-  data: (() => {
-    try {
-      return JSON.parse(r.data) as EntitySuggestion["data"];
-    } catch {
-      return {};
-    }
-  })(),
-  evidence: r.evidence,
-  confidence: r.confidence,
-  createdAt: r.created_at,
-});
+function parseData(s: unknown): EntitySuggestion["data"] {
+  if (s && typeof s === "object") return s as EntitySuggestion["data"];
+  try {
+    return (JSON.parse(String(s)) as EntitySuggestion["data"]) ?? {};
+  } catch {
+    return {};
+  }
+}
+
+const toSuggestion = (p: Proposal): EntitySuggestion => {
+  const x = p.payload as Partial<EntityPayload>;
+  return { id: p.id, kind: asKind(p.kind), ref: String(x.ref ?? ""), otherRef: String(x.otherRef ?? ""), name: String(x.name ?? ""), data: parseData(x.data ?? {}), evidence: p.why, confidence: p.confidence ?? 0.5, createdAt: p.createdAt };
+};
 
 /** The proposals waiting, the surest first. */
-export const pendingEntitySuggestions = (): EntitySuggestion[] => (db().prepare("select * from ent_suggestions where status = 'pending' order by confidence desc, id").all() as Row[]).map(toSuggestion);
+export function pendingEntitySuggestions(): EntitySuggestion[] {
+  migrate();
+  return openProposals(ENTITY_SOURCE).map(toSuggestion);
+}
 
-type Proposal = Omit<EntitySuggestion, "id" | "createdAt"> & { key: string };
+type Proposal_ = Omit<EntitySuggestion, "id" | "createdAt"> & { key: string };
 
 /** A proposal queued — once per key, whatever became of it; one still waiting gets the evidence of now. Whether it is new. */
-function propose(s: Proposal): boolean {
-  const data = JSON.stringify(s.data);
-  const confidence = Math.max(0, Math.min(1, s.confidence));
-  const r = db()
-    .prepare("insert or ignore into ent_suggestions (key, kind, ref, other_ref, name, data, evidence, confidence, created_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?)")
-    .run(s.key, s.kind, s.ref, s.otherRef, s.name, data, s.evidence.slice(0, 300), confidence, now());
-  if (!r.changes) db().prepare("update ent_suggestions set name = ?, data = ?, evidence = ?, confidence = ? where key = ? and status = 'pending'").run(s.name, data, s.evidence.slice(0, 300), confidence, s.key);
-  return r.changes > 0;
+function propose(s: Proposal_): boolean {
+  migrate();
+  return putProposal({
+    source: ENTITY_SOURCE,
+    inputHash: s.key,
+    kind: s.kind,
+    subjectRef: s.ref,
+    payload: { ref: s.ref, otherRef: s.otherRef, name: s.name, data: s.data } satisfies EntityPayload,
+    why: s.evidence.slice(0, 300),
+    confidence: s.confidence,
+  }).created;
 }
 
 /** Read from a table that may not be there (its plugin never ran): nothing then. */
@@ -184,7 +219,7 @@ function orgCandidates(): OrgCand[] {
 /** Every way an organisation is written, as compared. */
 const orgForms = (o: Entity) => new Set([o.name, ...o.aliases].map(normalizeOrgName).filter(Boolean));
 
-function findOrgSuggestions(q: (p: Proposal, wanted?: boolean) => void): void {
+function findOrgSuggestions(q: (p: Proposal_, wanted?: boolean) => void): void {
   const orgs = listEntities("org");
   // 1. Two organisations that are one: a domain, or a name written the same.
   for (let i = 0; i < orgs.length; i++) {
@@ -264,7 +299,7 @@ const placeForms = (p: Entity) => new Set([p.name, ...p.aliases, p.address].filt
 /** A shorter way of writing an address: "hauptstrasse 3" of "hauptstrasse 3 10115 berlin". */
 const shortOf = (short: string, long: string) => long.length > short.length && long.startsWith(short + " ");
 
-function findPlaceSuggestions(q: (p: Proposal, wanted?: boolean) => void): void {
+function findPlaceSuggestions(q: (p: Proposal_, wanted?: boolean) => void): void {
   const places = listEntities("place");
   for (let i = 0; i < places.length; i++) {
     for (let j = i + 1; j < places.length; j++) {
@@ -295,7 +330,7 @@ function findPlaceSuggestions(q: (p: Proposal, wanted?: boolean) => void): void 
 // Projects
 // ---------------------------------------------------------------------------
 
-function findProjectSuggestions(q: (p: Proposal, wanted?: boolean) => void): void {
+function findProjectSuggestions(q: (p: Proposal_, wanted?: boolean) => void): void {
   const jobs = all<{ id: number; number: string; name: string; customer: string | null; active: number }>("select id, number, name, customer, active from jobs where number != 'NO-JOB'");
   const boards = all<{ id: number; name: string; project_key: string | null; job_number: string | null }>("select id, name, project_key, job_number from jira_boards");
   const repos = all<{ id: number; name: string; boards: string }>("select id, name, boards from repos");
@@ -382,24 +417,22 @@ function findProjectSuggestions(q: (p: Proposal, wanted?: boolean) => void): voi
 export function findEntitySuggestions(): number {
   let queued = 0;
   const wanted = new Set<string>();
-  const q = (p: Proposal, track = false) => {
+  const q = (p: Proposal_, track = false) => {
     if (track) wanted.add(p.key);
     if (propose(p)) queued++;
   };
   findOrgSuggestions(q);
   findPlaceSuggestions(q);
   findProjectSuggestions(q);
-  const stale = (db().prepare("select key from ent_suggestions where status = 'pending' and kind in ('org', 'place', 'project', 'link')").all() as { key: string }[]).filter((r) => !wanted.has(r.key));
-  for (const r of stale) db().prepare("update ent_suggestions set status = 'obsolete', decided_at = ? where key = ?").run(now(), r.key);
+  const stale = openProposals(ENTITY_SOURCE).filter((p) => ["org", "place", "project", "link"].includes(p.kind) && !wanted.has(p.inputHash));
+  expireProposals(stale.map((p) => p.id));
   if (queued || stale.length) emitChange("todos");
   return queued;
 }
 
-/** Accept a proposal: do what it says. The entity it made or changed (its ref); undefined when it waits no more. Throws when it no longer fits. */
-export function acceptEntitySuggestion(id: number): string | undefined {
-  const r = db().prepare("select * from ent_suggestions where id = ? and status = 'pending'").get(id) as Row | undefined;
-  if (!r) return undefined;
-  const s = toSuggestion(r);
+/** A proposal accepted (this plugin's handler, through `decide()`): do what it says. The entity it made or changed, as its ref. Throws when it no longer fits. */
+export function applyEntitySuggestion(p: Proposal): { ref: string } {
+  const s = toSuggestion(p);
   let ref: string;
   const linkAll = (to: string, links: SuggestedLink[] = []) => {
     for (const l of links) addEntityLink(to, l.rel, l.target, { label: l.label, evidence: s.evidence, source: "suggestion" });
@@ -422,11 +455,9 @@ export function acceptEntitySuggestion(id: number): string | undefined {
     if (s.kind === "alias") addAlias(ref, s.name);
     else linkAll(ref, s.data.links);
   }
-  db().prepare("update ent_suggestions set status = 'accepted', decided_at = ? where id = ?").run(now(), id);
   // Others that concern an entity that is gone now.
-  for (const o of pendingEntitySuggestions()) if ([o.ref, o.otherRef].some((x) => x && parseRef(x) && !getEntity(x))) db().prepare("update ent_suggestions set status = 'obsolete', decided_at = ? where id = ?").run(now(), o.id);
-  emitChange("todos");
-  return ref;
+  expireProposals(pendingEntitySuggestions().filter((o) => o.id !== p.id && [o.ref, o.otherRef].some((x) => x && parseRef(x) && !getEntity(x))).map((o) => o.id));
+  return { ref };
 
   function createProjectFor(p: EntitySuggestion): string {
     const title = getProjectByTitle(p.name) ? `${p.name} (${p.data.jobNumber})` : p.name;
@@ -437,9 +468,14 @@ export function acceptEntitySuggestion(id: number): string | undefined {
   }
 }
 
-export function rejectEntitySuggestion(id: number): void {
-  db().prepare("update ent_suggestions set status = 'rejected', decided_at = ? where id = ? and status = 'pending'").run(now(), id);
-  emitChange("todos");
+/** Accept a proposal: through `decide()` (the ledger written). The entity it made or changed (its ref). */
+export async function acceptEntitySuggestion(id: number): Promise<string | undefined> {
+  return (await decide(id, "accepted")).ref;
+}
+
+/** Reject one: remembered (never proposed again), through `decide()`. */
+export async function rejectEntitySuggestion(id: number): Promise<void> {
+  await decide(id, "dismissed");
 }
 
 // ---------------------------------------------------------------------------

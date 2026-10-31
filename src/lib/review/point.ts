@@ -5,6 +5,8 @@ import { extensionPoint } from "@/lib/plugin-kit/extension-point";
  * (/review). A plugin that proposes things — a name that may be someone's, a fact the AI read, a todo it thinks
  * is done — contributes a source per kind from its own `server.ts`: what waits, and what a button does with it.
  * What has a page of its own to be worked through (the booking suggestions) is only counted and linked.
+ * What is a proposal of the one store (@/lib/proposals — same person?, entities, shadow appointments) is no source here:
+ * the queue lists the open proposals itself, a group per proposal source, and decides them through `decide()`.
  * Read through `@/lib/review`, never directly. Server only.
  */
 
