@@ -426,9 +426,8 @@ export function markdownToDoc(md: string): Doc {
         i++;
         continue;
       }
-      // :::block activity {"limit":12}, belongs, timeline  - the entry's own blocks; and (read only, from before) the old data blocks
-      // metric, chart, events, tasks, document, people as the widgets and database views that replaced them (legacy-blocks.ts)
-      const blk = /^:::block\s+(metric|chart|events|tasks|document|people|activity|belongs|timeline)\s*(\{.*\})?\s*$/.exec(l);
+      // :::block activity {"limit":12}, belongs, timeline  - the entry's own blocks
+      const blk = /^:::block\s+(activity|belongs|timeline)\s*(\{.*\})?\s*$/.exec(l);
       if (blk) {
         let attrs: Record<string, unknown> = {};
         try {
@@ -436,19 +435,12 @@ export function markdownToDoc(md: string): Doc {
         } catch {
           attrs = {};
         }
-        const type = Object.keys(LEGACY_DATA_BLOCKS).find((k) => LEGACY_DATA_BLOCKS[k] === blk[1]);
-        if (!type && blk[1] === "timeline") {
+        if (blk[1] === "timeline") {
           out.push({ type: "zeffTimeline", attrs: { ref: typeof attrs.ref === "string" ? attrs.ref : "", limit: typeof attrs.limit === "number" ? attrs.limit : 20 } });
           i++;
           continue;
         }
-        if (!type) {
-          out.push({ type: blk[1] === "activity" ? "zeffActivity" : "zeffBelongs", attrs: blk[1] === "activity" && typeof attrs.limit === "number" ? { limit: attrs.limit } : {} });
-          i++;
-          continue;
-        }
-        const made = legacyDataBlock(type, attrs);
-        if (made) out.push(made);
+        out.push({ type: blk[1] === "activity" ? "zeffActivity" : "zeffBelongs", attrs: blk[1] === "activity" && typeof attrs.limit === "number" ? { limit: attrs.limit } : {} });
         i++;
         continue;
       }
@@ -633,7 +625,7 @@ export function sanitizeDoc(input: unknown): Doc {
     if (!n || typeof n !== "object" || depth > MAX_DEPTH || ++count > MAX_NODES) return null;
     const o = n as DocNode;
     // An old data block (a page from before, a version): the widget or database view that replaced it (legacy-blocks.ts).
-    if (o.type in LEGACY_DATA_BLOCKS) {
+    if (LEGACY_DATA_BLOCKS.has(o.type)) {
       const made = legacyDataBlock(o.type, o.attrs ?? {});
       return made ? clean(made, depth) : null;
     }

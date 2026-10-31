@@ -135,7 +135,7 @@ test("a page as a read-only HTML file: text, lists, tables, callouts - nothing r
   const store = await import("@/plugins/workspace/store");
   const { markdownToDoc } = await import("@/plugins/workspace/doc");
   const { pageToHtml } = await import("@/plugins/workspace/export-html");
-  const md = '# Plan\n\nSome **bold** text, [a link](https://example.org) and [bad](javascript:alert(1)) and <script>alert(1)</script>.\n\n- [x] done\n- [ ] open\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n:::callout 🚀 blue\nNote\n:::\n\n:::block metric {"dbId":1}\n';
+  const md = '# Plan\n\nSome **bold** text, [a link](https://example.org) and [bad](javascript:alert(1)) and <script>alert(1)</script>.\n\n- [x] done\n- [ ] open\n\n| a | b |\n|---|---|\n| 1 | 2 |\n\n:::callout 🚀 blue\nNote\n:::\n\n:::widget workspace.metrics {"config":{"names":"Umsatz"}}\n';
   const id = store.createPage({ title: "Plan <b>x</b>", icon: "🗓", content: markdownToDoc(md) });
   const { filename, html } = pageToHtml(id);
   assert.match(filename, /^Plan_b_x_b_\.html$|^Plan.*\.html$/);
@@ -147,7 +147,7 @@ test("a page as a read-only HTML file: text, lists, tables, callouts - nothing r
   assert.match(html, /☑/);
   assert.match(html, /<table>/);
   assert.match(html, /class="callout"/);
-  assert.doesNotMatch(html, /metric|dbId/, "a data block is not part of the file");
+  assert.doesNotMatch(html, /metrics|Umsatz/, "a widget is not part of the file");
   assert.match(html, /<title>Plan &lt;b&gt;x&lt;\/b&gt;<\/title>/);
   // A database as its table.
   const db = store.createPage({ kind: "database", title: "Things" });

@@ -54,11 +54,9 @@ test("the old figure blocks become Kennzahlen: a count, a sum, a share - over al
   assert.equal(await defineBlockMetric({ dbId: 99999, viewId: "", calc: "count", prop: "", label: "" }), null);
 });
 
-test("a page with old data blocks moved over: widgets, a chart view, the document; markers settled, the page's edited time kept", async () => {
+test("old data blocks (a version from before): read as widgets, a chart view to make, the document's link; the chart marker settled once", async () => {
   const { id, store, status } = await setup();
-  const { addDocument } = await import("@/plugins/documents/store");
-  const doc = addDocument("offer.txt", Buffer.from("Angebot")).doc;
-  const page = store.createPage({ title: "Dashboard" });
+  const { sanitizeDoc, markdownToDoc } = await import("@/plugins/workspace/doc");
   const old = {
     type: "doc",
     content: [
@@ -66,40 +64,36 @@ test("a page with old data blocks moved over: widgets, a chart view, the documen
       { type: "zeffChart", attrs: { dbId: id, type: "pie", groupBy: status, calc: "count", title: "By status" } },
       { type: "zeffEvents", attrs: { days: 14, q: "review", limit: 5 } },
       { type: "zeffTasks", attrs: { status: "open", ticket: "PROJ-1", limit: 4 } },
-      { type: "zeffDocument", attrs: { docId: doc.id } },
+      { type: "zeffDocument", attrs: { docId: 7 } },
       { type: "zeffPeople", attrs: { ids: [1, 2] } },
     ],
   };
-  const { getSqlite } = await import("@/db");
-  getSqlite().prepare("update ws_pages set content = ?, updated_at = '2026-01-01T00:00:00.000Z' where id = ?").run(JSON.stringify(old), page);
-  const { migrateDataBlocks } = await import("@/plugins/workspace/data-block-migration");
-  assert.equal(await migrateDataBlocks(), 1);
-  const p = store.getPage(page)!;
-  assert.equal(p.updatedAt, "2026-01-01T00:00:00.000Z");
-  const [metric, chart, events, tasks, document, people] = p.content.content;
-  assert.deepEqual([metric.attrs!.widget, JSON.parse(String(metric.attrs!.config))], ["workspace.metrics", { names: "Deals" }]);
+  const [metric, chart, events, tasks, document, people] = sanitizeDoc(old).content;
+  assert.equal(metric.attrs!.widget, "workspace.metrics");
+  assert.match(String(JSON.parse(String(metric.attrs!.config)).define), /"label":"Deals"/, "a Kennzahl to define, where it is shown");
   assert.equal(chart.type, "databaseView");
-  const view = store.getDatabase(id)!.schema.views.find((v) => v.id === chart.attrs!.viewId)!;
-  assert.deepEqual([view.type, view.chartKind, view.groupBy, view.name], ["chart", "pie", status, "By status"]);
+  assert.match(String(chart.attrs!.viewId), /^chart~pie~/);
   assert.deepEqual([events.attrs!.widget, JSON.parse(String(events.attrs!.config))], ["calendar.agenda", { days: 14, q: "review", limit: 5 }]);
   assert.deepEqual([tasks.attrs!.widget, JSON.parse(String(tasks.attrs!.config))], ["todos.list", { ticket: "PROJ-1", status: "open", limit: 4 }]);
-  assert.equal(document.type, "paragraph", "no document inbox here: a link to the document");
-  assert.match(JSON.stringify(document), new RegExp(`/documents\\?doc=${doc.id}`));
+  assert.equal(document.type, "paragraph", "a link to the document");
+  assert.match(JSON.stringify(document), /\/documents\?doc=7/);
   assert.deepEqual([people.attrs!.widget, JSON.parse(String(people.attrs!.config)).ids], ["people.list", "1,2"]);
-  assert.equal(await migrateDataBlocks(), 0, "once");
-  const views = store.getDatabase(id)!.schema.views.length;
+  const { parseChartMarker } = await import("@/plugins/workspace/legacy-blocks");
   const { ensureChartView } = await import("@/plugins/workspace/data-block-migration");
-  assert.equal(ensureChartView(id, { type: "pie", groupBy: status, calc: "count", prop: "", viewId: "" }), chart.attrs!.viewId, "the same chart view is taken");
+  const spec = parseChartMarker(String(chart.attrs!.viewId))!;
+  const viewId = ensureChartView(id, spec, "By status")!;
+  const view = store.getDatabase(id)!.schema.views.find((v) => v.id === viewId)!;
+  assert.deepEqual([view.type, view.chartKind, view.groupBy, view.name], ["chart", "pie", status, "By status"]);
+  const views = store.getDatabase(id)!.schema.views.length;
+  assert.equal(ensureChartView(id, spec), viewId, "the same chart view is taken");
   assert.equal(store.getDatabase(id)!.schema.views.length, views);
+  assert.equal(markdownToDoc(':::block metric {"dbId":12}').content[0].type, "paragraph", "the old blocks are no Markdown");
 });
 
-test("the old data blocks in Markdown: read as the widgets and views that replaced them; widgets and views written back the same", async () => {
+test("widgets and chart views in Markdown: written back the same", async () => {
   const { markdownToDoc, docToMarkdown } = await import("@/plugins/workspace/doc");
-  const md = ':::block metric {"dbId":12,"calc":"sum","prop":"p1","label":"Revenue"}\n\n:::block chart {"dbId":12,"type":"pie","groupBy":"p2","calc":"count"}\n\n:::block events {"days":14,"q":"review"}\n\n:::block tasks {"status":"open","ticket":"PROJ-1"}\n\n:::block document {"docId":5}\n\n:::block people {"ids":[1,2]}\n';
-  const doc = markdownToDoc(md);
-  assert.deepEqual(doc.content.map((n) => String(n.attrs?.widget ?? n.type)), ["workspace.metrics", "databaseView", "calendar.agenda", "todos.list", "paragraph", "people.list"]);
-  assert.match(String(doc.content[1].attrs!.viewId), /^chart~pie~p2~count~~$/);
-  const out = docToMarkdown(doc);
+  const md = ':::widget calendar.agenda {"config":{"days":14,"q":"review","limit":8}}\n\n:::database 12 @chart~pie~p2~count~~\n';
+  const out = docToMarkdown(markdownToDoc(md));
   assert.match(out, /:::widget calendar\.agenda \{"config":\{"days":14,"q":"review","limit":8\}\}/);
   assert.match(out, /:::database 12 @chart~pie~p2~count~~/);
   assert.equal(docToMarkdown(markdownToDoc(out)), out);

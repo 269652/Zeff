@@ -1,15 +1,15 @@
 /**
  * The old data blocks of a page (a figure, a chart, appointments, todos, a document, people — zeffMetric … zeffPeople) as what
- * replaced them: widgets and database views. Kept only so what still holds them reads right — a page saved before, a version, an old
- * `:::block metric {…}` line in Markdown — never made anew. Pure (client-safe): what needs the server (a Kennzahl defined for a
+ * replaced them: widgets and database views. Kept only so what still holds them reads right — a version from before (the pages were
+ * moved over; versions of 2026-10 in both accounts still hold some) — never made anew. Pure (client-safe): what needs the server (a Kennzahl defined for a
  * figure, a chart view made on its database, a document's row) is left as a marker that data-block-migration.ts settles; a widget
  * or a database block settles it by itself when it is shown. Client-safe.
  */
 
 type Node = { type: string; attrs?: Record<string, unknown>; content?: Node[]; marks?: { type: string; attrs?: Record<string, unknown> }[]; text?: string };
 
-/** The old blocks' node types and the word each has in Markdown (`:::block metric {…}`). */
-export const LEGACY_DATA_BLOCKS: Record<string, string> = { zeffMetric: "metric", zeffChart: "chart", zeffEvents: "events", zeffTasks: "tasks", zeffDocument: "document", zeffPeople: "people" };
+/** The old blocks' node types. */
+export const LEGACY_DATA_BLOCKS = new Set(["zeffMetric", "zeffChart", "zeffEvents", "zeffTasks", "zeffDocument", "zeffPeople"]);
 
 /** What an old figure block looked at — a Kennzahl is made of it (the `define` of a Metrics widget until it is). */
 export type LegacyMetricSpec = { dbId: number; viewId: string; calc: string; prop: string; label: string; progress?: boolean };
