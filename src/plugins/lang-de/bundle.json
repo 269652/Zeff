@@ -8262,5 +8262,14 @@
   "How much of the day list was done the last 7 days": "Wie viel der Tagesliste in den letzten 7 Tagen erledigt wurde",
   "How much of the day list was done the last 30 days": "Wie viel der Tagesliste in den letzten 30 Tagen erledigt wurde",
   "The items of the day list still open today": "Die heute noch offenen Punkte der Tagesliste",
-  "The mean time of day the item was done at, the last 30 days (8.5: 8:30)": "Die mittlere Uhrzeit, zu der der Punkt erledigt wurde, letzte 30 Tage (8,5: 8:30)"
+  "The mean time of day the item was done at, the last 30 days (8.5: 8:30)": "Die mittlere Uhrzeit, zu der der Punkt erledigt wurde, letzte 30 Tage (8,5: 8:30)",
+  "The calendar this block showed is gone — pick another one.": "Der Kalender, den dieser Block gezeigt hat, ist weg — wähle einen anderen.",
+  "Main calendar": "Hauptkalender",
+  "Show:": "Zeigen:",
+  "No calendars yet — add one in the Kalender app.": "Noch keine Kalender — lege einen in der Kalender-App an.",
+  "Which calendar this block shows, which beside it, and the proposals": "Welchen Kalender dieser Block zeigt, welche daneben, und die Vorschläge",
+  "Main calendar — new appointments go here": "Hauptkalender — neue Termine landen hier",
+  "Shown together": "Zusammen anzeigen",
+  "The main calendar is always shown": "Der Hauptkalender wird immer angezeigt",
+  "Show proposals": "Vorschläge zeigen"
 }
