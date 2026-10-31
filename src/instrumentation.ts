@@ -69,12 +69,8 @@ export async function register() {
     console.error("[documents] picking up the waiting documents failed", e);
   }
   try {
-    // Once: Kanban's boards move into the Workspace (a copy of the database first) — in every account.
     const { listAccounts, withAccount } = await import("./db/accounts");
-    const { moveAllBoardsOnce, widenMovedBoardsOnce } = await import("./plugins/workspace/legacy/kanban");
     for (const a of listAccounts()) {
-      const r = await withAccount(a.id, moveAllBoardsOnce);
-      withAccount(a.id, widenMovedBoardsOnce);
       // System → Prompts in the Workspace (a page per prompt; what the settings had goes in once).
       await withAccount(a.id, async () => (await import("./lib/prompts")).ensureSystemPrompts()).catch((e) => console.error("[prompts] the system pages failed", e));
       // My briefing replaced by Meine Lage, a database with a pipeline like any other (where Jira is in use).
@@ -82,13 +78,9 @@ export async function register() {
         const { isInstalled } = await import("./plugins/state");
         if (isInstalled("jira-lage") && isInstalled("workspace")) await (await import("./plugins/jira-lage/to-workspace")).replaceBriefingOnce();
       }).catch((e) => console.error("[jira] Meine Lage as a pipeline database failed", e));
-      // Keep's boards too (a copy of the database first).
-      const k = await withAccount(a.id, async () => (await import("./plugins/workspace/legacy/keep")).moveAllKeepBoardsOnce());
-      if (k?.moved || k?.failed) console.log(`[keep] ${a.name}: ${k.moved} board(s) moved into the Workspace${k.failed ? `, ${k.failed} failed (tried again at the next start)` : ""} — backup: ${k.backup}`);
-      if (r?.moved || r?.failed) console.log(`[kanban] ${a.name}: ${r.moved} board(s) moved into the Workspace${r.failed ? `, ${r.failed} failed (tried again at the next start)` : ""} — backup: ${r.backup}`);
     }
   } catch (e) {
-    console.error("[kanban] moving the boards into the Workspace failed", e);
+    console.error("[workspace] setting up the accounts failed", e);
   }
   try {
     const { keepCommentsFromRuns } = await import("./lib/jira/comments");
