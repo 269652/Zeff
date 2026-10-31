@@ -15,7 +15,7 @@ import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /** `weeks`: how far ahead it reads; `pastMonths`: how far back (the API — from the 1st of that month). */
 export type GoogleCalendarSettings = { account: string; weeks: number; pastMonths: number };
-export const googleCalendarSettings = (): GoogleCalendarSettings => ({ account: "0", weeks: 5, pastMonths: 3, ...getPref<Partial<GoogleCalendarSettings>>("plugin:google-calendar", {}) });
+export const googleCalendarSettings = (): GoogleCalendarSettings => ({ account: "0", weeks: 13, pastMonths: 3, ...getPref<Partial<GoogleCalendarSettings>>("plugin:google-calendar", {}) });
 
 export type DayRange = { from: string; to: string };
 
