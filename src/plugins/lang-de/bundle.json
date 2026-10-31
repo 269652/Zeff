@@ -8178,5 +8178,10 @@
   "{n} changes since you last opened it": "{n} Änderungen seit du es zuletzt geöffnet hast",
   "Changed since you last opened it": "Geändert seit du es zuletzt geöffnet hast",
   "Below: {what}": "Darunter: {what}",
-  "Below": "Darunter"
+  "Below": "Darunter",
+  "Shadow calendars": "Schattenkalender",
+  "Taken out of the shadow calendar.": "Aus dem Schattenkalender genommen.",
+  "This proposal was decided already.": "Über diesen Vorschlag ist schon entschieden.",
+  "This proposal isn't there any more.": "Diesen Vorschlag gibt es nicht mehr.",
+  "Nothing handles proposals of {source} — is its plugin installed?": "Nichts bearbeitet Vorschläge von {source} — ist sein Plugin installiert?"
 }
