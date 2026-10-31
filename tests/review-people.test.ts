@@ -13,7 +13,6 @@ async function seed() {
   const { getSqlite } = await import("@/db");
   const { createPerson, addDate, listPeople } = await import("@/plugins/people/store");
   const { addClaim, addLink, claimsOf } = await import("@/plugins/people/graph");
-  const { pendingSuggestions } = await import("@/plugins/people/identity");
   const had = listPeople().find((p) => p.name === "Julia Freidank");
   const julia = had?.id ?? createPerson({ name: "Julia Freidank" });
   if (!had) {
@@ -24,10 +23,9 @@ async function seed() {
     getSqlite().prepare("update people_claims set expires_at = ? where text = 'Teamleitung Frontend'").run(ago(1));
     addLink({ personId: julia, rel: "works-with", targetType: "person", targetRef: String(rico), evidence: "beide im Thread", confidence: 0.7 });
     addDate(julia, { kind: "birthday", day: 3, month: 5, source: "ai", sourceText: "„am 3. Mai hat Julia Geburtstag“", confirmed: false });
-    pendingSuggestions(); // (its table)
-    getSqlite()
-      .prepare("insert into people_suggestions (key, kind, person_id, name, emails, evidence, confidence, created_at) values ('alias:jf', 'alias', ?, 'J. Freidank', '[\"jf@example.com\"]', 'same address in mail', 0.9, ?)")
-      .run(julia, ago(0));
+    const { propose } = await import("@/lib/proposals");
+    const payload = { personId: julia, otherId: 0, name: "J. Freidank", emails: ["jf@example.com"], jira: "" };
+    propose({ source: "people-identity", inputHash: "alias:jf", kind: "alias", subjectRef: `person:${julia}`, payload, why: "same address in mail", confidence: 0.9 });
   }
   return { julia, claim: (text: string) => claimsOf(julia, { status: ["proposed", "confirmed", "rejected"] }).find((c) => c.text === text)! };
 }

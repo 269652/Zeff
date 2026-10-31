@@ -3,6 +3,8 @@ import test from "node:test";
 import { setupTempData } from "./helpers";
 
 setupTempData();
+// Its proposals are decided by its own handler (proposals.sources), there only while the plugin is installed.
+test.before(async () => (await import("@/plugins/state")).setInstalled("entities", true));
 
 const ago = (days: number) => new Date(Date.now() - days * 864e5).toISOString();
 let mailNo = 0;

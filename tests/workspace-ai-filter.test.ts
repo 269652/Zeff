@@ -147,7 +147,7 @@ test("folders from filters: a database's derived databases (count, unread) — a
 test("refresh: a pipeline with an AI filter goes to the background whole; the filter's verdicts can be dropped (judged all again)", async () => {
   const w = await import("@/plugins/workspace/store");
   const { createSourceDatabase, createDerivedDatabase } = await import("@/plugins/workspace/derived");
-  const { runPipeline, needsBackground, forgetVerdicts } = await import("@/plugins/workspace/pipeline");
+  const { runPipeline, needsBackground, forgetVerdicts, pipelineRuns } = await import("@/plugins/workspace/pipeline");
   const mail = createSourceDatabase("mail");
   await runPipeline(mail, { ai: false });
   assert.equal(needsBackground(w.getDatabase(mail)!.schema), false, "rows only: right away");
@@ -161,9 +161,11 @@ test("refresh: a pipeline with an AI filter goes to the background whole; the fi
   fs.rmSync(promptFile);
   await runPipeline(id, { ai: false });
   assert.ok(!fs.existsSync(promptFile), "judged: not again");
+  assert.equal(pipelineRuns(id)[0].judged, 0);
   forgetVerdicts(step.id);
   await runPipeline(id, { ai: false });
-  assert.ok(fs.existsSync(promptFile), "forgotten: all judged again");
+  // (The same rows and condition to the same model are answered from the llm plugin's memory: no new CLI call, still judged.)
+  assert.ok(pipelineRuns(id)[0].judged > 0, "forgotten: all judged again");
 });
 
 test("run log: each run of a pipeline kept — what it did, how many the AI judged and kept, its calls and cost, how long, what failed", async () => {

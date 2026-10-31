@@ -70,6 +70,7 @@ test("bank: a statement read — Revolut's export or any CSV with a date, an amo
 
 test("bank: a payment out matched to its transfer and its case — the todo done with a note, the case's paid and open follow; the rest unmatched", async () => {
   await seed();
+  (await import("@/plugins/revolut/statement")).importStatement(REVOLUT, "Revolut"); // (read by the first test already: not twice — here so this one runs on its own too)
   const { matchPayments, paymentsOf } = await import("@/plugins/cases/bank");
   const r = matchPayments();
   assert.equal(r.matched, 1, "the 11,52 € — the 23,10 € at Rewe and the salary are no case's");
@@ -99,9 +100,19 @@ test("bank: an instalment overdue for ten days warns — a todo, once — before
 
 test("debts: one overview of every creditor — case number, who for, total, open, instalment, next due, last payment, contact — and the months ahead against your income", async () => {
   await seed();
-  const { debtOverview } = await import("@/plugins/cases/bank");
+  // Its own state, whatever ran before: the 11,52 € paid (read and matched once — again nothing), so that case is done
+  // and no debt any more; a third one running, without an instalment.
+  (await import("@/plugins/revolut/statement")).importStatement(REVOLUT, "Revolut");
+  const { debtOverview, matchPayments } = await import("@/plugins/cases/bank");
+  matchPayments();
+  const { ensureCase, updateCase, caseByKey } = await import("@/plugins/cases/store");
+  const { checked } = await import("@/plugins/cases/compile");
+  const ogv = caseByKey("DR II 1121/26")!.personId;
+  const own = ensureCase("DR II 2002/26", "DR II 2002/26", new Date().toISOString());
+  updateCase(own.id, { personId: ogv, compiled: { ...checked({ title: "Stadtwerke", total: 250, open: 250 }, "DR II 2002/26", 1), at: new Date().toISOString() } });
+  assert.equal(caseByKey("DR II 810/26")!.compiled?.done, true);
   const o = debtOverview({ income: 2100, today: day(0) });
-  assert.deepEqual(o.rows.map((r) => r.caseNumber).sort(), ["DR II 1121/26", "DR II 810/26"]);
+  assert.deepEqual(o.rows.map((r) => r.caseNumber).sort(), ["DR II 1121/26", "DR II 2002/26"], "the paid one is done: no debt");
   const spk = o.rows.find((r) => r.caseNumber === "DR II 1121/26")!;
   assert.equal(spk.installment, 300);
   assert.match(spk.contact, /ogv\.nathanael@gvjustiz\.de/);

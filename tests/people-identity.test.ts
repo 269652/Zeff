@@ -7,6 +7,8 @@ setupTempData();
 const ago = (days: number) => new Date(Date.now() - days * 864e5).toISOString();
 
 test("identity: the names the sources write become proposals — nothing is applied by itself, a rejection stays rejected", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("people", true);
   const { getDb, schema } = await import("@/db");
   const { createPerson, addAccount, getPerson, listPeople } = await import("@/plugins/people/store");
   const { findIdentitySuggestions, pendingSuggestions, acceptSuggestion, rejectSuggestion } = await import("@/plugins/people/identity");
@@ -51,10 +53,12 @@ test("identity: the names the sources write become proposals — nothing is appl
 });
 
 test("identity: one address written as several names is one person — the address-like and cut-off names count for the real one", async () => {
-  const { getDb, getSqlite, schema } = await import("@/db");
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("people", true);
+  const { getDb, schema } = await import("@/db");
+  const { propose } = await import("@/lib/proposals");
   const { findIdentitySuggestions, pendingSuggestions, acceptSuggestion } = await import("@/plugins/people/identity");
   const db = getDb();
-  const getSqliteRun = (sql: string, ...args: unknown[]) => getSqlite().prepare(sql).run(...args);
   const mail = (key: string, name: string) => db.insert(schema.emails).values({ key, convId: `c-${key}`, syncedAt: ago(0), folder: "Posteingang", fromName: name, fromEmail: "ogv.nathanael@gvjustiz.de", subject: "DR II 810/26", preview: "y", receivedAt: ago(1) } as never).run();
   // Seven mails, four ways of writing the sender — none reaches four on its own.
   mail("n1", "Obergerichtsvollzieherin Nathanael");
@@ -71,7 +75,7 @@ test("identity: one address written as several names is one person — the addre
   const shop = (key: string) => db.insert(schema.emails).values({ key, convId: `c-${key}`, syncedAt: ago(0), folder: "Posteingang", fromName: "Verivox Kreditangebote", fromEmail: "email@mail.verivox.de", subject: "Angebot", preview: "y", receivedAt: ago(2) } as never).run();
   for (let i = 0; i < 11; i++) shop(`v${i}`);
   // One proposed before that rule: it goes when the next run doesn't make it again.
-  getSqliteRun("insert into people_suggestions (key, kind, name, emails, evidence, confidence, created_at) values ('person:xing jobs', 'person', 'XING Jobs', '[\"jobs@mail.xing.com\"]', '5× in mail', 0.75, ?)", ago(1));
+  propose({ source: "people-identity", inputHash: "person:xing jobs", kind: "person", payload: { personId: 0, otherId: 0, name: "XING Jobs", emails: ["jobs@mail.xing.com"], jira: "" }, why: "5× in mail", confidence: 0.75 });
   // I wrote back to her, and her letters carry her address: she goes to the top of the queue.
   db.insert(schema.emails).values({ key: "n1r", convId: "c-n1", syncedAt: ago(0), folder: "Gesendet", fromName: "Ich", fromEmail: null, subject: "Re: DR II 810/26", preview: "Sehr geehrte Frau Nathanael", receivedAt: ago(0) } as never).run();
   for (const sha of ["d1", "d2"]) db.insert(schema.documents).values({ name: `${sha}.pdf`, sha256: sha, kind: "pdf", status: "ready", file: `${sha}.pdf`, text: "U. Nathanael, Obergerichtsvollzieherin\nE-Mail: ogv.nathanael@gvjustiz.de", createdAt: ago(3), updatedAt: ago(3) } as never).run();
