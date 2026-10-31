@@ -6,7 +6,7 @@ import { t } from "@/lib/i18n/server";
 import { checkFormula, evalWithUnits, setFunctionReader, setMetricReader, setMetricUnitReader, type FormulaFn } from "./formula";
 import { workspaceFormulaFunctions, type FormulaFunction } from "./formula-point";
 import { workspaceMetrics, type MetricProvider } from "./metric-point";
-import { listNamedValues, namedValue, unpublishValue, valueKey, valueUnit, type NamedValue } from "./values";
+import { listNamedValues, namedValue, namedValueNames, unpublishValue, valueKey, valueUnit, type NamedValue } from "./values";
 import { localDay } from "@/lib/dates";
 
 /**
@@ -191,6 +191,19 @@ export function listMetrics(only?: string[]): Metric[] {
     out.set(key, { key, label: meta.label ?? key, kind: "formula", unit: meta.unit || v.unit || "", what: meta.what ?? "", value: v.value, error: v.error, formula: meta.formula, goal: meta.goal, alert: meta.alert, ...(meta.today ? { today: true } : {}) });
   }
   return [...out.values()].sort((a, b) => a.label.localeCompare(b.label, "de"));
+}
+
+/**
+ * Every Kennzahl's key with what listMetrics shows it by — its label, line and unit — but no value read (the search matches
+ * these first and reads only the ones that may fit). `unit` null: only reading it tells (a formula's own, worked out).
+ */
+export function metricNames(): { key: string; label: string; what: string; unit: string | null }[] {
+  const m = metas();
+  const out = new Map<string, { key: string; label: string; what: string; unit: string | null }>();
+  for (const [key, p] of providers()) out.set(key, { key, label: p.label, what: m[key]?.what ?? t(p.what), unit: m[key]?.unit ?? p.unit });
+  for (const nv of namedValueNames()) out.set(nv.key, { key: nv.key, label: nv.label, what: m[nv.key]?.what ?? "", unit: m[nv.key]?.unit || valueUnit(nv.key) });
+  for (const [key, meta] of Object.entries(m)) if (meta.formula) out.set(key, { key, label: meta.label ?? key, what: meta.what ?? "", unit: meta.unit || null });
+  return [...out.values()];
 }
 
 /** The Kennzahlen shown on Today (each marked so on the Kennzahlen page), read now. */

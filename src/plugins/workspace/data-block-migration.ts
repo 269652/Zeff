@@ -150,13 +150,14 @@ async function settle(n: DocNode, changed: { yes: boolean }): Promise<DocNode | 
 
 /**
  * Every page (not in the trash) that still holds an old data block or a marker, moved over and saved — the state before kept as a
- * version, its "edited" time left as it was. How many pages changed.
+ * version, its "edited" time left as it was. How many pages changed (`out.failed`: how many pages failed). `since`: only the pages
+ * edited since then (an ISO time: the last run that left none failed — what was there before is moved already).
  */
-export async function migrateDataBlocks(): Promise<number> {
+export async function migrateDataBlocks(out?: { failed: number }, since?: string): Promise<number> {
   const like = [...Object.keys(LEGACY_DATA_BLOCKS).map((k) => `%"type":"${k}"%`), "%workspace.metrics%define%", '%"viewId":"chart~%'];
   const rows = getSqlite()
-    .prepare(`select id, content, updated_at from ws_pages where archived_at is null and (${like.map(() => "content like ?").join(" or ")})`)
-    .all(...like) as { id: number; content: string; updated_at: string }[];
+    .prepare(`select id, content, updated_at from ws_pages where archived_at is null${since ? " and updated_at >= ?" : ""} and (${like.map(() => "content like ?").join(" or ")})`)
+    .all(...(since ? [since] : []), ...like) as { id: number; content: string; updated_at: string }[];
   let moved = 0;
   for (const r of rows) {
     try {
@@ -167,6 +168,7 @@ export async function migrateDataBlocks(): Promise<number> {
       getSqlite().prepare("update ws_pages set updated_at = ? where id = ?").run(r.updated_at, r.id);
       moved++;
     } catch (e) {
+      if (out) out.failed++;
       console.error(`[workspace] moving the old data blocks of page ${r.id} failed`, e);
     }
   }

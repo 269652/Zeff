@@ -49,110 +49,122 @@ async function heuteData() {
   // Waiting on others for three days or more: time to ask again.
   const waiting = open.filter((x) => x.owner === "other" && now - new Date(x.createdAt).getTime() >= 3 * 864e5).sort((a, b) => a.createdAt.localeCompare(b.createdAt));
 
-  // What matters today: appointments (with whom to prepare), what is due, promises, what is new (lib/heute-today.ts).
-  const { todayData } = await import("@/lib/heute-today");
-  const day = await todayData(new Date(now));
-
-  // Today's meetings for the timeline: the Calendar's (Outlook's synced into it), else Outlook's calendar inbox.
   const today = new Date();
   const iso = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
-  let meetings: { subject: string; start: string; end: string; online: boolean }[] = [];
-  if (isInstalled("calendar")) {
-    meetings = day.appointments.filter((a) => !a.tomorrow && !a.allDay).map((a) => ({ subject: a.title || t("(no title)"), start: a.start, end: a.end, online: a.online }));
-  } else if (isInstalled("outlook-calendar")) {
-    const { readInbox } = await import("@/lib/calendar/inbox");
-    meetings = readInbox()
-      .filter((e) => !e.isCancelled && !e.isAllDay && e.start.dateTime.slice(0, 10) === iso && e.showAs !== "free")
-      .map((e) => ({ subject: e.subject ?? t("(no title)"), start: e.start.dateTime, end: e.end.dateTime, online: !!e.isOnlineMeeting }))
-      .sort((a, b) => a.start.localeCompare(b.start));
-  }
-  const appointments: TodayAppointment[] = isInstalled("calendar")
-    ? day.appointments
-    : meetings.filter((m) => Date.parse(m.end) > now).map((m, i) => ({ id: -i - 1, title: m.subject, start: m.start.slice(0, 16), end: m.end.slice(0, 16), allDay: false, location: "", online: m.online, tomorrow: false, people: [], href: "/calendar" }));
 
-  // Messages waiting for your answer: a chat whose last message (this week) isn't yours.
-  const unanswered: { key: string; who: string; text: string; at: string; since: string; count: number; href: string; source: string }[] = [];
-  if (isInstalled("whatsapp")) {
-    // One line per chat, while the last word isn't yours; a group only when something in it is to you.
-    const { whatsappChatsWaiting } = await import("@/lib/mail/store");
-    for (const c of whatsappChatsWaiting(7, now))
-      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/mail?${new URLSearchParams({ channel: "whatsapp", open: c.convId })}`, source: "WhatsApp" });
-  }
-  if (isInstalled("signal")) {
-    const { chatsWaiting } = await import("@/lib/mail/store");
-    for (const c of chatsWaiting("Signal", 7, now))
-      unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/mail?${new URLSearchParams({ channel: "signal", open: c.convId })}`, source: "Signal" });
-  }
-  if (isInstalled("teams")) {
-    // One line per chat (not per message), and only while the last word isn't yours.
-    const { teamsChatsWaiting } = await import("@/lib/teams/store");
-    for (const c of teamsChatsWaiting(3, now)) unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: c.link || "/mail?channel=teams", source: "Teams" });
-  }
-  unanswered.sort((a, b) => b.at.localeCompare(a.at));
+  // The parts below don't need each other: gathered at once (each fails or keeps going as it did one after the other).
+  const [{ day, meetings, appointments }, unanswered, hours, problems, sourceIssues, reminders, loopNudges, weeks] = await Promise.all([
+    // What matters today: appointments (with whom to prepare), what is due, promises, what is new (lib/heute-today.ts).
+    (async () => {
+      const { todayData } = await import("@/lib/heute-today");
+      const day = await todayData(new Date(now));
+      // Today's meetings for the timeline: the Calendar's (Outlook's synced into it), else Outlook's calendar inbox.
+      let meetings: { subject: string; start: string; end: string; online: boolean }[] = [];
+      if (isInstalled("calendar")) {
+        meetings = day.appointments.filter((a) => !a.tomorrow && !a.allDay).map((a) => ({ subject: a.title || t("(no title)"), start: a.start, end: a.end, online: a.online }));
+      } else if (isInstalled("outlook-calendar")) {
+        const { readInbox } = await import("@/lib/calendar/inbox");
+        meetings = readInbox()
+          .filter((e) => !e.isCancelled && !e.isAllDay && e.start.dateTime.slice(0, 10) === iso && e.showAs !== "free")
+          .map((e) => ({ subject: e.subject ?? t("(no title)"), start: e.start.dateTime, end: e.end.dateTime, online: !!e.isOnlineMeeting }))
+          .sort((a, b) => a.start.localeCompare(b.start));
+      }
+      const appointments: TodayAppointment[] = isInstalled("calendar")
+        ? day.appointments
+        : meetings.filter((m) => Date.parse(m.end) > now).map((m, i) => ({ id: -i - 1, title: m.subject, start: m.start.slice(0, 16), end: m.end.slice(0, 16), allDay: false, location: "", online: m.online, tomorrow: false, people: [], href: "/calendar" }));
+      return { day, meetings, appointments };
+    })(),
 
-  // Today's hours against the target, and suggestions waiting.
-  let hours: { booked: number; target: number; suggestions: number } | null = null;
-  if (isInstalled("zeiterfassung")) {
-    const { listEntries } = await import("@/lib/entries");
-    const { getDayTargets } = await import("@/lib/schedule");
-    const { openSuggestionTotals } = await import("@/lib/work/suggestions");
-    hours = {
-      booked: listEntries({ from: iso, to: iso }).reduce((s, e) => s + e.hours, 0),
-      target: getDayTargets([today])[0]?.target ?? 0,
-      suggestions: openSuggestionTotals(iso, iso).count,
-    };
-  }
+    // Messages waiting for your answer: a chat whose last message (this week) isn't yours.
+    (async () => {
+      const unanswered: { key: string; who: string; text: string; at: string; since: string; count: number; href: string; source: string }[] = [];
+      if (isInstalled("whatsapp")) {
+        // One line per chat, while the last word isn't yours; a group only when something in it is to you.
+        const { whatsappChatsWaiting } = await import("@/lib/mail/store");
+        for (const c of whatsappChatsWaiting(7, now))
+          unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/mail?${new URLSearchParams({ channel: "whatsapp", open: c.convId })}`, source: "WhatsApp" });
+      }
+      if (isInstalled("signal")) {
+        const { chatsWaiting } = await import("@/lib/mail/store");
+        for (const c of chatsWaiting("Signal", 7, now))
+          unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: `/mail?${new URLSearchParams({ channel: "signal", open: c.convId })}`, source: "Signal" });
+      }
+      if (isInstalled("teams")) {
+        // One line per chat (not per message), and only while the last word isn't yours.
+        const { teamsChatsWaiting } = await import("@/lib/teams/store");
+        for (const c of teamsChatsWaiting(3, now)) unanswered.push({ key: c.key, who: c.who, text: c.text, at: c.lastAt, since: c.since, count: c.count, href: c.link || "/mail?channel=teams", source: "Teams" });
+      }
+      return unanswered.sort((a, b) => b.at.localeCompare(a.at));
+    })(),
 
-  // Syncs that keep failing — a driver whose page changed, a sign-in that ran out.
-  const { syncOverview } = await import("@/lib/sync/registry");
-  const { syncProblems } = await import("@/lib/sync/health");
-  const problems = syncProblems(syncOverview().steps, now);
-  // Sources that aren't well though their runs may say ok — silent, not running, their app changed (the failing ones are above).
-  let sourceIssues: import("@/components/SourceHealthLine").SourceIssue[] = [];
-  try {
-    const { sourceHealth } = await import("@/lib/sync/source-health");
-    const { healthLabel, healthReason } = await import("@/lib/sync/source-health-shared");
-    sourceIssues = (await sourceHealth()).flatMap((h) =>
-      h.state === "stale" || h.state === "silent" || h.state === "drift" ? [{ key: h.key, label: h.label, href: h.href, state: h.state, word: healthLabel(t, h.state), reason: healthReason(t, h) }] : [],
-    );
-  } catch (e) {
-    console.error("[heute] source health", e);
-  }
+    // Today's hours against the target, and suggestions waiting.
+    (async (): Promise<{ booked: number; target: number; suggestions: number } | null> => {
+      if (!isInstalled("zeiterfassung")) return null;
+      const [{ listEntries }, { getDayTargets }, { openSuggestionTotals }] = await Promise.all([import("@/lib/entries"), import("@/lib/schedule"), import("@/lib/work/suggestions")]);
+      return {
+        booked: listEntries({ from: iso, to: iso }).reduce((s, e) => s + e.hours, 0),
+        target: getDayTargets([today])[0]?.target ?? 0,
+        suggestions: openSuggestionTotals(iso, iso).count,
+      };
+    })(),
 
-  // Birthdays and other dates of your people, inside their reminder (Personen plugin).
-  let reminders: import("@/plugins/people/shared").Upcoming[] = [];
-  if (isInstalled("people")) {
-    const { upcoming } = await import("@/plugins/people/store");
-    reminders = upcoming({ withinReminder: true });
-  }
+    // Syncs that keep failing — a driver whose page changed, a sign-in that ran out.
+    (async () => {
+      const [{ syncOverview }, { syncProblems }] = await Promise.all([import("@/lib/sync/registry"), import("@/lib/sync/health")]);
+      return syncProblems(syncOverview().steps, now);
+    })(),
 
-  // The open loops past their day (or open a week): a gentle nudge — at most a few, yours first, not those put off (Open loops plugin).
-  let loopNudges: { loops: { ref: string; who: string; personId: number | null; text: string; due: string; at: string; mine: boolean }[]; total: number } | null = null;
-  if (isInstalled("loops")) {
-    try {
-      const { nudges } = await import("@/plugins/loops/query");
-      const { NUDGE_CAP } = await import("@/plugins/loops/shared");
-      const n = nudges(NUDGE_CAP, new Date(now));
-      loopNudges = { loops: n.loops.map((l) => ({ ref: l.ref, who: l.who, personId: l.personId, text: l.text, due: l.due, at: l.at, mine: l.direction === "mine" })), total: n.total };
-    } catch (e) {
-      console.error("[heute] open loops", e);
-    }
-  }
+    // Sources that aren't well though their runs may say ok — silent, not running, their app changed (the failing ones are above).
+    (async (): Promise<import("@/components/SourceHealthLine").SourceIssue[]> => {
+      try {
+        const [{ sourceHealth }, { healthLabel, healthReason }] = await Promise.all([import("@/lib/sync/source-health"), import("@/lib/sync/source-health-shared")]);
+        return (await sourceHealth()).flatMap((h) =>
+          h.state === "stale" || h.state === "silent" || h.state === "drift" ? [{ key: h.key, label: h.label, href: h.href, state: h.state, word: healthLabel(t, h.state), reason: healthReason(t, h) }] : [],
+        );
+      } catch (e) {
+        console.error("[heute] source health", e);
+        return [];
+      }
+    })(),
 
-  // Weeks to close: this one on its last working day, last week until Wednesday — while steps are left.
-  const weeks: { key: string; title: string; open: number; href: string }[] = [];
-  if (isInstalled("zeiterfassung")) {
-    const { currentWeek, shiftWeek } = await import("@/lib/week");
-    const { weekClose } = await import("@/lib/week-close");
-    const thisWeek = currentWeek();
-    const candidates = today.getDay() >= 1 && today.getDay() <= 3 ? [{ w: shiftWeek(thisWeek, -1), last: true }] : [];
-    candidates.push({ w: thisWeek, last: false });
-    for (const { w, last } of candidates) {
-      const c = await weekClose(w, today);
-      const title = last ? t("Close last week (W{n})", { n: w.week }) : t("Close the week (W{n})", { n: w.week });
-      if (c.over && !c.done) weeks.push({ key: w.key, title, open: c.items.filter((i) => i.state !== "ok").length, href: `/?week=${w.key}` });
-    }
-  }
+    // Birthdays and other dates of your people, inside their reminder (Personen plugin).
+    (async (): Promise<import("@/plugins/people/shared").Upcoming[]> => {
+      if (!isInstalled("people")) return [];
+      const { upcoming } = await import("@/plugins/people/store");
+      return upcoming({ withinReminder: true });
+    })(),
+
+    // The open loops past their day (or open a week): a gentle nudge — at most a few, yours first, not those put off (Open loops plugin).
+    (async (): Promise<{ loops: { ref: string; who: string; personId: number | null; text: string; due: string; at: string; mine: boolean }[]; total: number } | null> => {
+      if (!isInstalled("loops")) return null;
+      try {
+        const [{ nudges }, { NUDGE_CAP }] = await Promise.all([import("@/plugins/loops/query"), import("@/plugins/loops/shared")]);
+        const n = nudges(NUDGE_CAP, new Date(now));
+        return { loops: n.loops.map((l) => ({ ref: l.ref, who: l.who, personId: l.personId, text: l.text, due: l.due, at: l.at, mine: l.direction === "mine" })), total: n.total };
+      } catch (e) {
+        console.error("[heute] open loops", e);
+        return null;
+      }
+    })(),
+
+    // Weeks to close: this one on its last working day, last week until Wednesday — while steps are left.
+    (async () => {
+      const weeks: { key: string; title: string; open: number; href: string }[] = [];
+      if (!isInstalled("zeiterfassung")) return weeks;
+      const [{ currentWeek, shiftWeek }, { weekClose }] = await Promise.all([import("@/lib/week"), import("@/lib/week-close")]);
+      const thisWeek = currentWeek();
+      const candidates = today.getDay() >= 1 && today.getDay() <= 3 ? [{ w: shiftWeek(thisWeek, -1), last: true }] : [];
+      candidates.push({ w: thisWeek, last: false });
+      // Both weeks at once, kept in their order.
+      const closes = await Promise.all(candidates.map(({ w }) => weekClose(w, today)));
+      candidates.forEach(({ w, last }, k) => {
+        const c = closes[k];
+        const title = last ? t("Close last week (W{n})", { n: w.week }) : t("Close the week (W{n})", { n: w.week });
+        if (c.over && !c.done) weeks.push({ key: w.key, title, open: c.items.filter((i) => i.state !== "ok").length, href: `/?week=${w.key}` });
+      });
+      return weeks;
+    })(),
+  ]);
 
   // What's next, across all of it — ranked.
   const { nextUp } = await import("@/lib/heute-next");
@@ -260,8 +272,7 @@ export default async function HeutePage({ searchParams }: { searchParams: Promis
   if (!isInstalled("todos")) return <PluginNotInstalled id="todos" />;
   const sp = await searchParams;
   // The review queue and the open loops are parts of Today (/review and /loops lead here).
-  const review = await reviewItems();
-  const { run, asking, reportedDone, waiting, meetings, appointments, day, unanswered, hours, problems, sourceIssues, reminders, loopNudges, next, today, now } = await heuteData();
+  const [review, { run, asking, reportedDone, waiting, meetings, appointments, day, unanswered, hours, problems, sourceIssues, reminders, loopNudges, next, today, now }] = await Promise.all([reviewItems(), heuteData()]);
 
   const problem = problemLabels();
   const phase = phaseOf(now);

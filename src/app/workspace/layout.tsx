@@ -7,6 +7,9 @@ import { favorites, templateTree, tree } from "@/plugins/workspace/store";
 import { MobileAside } from "@/plugins/workspace/ui/MobileAside";
 import { Sidebar } from "@/plugins/workspace/ui/Sidebar";
 
+/** The one-time moves done for good (lib/once-done), by their version: a change to what one does takes a new one. */
+const MIGRATIONS = { legacyForms: "workspace.legacyForms@1", dataBlocks: "workspace.dataBlocks@1" };
+
 /** Workspace: pages and databases — the tree on the left, the page beside it. */
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   await connection();
@@ -28,14 +31,21 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     await (await import("@/plugins/workspace/news-database")).ensureNewsDatabase().catch((e) => console.error("[workspace] the news database failed", e));
     // The search knows what the cells of the rows say (once: pages made before it are read in again).
     (await import("@/plugins/workspace/store")).reindexOnce();
-    // Databases' forms of the old kind (in their schema) as form pages (once each).
+    // Databases' forms of the old kind (in their schema) as form pages (once each; done for good: lib/once-done — one back from
+    // the trash moves when its forms are asked for).
+    const { lastDone, markDone, onceDone } = await import("@/lib/once-done");
+    await onceDone(MIGRATIONS.legacyForms, async () => (await import("@/plugins/workspace/forms")).migrateLegacyForms()).catch((e) => console.error("[workspace] moving the old forms failed", e));
+    // The pages' old data blocks (figure, chart, appointments, todos, document, people) as Kennzahlen, widgets and views (once each):
+    // every page the first time, after that only the pages edited since the last run in which none failed.
     try {
-      (await import("@/plugins/workspace/forms")).migrateLegacyForms();
+      const since = lastDone(MIGRATIONS.dataBlocks) ?? undefined;
+      const started = new Date().toISOString();
+      const blocks = { failed: 0 };
+      await (await import("@/plugins/workspace/data-block-migration")).migrateDataBlocks(blocks, since);
+      if (!blocks.failed) markDone(MIGRATIONS.dataBlocks, started);
     } catch (e) {
-      console.error("[workspace] moving the old forms failed", e);
+      console.error("[workspace] moving the old data blocks failed", e);
     }
-    // The pages' old data blocks (figure, chart, appointments, todos, document, people) as Kennzahlen, widgets and views (once each).
-    await (await import("@/plugins/workspace/data-block-migration")).migrateDataBlocks().catch((e) => console.error("[workspace] moving the old data blocks failed", e));
     // Your calendar as a database (once; Calendar installed).
     await (await import("@/plugins/workspace/calendar-database")).ensureCalendarDatabase().catch((e) => console.error("[workspace] the calendar database failed", e));
     // Your unread documents as an inbox (once; Documents installed).
@@ -51,13 +61,20 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
       j.sortBriefingOnce();
     }
   }).catch((e) => console.error("[workspace] setting up failed", e));
-  // The Templates in the tree: the built-in ones (yours are pages: their tree).
-  const builtins = (await import("@/plugins/workspace/templates")).templateMetas().flatMap(({ key, name, icon, kind, category }) => (category === "mine" ? [] : [{ key, name, icon, kind, category }]));
+  // What the sidebar shows beside the tree, gathered at once. The Templates in the tree: the built-in ones (yours are pages: their tree).
+  const [builtins, appNav, channels, extSources, badges] = await Promise.all([
+    import("@/plugins/workspace/templates").then((m) => m.templateMetas().flatMap(({ key, name, icon, kind, category }) => (category === "mine" ? [] : [{ key, name, icon, kind, category }]))),
+    import("@/plugins/workspace/app-nav").then((m) => m.appNavs()),
+    import("@/plugins/workspace/derived").then((m) => m.channelKinds()),
+    import("@/plugins/workspace/source-point").then((m) => m.extSources()).then((list) => list.filter((x) => !x.relationOnly).map((x) => ({ id: x.id, label: x.label, icon: x.icon }))),
+    // The pages' badges (what waits on them): the kept ones, a new reading only briefly waited for.
+    import("@/plugins/workspace/badges").then((m) => m.pageBadges({ wait: 300 })),
+  ]);
   return (
     <div className="page">
       <div className="page-aside ws-aside">
         <MobileAside>
-          <Sidebar builtins={builtins} templateItems={templateTree()} appNav={await (await import("@/plugins/workspace/app-nav")).appNavs()} items={tree()} favorites={favorites()} badges={await (await import("@/plugins/workspace/badges")).pageBadges({ wait: 300 })} channels={(await import("@/plugins/workspace/derived")).channelKinds()} extSources={(await (await import("@/plugins/workspace/source-point")).extSources()).filter((x) => !x.relationOnly).map((x) => ({ id: x.id, label: x.label, icon: x.icon }))} />
+          <Sidebar builtins={builtins} templateItems={templateTree()} appNav={appNav} items={tree()} favorites={favorites()} badges={badges} channels={channels} extSources={extSources} />
         </MobileAside>
       </div>
       <div className="min-w-0">{children}</div>

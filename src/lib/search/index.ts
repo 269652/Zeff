@@ -39,7 +39,7 @@ export async function searchAll(raw: string, opts: SearchOptions = {}): Promise<
 
   // The commands: every sync step, "sync all", the Workspace's actions, routines and waiting jobs. Typed among other words,
   // only those the words fit; after ">" all of them, in their kinds (Sync, Agents, Automations, Jobs, Actions).
-  await guarded("commands", async () => {
+  const commandsStep = guarded("commands", async () => {
     const items: PaletteItem[] = [];
     const { syncOverview } = await import("@/lib/sync/registry");
     const o = syncOverview();
@@ -51,11 +51,16 @@ export async function searchAll(raw: string, opts: SearchOptions = {}): Promise<
     const found = filterPalette(items, words, 300);
     for (const kind of [...new Set(found.map((x) => x.group))]) add("commands", found.filter((x) => x.group === kind), `commands:${kind}`, kind, 300);
   });
-  if (commands) return orderGroups(groups);
+  if (commands) {
+    await commandsStep;
+    return orderGroups(groups);
+  }
 
+  // Every other source at once (each adds its own groups; orderGroups puts them in their order after).
   // The Workspace: pages, rows (a group per database), templates — by what they say and are called (ws_fts).
   const ws = isInstalled("workspace");
-  if (ws && (asked.has("pages") || asked.has("rows") || asked.has("templates"))) {
+  const workspaceStep = (async () => {
+    if (!ws || !(asked.has("pages") || asked.has("rows") || asked.has("templates"))) return;
     try {
       const store = await import("@/plugins/workspace/store");
       const pages: PaletteItem[] = [];
@@ -93,23 +98,36 @@ export async function searchAll(raw: string, opts: SearchOptions = {}): Promise<
     } catch (e) {
       console.error("[search] workspace", e);
     }
-  }
+  })();
 
-  // Kennzahlen: by their name and what they count (shown with their value now).
-  await guarded("metrics", async () => {
+  // Kennzahlen: by their name and what they count (shown with their value now). Only those that may fit are read: one whose
+  // name, line and unit miss a word with a letter can't (a word without one may still be in its value; a formula's own unit
+  // is known only once it is read).
+  const metricsStep = guarded("metrics", async () => {
     if (!ws) return;
-    const { formatMetric, listMetrics } = await import("@/plugins/workspace/metrics");
-    const items = listMetrics().map((m) => ({ id: `metric:${m.key}`, label: `📊 ${m.label}`, hint: `${m.error ? "⚠" : formatMetric(m.value, m.unit)}${m.what ? ` · ${m.what}` : ""}`, href: `/workspace/metrics#${m.key}`, group: SOURCE_LABELS.metrics, floor: 0 }));
+    const { formatMetric, listMetrics, metricNames } = await import("@/plugins/workspace/metrics");
+    const { norm } = await import("@/lib/palette");
+    const want = norm(words).split(/\s+/).filter(Boolean);
+    const mayFit = (m: { label: string; what: string; unit: string | null }) => {
+      if (m.unit === null) return true;
+      const text = norm(`📊 ${m.label} ${m.unit} · ${m.what} ${SOURCE_LABELS.metrics}`);
+      return want.every((w) => text.includes(w) || !/\p{L}/u.test(w));
+    };
+    const keys = metricNames()
+      .filter(mayFit)
+      .map((m) => m.key);
+    if (!keys.length) return;
+    const items = listMetrics(keys).map((m) => ({ id: `metric:${m.key}`, label: `📊 ${m.label}`, hint: `${m.error ? "⚠" : formatMetric(m.value, m.unit)}${m.what ? ` · ${m.what}` : ""}`, href: `/workspace/metrics#${m.key}`, group: SOURCE_LABELS.metrics, floor: 0 }));
     add("metrics", items.filter((x) => rank(x, words, 0) > 0));
   });
 
   // People, by what Zeff learned about them (their claims and details: "IBAN Wagner", "Musterstraße").
-  await guarded("people", async () => {
+  const peopleStep = guarded("people", async () => {
     if (isInstalled("people")) add("people", await (await import("@/plugins/people/search")).peoplePaletteItems(words, 12));
   });
 
   // Todos (T-<id>, their words, their notes) — the open ones first.
-  await guarded("todos", async () => {
+  const todosStep = guarded("todos", async () => {
     if (!isInstalled("todos")) return;
     const { searchTodos } = await import("@/lib/boards/store");
     const found = searchTodos(words, 20).sort((a, b) => Number(a.status === "done") - Number(b.status === "done"));
@@ -117,7 +135,7 @@ export async function searchAll(raw: string, opts: SearchOptions = {}): Promise<
   });
 
   // Tickets: by key or summary (the synced ones).
-  await guarded("tickets", async () => {
+  const ticketsStep = guarded("tickets", async () => {
     if (!isInstalled("jira")) return;
     const { getSqlite } = await import("@/db");
     const w = words.toLowerCase();
@@ -138,9 +156,17 @@ export async function searchAll(raw: string, opts: SearchOptions = {}): Promise<
       add(source, found.map((c) => ({ id: c.ref, label: clip(c.title, 140), hint: [c.when, clip(c.text, 100)].filter(Boolean).join(" · ") || undefined, href: href(c.ref), group: SOURCE_LABELS[source], floor: 2 + c.score })));
     });
   const q = encodeURIComponent(words);
-  await fromRag("mails", "mails", () => `/mail?q=${q}`);
-  await fromRag("messages", "teams", () => `/mail?channel=teams&q=${q}`, "teams");
-  await fromRag("documents", "documents", (ref) => `/documents?doc=${encodeURIComponent(ref.replace(/^doc:/, ""))}`, "documents");
+  await Promise.all([
+    commandsStep,
+    workspaceStep,
+    metricsStep,
+    peopleStep,
+    todosStep,
+    ticketsStep,
+    fromRag("mails", "mails", () => `/mail?q=${q}`),
+    fromRag("messages", "teams", () => `/mail?channel=teams&q=${q}`, "teams"),
+    fromRag("documents", "documents", (ref) => `/documents?doc=${encodeURIComponent(ref.replace(/^doc:/, ""))}`, "documents"),
+  ]);
 
   return orderGroups(groups);
 }
