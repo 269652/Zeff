@@ -106,7 +106,7 @@ export function formFromTable(dbId: number): number {
 
 /** The forms that fill a database (for its entry form), by title. */
 export function formsOfDb(dbId: number): { id: number; title: string }[] {
-  migrateLegacyForms();
+  if (hasLegacyForm(dbId)) migrateLegacyForms();
   return (getSqlite().prepare("select id, title from ws_pages where kind = 'form' and archived_at is null and template = 0 and json_extract(props, '$.form.dbId') = ? order by title, id").all(dbId) as { id: number; title: string }[]).map((r) => ({ id: r.id, title: r.title || t("Untitled") }));
 }
 
@@ -263,12 +263,22 @@ export function migrateLegacyForms(): number {
   return made;
 }
 
+/**
+ * Whether this database still has a form of the old kind to move (what migrateLegacyForms moves) — cheap, for the paths that ask
+ * about one database (the move itself ran once at the Workspace's setup; a database back from the trash may still have one).
+ */
+function hasLegacyForm(dbId: number): boolean {
+  const d = getDatabase(dbId);
+  const spec = d?.schema.form;
+  return !!d && !d.page.archivedAt && !!spec && !d.schema.formPage && (spec.enabled || spec.fields.length > 0);
+}
+
 /** The form an address /form/<id> means: a form page, or (an old link) the form page a database's old form became. */
 export function formAt(id: number): FormRun | null {
   const own = getForm(id);
   if (own) return own;
   if (!getDatabase(id)) return null;
-  migrateLegacyForms();
+  if (hasLegacyForm(id)) migrateLegacyForms();
   const page = getDatabase(id)?.schema.formPage;
   return page ? getForm(page) : null;
 }

@@ -7,6 +7,9 @@ import { favorites, templateTree, tree, unreadCounts } from "@/plugins/workspace
 import { MobileAside } from "@/plugins/workspace/ui/MobileAside";
 import { Sidebar } from "@/plugins/workspace/ui/Sidebar";
 
+/** The one-time moves done for good (lib/once-done), by their version: a change to what one does takes a new one. */
+const MIGRATIONS = { legacyForms: "workspace.legacyForms@1", dataBlocks: "workspace.dataBlocks@1" };
+
 /** Workspace: pages and databases — the tree on the left, the page beside it. */
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   await connection();
@@ -28,14 +31,21 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     await (await import("@/plugins/workspace/news-database")).ensureNewsDatabase().catch((e) => console.error("[workspace] the news database failed", e));
     // The search knows what the cells of the rows say (once: pages made before it are read in again).
     (await import("@/plugins/workspace/store")).reindexOnce();
-    // Databases' forms of the old kind (in their schema) as form pages (once each).
+    // Databases' forms of the old kind (in their schema) as form pages (once each; done for good: lib/once-done — one back from
+    // the trash moves when its forms are asked for).
+    const { lastDone, markDone, onceDone } = await import("@/lib/once-done");
+    await onceDone(MIGRATIONS.legacyForms, async () => (await import("@/plugins/workspace/forms")).migrateLegacyForms()).catch((e) => console.error("[workspace] moving the old forms failed", e));
+    // The pages' old data blocks (figure, chart, appointments, todos, document, people) as Kennzahlen, widgets and views (once each):
+    // every page the first time, after that only the pages edited since the last run in which none failed.
     try {
-      (await import("@/plugins/workspace/forms")).migrateLegacyForms();
+      const since = lastDone(MIGRATIONS.dataBlocks) ?? undefined;
+      const started = new Date().toISOString();
+      const blocks = { failed: 0 };
+      await (await import("@/plugins/workspace/data-block-migration")).migrateDataBlocks(blocks, since);
+      if (!blocks.failed) markDone(MIGRATIONS.dataBlocks, started);
     } catch (e) {
-      console.error("[workspace] moving the old forms failed", e);
+      console.error("[workspace] moving the old data blocks failed", e);
     }
-    // The pages' old data blocks (figure, chart, appointments, todos, document, people) as Kennzahlen, widgets and views (once each).
-    await (await import("@/plugins/workspace/data-block-migration")).migrateDataBlocks().catch((e) => console.error("[workspace] moving the old data blocks failed", e));
     // Your calendar as a database (once; Calendar installed).
     await (await import("@/plugins/workspace/calendar-database")).ensureCalendarDatabase().catch((e) => console.error("[workspace] the calendar database failed", e));
     // Your unread documents as an inbox (once; Documents installed).
