@@ -1,4 +1,3 @@
-import { convertLegacyItems } from "./legacy-items";
 import fs from "node:fs";
 import path from "node:path";
 import Database from "better-sqlite3";
@@ -77,13 +76,6 @@ function createDb(dbPath: string): { db: Db; sqlite: Database.Database } {
   // Apply the SQL migrations in ./drizzle on first use so the app is
   // zero-setup: `npm run dev` creates data/zeff.db with the current schema.
   migrateOnce(db);
-  // Parallel work kept as "items" by an earlier version: back as entries (see legacy-items.ts).
-  try {
-    const n = convertLegacyItems(sqlite);
-    if (n) console.log(`[zeff] ${n} Positionen unter Gruppeneinträgen sind wieder eigene Einträge.`);
-  } catch (e) {
-    console.error("[zeff] legacy items:", (e as Error).message);
-  }
   return { db, sqlite };
 }
 
