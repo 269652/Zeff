@@ -61,13 +61,18 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
       j.sortBriefingOnce();
     }
   }).catch((e) => console.error("[workspace] setting up failed", e));
-  // The Templates in the tree: the built-in ones (yours are pages: their tree).
-  const builtins = (await import("@/plugins/workspace/templates")).templateMetas().flatMap(({ key, name, icon, kind, category }) => (category === "mine" ? [] : [{ key, name, icon, kind, category }]));
+  // What the sidebar shows beside the tree, gathered at once. The Templates in the tree: the built-in ones (yours are pages: their tree).
+  const [builtins, appNav, channels, extSources] = await Promise.all([
+    import("@/plugins/workspace/templates").then((m) => m.templateMetas().flatMap(({ key, name, icon, kind, category }) => (category === "mine" ? [] : [{ key, name, icon, kind, category }]))),
+    import("@/plugins/workspace/app-nav").then((m) => m.appNavs()),
+    import("@/plugins/workspace/derived").then((m) => m.channelKinds()),
+    import("@/plugins/workspace/source-point").then((m) => m.extSources()).then((list) => list.filter((x) => !x.relationOnly).map((x) => ({ id: x.id, label: x.label, icon: x.icon }))),
+  ]);
   return (
     <div className="page">
       <div className="page-aside ws-aside">
         <MobileAside>
-          <Sidebar builtins={builtins} templateItems={templateTree()} appNav={await (await import("@/plugins/workspace/app-nav")).appNavs()} items={tree()} favorites={favorites()} unread={unreadCounts()} channels={(await import("@/plugins/workspace/derived")).channelKinds()} extSources={(await (await import("@/plugins/workspace/source-point")).extSources()).filter((x) => !x.relationOnly).map((x) => ({ id: x.id, label: x.label, icon: x.icon }))} />
+          <Sidebar builtins={builtins} templateItems={templateTree()} appNav={appNav} items={tree()} favorites={favorites()} unread={unreadCounts()} channels={channels} extSources={extSources} />
         </MobileAside>
       </div>
       <div className="min-w-0">{children}</div>
