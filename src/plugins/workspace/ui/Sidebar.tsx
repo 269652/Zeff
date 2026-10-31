@@ -132,6 +132,9 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
   );
 }
 
+/** Two badges saying the same (their counts by tone). */
+const sameBadge = (a: Badge, b: Badge) => a.important === b.important && a.unread === b.unread;
+
 /** A row's tooltip: its title, what its badge is made of, and what is below it. */
 function badgeTip(title: string, own: Badge | null | undefined, below: Badge | null | undefined, belowWord: string): string | undefined {
   const lines = [own?.parts.join(" · "), below?.parts.length ? `${belowWord}: ${below.parts.join(" · ")}` : ""].filter(Boolean);
@@ -315,9 +318,12 @@ export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), ch
     const inTpl = tplById.has(item.id);
     const kids = (inTpl ? tplByParent : byParent).get(item.id) ?? [];
     const isOpen = open.has(item.id);
-    // Unfolded, what is below shows its own; folded (or nothing to unfold: a database's rows), its sum beside the page's own.
+    // Folded (or nothing to unfold), the sum of what is below beside the page's own; unfolded, the sub-pages show theirs — but a
+    // database's rows aren't in the tree, so their sum (Personen: everyone's open todos) stays beside it.
     const own = inTpl ? null : ownBadge(item.id);
-    const sub = inTpl || (isOpen && (kids.length > 0 || !!appNav[item.id])) ? null : (below.get(item.id) ?? null);
+    const subRaw = inTpl ? null : isOpen && appNav[item.id] ? null : isOpen && kids.length > 0 ? (live.inner[item.id] ?? null) : (below.get(item.id) ?? null);
+    // (The same number twice — a mail inbox's own unread is its rows' unread — shows once.)
+    const sub = subRaw && own && sameBadge(subRaw, own) ? null : subRaw;
     return (
       <li key={item.id}>
         <div
