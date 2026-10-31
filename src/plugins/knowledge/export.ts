@@ -52,13 +52,14 @@ const KIND_DE = { card: "Karte", note: "Notiz", row: "Eintrag" } as const;
 /**
  * What you keep (Keep boards, Google Keep, Workspace databases …) as documents: the items of the
  * collections in the knowledge, archived ones too — one each, in its collection's space.
- * `plugin`: one plugin's only.
+ * `plugin`: one plugin's only; `which`: only the collections it picks.
  */
-export function collectionDocs(plugin?: string, ids?: Set<string>): KnowledgeDoc[] {
+export function collectionDocs(plugin?: string, ids?: Set<string>, which?: (c: { id: string }) => boolean): KnowledgeDoc[] {
   // Picked by the knowledge server (its ids): those collections, whatever their old switch; else the switch's.
   // (A secret collection never: picked or not — lib/boundaries; the switches of one are off already.)
   const placed = ids ? listCollections().filter((c) => ids.has(c.id) && c.sensitivity !== "secret").flatMap((collection) => (collectionItems(collection.id, { archived: true }) ?? []).map((item) => ({ item, collection }))) : knowledgeItems(plugin ? { plugin } : {});
   return placed
+    .filter(({ collection }) => !which || which(collection))
     .filter(({ item: n }) => n.title || n.text)
     .map(({ item: n, collection: c }) => {
       // (A row with fields has its status and labels among them, by their names.)
@@ -79,7 +80,8 @@ export function collectionDocs(plugin?: string, ids?: Set<string>): KnowledgeDoc
 
 /** `only: "keep"`: just Google Keep's notes (the knowledge server's own Google Keep source). */
 export function knowledgeDocs(zeffUrl: string, only?: "keep", include?: string[]): { account: string; docs: KnowledgeDoc[] } {
-  if (only === "keep") return { account: currentAccount().name, docs: [...collectionDocs("keep"), ...collectionDocs("notes")] };
+  // (The Keep module's collections: Google Keep's, and your note boards — the Workspace's since the Notes plugin went.)
+  if (only === "keep") return { account: currentAccount().name, docs: collectionDocs(undefined, undefined, (c) => c.id.startsWith("keep:")) };
   const db = getSqlite();
   const all = <T>(sql: string, ...args: unknown[]) => db.prepare(sql).all(...args) as T[];
   const docs: KnowledgeDoc[] = [];
