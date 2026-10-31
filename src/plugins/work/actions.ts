@@ -5,7 +5,7 @@
 import { action, EN, str } from "../actions/types";
 
 /** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
-declare module "@/lib/boards/shared" {
+declare module "@/lib/todos/shared" {
   interface TodoOpMap {
   /** The todo handed to a worker (Code tab) with this instruction. */
   "work-instruct": { instruction: string };

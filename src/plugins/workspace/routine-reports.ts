@@ -1,6 +1,6 @@
 import { getSqlite } from "@/db";
-import { onTodoDone } from "@/lib/boards/done-hooks";
-import { getTodo, setTodoStatus } from "@/lib/boards/store";
+import { onTodoDone } from "@/lib/todos/done-hooks";
+import { getTodo, setTodoStatus } from "@/lib/todos/store";
 import { getRoutine, routineOfWorkRun } from "./routines";
 
 /**

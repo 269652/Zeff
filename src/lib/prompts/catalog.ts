@@ -1,4 +1,4 @@
-import type { ContextStepId } from "@/lib/boards/context-prefs-shared";
+import type { ContextStepId } from "@/lib/runs/context-prefs-shared";
 
 /**
  * Every prompt Zeff uses, as the Workspace shows it (System → Prompts → its group): its key (what the code reads it by),
@@ -24,18 +24,18 @@ export type PromptEntry = {
 export const PROMPT_GROUPS = ["Todos & Lage", "Mail", "Knowledge", "Notes", "Documents", "People", "News", "Workspace", "LLM & Workers"] as const;
 
 export const PROMPTS: PromptEntry[] = [
-  { key: "ticket-lage", group: "Todos & Lage", title: "Ticket-Lage", uses: "The Ticket-Lage: each ticket's attention, lead, summary, todos", plugin: "todos", step: "lage", builtIn: async () => (await import("@/lib/boards/collect")).INSTRUCTIONS },
-  { key: "ticket-questions", group: "Todos & Lage", title: "Questions about tickets", uses: "The answers to the briefing's possible questions", plugin: "todos", builtIn: async () => (await import("@/lib/boards/questions")).INSTRUCTIONS },
-  { key: "ticket-chat", group: "Todos & Lage", title: "Ticket chat", uses: "The chat about a ticket", plugin: "todos", builtIn: async () => (await import("@/lib/boards/ticket-chat")).INSTRUCTIONS },
-  { key: "recap", group: "Todos & Lage", title: "Day recap", uses: "What you did on a day — for the standup", plugin: "todos", vars: ["me", "date"], builtIn: async () => (await import("@/lib/boards/recap")).RECAP_INSTRUCTIONS },
+  { key: "ticket-lage", group: "Todos & Lage", title: "Ticket-Lage", uses: "The Ticket-Lage: each ticket's attention, lead, summary, todos", plugin: "todos", step: "lage", builtIn: async () => (await import("@/lib/runs/collect")).INSTRUCTIONS },
+  { key: "ticket-questions", group: "Todos & Lage", title: "Questions about tickets", uses: "The answers to the briefing's possible questions", plugin: "todos", builtIn: async () => (await import("@/lib/runs/questions")).INSTRUCTIONS },
+  { key: "ticket-chat", group: "Todos & Lage", title: "Ticket chat", uses: "The chat about a ticket", plugin: "todos", builtIn: async () => (await import("@/lib/runs/ticket-chat")).INSTRUCTIONS },
+  { key: "recap", group: "Todos & Lage", title: "Day recap", uses: "What you did on a day — for the standup", plugin: "todos", vars: ["me", "date"], builtIn: async () => (await import("@/lib/runs/recap")).RECAP_INSTRUCTIONS },
   { key: "auto-actions", group: "Todos & Lage", title: "Auto-actions", uses: "Actions for the open todos — one click each", plugin: "auto-actions", step: "autoactions", vars: ["me", "today"], builtIn: async () => (await import("@/plugins/auto-actions/review")).INSTRUCTIONS },
-  { key: "repeat-text", group: "Todos & Lage", title: "Repeat wording", uses: "The words a repeating todo's next ones carry (a rate without “first”, “now”)", plugin: "todos", builtIn: async () => (await import("@/lib/boards/repeat-text-ai")).INSTRUCTIONS },
+  { key: "repeat-text", group: "Todos & Lage", title: "Repeat wording", uses: "The words a repeating todo's next ones carry (a rate without “first”, “now”)", plugin: "todos", builtIn: async () => (await import("@/lib/todos/repeat-text-ai")).INSTRUCTIONS },
   { key: "day-plan", group: "Todos & Lage", title: "Day plan", uses: "Today's todos as time blocks around your appointments (Today → Plan my day)", plugin: "todos", builtIn: async () => (await import("@/lib/heute-plan")).INSTRUCTIONS },
   { key: "calendar-todos", group: "Todos & Lage", title: "Appointments to todos", uses: "Which of today's and tomorrow's appointments give you something to do (a blocker like “Pause” doesn't)", plugin: "calendar", builtIn: async () => (await import("@/lib/calendar/todos")).INSTRUCTIONS },
-  { key: "reply-draft", group: "Mail", title: "Reply drafts", uses: "Your reply to a mail or chat, drafted", plugin: "todos", step: "replies", vars: ["channel"], builtIn: async () => (await import("@/lib/boards/reply-draft")).INSTRUCTIONS },
-  { key: "mail-todos", group: "Mail", title: "Mail review", uses: "Todos from new mails (and WhatsApp chats)", plugin: "todos", step: "mailtodos", builtIn: async () => (await import("@/lib/boards/mail-todos")).INSTRUCTIONS },
-  { key: "mail-signal", group: "Mail", title: "Mail review: Signal", uses: "Added to the mail review when Signal chats are among the mails", plugin: "todos", builtIn: async () => (await import("@/lib/boards/mail-todos")).SIGNAL_NOTE },
-  { key: "mail-relations", group: "Mail", title: "Mails to todos", uses: "Which mails belong to which open todo", plugin: "todos", step: "relations", builtIn: async () => (await import("@/lib/boards/mail-relations")).INSTRUCTIONS },
+  { key: "reply-draft", group: "Mail", title: "Reply drafts", uses: "Your reply to a mail or chat, drafted", plugin: "todos", step: "replies", vars: ["channel"], builtIn: async () => (await import("@/lib/todos/reply-draft")).INSTRUCTIONS },
+  { key: "mail-todos", group: "Mail", title: "Mail review", uses: "Todos from new mails (and WhatsApp chats)", plugin: "todos", step: "mailtodos", builtIn: async () => (await import("@/lib/todos/mail-todos")).INSTRUCTIONS },
+  { key: "mail-signal", group: "Mail", title: "Mail review: Signal", uses: "Added to the mail review when Signal chats are among the mails", plugin: "todos", builtIn: async () => (await import("@/lib/todos/mail-todos")).SIGNAL_NOTE },
+  { key: "mail-relations", group: "Mail", title: "Mails to todos", uses: "Which mails belong to which open todo", plugin: "todos", step: "relations", builtIn: async () => (await import("@/lib/todos/mail-relations")).INSTRUCTIONS },
   { key: "knowledge-relations", group: "Knowledge", title: "Knowledge to todos", uses: "Which knowledge belongs to which open todo", plugin: "knowledge", step: "knowledge", builtIn: async () => (await import("@/plugins/knowledge/relations")).INSTRUCTIONS },
   { key: "questions-plan", group: "Knowledge", title: "Structured questions: the query", uses: "Whether a question is about your data, and the query over it", plugin: "questions", builtIn: async () => (await import("@/plugins/questions/ask")).PLAN_INSTRUCTIONS },
   { key: "questions-answer", group: "Knowledge", title: "Structured questions: the answer", uses: "The answer phrased from the query's numbers", plugin: "questions", builtIn: async () => (await import("@/plugins/questions/ask")).ANSWER_INSTRUCTIONS },
@@ -66,7 +66,7 @@ export const PROMPTS: PromptEntry[] = [
   { key: "news-similar", group: "News", title: "News: more like this", uses: "More of what you read", plugin: "news", builtIn: async () => (await import("@/plugins/news/similar")).SIMILAR_INSTRUCTIONS },
   { key: "news-taste", group: "News", title: "News: your taste", uses: "The description of what you like to read", plugin: "news", builtIn: async () => (await import("@/plugins/news/taste")).TASTE_INSTRUCTIONS },
   { key: "news-outlets", group: "News", title: "News: sources", uses: "News sources for a topic", plugin: "news", vars: ["topic"], builtIn: async () => (await import("@/plugins/news/finder")).OUTLET_INSTRUCTIONS },
-  { key: "todo-refresh", group: "Todos & Lage", title: "One todo brought up to date", uses: "A todo re-read after you wrote a note on it", plugin: "todos", vars: ["attachments", "today"], builtIn: async () => (await import("@/lib/boards/todo-refresh")).TODO_REFRESH_INSTRUCTIONS },
+  { key: "todo-refresh", group: "Todos & Lage", title: "One todo brought up to date", uses: "A todo re-read after you wrote a note on it", plugin: "todos", vars: ["attachments", "today"], builtIn: async () => (await import("@/lib/todos/refresh")).TODO_REFRESH_INSTRUCTIONS },
   { key: "rag", group: "Todos & Lage", title: "Asking for more context", uses: "Added to the steps that may ask Zeff to search (ticket chat, todo refresh)", builtIn: async () => (await import("@/lib/rag")).RAG_INSTRUCTIONS },
   { key: "people-dates", group: "People", title: "A person's dates", uses: "Birthdays and anniversaries of a person, found", plugin: "people", vars: ["name", "aliases"], builtIn: async () => (await import("@/plugins/people/dates")).PEOPLE_DATES_INSTRUCTIONS },
   { key: "know-summary", group: "People", title: "What you should know", uses: "The few points before a meeting or beside a mail, chat, ticket or person", plugin: "know", vars: ["what"], builtIn: async () => (await import("@/plugins/know/summary")).KNOW_SUMMARY_INSTRUCTIONS },

@@ -85,7 +85,7 @@ test("any source or database derivable: a database from a data source; an AI fil
     assert.equal(steps[0].from, from, `a database from ${from}`);
   }
   const todos = createSourceDatabase("todos");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   addManualTodo({ ticket: "WS-5", text: "Steuererklärung abgeben" });
   await runPipeline(todos, { ai: false });
   const derived = createDerivedDatabase(todos);
@@ -108,7 +108,7 @@ test("the AI filter's frame: strict (in doubt: not kept, notifications only when
   const { markdownToDoc } = await import("@/plugins/workspace/doc");
   const { createSourceDatabase, createDerivedDatabase } = await import("@/plugins/workspace/derived");
   const { runPipeline } = await import("@/plugins/workspace/pipeline");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   addManualTodo({ ticket: "WS-6", text: "Rahmen prüfen" });
   const src = createSourceDatabase("todos");
   await runPipeline(src, { ai: false });
@@ -172,7 +172,7 @@ test("run log: each run of a pipeline kept — what it did, how many the AI judg
   const w = await import("@/plugins/workspace/store");
   const { createSourceDatabase, createDerivedDatabase } = await import("@/plugins/workspace/derived");
   const { runPipeline, pipelineRuns, allPipelineRuns } = await import("@/plugins/workspace/pipeline");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   addManualTodo({ ticket: "WS-31", text: "Laufprotokoll prüfen" });
   addManualTodo({ ticket: "WS-32", text: "Etwas ganz anderes erledigen" });
   const src = createSourceDatabase("todos");
@@ -203,7 +203,7 @@ test("trial run: an AI filter's condition tried on a sample — what it would ke
   const w = await import("@/plugins/workspace/store");
   const { createSourceDatabase, createDerivedDatabase } = await import("@/plugins/workspace/derived");
   const { runPipeline, previewAiFilter } = await import("@/plugins/workspace/pipeline");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   addManualTodo({ ticket: "WS-41", text: "Probelauf Eins prüfen" });
   addManualTodo({ ticket: "WS-42", text: "Probelauf Zwei ablegen" });
   const src = createSourceDatabase("todos");

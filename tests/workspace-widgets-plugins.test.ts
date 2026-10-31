@@ -71,7 +71,7 @@ test("upcoming dates: the next dates of your people — done for this time takes
 
 test("workers: queued and running runs of Code with their todo — stop takes one out", async () => {
   const x = await world();
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const { createRun, getRun } = await import("@/lib/work/store");
   const todo = addManualTodo({ ticket: "", text: "Bericht schreiben (Widget)" });
   const run = createRun({ ticket: "", todoId: todo.id, mode: "instruct", provider: "claude", model: null, permissionMode: null, repo: null, prompt: "x" });

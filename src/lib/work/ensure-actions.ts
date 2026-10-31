@@ -1,4 +1,4 @@
-import { getTodo } from "@/lib/boards/store";
+import { getTodo } from "@/lib/todos/store";
 import { emitChange } from "@/lib/events";
 
 /**

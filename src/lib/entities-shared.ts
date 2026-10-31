@@ -3,7 +3,7 @@
  * or a board todo (zeff:todo:<id>), work done that can back an entry. Client-safe (types and
  * wording only).
  */
-import type { JiraCommentView, TodoSource, TodoView } from "./boards/shared";
+import type { JiraCommentView, TodoSource, TodoView } from "./todos/shared";
 import { gitlabDone, gitlabHeadline, type GitlabItemView } from "./gitlab/shared";
 import type { TeamsMessageView } from "./teams/shared";
 import { mailSender, type MailView } from "./mail/shared";

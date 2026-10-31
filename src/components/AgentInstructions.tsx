@@ -1,7 +1,7 @@
 "use client";
 
 import { createContext, useContext, type ReactNode } from "react";
-import { AGENT_INSTRUCTION_DEFAULTS } from "@/lib/boards/shared";
+import { AGENT_INSTRUCTION_DEFAULTS } from "@/lib/todos/shared";
 
 type Templates = { code: string; other: string };
 

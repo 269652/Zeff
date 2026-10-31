@@ -1,9 +1,9 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { getJobNumberForTicket, getWeeklyReport, listEntries } from "@/lib/entries";
-import { attributed } from "@/lib/boards/activity";
-import { getTodo, markWorkerDone } from "@/lib/boards/store";
-import { parseTodoRef, todoRef } from "@/lib/boards/shared";
+import { attributed } from "@/lib/todos/activity";
+import { getTodo, markWorkerDone } from "@/lib/todos/store";
+import { parseTodoRef, todoRef } from "@/lib/todos/shared";
 import { formatHours } from "@/lib/format";
 import { getTicketDefaultJob } from "@/lib/jira/store";
 import { createJob, listJobs } from "@/lib/jobs";

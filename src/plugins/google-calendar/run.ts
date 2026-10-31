@@ -3,7 +3,7 @@
  * "Add to Google Calendar", in the todo or the calendar), never by the todo's "Run", a worker or an agent: those leave it as
  * Google's form, filled in, for you to save. Entered in your main calendar. Server only.
  */
-import type { TodoOp } from "@/lib/boards/shared";
+import type { TodoOp } from "@/lib/todos/shared";
 import { plusMinutes } from "@/lib/calendar/ir-shared";
 import { formatDate, formatTime } from "@/lib/format";
 import { gcalCanWrite, insertGcalEvent } from "@/lib/google/calendar-write";

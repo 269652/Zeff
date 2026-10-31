@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { getTodo } from "@/lib/boards/store";
-import { parseTodoRef, todoRef } from "@/lib/boards/shared";
+import { getTodo } from "@/lib/todos/store";
+import { parseTodoRef, todoRef } from "@/lib/todos/shared";
 import { run, pluginOff, ok, SESSION_LOG, fail, recordFromLog } from "./kit";
 
 /** Registers todo_progress, todo_time(_update/_delete), todo_clock_start/stop/ping, todo_needs_input. */

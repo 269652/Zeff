@@ -7,7 +7,7 @@ setupTempData();
 async function seed() {
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("todos", true);
-  const store = await import("@/lib/boards/store");
+  const store = await import("@/lib/todos/store");
   const { getDb, schema } = await import("@/db");
   const { eq } = await import("drizzle-orm");
   const todo = (text: string) => store.addManualTodo({ ticket: "PROJ-7", text });
@@ -54,7 +54,7 @@ test("Todos' queue: todos a worker or the AI says are done, and actions the AI p
 test("done: yes closes the todo, no takes the worker's word back — it stays open", async () => {
   const ids = await seed();
   const { reviewAct } = await import("@/lib/review");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   await reviewAct(`todo-done:${ids.suggested}`, "yes");
   assert.equal(getTodo(ids.suggested)!.status, "done");
   await reviewAct(`todo-done:${ids.reported}`, "no");
@@ -66,7 +66,7 @@ test("done: yes closes the todo, no takes the worker's word back — it stays op
 test("proposed actions: no takes them off — not proposed again till the todo changes", async () => {
   const ids = await seed();
   const { reviewAct, reviewItems } = await import("@/lib/review");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   await reviewAct(`todo-actions:${ids.proposed}`, "no");
   const todo = getTodo(ids.proposed)!;
   assert.deepEqual([todo.status, todo.ops, todo.autoOpsWhy], ["open", [], null]);

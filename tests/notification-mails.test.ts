@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { notificationOf } from "../src/lib/boards/notification-mails";
+import { notificationOf } from "../src/lib/todos/notification-mails";
 
 test("a mail announcing a GitLab or Jira comment names the original", () => {
   const gl = notificationOf({

@@ -3,7 +3,7 @@
  * together in one session (runJiraOps); the ones that open in your browser (a mail draft, an
  * appointment) don't run here at all. Server only.
  */
-import type { TodoOp } from "@/lib/boards/shared";
+import type { TodoOp } from "@/lib/todos/shared";
 import { runGitlabMerge, runGitlabNote, runGitlabOpenMr } from "../gitlab/run";
 import { runKeepNote } from "../keep/run";
 import { runTodoPromote } from "../todos/run";

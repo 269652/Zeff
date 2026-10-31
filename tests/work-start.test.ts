@@ -7,7 +7,7 @@ setupTempData();
 
 const at = (y: number, mo: number, d: number, h: number, m = 0) => new Date(y, mo - 1, d, h, m).toISOString();
 async function todoOn(ticket: string) {
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   return addFollowUp({ ticket, text: `Aufgabe ${Math.random().toString(36).slice(2, 10)} ${Math.random().toString(36).slice(2, 10)}`, kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
 }
 

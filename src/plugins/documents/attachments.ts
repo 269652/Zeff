@@ -19,7 +19,7 @@ export function todoAttachments(refs: string[]): DocView[] {
 export async function linkNoteImages(todoId: number, text: string): Promise<number> {
   const ids = noteImageIds(text);
   if (!ids.length) return 0;
-  const { getTodo, addTodoContext } = await import("@/lib/boards/store");
+  const { getTodo, addTodoContext } = await import("@/lib/todos/store");
   const todo = getTodo(todoId);
   if (!todo) return 0;
   const have = new Set(todo.refs);

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { opLook } from "@/lib/boards/op-look";
+import { opLook } from "@/lib/todos/op-look";
 
 /** Every action has a look: an icon and a colour by what it does (talk, resolve, deliver, hand over, schedule, ticket) — an unknown one still gets one. */
 test("opLook: icon and tone by what the action does", () => {

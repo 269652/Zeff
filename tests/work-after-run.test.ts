@@ -18,7 +18,7 @@ test("a reply queued behind a run is cancelled with it", async () => {
 });
 
 test("messages sent while the worker is busy are collected into one run", async () => {
-  const { addFollowUp, getTodo } = await import("@/lib/boards/store");
+  const { addFollowUp, getTodo } = await import("@/lib/todos/store");
   const { createRun, getRun, runsForTodos, updateRun } = await import("@/lib/work/store");
   const { dispatchTodo } = await import("@/lib/work/runner");
   const todo = addFollowUp({ ticket: "ABC-2", text: "Talk", kind: "other", parentId: null, workRunId: null, source: "test" });

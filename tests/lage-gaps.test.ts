@@ -7,7 +7,7 @@ const h = (key: string, label: string, state: SourceHealth["state"], detail: Sou
   ({ key, label, href: `/${key}`, state, since: null, detail, lastAt: null, lastOkAt: null, lastNewAt: "2026-10-26T10:00:00Z", baseline: null, perDay: null, everyMinutes: 5 }) as SourceHealth;
 
 test("the prompt's notice: each source not up to date, why, its newest item — and what the AI must not read into it", async () => {
-  const { gapNotice } = await import("@/lib/boards/lage-gaps");
+  const { gapNotice } = await import("@/lib/runs/lage-gaps");
   assert.deepEqual(gapNotice([]), []);
   const lines = gapNotice([h("teams", "Teams", "stale", { kind: "stale", overdueMin: 240, everyMinutes: 5 } as SourceHealth["detail"])]);
   assert.match(lines[0], /ACHTUNG — diese Quellen sind bei diesem Lauf nicht aktuell/);

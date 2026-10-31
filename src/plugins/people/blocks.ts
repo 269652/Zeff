@@ -99,7 +99,7 @@ export async function personBundle(personId: number, today = new Date()): Promis
   const links = linksOf(personId);
   let todos: PersonBundle["todos"] = [];
   if (isInstalled("todos")) {
-    const { listTodos } = await import("@/lib/boards/store");
+    const { listTodos } = await import("@/lib/todos/store");
     todos = listTodos({ status: "open" })
       .filter((todo) => namesPerson(p.id, `${todo.text} ${todo.note ?? ""}`))
       .slice(0, 15)

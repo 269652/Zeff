@@ -1,5 +1,5 @@
 /** The "Create note" action, run: a row of a notes database in the Workspace (your Keep boards became those). Server only. */
-import type { TodoOp } from "@/lib/boards/shared";
+import type { TodoOp } from "@/lib/todos/shared";
 import { t } from "@/lib/i18n/server";
 import { getPref, setPref } from "@/lib/prefs";
 import type { ActionResult } from "../actions/run-types";

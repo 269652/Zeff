@@ -9,7 +9,7 @@ setupTempData();
  * replaces what the older said; the older one stays as a note. Whatever makes the todo (the gate), and the duplicates already there.
  */
 test("the case numbers in a text: court and authority references, written as in letters", async () => {
-  const { caseRefs } = await import("@/lib/boards/similar");
+  const { caseRefs } = await import("@/lib/todos/similar");
   assert.deepEqual(caseRefs("Restforderung 11,52 € (Az. DR II 810/26) heute überweisen"), ["DR II 810/26"]);
   assert.deepEqual(caseRefs("Erste Rate (Az. DR II 1121/26, Sparkasse) und Verwendungszweck „DR II 1121/26“"), ["DR II 1121/26"]);
   assert.deepEqual(caseRefs("Am 15.11.2026 und 3/4 der Rate zahlen"), [], "dates and fractions are no case numbers");
@@ -17,7 +17,7 @@ test("the case numbers in a text: court and authority references, written as in 
 });
 
 test("a new todo about the same case replaces the open one's text, deadline and action — the old wording stays as a note", async () => {
-  const { addDocTodo, getTodo, listTodos } = await import("@/lib/boards/store");
+  const { addDocTodo, getTodo, listTodos } = await import("@/lib/todos/store");
   const mk = (text: string, due: string | null) => addDocTodo({ ticket: "KB-2", text, kind: "other", refs: [], runId: null, due });
   const old = await mk("Restforderung 11,52 € (Az. DR II 810/26) heute auf das Dienstkonto überweisen", "2026-10-20");
   const fresh = await mk("Rate von 50,00 € (Az. DR II 810/26) bis 15.11.2026 überweisen, danach monatlich", "2026-11-15");
@@ -33,8 +33,8 @@ test("a new todo about the same case replaces the open one's text, deadline and 
 });
 
 test("the duplicates already there are merged by their case number: the survivor takes the newer one's information", async () => {
-  const { addManualTodo, getTodo, listTodos } = await import("@/lib/boards/store");
-  const { mergeDuplicateTodos } = await import("@/lib/boards/dedupe");
+  const { addManualTodo, getTodo, listTodos } = await import("@/lib/todos/store");
+  const { mergeDuplicateTodos } = await import("@/lib/todos/dedupe");
   const { getDb, schema } = await import("@/db");
   const a = addManualTodo({ ticket: "KB-9", text: "Mahnung (Az. AG 55/26) heute bezahlen" });
   // (Made before the gate knew case numbers: a second row inserted past it.)
@@ -50,7 +50,7 @@ test("the duplicates already there are merged by their case number: the survivor
 });
 
 test("which one is newer is the date of what it rests on (the document, the mail), not which todo was made first — the older information never replaces the newer", async () => {
-  const { addDocTodo, getTodo } = await import("@/lib/boards/store");
+  const { addDocTodo, getTodo } = await import("@/lib/todos/store");
   const { addDocument } = await import("@/plugins/documents/store");
   const { getDb, schema } = await import("@/db");
   const { eq } = await import("drizzle-orm");

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRef, useState, type InputHTMLAttributes } from "react";
-import { plausibleDate } from "@/lib/boards/due-shared";
+import { plausibleDate } from "@/lib/todos/due-shared";
 
 /**
  * A date field that saves what you meant, not every key: a day picked in the browser's calendar is saved at once; one typed is saved

@@ -115,7 +115,7 @@ test("runPipeline: Jira by criteria, a filter, an AI field and a summary — kep
   // Done lately: still in with doneDays; the who-criteria are either-or.
   ticket("PROJ-8", { mine: false, assignee: "Anna", statusCategory: "done", status: "Fertig", resolvedAt: daysAgo(1), updatedAt: daysAgo(1) });
   keepComments([{ id: "c8", ticket: "PROJ-8", author: "Anna", at: daysAgo(1), body: "Erledigt" }]);
-  const { setFollowed } = await import("@/lib/boards/followed");
+  const { setFollowed } = await import("@/lib/todos/followed");
   setFollowed("PROJ-8", 1);
   const cur = w.getDatabase(dbId)!.schema.pipeline!.steps;
   w.updateSchema(dbId, { ...w.getDatabase(dbId)!.schema, pipeline: { steps: [{ ...cur[0], jira: { mine: true, involved: true, recentDays: 14, commented: true, openOnly: true, doneDays: 3 } }, ...cur.slice(1)] } });
@@ -135,7 +135,7 @@ test("runPipeline: Jira by criteria, a filter, an AI field and a summary — kep
 test("runPipeline: another database, the todos and Google Keep as sources", async () => {
   const w = await import("@/plugins/workspace/store");
   const m = await import("@/plugins/workspace/model");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const g = await import("@/plugins/keep/store");
   const { runPipeline } = await import("@/plugins/workspace/pipeline");
 
@@ -246,7 +246,7 @@ test("instructions: Workspace pages under KI-Anweisungen, chosen by AI steps —
   assert.ok(listInstructions().some((i) => i.id === id));
   assert.equal(m.normalizePipeline({ steps: [{ id: "a", kind: "ai", output: "summary", instructions: [id, "x", -1] }] }).steps[0].instructions?.join(), String(id));
 
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   addManualTodo({ ticket: "WS-77", text: "Instruktion testen" });
   const dbId = w.createPage({ kind: "database", title: "Mit Anweisung", schema: { titleName: "Name", properties: [], views: [m.newView("Table")], pipeline: { steps: [
     { id: "s", kind: "source", from: "todos" },

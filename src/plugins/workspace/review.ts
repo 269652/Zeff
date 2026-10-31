@@ -77,7 +77,7 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
   const spec = `${ai.map((p) => `${p.id}:${p.aiPrompt ?? ""}:${(p.aiChoices ?? []).join("|")}`).join(";")}\n${grounds}`;
   const todo: { row: Row; text: string; hash: string }[] = [];
   // A board's Lage fields: not for the cards the Ticket-Lage read (they have theirs from it).
-  const briefed = d.schema.review?.skipBriefed ? (await import("@/lib/boards/ticket-lage")).analyzedByTicketLage() : new Set<string>();
+  const briefed = d.schema.review?.skipBriefed ? (await import("@/lib/runs/ticket-lage")).analyzedByTicketLage() : new Set<string>();
   // Only the open rows (a status not done), moved within recentDays (or in progress) — as the Board-Lage read its cards.
   const status = d.schema.properties.find((p) => p.type === "status");
   const phase = (r: Row) => status?.options?.find((o) => o.id === r.cells[status.id])?.group ?? "todo";

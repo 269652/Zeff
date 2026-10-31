@@ -6,7 +6,7 @@ setupTempData();
 
 /** Mails the review doesn't get at all: automatic answers; GitLab's notifications while the Lage reads GitLab itself. */
 test("automatic answers and GitLab notifications aren't for the review", async () => {
-  const { notForReview } = await import("@/lib/boards/mail-todos");
+  const { notForReview } = await import("@/lib/todos/mail-todos");
   const mail = (subject: string, fromEmail = "anna@example.com", preview = "", folder = "Posteingang") => ({ subject, fromEmail, preview, folder });
 
   assert.ok(notForReview(mail("Automatische Antwort: Live-Deployment der Website"), false));
@@ -26,9 +26,9 @@ test("automatic answers and GitLab notifications aren't for the review", async (
 /** What the review learns from: its todos you dropped and did, with the mail each came from. */
 test("the review sees its todos you dropped and did, with their mails", async () => {
   const { getDb, schema } = await import("@/db");
-  const { attributed } = await import("@/lib/boards/activity");
-  const { addMailTodo, droppedByYou, setTodoStatus } = await import("@/lib/boards/store");
-  const { verdictLines } = await import("@/lib/boards/mail-todos");
+  const { attributed } = await import("@/lib/todos/activity");
+  const { addMailTodo, droppedByYou, setTodoStatus } = await import("@/lib/todos/store");
+  const { verdictLines } = await import("@/lib/todos/mail-todos");
   const now = new Date().toISOString();
   const email = (key: string, fromName: string, subject: string) =>
     getDb().insert(schema.emails).values({ key, convId: key, folder: "Gmail", fromName, fromEmail: null, subject, preview: "…", receivedAt: now, syncedAt: now }).run();
@@ -48,7 +48,7 @@ test("the review sees its todos you dropped and did, with their mails", async ()
 
 /** Mandatory trainings and signatures are recognized by their words — none left to the AI alone. */
 test("mandatory trainings and signatures are must-do mails", async () => {
-  const { mustDo } = await import("@/lib/boards/mail-todos");
+  const { mustDo } = await import("@/lib/todos/mail-todos");
   const mail = (fromName: string, subject: string, preview: string, folder = "Posteingang") => ({ fromName, fromEmail: null, subject, preview, folder });
   // Must-do: a course reminder (also overdue), a compliance training, a signature.
   assert.ok(mustDo(mail("Lernplattform", "Reminder: Course Pending", "You have not yet completed the mandatory 2026: Data Protection training. The deadline was 01.06.2026.")));
@@ -65,7 +65,7 @@ test("mandatory trainings and signatures are must-do mails", async () => {
 
 /** The must-do mails the AI left out get a todo from Zeff; one it answered, or an open todo has, doesn't. */
 test("a must-do mail the AI left out gets a todo, once per course", async () => {
-  const { mustDoLeftOut } = await import("@/lib/boards/mail-todos");
+  const { mustDoLeftOut } = await import("@/lib/todos/mail-todos");
   const m = (key: string, preview: string) => ({ key, fromName: "Lernplattform", fromEmail: null, subject: "Reminder: Course Pending", preview, folder: "Posteingang" });
   const a1 = m("a1", "You have not yet completed the mandatory course Data Protection 2026. The deadline was 01.06.2026.");
   const a2 = m("a2", "You have not yet completed the mandatory course Data Protection 2026. The deadline was 01.06.2026.");
@@ -76,7 +76,7 @@ test("a must-do mail the AI left out gets a todo, once per course", async () => 
   const mailOf = (k: string) => all.find((x) => x.key === k);
 
   // The AI answered c; an open todo has an earlier reminder of b.
-  const open = [{ refs: ["mail:b"] }] as unknown as import("@/lib/boards/shared").TodoView[];
+  const open = [{ refs: ["mail:b"] }] as unknown as import("@/lib/todos/shared").TodoView[];
   const left = mustDoLeftOut([a1, a2, c, other], new Set(["c"]), open, mailOf);
   assert.equal(left.length, 1, "a1 and a2 are the same course: one todo");
   assert.deepEqual(left[0].mails.map((x) => x.key), ["a1", "a2"]);
@@ -87,7 +87,7 @@ test("a must-do mail the AI left out gets a todo, once per course", async () => 
 
 /** A company's banner before a must-do mail's text ("External to the Groupe …", "<Name> Groupe") is cut off the todo — any company's, none named. */
 test("a must-do todo's text starts with the mail's own words, not the company's banner", async () => {
-  const { mustDoLeftOut } = await import("@/lib/boards/mail-todos");
+  const { mustDoLeftOut } = await import("@/lib/todos/mail-todos");
   const m = (key: string, preview: string) => ({ key, fromName: "Lernplattform", fromEmail: null, subject: "Reminder: Course Pending", preview, folder: "Posteingang" });
   for (const banner of ["Acme Groupe ", "Muster Groupe ", "External to the Groupe / en provenance de l'extérieur. "]) {
     const x = m("k", `${banner}You have not yet completed the mandatory course Security 2026.`);

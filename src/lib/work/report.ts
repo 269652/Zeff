@@ -2,7 +2,7 @@ import { desc, eq, or, sql } from "drizzle-orm";
 import { getDb } from "@/db";
 import { currentAccountId } from "@/db/accounts";
 import { workReports, workRuns, type WorkReport, type WorkRun } from "@/db/schema";
-import { todoRef } from "@/lib/boards/shared";
+import { todoRef } from "@/lib/todos/shared";
 // (outcome.ts imports this file too: both only use the other's functions when called, never while loading.)
 import { normalizeResult } from "./outcome";
 import { workRef, type WorkResult } from "./shared";

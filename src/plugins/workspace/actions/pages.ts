@@ -94,7 +94,7 @@ export async function todayPageAction() {
     if (had) return { id: had.id };
     const content: object[] = [{ type: "heading", attrs: { level: 2 }, content: [{ type: "text", text: t("Plan") }] }];
     if (isInstalled("todos")) {
-      const { listTodos } = await import("@/lib/boards/store");
+      const { listTodos } = await import("@/lib/todos/store");
       const due = listTodos({ status: "open" })
         .filter((x) => x.owner === "me" && x.due && x.due <= day)
         .slice(0, 12);

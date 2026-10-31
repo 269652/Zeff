@@ -74,7 +74,7 @@ test("bank: a payment out matched to its transfer and its case — the todo done
   const { matchPayments, paymentsOf } = await import("@/plugins/cases/bank");
   const r = matchPayments();
   assert.equal(r.matched, 1, "the 11,52 € — the 23,10 € at Rewe and the salary are no case's");
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const todo = listTodos({ status: "all" }).find((x) => /Restforderung 11,52/.test(x.text))!;
   assert.equal(todo.status, "done");
   assert.match(todo.userNotes.at(-1)!.text, /11,52 €.*Revolut|Kontoauszug/);
@@ -91,7 +91,7 @@ test("bank: an instalment overdue for ten days warns — a todo, once — before
   const { overdueWarnings } = await import("@/plugins/cases/bank");
   const made = overdueWarnings(day(0));
   assert.equal(made, 1, "the Sparkasse's rate, 12 days late, nothing paid since");
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const w = listTodos({ status: "open" }).find((x) => /DR II 1121\/26/.test(x.text) && /überfällig/i.test(x.text));
   assert.ok(w);
   assert.equal(w!.ops.some((o) => o.type === "bank-transfer"), true, "with its transfer");

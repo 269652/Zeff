@@ -1,5 +1,5 @@
 /** The Teams plugin's action, run: a 1:1 message through the Teams driver in the automation Chrome. Server only. */
-import type { TodoOp } from "@/lib/boards/shared";
+import type { TodoOp } from "@/lib/todos/shared";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";

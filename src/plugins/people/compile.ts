@@ -2,7 +2,7 @@ import { clip } from "@/lib/text";
 import { promptText } from "@/lib/prompts";
 import { getSqlite } from "@/db";
 import { runAi } from "@/lib/ai";
-import { listTodos } from "@/lib/boards/store";
+import { listTodos } from "@/lib/todos/store";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { isCircle, type Person, type PersonSummary } from "./shared";

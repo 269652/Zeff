@@ -19,7 +19,7 @@ test("ensureLageFields: a board gets attention, lead, summary as AI fields and t
   await setup();
   const w = await import("@/plugins/workspace/store");
   const m = await import("@/plugins/workspace/model");
-  const { ATTENTIONS } = await import("@/lib/boards/shared");
+  const { ATTENTIONS } = await import("@/lib/runs/shared");
   const { ensureLageFields, LAGE_FIELDS } = await import("@/plugins/workspace/lage-fields");
   const status = m.newProperty("Status", "status");
   const dbId = w.createPage({ kind: "database", title: "Board", schema: { titleName: "Name", properties: [status], views: [{ ...m.newView("Board", "board"), groupBy: status.id }, m.newView("Table")] } });
@@ -70,7 +70,7 @@ test("applyTicketLage: a Lage run's attention, lead, summary into the rows with 
   const w = await import("@/plugins/workspace/store");
   const m = await import("@/plugins/workspace/model");
   const { LAGE_FIELDS, applyTicketLage } = await import("@/plugins/workspace/lage-fields");
-  const { startRun, finishRun } = await import("@/lib/boards/store");
+  const { startRun, finishRun } = await import("@/lib/runs/store");
   const status = m.newProperty("Status", "status");
   const board = () => ({ titleName: "Name", properties: [status, { ...m.newProperty("Key", "text"), id: "ticketkey" }], views: [{ ...m.newView("Board", "board"), groupBy: status.id }] });
   const one = w.createPage({ kind: "database", title: "Jira A", schema: board() });

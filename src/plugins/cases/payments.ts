@@ -1,8 +1,8 @@
 import { isInstalled } from "@/plugins/state";
 import { accountFor } from "@/lib/girocode";
 import { paymentForTodo } from "@/lib/girocode-todo";
-import type { TodoOp } from "@/lib/boards/shared";
-import { listTodos, setTodoOps } from "@/lib/boards/store";
+import type { TodoOp } from "@/lib/todos/shared";
+import { listTodos, setTodoOps } from "@/lib/todos/store";
 import { detailsOf, payees } from "@/plugins/people/details";
 import { claimsOf } from "@/plugins/people/graph";
 import { getPerson } from "@/plugins/people/store";

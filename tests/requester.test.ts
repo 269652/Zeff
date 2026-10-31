@@ -21,8 +21,8 @@ async function todo(ticket: string, text: string, refs: string[], parentId: numb
 }
 
 test("the asker is found up the chain; delivered, a reply todo in their 1:1 chat — the MR's link in its draft and button, the next delivery updating it", async () => {
-  const { requesterOf, tellRequester } = await import("@/lib/boards/requester");
-  const { getTodo, listTodos } = await import("@/lib/boards/store");
+  const { requesterOf, tellRequester } = await import("@/lib/todos/requester");
+  const { getTodo, listTodos } = await import("@/lib/todos/store");
   const ask = await message("19:a_b@unq.gbl.spaces", "1", "pm", "Christopher Lorenz", "Kannst du PROJ-371 umsetzen?");
   const root = await todo("PROJ-371", "Horizontale Variante umsetzen", [ask]);
   const followUp = await todo("PROJ-371", "Branch testen und abnehmen", [], root);
@@ -45,8 +45,8 @@ test("the asker is found up the chain; delivered, a reply todo in their 1:1 chat
 });
 
 test("a group chat: the reply todo, no button (Zeff posts only in a chat of the two of you); your own message or none: nobody to tell", async () => {
-  const { tellRequester } = await import("@/lib/boards/requester");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { tellRequester } = await import("@/lib/todos/requester");
+  const { getTodo } = await import("@/lib/todos/store");
   const group = await message("19:group@thread.v2", "9", "mention", "Jochen Vogt", "@Moritz kannst du PROJ-306 fixen?");
   const t = await todo("PROJ-306", "Newsteaser fixen", [group]);
   const told = await tellRequester(getTodo(t)!, { what: "Pushed feature/PROJ-306", link: null });

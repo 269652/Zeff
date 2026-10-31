@@ -8,8 +8,8 @@ const ticket = (extra: Record<string, unknown>) => ({ key: "QQ-1", attention: "a
 const analyzed = [{ key: "QQ-1", analyzed: true }] as never;
 
 test("the Lage schema asks for possible questions; the run keeps up to five, trimmed, without empty ones", async () => {
-  const { BOARD_RESULT_SCHEMA } = await import("@/lib/boards/shared");
-  const { cleanResult } = await import("@/lib/boards/run");
+  const { BOARD_RESULT_SCHEMA } = await import("@/lib/runs/shared");
+  const { cleanResult } = await import("@/lib/runs/run");
   const props = (BOARD_RESULT_SCHEMA.properties.tickets.items.properties as unknown as Record<string, { items?: { required?: string[] } }>).questions;
   assert.deepEqual(props.items?.required, ["q"]);
   const r = cleanResult(
@@ -23,7 +23,7 @@ test("the Lage schema asks for possible questions; the run keeps up to five, tri
 });
 
 test("questions the context didn't answer are answered from what the knowledge search finds — only then, and only with it", async () => {
-  const { answerOpenQuestions } = await import("@/lib/boards/questions");
+  const { answerOpenQuestions } = await import("@/lib/runs/questions");
   const searched: string[] = [];
   const asked: string[] = [];
   const result = {
@@ -53,15 +53,15 @@ test("questions the context didn't answer are answered from what the knowledge s
 });
 
 test("a failing knowledge search or AI leaves the questions as they are — the run goes on", async () => {
-  const { answerOpenQuestions } = await import("@/lib/boards/questions");
+  const { answerOpenQuestions } = await import("@/lib/runs/questions");
   const result = { lede: "", left: [], tickets: [ticket({ questions: [{ q: "Frage?", search: "x" }] })] } as never;
   await answerOpenQuestions(result, { search: async () => { throw new Error("down"); }, ask: async () => { throw new Error("no"); } });
   assert.equal((result as { tickets: { questions: { a?: string }[] }[] }).tickets[0].questions[0].a, undefined);
 });
 
 test("every flag and every vague statement is a reason for a question: the instructions say so, and the flags come before the questions in the answer", async () => {
-  const { BOARD_RESULT_SCHEMA } = await import("@/lib/boards/shared");
-  const { INSTRUCTIONS } = await import("@/lib/boards/collect");
+  const { BOARD_RESULT_SCHEMA } = await import("@/lib/runs/shared");
+  const { INSTRUCTIONS } = await import("@/lib/runs/collect");
   const props = BOARD_RESULT_SCHEMA.properties.tickets.items.properties as unknown as Record<string, { description?: string }>;
   const order = Object.keys(props);
   assert.ok(order.indexOf("flags") < order.indexOf("questions"), "the model writes the flags first, then asks about them");
@@ -73,8 +73,8 @@ test("every flag and every vague statement is a reason for a question: the instr
 });
 
 test("the briefing sees what you noted on a ticket's todos — open or done lately — and is told a note that says something is settled settles it for the whole ticket", async () => {
-  const { addFollowUp, addTodoUserNote, setTodoStatus } = await import("@/lib/boards/store");
-  const { ticketBlock, INSTRUCTIONS } = await import("@/lib/boards/collect");
+  const { addFollowUp, addTodoUserNote, setTodoStatus } = await import("@/lib/todos/store");
+  const { ticketBlock, INSTRUCTIONS } = await import("@/lib/runs/collect");
   const open = addFollowUp({ ticket: "NT-1", text: "Pipeline prüfen, dann auf Test kontrollieren, dass der Titel stimmt", kind: "test", parentId: null as unknown as number, workRunId: null, source: "test" });
   addTodoUserNote(open.id, "Habe ich heute auf Test geprüft: Titel blau, Zusatz grau, Icon da, Link öffnet im neuen Fenster.");
   const done = addFollowUp({ ticket: "NT-1", text: "Mit Jens klären", kind: "clarify", parentId: null as unknown as number, workRunId: null, source: "test" });

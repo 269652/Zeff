@@ -18,7 +18,7 @@ const until = async (what: string, ok: () => boolean, ms = 20000) => {
 
 /** A running run on a fresh todo, and its live session started (as the runner would). */
 async function session(prompt: string, conversation: boolean) {
-  const { addSessionTodo } = await import("@/lib/boards/store");
+  const { addSessionTodo } = await import("@/lib/todos/store");
   const { createRun, updateRun } = await import("@/lib/work/store");
   const { startClaudeSession } = await import("@/plugins/claude-cli/live");
   const todo = addSessionTodo({ ticket: "", text: "Live session test" });

@@ -1,4 +1,4 @@
-import { mergeJiraNotes, type TodoSource, type TodoUserNote } from "@/lib/boards/shared";
+import { mergeJiraNotes, type TodoSource, type TodoUserNote } from "@/lib/todos/shared";
 
 /**
  * What a table row needs of its todos' context to show the toggle — how much of each kind there is — without the context itself

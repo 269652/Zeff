@@ -1,8 +1,8 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { attributed } from "@/lib/boards/activity";
-import { addAgentTodo, addTodoAiNote, getTodo, markWorkerDone, setTodoStatus, tickAgentTodo } from "@/lib/boards/store";
-import { parseTodoRef, todoRef } from "@/lib/boards/shared";
+import { attributed } from "@/lib/todos/activity";
+import { addAgentTodo, addTodoAiNote, getTodo, markWorkerDone, setTodoStatus, tickAgentTodo } from "@/lib/todos/store";
+import { parseTodoRef, todoRef } from "@/lib/todos/shared";
 import { SESSION_LOG, run, pluginOff, ok, fail } from "./kit";
 
 /** Registers finish_todo, todo_note, add_todo, complete_todo. */

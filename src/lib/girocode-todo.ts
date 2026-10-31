@@ -1,5 +1,5 @@
-import { caseRefs } from "@/lib/boards/similar";
-import type { TodoView } from "@/lib/boards/shared";
+import { caseRefs } from "@/lib/todos/similar";
+import type { TodoView } from "@/lib/todos/shared";
 import { accountFor, amountIn, bicIn, ibansIn, recipientIn, sameIban, type Account } from "@/lib/girocode";
 
 /**

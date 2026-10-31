@@ -11,7 +11,7 @@ const T0 = Date.parse("2026-10-27T09:00:00Z");
 const min = (n: number) => T0 + n * 60000;
 
 test("start, pings, lap, pause while asking, stop: the measured minutes as records — the wait left out", async () => {
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const { clockIn, clockPing, clockLap, clockPause, clockResume, clockOut, openClock } = await import("@/lib/work/todo-clock");
   const { listTodoTimes } = await import("@/lib/work/todo-time");
   const t = addManualTodo({ ticket: "PROJ-371", text: "Teaser quer umsetzen" });
@@ -33,7 +33,7 @@ test("start, pings, lap, pause while asking, stop: the measured minutes as recor
 });
 
 test("silent for more than 10 minutes: paused as of the last ping — the silence lost; the next ping goes on from then", async () => {
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const { clockIn, clockPing, clockOut, openClock } = await import("@/lib/work/todo-clock");
   const t = addManualTodo({ ticket: "PROJ-372", text: "Silent" });
   clockIn(t.id, "Copilot", min(0));
@@ -54,7 +54,7 @@ test("silent for more than 10 minutes: paused as of the last ping — the silenc
 });
 
 test("the agent's own log when it didn't ping: Zeff computes the time from the times it read (to − from; steps with gaps over 10 minutes left out) — never before the clock, never in the future", async () => {
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const { clockIn, clockOut, loggedMs } = await import("@/lib/work/todo-clock");
   const at = (m: number) => new Date(min(m)).toISOString();
   const t = addManualTodo({ ticket: "PROJ-377", text: "Forgot to ping" });
@@ -77,7 +77,7 @@ test("the agent's own log when it didn't ping: Zeff computes the time from the t
 });
 
 test("starting on another todo stops the running one (its time recorded); stop without a name finds the todo's only clock; record:false only measures", async () => {
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const { clockIn, clockPing, clockOut } = await import("@/lib/work/todo-clock");
   const { listTodoTimes } = await import("@/lib/work/todo-time");
   const a = addManualTodo({ ticket: "PROJ-373", text: "A" });

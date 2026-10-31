@@ -129,7 +129,7 @@ export async function searchAll(raw: string, opts: SearchOptions = {}): Promise<
   // Todos (T-<id>, their words, their notes) — the open ones first.
   const todosStep = guarded("todos", async () => {
     if (!isInstalled("todos")) return;
-    const { searchTodos } = await import("@/lib/boards/store");
+    const { searchTodos } = await import("@/lib/todos/store");
     const found = searchTodos(words, 20).sort((a, b) => Number(a.status === "done") - Number(b.status === "done"));
     add("todos", found.map((x) => ({ id: `todo:${x.id}`, label: `${x.ref} ${x.text}`.slice(0, 140), hint: [x.status === "done" ? t("done") : "", x.ticket].filter(Boolean).join(" · ") || undefined, href: `/t/${x.id}`, group: SOURCE_LABELS.todos, floor: x.status === "done" ? 3 : 5 })));
   });

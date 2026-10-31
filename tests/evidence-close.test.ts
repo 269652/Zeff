@@ -25,8 +25,8 @@ async function replyTodo(text: string, ref: string, kind = "reply", created = "2
 }
 
 test("answered promptly in your 1:1 chat: done, saying when and what; opened again: that answer doesn't close it again", async () => {
-  const { closeTodosByEvidence } = await import("@/lib/boards/evidence-close");
-  const { getTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const { closeTodosByEvidence } = await import("@/lib/todos/evidence-close");
+  const { getTodo, setTodoStatus } = await import("@/lib/todos/store");
   const ask = await teams("pm", "Christopher Lorenz", "chris", "2026-10-26T08:55:00Z", "Hast du zu PROJ-339 schon was gepusht?");
   const id = await replyTodo("Christopher Lorenz in Teams antworten: Branch gepusht", ask);
   assert.deepEqual(await closeTodosByEvidence(), { closed: 0, proposed: 0 }, "no answer yet");
@@ -46,8 +46,8 @@ test("answered promptly in your 1:1 chat: done, saying when and what; opened aga
 });
 
 test("a deferral or a clarify todo: only proposed — turned down, not proposed again; an answer before the todo or days later in a chat: nothing", async () => {
-  const { closeTodosByEvidence } = await import("@/lib/boards/evidence-close");
-  const { getTodo, clearWorkerDone } = await import("@/lib/boards/store");
+  const { closeTodosByEvidence } = await import("@/lib/todos/evidence-close");
+  const { getTodo, clearWorkerDone } = await import("@/lib/todos/store");
   const { getSqlite } = await import("@/db");
   getSqlite().prepare("delete from teams_messages").run();
   getSqlite().prepare("delete from todos").run();

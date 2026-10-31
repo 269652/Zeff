@@ -35,9 +35,10 @@ export const autoActionsAdapter: EvalAdapter<AutoActionsInput> = {
     }
     if (!rows.length) return [];
     const review = await import("@/plugins/auto-actions/review");
-    const { listTodos, lastGoodRun } = await import("@/lib/boards/store");
-    const { todoSources } = await import("@/lib/boards/sources");
-    const { opsDictionary } = await import("@/lib/boards/shared");
+    const { listTodos } = await import("@/lib/todos/store");
+    const { lastGoodRun } = await import("@/lib/runs/store");
+    const { todoSources } = await import("@/lib/todos/sources");
+    const { opsDictionary } = await import("@/lib/todos/shared");
     const { opAvailable } = await import("@/plugins/ops");
     const { offerContext } = await import("@/plugins/actions/server");
     const { myJiraName } = await import("@/lib/jira/store");
@@ -88,8 +89,8 @@ export const autoActionsAdapter: EvalAdapter<AutoActionsInput> = {
   },
   async run(c, instructions, ask) {
     const { autoActionsPrompt, AUTO_ACTIONS_SCHEMA } = await import("@/plugins/auto-actions/review");
-    const { cleanOps } = await import("@/lib/boards/shared");
-    const { extraBlock } = await import("@/lib/boards/context-prefs");
+    const { cleanOps } = await import("@/lib/todos/shared");
+    const { extraBlock } = await import("@/lib/runs/context-prefs");
     const v = c.input;
     const filled = instructions.replace(/\{\{(\w+)\}\}/g, (all, name: string) => (name === "me" ? v.me || "der Nutzer" : name === "today" ? v.today : all));
     const prompt = autoActionsPrompt({ instructions: filled + extraBlock("autoactions"), dictionary: v.dictionary, book: v.book, accounts: v.accounts, busyLines: v.busyLines, todos: v.todos.map((t) => t.block).join("\n\n") });

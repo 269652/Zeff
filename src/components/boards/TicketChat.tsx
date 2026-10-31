@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { askTicketAction, dismissChatItemAction } from "@/plugins/todos/server-actions";
-import type { ChatItem } from "@/lib/boards/ticket-chat";
+import type { ChatItem } from "@/lib/runs/ticket-chat";
 import { toast } from "../Toaster";
 import { useT } from "../I18nProvider";
 

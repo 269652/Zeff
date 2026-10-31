@@ -77,7 +77,7 @@ async function mailTodo(op: Record<string, unknown>, text = "Jörg auf das Angeb
   const { saveMails, keyOf } = await import("@/lib/mail/store");
   const mail = { id: `msg-f:${++mails}0`, convId: `gmail:${THREAD}`, folder: "Gmail", from: "Jörg", fromEmail: "joerg@example.com", subject: "Angebot Küche", preview: "Passt Dienstag?", receivedAt: new Date().toISOString(), unread: true };
   saveMails([mail]);
-  const store = await import("@/lib/boards/store");
+  const store = await import("@/lib/todos/store");
   const todo = store.addMailTodo({ ticket: "", text, kind: "reply", refs: [`mail:${keyOf(mail)}`], runId: null });
   store.setTodoOps(todo.id, [op as never], undefined);
   return store.getTodo(todo.id)!;
@@ -106,7 +106,7 @@ test("a todo's mail: without the right the Gmail window as before (nothing sent)
     await signIn(READ);
     await assert.rejects(runGmailComposeOnTodo(todo.id, 0, "send"), /Connections/);
     assert.equal(writes(g).length, 0);
-    const store = await import("@/lib/boards/store");
+    const store = await import("@/lib/todos/store");
     assert.equal(store.getTodo(todo.id)!.ops.length, 1, "still on the todo");
 
     await signIn(ALL);
@@ -146,7 +146,7 @@ test("a todo's appointment entered in Google Calendar (primary) on the click —
   const g = await fakeGoogle();
   try {
     await signIn(ALL);
-    const store = await import("@/lib/boards/store");
+    const store = await import("@/lib/todos/store");
     const todo = store.addManualTodo({ ticket: "", text: `Geschenk ${Math.random()}` });
     store.setTodoOps(todo.id, [{ type: "gcal-event", title: "Geschenk besorgen", start: "2026-11-03T18:00", minutes: 60, body: "für Nadine" } as never]);
     const { runGcalEventOnTodo } = await import("@/plugins/google-calendar/run");
@@ -258,7 +258,7 @@ test("the calendar app: a new event in a Google calendar you may write goes ther
     assert.equal(g.seen.filter((s) => s.method === "DELETE").length, 0);
 
     // A todo's proposed Google appointment, accepted in the calendar: entered through the API.
-    const store = await import("@/lib/boards/store");
+    const store = await import("@/lib/todos/store");
     const todo = store.addManualTodo({ ticket: "", text: "Reifenwechsel ausmachen" });
     store.setTodoOps(todo.id, [{ type: "gcal-event", title: "Reifenwechsel", start: "2026-11-06T09:00", minutes: 30, body: "" } as never]);
     const ok = await acceptProposedEventAction(todo.id, 0, "Reifenwechsel");

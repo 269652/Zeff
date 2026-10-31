@@ -6,7 +6,7 @@ import { searchMailsAction } from "@/app/actions";
 import { searchTeamsMessagesAction } from "@/plugins/teams/server-actions";
 import { searchTodosAction } from "@/plugins/todos/server-actions";
 import { isChatFolder, mailLink, mailSender } from "@/lib/mail/shared";
-import { todoKindLabels } from "@/lib/boards/shared";
+import { todoKindLabels } from "@/lib/todos/shared";
 import { todoLink, type Entity } from "@/lib/entities-shared";
 import { gitlabDone, gitlabKindLabels, gitlabLinkKey, type GitlabKind } from "@/lib/gitlab/shared";
 import { teamsKindLabel, teamsLinkKey } from "@/lib/teams/shared";

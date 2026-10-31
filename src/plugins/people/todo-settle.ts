@@ -1,14 +1,14 @@
-import { euroAmounts, refDue, refLabeler, todoAmount, todoAmounts, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
+import { euroAmounts, refDue, refLabeler, todoAmount, todoAmounts, todoLinkFinder, todoSettler, type Evidence } from "@/lib/todos/settle";
 import { getSqlite } from "@/db";
 import { allocate, deallocate, onLedgerChange, paidOn, paymentByKey, recordPayment } from "@/lib/money/ledger";
 import { isInstalled } from "@/plugins/state";
 import { detailsOf } from "./details";
-import { onRunUndone } from "@/lib/boards/run-undo";
+import { onRunUndone } from "@/lib/runs/run-undo";
 import { claimById, claimsFrom, claimsOf, dropRunClaims, openCommitments, reviewClaim, type Claim } from "./graph";
 import { listPeople, namesThem } from "./store";
 
 /**
- * What hangs on a proof, for the People plugin (lib/boards/todo-settle.ts): a promise of yours to pay. From a todo: one made where the
+ * What hangs on a proof, for the People plugin (lib/todos/settle.ts): a promise of yours to pay. From a todo: one made where the
  * todo comes from (a chat message, a mail: "I'll give you the 40 € back on Friday"). From a booking no todo took (the fallback): one
  * to whoever the booking paid — by name or account — of the amount it paid. Only a promise of an amount it pays: one message often
  * holds several (another sum, a plan of instalments, a call), and those stay open. Server only.

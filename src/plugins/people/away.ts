@@ -1,6 +1,6 @@
 import { getSqlite } from "@/db";
 import { t } from "@/lib/i18n/server";
-import type { TodoView } from "@/lib/boards/shared";
+import type { TodoView } from "@/lib/todos/shared";
 import { absenceIn } from "./absence";
 import { claimsOf, openCommitments, type Claim } from "./graph";
 import { buildPeopleIndex, mentionMatcher, splitMentions } from "./mentions";
@@ -70,7 +70,7 @@ export async function decideFollowUp(claimId: number, yes: boolean): Promise<{ m
   if (!c) throw new Error(t("This proposal is no longer open."));
   let todoId: number | null = null;
   if (yes) {
-    const store = await import("@/lib/boards/store");
+    const store = await import("@/lib/todos/store");
     // In German, like the todos Zeff makes from your mails.
     const text = `Bei ${c.personName} nachfassen: ${c.text}`;
     const v = { ticket: "", text, kind: "clarify", refs: [c.sourceRef], runId: null, due: localDay() };

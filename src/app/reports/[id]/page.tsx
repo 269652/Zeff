@@ -4,7 +4,7 @@ import { notFound } from "next/navigation";
 import { connection } from "next/server";
 import { DocsMarkdown } from "@/components/ext/DocsMarkdown";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
-import { todoRef } from "@/lib/boards/shared";
+import { todoRef } from "@/lib/todos/shared";
 import { formatSmart } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { getReport } from "@/lib/work/report";

@@ -1,4 +1,4 @@
-import type { TodoOp, TodoView } from "@/lib/boards/shared";
+import type { TodoOp, TodoView } from "@/lib/todos/shared";
 
 /** A todo an operation leaves for afterwards (the next delivery step). */
 export type NextTodo = { text: string; ops: TodoOp[]; owner?: "me" | "other" };

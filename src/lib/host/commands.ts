@@ -20,17 +20,17 @@ export async function remoteResult(op: string, args: unknown): Promise<Result> {
  * look the same either way). A run in the host keeps going while this server is deployed.
  */
 export async function startBoardRunAnywhere(opts: { syncJira?: boolean } = {}): Promise<Result> {
-  if (!delegates()) return (await import("@/lib/boards/run")).startBoardRun(opts);
+  if (!delegates()) return (await import("@/lib/runs/run")).startBoardRun(opts);
   return remoteResult("board.run", opts);
 }
 
 export async function stopBoardRunAnywhere(): Promise<boolean> {
-  if (!delegates()) return (await import("@/lib/boards/run")).stopBoardRun();
+  if (!delegates()) return (await import("@/lib/runs/run")).stopBoardRun();
   return (await remoteResult("board.stop", {})).ok;
 }
 
 export async function startRecapAnywhere(day: string): Promise<Result> {
-  if (!delegates()) return (await import("@/lib/boards/recap")).startRecap(day);
+  if (!delegates()) return (await import("@/lib/runs/recap")).startRecap(day);
   return remoteResult("recap.start", { day });
 }
 

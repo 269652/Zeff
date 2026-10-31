@@ -1,5 +1,5 @@
 import { getSqlite } from "@/db";
-import { todoByRef } from "@/lib/boards/store";
+import { todoByRef } from "@/lib/todos/store";
 import type { Doc, DocNode } from "./doc";
 import { dateRange, newId, newView, todoColumns, type DbSchema } from "./model";
 import { addRow, archivePage, createPage, getDatabase, getPage, rawRows, updatePage } from "./store";

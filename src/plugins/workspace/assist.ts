@@ -428,7 +428,7 @@ export async function applyAssist(pageId: number, state: AssistState, ids: strin
   try {
     for (const a of chosen) {
       if (a.kind === "todo" && widgetShows) {
-        const { addManualTodo, setTodoDue } = await import("@/lib/boards/store");
+        const { addManualTodo, setTodoDue } = await import("@/lib/todos/store");
         const todo = addManualTodo({ ticket: "", text: a.text });
         if (a.due && !todo.outcome) setTodoDue(todo.id, a.due);
         if (!todo.outcome) out.created.push({ kind: "todo", id: todo.id, label: todo.text, href: `/t/${todo.id}` });
@@ -465,7 +465,7 @@ export async function undoAssist(created: AssistCreated[]): Promise<number> {
       ir.deleteCalendar(id);
       n++;
     } else if (c.kind === "todo" && isInstalled("todos")) {
-      const b = await import("@/lib/boards/store");
+      const b = await import("@/lib/todos/store");
       const todo = b.getTodo(id);
       if (!todo || todo.source !== "From you" || todo.status !== "open") continue;
       b.setTodoStatus(id, "dismissed");

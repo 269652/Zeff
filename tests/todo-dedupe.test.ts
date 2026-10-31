@@ -8,10 +8,10 @@ type Plan = { path: string | null; steps: { text: string; kind: string; owner: s
 const step = (text: string, kind = "other") => ({ text, kind, owner: "me", ops: [] });
 
 async function mk(ticket: string, text: string, extra: { planned?: Plan; byWorker?: boolean; source?: string; parentId?: number | null } = {}) {
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   return addFollowUp({ ticket, text, kind: "other", parentId: (extra.parentId ?? null) as number, workRunId: null, source: extra.source ?? "test", planned: extra.planned as never, byWorker: extra.byWorker });
 }
-const openOn = async (ticket: string) => (await import("@/lib/boards/store")).listTodos({ ticket, status: "open" });
+const openOn = async (ticket: string) => (await import("@/lib/todos/store")).listTodos({ ticket, status: "open" });
 
 test("whatever makes a todo, one that only repeats an open todo on the ticket isn't made again — also when it is a part of it", async () => {
   const a = await mk("DD-1", "Nach dem Live-Deployment am 13.10. Darstellung auf Live prüfen und Jens im Ticket Bescheid geben.");
@@ -34,7 +34,7 @@ test("a todo equal to a step another todo has planned isn't made — that step b
 });
 
 test("a planned step that an open todo already is isn't made when its todo is ticked off — the rest of the plan goes on that todo", async () => {
-  const { setTodoStatus, getTodo } = await import("@/lib/boards/store");
+  const { setTodoStatus, getTodo } = await import("@/lib/todos/store");
   const exists = await mk("DD-4", "Nach dem Live-Deployment die Darstellung auf Live prüfen und Jens Bescheid geben.", { planned: [{ path: null, steps: [step("Jens im Ticket Bescheid geben, dass der Titel live ist")] }] });
   const first = await mk("DD-4", "Pipeline von main prüfen", { planned: [{ path: null, steps: [step("Nach dem Live-Deployment die Darstellung auf Live prüfen.", "test"), step("Ticket auf Done setzen")] }] });
   setTodoStatus(first.id, "done");
@@ -46,7 +46,7 @@ test("a planned step that an open todo already is isn't made when its todo is ti
 });
 
 test("what an AI or a worker would make again — a todo done or dismissed in the last days — isn't made; what you add yourself is", async () => {
-  const { setTodoStatus, addManualTodo } = await import("@/lib/boards/store");
+  const { setTodoStatus, addManualTodo } = await import("@/lib/todos/store");
   const done = await mk("DD-5", "Mit Rico klären, ob der Bestell-Link ein Deployment braucht");
   setTodoStatus(done.id, "done");
   const dropped = await mk("DD-5", "Storybook Stories für die Navigation nachziehen");
@@ -63,13 +63,13 @@ test("what an AI or a worker would make again — a todo done or dismissed in th
 });
 
 test("the todos the mail, note and document reviews find aren't made twice either", async () => {
-  const { addMailTodo, addNoteTodo, addDocTodo } = await import("@/lib/boards/store");
+  const { addMailTodo, addNoteTodo, addDocTodo } = await import("@/lib/todos/store");
   const first = addMailTodo({ ticket: "DD-6", text: "Die Pflichtschulung Datenschutz bis Freitag absolvieren", kind: "other", refs: ["mail:a"], runId: null });
   const second = addMailTodo({ ticket: "DD-6", text: "Pflichtschulung Datenschutz absolvieren bis Freitag", kind: "other", refs: ["mail:b"], runId: null });
   assert.equal(second.id, first.id);
   assert.equal(addNoteTodo({ ticket: "DD-6", text: "Die Pflichtschulung Datenschutz bis Freitag absolvieren", kind: "other", refs: ["keep:x"], runId: null }).id, first.id);
   assert.equal(addDocTodo({ ticket: "DD-6", text: "Die Pflichtschulung Datenschutz bis Freitag absolvieren", kind: "other", refs: ["doc:1"], runId: null }).id, first.id);
   // Where it comes from is kept: the second mail is a source of the todo too.
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   assert.ok(getTodo(first.id)!.refs.includes("mail:b"));
 });

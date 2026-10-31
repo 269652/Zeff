@@ -10,8 +10,8 @@ setupTempData();
  */
 test("the merge waits for the approval by default; with the setting off it doesn't — merged and closed ones are blocked always", async () => {
   const { saveGitlabItems } = await import("@/lib/gitlab/store");
-  const store = await import("@/lib/boards/store");
-  const { blockedBy } = await import("@/lib/boards/alternatives");
+  const store = await import("@/lib/todos/store");
+  const { blockedBy } = await import("@/lib/todos/alternatives");
   const { getTodoDisplayOff, setTodoDisplayOff } = await import("@/lib/todo-display-store");
   const mr = (iid: number, state: string) => ({ key: `mr:g/p!${iid}`, kind: "mr" as const, project: "g/p", projectUrl: "https://git.example.com/g/p", ref: `!${iid}`, title: "t", body: "", author: "m", state, createdAt: "2026-10-19T10:00:00Z", updatedAt: "2026-10-19T10:00:00Z", url: `https://git.example.com/g/p/-/merge_requests/${iid}`, branch: `feature/x${iid}`, parent: null, thread: null, resolvedAt: null });
   saveGitlabItems([mr(1, "opened"), mr(2, "approved"), mr(3, "merged"), mr(4, "closed")] as never);

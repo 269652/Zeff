@@ -5,7 +5,7 @@ import { setupTempData } from "./helpers";
 setupTempData();
 
 const follow = async (v: { ticket: string; text: string; parentId?: number | null; ops?: unknown[]; source?: string; byWorker?: boolean; workRunId?: number | null }) => {
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   return addFollowUp({ ticket: v.ticket, text: v.text, kind: "reply", parentId: v.parentId ?? null, workRunId: v.workRunId ?? null, source: v.source ?? "test", ops: v.ops, byWorker: v.byWorker });
 };
 /** A todo row inserted around the gate (a duplicate that is already there). */
@@ -18,10 +18,10 @@ const events = async (todoId: number) => {
   const { eq } = await import("drizzle-orm");
   return getDb().select().from(schema.todoEvents).where(eq(schema.todoEvents.todoId, todoId)).all();
 };
-const openIds = async (ticket: string) => (await import("@/lib/boards/store")).listTodos({ ticket, status: "open" }).map((t) => t.id);
+const openIds = async (ticket: string) => (await import("@/lib/todos/store")).listTodos({ ticket, status: "open" }).map((t) => t.id);
 
 test("a follow-up that repeats an open todo is merged into it: no second row, the history says what came from where, the todo is touched", async () => {
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   const first = await follow({ ticket: "DG-1", text: "Antwort an Jens zur Migrationsplanung schreiben", ops: [{ type: "jira-comment", ticket: "DG-1", body: "Die Migration startet am Montag, bitte Zugang prüfen." }] });
   assert.equal(first.outcome, undefined, "new: no merge");
   const before = getTodo(first.id)!;
@@ -42,7 +42,7 @@ test("a follow-up that repeats an open todo is merged into it: no second row, th
 });
 
 test("the same operation twice is kept once; the earlier deadline wins; refs are united; a draft only fills an empty one", async () => {
-  const { getTodo, addMailTodo } = await import("@/lib/boards/store");
+  const { getTodo, addMailTodo } = await import("@/lib/todos/store");
   const a = addMailTodo({ ticket: "", text: "Pflichtschulung Datenschutz bis Freitag abschließen", kind: "other", refs: ["mail:a"], runId: null, due: "2026-11-20" });
   const b = addMailTodo({ ticket: "", text: "Pflichtschulung Datenschutz bis Freitag abschließen", kind: "reply", refs: ["mail:b"], runId: 7, due: "2026-11-10" });
   assert.equal(b.outcome, "merged");
@@ -61,7 +61,7 @@ test("the same operation twice is kept once; the earlier deadline wins; refs are
 });
 
 test("mail, document and note todos merge into an open one instead of adding a row", async () => {
-  const { addMailTodo, addDocTodo, addNoteTodo, getTodo } = await import("@/lib/boards/store");
+  const { addMailTodo, addDocTodo, addNoteTodo, getTodo } = await import("@/lib/todos/store");
   const base = addMailTodo({ ticket: "", text: "Reisekostenabrechnung für September einreichen", kind: "other", refs: ["mail:r1"], runId: null });
   const d = addDocTodo({ ticket: "", text: "Reisekostenabrechnung für September einreichen", kind: "other", refs: ["doc:3"], runId: null });
   const n = addNoteTodo({ ticket: "", text: "September Reisekostenabrechnung einreichen", kind: "other", refs: ["keep:n1"], runId: null });
@@ -74,7 +74,7 @@ test("mail, document and note todos merge into an open one instead of adding a r
 });
 
 test("the Ticket-Lage merges a repeated todo into the older one and says so in its counts", async () => {
-  const { reconcileTodos, getTodo } = await import("@/lib/boards/store");
+  const { reconcileTodos, getTodo } = await import("@/lib/todos/store");
   const old = await follow({ ticket: "DG-3", text: "Testumgebung für die Abnahme vorbereiten und Zugang freigeben" });
   const out = reconcileTodos({ tickets: [{ key: "DG-3", resolved: [], todos: [{ text: "Testumgebung für die Abnahme vorbereiten", kind: "other", owner: "me", refs: ["teams:19:q|1"], due: "2026-12-01" }, { text: "Ganz anderes Thema mit Überschrift Lizenzverlängerung", kind: "other", owner: "me", refs: [] }] }] } as never, 9);
   assert.deepEqual(out, { added: 1, kept: 1, closed: 0, merged: 1 });
@@ -86,7 +86,7 @@ test("the Ticket-Lage merges a repeated todo into the older one and says so in i
 });
 
 test("a todo you type merges on its own ticket only", async () => {
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const a = addManualTodo({ ticket: "DG-4", text: "Code Review durchführen" });
   const same = addManualTodo({ ticket: "DG-4", text: "Code Review durchführen" });
   assert.equal(same.outcome, "merged");
@@ -99,9 +99,9 @@ test("a todo you type merges on its own ticket only", async () => {
 test("several open matches: all merge into the oldest, and every reference follows it", async () => {
   const { getDb, schema } = await import("@/db");
   const { eq } = await import("drizzle-orm");
-  const { getTodo, listTodos, doneTodos } = await import("@/lib/boards/store");
+  const { getTodo, listTodos, doneTodos } = await import("@/lib/todos/store");
   const { addTodoTime } = await import("@/lib/work/todo-time");
-  const { mergedIntoChain } = await import("@/lib/boards/merge");
+  const { mergedIntoChain } = await import("@/lib/todos/merge");
   const text = "Release Notizen für Version fünf zusammenstellen";
   const o = await raw("DG-6", text, { refs: JSON.stringify(["teams:19:o|1"]) });
   const b = await raw("DG-6", `${text} bitte`, { refs: JSON.stringify(["teams:19:o|2"]), ops: JSON.stringify([{ type: "jira-comment", ticket: "DG-6", body: "Release Notizen sind fertig, siehe Anhang." }]), due: "2026-11-01", flaggedAt: "2026-10-01T00:00:00.000Z" });
@@ -139,8 +139,8 @@ test("several open matches: all merge into the oldest, and every reference follo
 });
 
 test("closed or dropped todos are never merged into: a repeat of one dealt with lately stays skipped", async () => {
-  const { setTodoStatus, getTodo, listTodos } = await import("@/lib/boards/store");
-  const { attributed } = await import("@/lib/boards/activity");
+  const { setTodoStatus, getTodo, listTodos } = await import("@/lib/todos/store");
+  const { attributed } = await import("@/lib/todos/activity");
   const done = await follow({ ticket: "DG-7", text: "Serverzertifikat erneuern und Monitoring anpassen" });
   attributed("you", () => setTodoStatus(done.id, "dismissed", "nicht nötig"));
   const again = await follow({ ticket: "DG-7", text: "Serverzertifikat erneuern und Monitoring anpassen", source: "Follow-up from W-8", byWorker: true });
@@ -154,7 +154,7 @@ test("closed or dropped todos are never merged into: a repeat of one dealt with 
 });
 
 test("a follow-up that repeats the todo its run has just finished is its own todo; one that repeats a parent still open is merged into it", async () => {
-  const { markWorkerDone, getTodo } = await import("@/lib/boards/store");
+  const { markWorkerDone, getTodo } = await import("@/lib/todos/store");
   const parent = await follow({ ticket: "DG-8", text: "Importfunktion für Rechnungen implementieren" });
   markWorkerDone(parent.id, "W-9 · claude", "fertig");
   const next = await follow({ ticket: "DG-8", text: "Importfunktion für Rechnungen implementieren und testen", parentId: parent.id, source: "Follow-up from W-9", workRunId: 9, byWorker: true });
@@ -168,8 +168,8 @@ test("a follow-up that repeats the todo its run has just finished is its own tod
 });
 
 test("the sweep merges the duplicates that are already there: oldest wins, never across owner, dry-run only counts", async () => {
-  const { getTodo } = await import("@/lib/boards/store");
-  const { mergeDuplicateTodos } = await import("@/lib/boards/dedupe");
+  const { getTodo } = await import("@/lib/todos/store");
+  const { mergeDuplicateTodos } = await import("@/lib/todos/dedupe");
   const t1 = await raw("DG-10", "Wartungsfenster mit dem Betrieb abstimmen und bestätigen");
   const t2 = await raw("DG-10", "Wartungsfenster mit dem Betrieb abstimmen und bestätigen lassen");
   const other = await raw("DG-10", "Wartungsfenster mit dem Betrieb abstimmen und bestätigen", { owner: "other" });
@@ -192,7 +192,7 @@ test("the sweep merges the duplicates that are already there: oldest wins, never
 });
 
 test("the same words on another ticket: the Ticket-Lage links the tickets on the older todo; every other path leaves them two todos", async () => {
-  const { reconcileTodos, getTodo } = await import("@/lib/boards/store");
+  const { reconcileTodos, getTodo } = await import("@/lib/todos/store");
   const a = await follow({ ticket: "DG-11", text: "Abnahmeprotokoll mit dem Fachbereich besprechen und unterschreiben lassen" });
   const b = await follow({ ticket: "DG-12", text: "Abnahmeprotokoll mit dem Fachbereich besprechen und unterschreiben lassen" });
   assert.notEqual(b.id, a.id);

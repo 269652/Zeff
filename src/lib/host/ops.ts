@@ -29,9 +29,9 @@ export const HOST_OPS: Record<string, Op> = {
   "gcal.range": async (a) => (await import("@/plugins/google-calendar/sync")).syncGoogleCalendar({ range: { from: str(a.from), to: str(a.to) } }),
 
   // The Ticket-Lage, the day recap, the Board-Lage's scope.
-  "board.run": async (a) => (await import("@/lib/boards/run")).startBoardRun({ syncJira: !!a.syncJira }),
-  "board.stop": async () => ({ ok: (await import("@/lib/boards/run")).stopBoardRun() }),
-  "recap.start": async (a) => (await import("@/lib/boards/recap")).startRecap(str(a.day)),
+  "board.run": async (a) => (await import("@/lib/runs/run")).startBoardRun({ syncJira: !!a.syncJira }),
+  "board.stop": async () => ({ ok: (await import("@/lib/runs/run")).stopBoardRun() }),
+  "recap.start": async (a) => (await import("@/lib/runs/recap")).startRecap(str(a.day)),
   "boardlage.scope": async (a) => {
     (await import("@/plugins/jira-lage/board-lage")).setBoardLageScope(!!a.all);
     return { ok: true };

@@ -10,7 +10,7 @@ const ctx = { ticket: "PROJ-306" };
 test("zeff-do: an instruction becomes an action that adjusts the AI step's instructions on a click", async () => {
   const { cleanActions } = await import("@/plugins/actions/catalog");
   const { setInstalled } = await import("@/plugins/state");
-  const { getContextPrefs, setStepPrefs } = await import("@/lib/boards/context-prefs");
+  const { getContextPrefs, setStepPrefs } = await import("@/lib/runs/context-prefs");
   const { offerContext } = await import("@/plugins/actions/server");
   const { runZeffDo } = await import("@/plugins/actions/zeff-run");
   setInstalled("llm", true);

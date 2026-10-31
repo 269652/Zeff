@@ -6,7 +6,7 @@ setupTempData();
 
 /** The central todo block edits a todo where it shows it: its text changed (the rest as it was), its due date, its status. */
 test("setTodoText: a todo's text changed in place — trimmed, not empty, its ops kept", async () => {
-  const { addManualTodo, getTodo, setTodoText, setTodoOps } = await import("@/lib/boards/store");
+  const { addManualTodo, getTodo, setTodoText, setTodoOps } = await import("@/lib/todos/store");
   const g = addManualTodo({ ticket: "WS-1", text: "Belege sammeln" });
   const id = (g as unknown as { id: number }).id ?? getTodo(1)!.id;
   setTodoOps(id, [{ type: "teams-message", to: "Anna", body: "Hi" }] as never);

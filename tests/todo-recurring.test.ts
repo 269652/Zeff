@@ -11,7 +11,7 @@ setupTempData();
 const monthly15 = { freq: "monthly" as const, interval: 1 };
 
 test("the next day a rule names after a due day — never one that has passed already", async () => {
-  const { nextDue } = await import("@/lib/boards/recurring");
+  const { nextDue } = await import("@/lib/todos/recurring");
   assert.equal(nextDue(monthly15, "2026-10-15", "2026-10-15"), "2026-11-15");
   assert.equal(nextDue(monthly15, "2026-10-15", "2026-10-20"), "2026-11-15");
   assert.equal(nextDue(monthly15, "2026-10-15", "2027-01-03"), "2027-01-15", "done late: the next one still to come");
@@ -20,8 +20,8 @@ test("the next day a rule names after a due day — never one that has passed al
 });
 
 test("a todo with a rule: done, the next is made on the next day; the calendar has the series; the rule can be taken away", async () => {
-  const { addManualTodo, getTodo, listTodos, setTodoStatus, setTodoDue } = await import("@/lib/boards/store");
-  const { setRecurrence } = await import("@/lib/boards/recurring");
+  const { addManualTodo, getTodo, listTodos, setTodoStatus, setTodoDue } = await import("@/lib/todos/store");
+  const { setRecurrence } = await import("@/lib/todos/recurring");
   const { listCalendars, eventsBetween } = await import("@/lib/calendar/ir");
   const t = addManualTodo({ ticket: "KB-2", text: "300 € auf das Dienstkonto überweisen (Az. DR II 1121/26)" });
   setTodoDue(t.id, "2026-11-15");
@@ -51,8 +51,8 @@ test("a todo with a rule: done, the next is made on the next day; the calendar h
 });
 
 test("a todo dropped (not done) does not come back", async () => {
-  const { addManualTodo, listTodos, setTodoStatus, setTodoDue } = await import("@/lib/boards/store");
-  const { setRecurrence } = await import("@/lib/boards/recurring");
+  const { addManualTodo, listTodos, setTodoStatus, setTodoDue } = await import("@/lib/todos/store");
+  const { setRecurrence } = await import("@/lib/todos/recurring");
   const t = addManualTodo({ ticket: "KB-2", text: "Etwas anderes monatlich erledigen" });
   setTodoDue(t.id, "2026-11-01");
   setRecurrence(t.id, monthly15);
@@ -61,8 +61,8 @@ test("a todo dropped (not done) does not come back", async () => {
 });
 
 test("the first due day is a one-off: pay today, the repeats begin on the 15th — two appointments, the series from its start; regenerated on demand", async () => {
-  const { addManualTodo, getTodo, listTodos, setTodoStatus, setTodoDue } = await import("@/lib/boards/store");
-  const { setRecurrence, regenerateSeries, nextDue } = await import("@/lib/boards/recurring");
+  const { addManualTodo, getTodo, listTodos, setTodoStatus, setTodoDue } = await import("@/lib/todos/store");
+  const { setRecurrence, regenerateSeries, nextDue } = await import("@/lib/todos/recurring");
   const { eventsBetween } = await import("@/lib/calendar/ir");
   assert.equal(nextDue({ ...monthly15, start: "2026-11-15" }, "2026-10-20", "2026-10-20"), "2026-11-15", "after the one-off: the first of the repeats");
   const t = addManualTodo({ ticket: "KB-2", text: "300 € Rate (Az. DR II 1121/26) überweisen" });
@@ -81,9 +81,9 @@ test("the first due day is a one-off: pay today, the repeats begin on the 15th �
 });
 
 test("the appointments are the todo's context: its sources list the series and the one-off — the series follows the next todo", async () => {
-  const { addManualTodo, setTodoDue, getTodo, setTodoStatus, listTodos } = await import("@/lib/boards/store");
-  const { setRecurrence } = await import("@/lib/boards/recurring");
-  const { todoSources } = await import("@/lib/boards/sources");
+  const { addManualTodo, setTodoDue, getTodo, setTodoStatus, listTodos } = await import("@/lib/todos/store");
+  const { setRecurrence } = await import("@/lib/todos/recurring");
+  const { todoSources } = await import("@/lib/todos/sources");
   const t = addManualTodo({ ticket: "KB-2", text: "Eine Rate (Az. DR II 77/26) überweisen" });
   setTodoDue(t.id, "2026-10-20");
   setRecurrence(t.id, { ...monthly15, start: "2026-11-15" });
@@ -99,8 +99,8 @@ test("the appointments are the todo's context: its sources list the series and t
 });
 
 test("a todo with its series in the calendar needs no appointment actions — they go, and the auto-actions don't propose them", async () => {
-  const { addManualTodo, getTodo, setTodoDue, setTodoOps } = await import("@/lib/boards/store");
-  const { setRecurrence, withoutAppointments } = await import("@/lib/boards/recurring");
+  const { addManualTodo, getTodo, setTodoDue, setTodoOps } = await import("@/lib/todos/store");
+  const { setRecurrence, withoutAppointments } = await import("@/lib/todos/recurring");
   const t = addManualTodo({ ticket: "KB-2", text: "Rate 300 € überweisen (Az. DR II 9/26)" });
   setTodoDue(t.id, "2026-11-15");
   const entry = { type: "calendar-entry", calendar: "", title: "Rate", start: "2026-11-15T11:00", minutes: 15, body: "" } as const;
@@ -113,8 +113,8 @@ test("a todo with its series in the calendar needs no appointment actions — th
 });
 
 test("the next one is a plain repeat: not the first payment's words (“Erste Rate … sofort”), not flagged — that one was", async () => {
-  const { addManualTodo, getTodo, listTodos, setTodoStatus, setTodoDue, setTodoFlagged } = await import("@/lib/boards/store");
-  const { setRecurrence } = await import("@/lib/boards/recurring");
+  const { addManualTodo, getTodo, listTodos, setTodoStatus, setTodoDue, setTodoFlagged } = await import("@/lib/todos/store");
+  const { setRecurrence } = await import("@/lib/todos/recurring");
   const t = addManualTodo({ ticket: "KB-3", text: "Erste Rate 300 € (Az. DR II 4242/26) sofort überweisen; Folgeraten jeweils 300 € am 15. bis 15.09.2027" });
   setTodoDue(t.id, "2026-10-20");
   setRecurrence(t.id, { ...monthly15, start: "2026-11-15", until: "2027-09-15" });

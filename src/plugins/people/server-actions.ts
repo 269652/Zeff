@@ -37,7 +37,7 @@ export async function searchPeopleAction(q: string): Promise<{ id: number; name:
 /** Who to tag in a note on this todo: the people linked to its ticket and to what the note is about — not those already tagged. */
 export async function suggestTagsAction(todoId: number, text: string): Promise<{ id: number; name: string; why: string }[]> {
   if (!isInstalled("people")) return [];
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   const { whoKnows } = await import("./graph");
   const { splitTags, mentionMatcher } = await import("./mentions");
   const { peopleIndex } = await import("./store");
@@ -105,7 +105,7 @@ export async function personCardAction(id: number): Promise<PersonCardData | nul
   const names = (text: string) => splitMentions(text, matcher).some((m) => m.person?.id === p.id);
   const { dateText, daysBetween, inDaysText, isoDay, nextOccurrence, upcomingShort } = await import("./shared");
   const { listFacts } = await import("@/lib/facts");
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const today = new Date();
   const { personCardExtras } = await import("./card");
   const extras = personCardExtras(p.id, isoDay(today));

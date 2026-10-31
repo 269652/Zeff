@@ -2,7 +2,7 @@
 import { execFile } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
-import type { TodoOp } from "@/lib/boards/shared";
+import type { TodoOp } from "@/lib/todos/shared";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { listRepos } from "@/lib/repos";
@@ -37,7 +37,7 @@ export async function runGitPush(op: Extract<TodoOp, { type: "git-push" }>, ctx?
       ]);
       // On the remote now: the todo's context says so (its branch entry, no longer "not pushed") — not a line of text that goes away.
       const { markBranchOnRemote } = await import("@/lib/work/branch-remote");
-      if (markBranchOnRemote(op.repo, op.remote) && ctx?.todo) (await import("@/lib/boards/store")).recordBranch(ctx.todo.id, op.remote, op.repo, "push");
+      if (markBranchOnRemote(op.repo, op.remote) && ctx?.todo) (await import("@/lib/todos/store")).recordBranch(ctx.todo.id, op.remote, op.repo, "push");
       const project = listRepos().find(
         (r) => r.path === op.repo,
       )?.gitlabProject;

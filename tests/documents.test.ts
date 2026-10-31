@@ -112,7 +112,7 @@ test("documents: a simple text PDF is read here; audio without a transcriber is 
 
 test("documents: the store keeps a file once, queues it, drops it from todos when deleted", async () => {
   const { addDocument, deleteDocument, docsByRefs, getDocument, listDocuments, setAbstract, setExtracted } = await import("@/plugins/documents/store");
-  const { addManualTodo, addTodoContext, getTodo } = await import("@/lib/boards/store");
+  const { addManualTodo, addTodoContext, getTodo } = await import("@/lib/todos/store");
   const a = addDocument("Rechnung 4711.txt", Buffer.from("Badenova 186,83 EUR"), "text/plain");
   assert.equal(a.fresh, true);
   assert.equal(a.doc.status, "queued");

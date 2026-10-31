@@ -1,5 +1,5 @@
 import { getSqlite } from "@/db";
-import { addCalendarTodo, getTodo, setTodoDue, setTodoStatus, setTodoText, todoByRef } from "@/lib/boards/store";
+import { addCalendarTodo, getTodo, setTodoDue, setTodoStatus, setTodoText, todoByRef } from "@/lib/todos/store";
 import { docText, type Doc, type DocNode } from "./doc";
 import { newId } from "./model";
 import { breadcrumbs, getPage, updatePage } from "./store";

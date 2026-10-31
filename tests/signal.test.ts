@@ -49,7 +49,7 @@ test("a Signal chat waits for you — a group only when something is to you", as
 });
 
 test("Signal's messages are chats: never filtered out of the review, never must-do mails", async () => {
-  const { notForReview, mustDo } = await import("@/lib/boards/mail-todos");
+  const { notForReview, mustDo } = await import("@/lib/todos/mail-todos");
   const { isChatFolder, sourceOn } = await import("@/lib/mail/shared");
   const m = { fromName: "Anna", fromEmail: null, subject: "Anna", preview: "Pflichtschulung: Erinnerung, bis morgen erledigen?", folder: "Signal" };
   assert.ok(isChatFolder("Signal") && isChatFolder("WhatsApp") && !isChatFolder("Posteingang"));
@@ -72,7 +72,7 @@ test("a proposed Signal message is cleaned like WhatsApp's", async () => {
 });
 
 test("the mail review is told about Signal only when its messages are there", async () => {
-  const { mailReviewPrompt } = await import("@/lib/boards/mail-todos");
+  const { mailReviewPrompt } = await import("@/lib/todos/mail-todos");
   const mail = { key: "k", receivedAt: "2026-10-10T10:00:00Z", fromName: "Anna", fromEmail: null, subject: "Anna", preview: "Hallo" };
   const base = { tickets: [], open: [], verdicts: { dropped: [], done: [] } };
   assert.ok(!mailReviewPrompt({ ...base, mails: [{ ...mail, folder: "WhatsApp" }] }).includes("„Signal“"));

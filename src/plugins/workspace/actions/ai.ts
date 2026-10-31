@@ -87,7 +87,7 @@ export async function aiTodosFromPageAction(pageId: number) {
 export async function createTodosAction(items: { text: string; ticket?: string }[], pageId?: number) {
   return run(async () => {
     if (!isInstalled("todos")) throw new Error(t("The Todos plugin is needed for this (Menu → Plugins)."));
-    const { addManualTodo } = await import("@/lib/boards/store");
+    const { addManualTodo } = await import("@/lib/todos/store");
     let made = 0;
     for (const it of items.slice(0, 30)) {
       const text = String(it.text ?? "").trim();

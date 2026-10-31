@@ -27,7 +27,7 @@ test("a ticket database joins them by its key: open MRs, days since the last com
   for (const id of ["workspace", "gitlab", "jira", "todos", "work"]) setInstalled(id, true);
   const { getDb, schema } = await import("@/db");
   const { saveGitlabItems } = await import("@/lib/gitlab/store");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const { createRun } = await import("@/lib/work/store");
   const w = await import("@/plugins/workspace/store");
   const { sourceTable } = await import("@/plugins/workspace/source-table");

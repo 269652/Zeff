@@ -90,7 +90,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       const p = await personFor(config);
       if (!p) return nobody();
       if (!isInstalled("todos")) return { kind: "list", items: [], empty: t("Needs the Todos plugin.") };
-      const { listTodos } = await import("@/lib/boards/store");
+      const { listTodos } = await import("@/lib/todos/store");
       const today = localDay();
       // (A checklist of the same page that feeds the engine goes into this list there: the editor folds it — merged-lists.ts.)
       const all = listTodos({ status: "open" }).filter((x) => aboutThem(p, `${x.text} ${x.note ?? ""}`));
@@ -116,7 +116,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
     act: async (action, payload) => {
       // Ticked: done; ✕: dismissed (not to be done) — either way off the list.
       if (action !== "toggle" && action !== "dismiss") throw new Error("unknown action");
-      (await import("@/lib/boards/store")).setTodoStatus(Number(payload.id), action === "toggle" ? "done" : "dismissed");
+      (await import("@/lib/todos/store")).setTodoStatus(Number(payload.id), action === "toggle" ? "done" : "dismissed");
     },
   },
   {
@@ -187,7 +187,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       if (mine.length) add("🤝", mine.map((c) => c.text).slice(0, 3).join(" · "), t("You promised ({n})", { n: mine.length }));
       if (theirs.length) add("🤝", theirs.map((c) => c.text).slice(0, 3).join(" · "), t("They promised ({n})", { n: theirs.length }));
       if (isInstalled("todos") && !shows("people.todos")) {
-        const { listTodos } = await import("@/lib/boards/store");
+        const { listTodos } = await import("@/lib/todos/store");
         const todos = listTodos({ status: "open" }).filter((x) => aboutThem(p, `${x.text} ${x.note ?? ""}`));
         if (todos.length) add("☐", todos.slice(0, 4).map((x) => x.text).join(" · "), t("Open todos ({n})", { n: todos.length }));
       }

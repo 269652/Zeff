@@ -61,7 +61,7 @@ export async function startSessionAction(v: {
       revalidatePath("/work");
       return { ok: true, runId: run.id };
     }
-    const { addSessionTodo, findSessionTodo, getTodo } = await import("@/lib/boards/store");
+    const { addSessionTodo, findSessionTodo, getTodo } = await import("@/lib/todos/store");
     // On its todo, while it's open; else the todo the words or the ticket point to (that one is worked on); else a placeholder in the Worker tab.
     const existing = v.todoId ? getTodo(Number(v.todoId)) : undefined;
     const ticket = String(v.ticket ?? existing?.ticket ?? "").trim();

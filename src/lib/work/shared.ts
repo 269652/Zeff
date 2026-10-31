@@ -3,7 +3,7 @@
  * pages and the server share (client-safe: no DB access here).
  */
 import { actionHref } from "@/plugins/actions/catalog";
-import { TODO_KINDS, TODO_OPS_SCHEMA, type TodoKind, type TodoView } from "@/lib/boards/shared";
+import { TODO_KINDS, TODO_OPS_SCHEMA, type TodoKind, type TodoView } from "@/lib/todos/shared";
 import { type T, translator } from "@/lib/i18n/shared";
 
 /** code: do the work in the ticket's repo · draft: write the message a todo asks for · send: post a drafted message. */

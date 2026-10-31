@@ -29,7 +29,7 @@ test("plan my day: one AI call with today's todos and appointments; applied into
   updateAppSettings({ aiProvider: "claude" });
   const ir = await import("@/lib/calendar/ir");
   ir.addEvent(ir.zeffCalendar().id, { title: "Jour fixe", start: `${DAY}T10:00`, end: `${DAY}T11:00` });
-  const store = await import("@/lib/boards/store");
+  const store = await import("@/lib/todos/store");
   const report = store.addManualTodo({ ticket: "", text: "Bericht schreiben" });
   store.setTodoDue(report.id, DAY);
   const call = store.addManualTodo({ ticket: "", text: "Anna anrufen" });

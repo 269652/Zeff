@@ -58,7 +58,7 @@ const defaultFetchFeed = async (url: string): Promise<{ text: string | null }> =
 /** The words your open todos are about: the ones that come up, 5+ letters. */
 export async function workWords(limit = 25): Promise<string[]> {
   try {
-    const { listTodos } = await import("@/lib/boards/store");
+    const { listTodos } = await import("@/lib/todos/store");
     const count = new Map<string, number>();
     for (const todo of listTodos({ status: "open" })) for (const w of tokens(todo.text)) if (w.length >= 5) count.set(w, (count.get(w) ?? 0) + 1);
     return [...count].sort((a, b) => b[1] - a[1]).slice(0, limit).map(([w]) => w);

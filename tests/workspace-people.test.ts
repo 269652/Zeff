@@ -141,7 +141,7 @@ test("the people database: pages that mention them, context, knowledge, todos, s
   const p = await import("@/plugins/people/store");
   const g = await import("@/plugins/people/graph");
   const w = await import("@/plugins/workspace/store");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const { runPipeline } = await import("@/plugins/workspace/pipeline");
   const { createExtSourceDatabase } = await import("@/plugins/workspace/derived");
   const hanna = p.createPerson({ name: "Hanna Acht", aliases: ["Hanni"] });

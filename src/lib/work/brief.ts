@@ -1,10 +1,11 @@
 import { attachmentLine, todoAttachments } from "@/plugins/documents/attachments";
 import { fillPrompt } from "@/lib/prompts";
 import { opAvailable } from "@/plugins/ops";
-import { todoSources } from "@/lib/boards/sources";
-import { opsDictionary, sourcesOf, TODO_KIND_LABELS, todoRef, type TodoSource, type TodoView } from "@/lib/boards/shared";
-import { getTodo, lastGoodRun, listTodos } from "@/lib/boards/store";
-import { ticketChat } from "@/lib/boards/ticket-chat";
+import { todoSources } from "@/lib/todos/sources";
+import { opsDictionary, sourcesOf, TODO_KIND_LABELS, todoRef, type TodoSource, type TodoView } from "@/lib/todos/shared";
+import { getTodo, listTodos } from "@/lib/todos/store";
+import { lastGoodRun } from "@/lib/runs/store";
+import { ticketChat } from "@/lib/runs/ticket-chat";
 import { getJiraTicket } from "@/lib/jira/store";
 import { mailSender } from "@/lib/mail/shared";
 import { noteHeadline } from "@/plugins/keep/shared";

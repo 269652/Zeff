@@ -15,7 +15,7 @@ async function setup(ticket: string) {
   return number;
 }
 async function todo(ticket: string, text: string, due?: string) {
-  const { addFollowUp, setTodoDue } = await import("@/lib/boards/store");
+  const { addFollowUp, setTodoDue } = await import("@/lib/todos/store");
   const t = addFollowUp({ ticket, text, kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   if (due) setTodoDue(t.id, due);
   return t;
@@ -25,7 +25,7 @@ const tomorrow = async () => (await import("@/lib/week")).isoDate(new Date(Date.
 
 test("todos due today get one booking suggestion per ticket — once, and not for closed or later ones", async () => {
   const { openSuggestions, skipSuggestion } = await import("@/lib/work/suggestions");
-  const { setTodoStatus } = await import("@/lib/boards/store");
+  const { setTodoStatus } = await import("@/lib/todos/store");
   const job = await setup("DUE-1");
   const a = await todo("DUE-1", "Answer the customer", await today());
   const b = await todo("DUE-1", "Update the docs", await today());
@@ -54,7 +54,7 @@ test("todos due today get one booking suggestion per ticket — once, and not fo
 test("\"worked on it\": a suggestion for a todo that isn't done and isn't due — once a day, with its time", async () => {
   const { suggestWorkedOn } = await import("@/lib/work/suggestions");
   const { addTodoTime } = await import("@/lib/work/todo-time");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   await setup("DUE-3");
   const t = await todo("DUE-3", "Long running thing");
   addTodoTime({ todoId: t.id, minutes: 40, note: "research", by: "Du", source: "hand" });

@@ -1,8 +1,8 @@
 import path from "node:path";
-import { jiraCommentUrl } from "@/lib/boards/shared";
+import { jiraCommentUrl } from "@/lib/todos/shared";
 import { documentFile } from "@/plugins/documents/store";
 import { NOTE_IMAGE, noteImageIds } from "@/plugins/documents/shared";
-import { getTodo, markNoteSynced } from "@/lib/boards/store";
+import { getTodo, markNoteSynced } from "@/lib/todos/store";
 import { ValidationError, errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { jiraNoteBody, linkJiraAccounts, resolveJiraAccounts } from "@/plugins/people/accounts";

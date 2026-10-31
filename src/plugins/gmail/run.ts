@@ -6,7 +6,7 @@
  */
 import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import type { TodoOp, TodoView } from "@/lib/boards/shared";
+import type { TodoOp, TodoView } from "@/lib/todos/shared";
 import { archiveGmail, createGmailDraft, markGmailUnread, sendGmail } from "@/lib/google/gmail-send";
 import { gmailCanWrite } from "@/lib/google/gmail-write";
 import { journalGoogleWrite } from "@/lib/google/journal";

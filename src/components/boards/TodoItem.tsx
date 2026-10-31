@@ -5,16 +5,7 @@ import { useT } from "@/components/I18nProvider";
 import { Fragment, useState, useTransition } from "react";
 import { setTodoStatusConfirmed } from "@/components/boards/todo-status";
 import { deferTodoAction, runTodoOpsAction, setTodoStatusAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
-import {
-  opsButton,
-  opTitle,
-  sourcesOf,
-  todoKindLabels,
-  type TodoSource,
-  type TodoLinks,
-  type TodoStatus,
-  type TodoView,
-} from "@/lib/boards/shared";
+import { opsButton, opTitle, sourcesOf, todoKindLabels, type TodoSource, type TodoLinks, type TodoStatus, type TodoView } from "@/lib/todos/shared";
 import { ActionLayoutToggle, layoutClass, useActionLayout } from "./ActionCard";
 import { OpChips } from "./OpChips";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";

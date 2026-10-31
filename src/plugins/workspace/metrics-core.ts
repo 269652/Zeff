@@ -1,5 +1,5 @@
 import { getSqlite } from "@/db";
-import { listTodos } from "@/lib/boards/store";
+import { listTodos } from "@/lib/todos/store";
 import { eventsBetween } from "@/lib/calendar/ir";
 import { getWeeklyReport, listEntries } from "@/lib/entries";
 import { getWeekTargets } from "@/lib/schedule";

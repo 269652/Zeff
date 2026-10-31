@@ -7,8 +7,8 @@ setupTempData();
 /** The mail review's todo you drop or do lands in the ledger right away — with its mail's sender and kind. */
 test("closing a mail-review todo by hand records accepted / rejected with the mail's sender", async () => {
   const { getDb, schema } = await import("@/db");
-  const { attributed } = await import("@/lib/boards/activity");
-  const { addMailTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const { attributed } = await import("@/lib/todos/activity");
+  const { addMailTodo, setTodoStatus } = await import("@/lib/todos/store");
   const { listFeedback } = await import("@/lib/learning/ledger");
   const now = new Date().toISOString();
   const mail = (key: string, subject: string, preview = "Angebote der Woche") =>

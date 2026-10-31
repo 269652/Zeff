@@ -6,7 +6,7 @@ setupTempData();
 
 /** Todos a worker makes are its own: off your lists, on the Worker tab, closed by the worker. */
 test("worker todos stay out of your lists and a worker closes them itself", async () => {
-  const { addFollowUp, boardTodos, doneTodos, getTodo, markWorkerDone, workerTodos } = await import("@/lib/boards/store");
+  const { addFollowUp, boardTodos, doneTodos, getTodo, markWorkerDone, workerTodos } = await import("@/lib/todos/store");
   const mine = addFollowUp({ ticket: "ABC-1", text: "Yours", kind: "other", parentId: null, workRunId: null, source: "test" });
   const theirs = addFollowUp({ ticket: "ABC-1", text: "Worker's", kind: "comment", parentId: null, workRunId: 1, source: "test", byWorker: true });
   assert.equal(getTodo(theirs.id)!.byWorker, true);
@@ -24,8 +24,8 @@ test("worker todos stay out of your lists and a worker closes them itself", asyn
 });
 
 test("worker todos are quiet: no activity, no unread news", async () => {
-  const { addFollowUp, setTodoStatus } = await import("@/lib/boards/store");
-  const { activityNewsIds, todoActivity } = await import("@/lib/boards/activity");
+  const { addFollowUp, setTodoStatus } = await import("@/lib/todos/store");
+  const { activityNewsIds, todoActivity } = await import("@/lib/todos/activity");
   const mine = addFollowUp({ ticket: "QUI-1", text: "Yours", kind: "other", parentId: null, workRunId: null, source: "test" });
   const theirs = addFollowUp({ ticket: "QUI-1", text: "Worker's", kind: "other", parentId: null, workRunId: 3, source: "test", byWorker: true });
   setTodoStatus(theirs.id, "done");

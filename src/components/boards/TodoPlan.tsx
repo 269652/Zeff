@@ -1,4 +1,4 @@
-import type { TodoView } from "@/lib/boards/shared";
+import type { TodoView } from "@/lib/todos/shared";
 import { TodoRefs } from "./TodoRefs";
 import { useT } from "@/components/I18nProvider";
 

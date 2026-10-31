@@ -58,7 +58,7 @@ test("a title falls back to the summary's first line", async () => {
 });
 
 test("a finished run leaves a report filed under its todo and the todos it reported done — one per run", async () => {
-  const { addFollowUp, getTodo } = await import("@/lib/boards/store");
+  const { addFollowUp, getTodo } = await import("@/lib/todos/store");
   const { applyOutcome } = await import("@/lib/work/outcome");
   const { createRun, getRun } = await import("@/lib/work/store");
   const { reportsForTodo, getReport, reportList } = await import("@/lib/work/report");
@@ -99,7 +99,7 @@ test("the knowledge export carries the reports as pages of their own", async () 
 });
 
 test("runs that finished before reports were kept get theirs from their stored answer — once, as old as the run", async () => {
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   const { createRun } = await import("@/lib/work/store");
   const { backfillReports, reportsForTodo } = await import("@/lib/work/report");
   const { getDb, schema } = await import("@/db");

@@ -8,7 +8,7 @@
 import { action, EN, str } from "./types";
 
 /** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
-declare module "@/lib/boards/shared" {
+declare module "@/lib/todos/shared" {
   interface TodoOpMap {
     /** An API method of a plugin, offered to the AI: its name, what the AI wrote for its fields, and how it reads (title, text). */
     "zeff-do": { method: string; args: Record<string, string>; title: string; body: string };

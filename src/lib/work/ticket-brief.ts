@@ -57,7 +57,7 @@ export async function ticketBrief(key: string): Promise<string | null> {
   const t = db.prepare("select key, summary, description, status, assignee, url, issue_type, priority from jira_tickets where key = ?").get(key) as
     | { key: string; summary: string; description: string | null; status: string; assignee: string | null; url: string | null; issue_type: string | null; priority: string | null }
     | undefined;
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const todos = listTodos({ ticket: key, status: "all" });
   if (!t && !todos.length) return null;
   const out: string[] = [`# ${key}${t ? ` — ${t.summary}` : ""}`];
@@ -69,7 +69,7 @@ export async function ticketBrief(key: string): Promise<string | null> {
   }
 
   // Who asked, in their words: the messages the ticket's todos were made from (up their chain).
-  const { requesterOf } = await import("@/lib/boards/requester");
+  const { requesterOf } = await import("@/lib/todos/requester");
   const asked = new Map<string, string>();
   for (const td of todos) {
     const r = await requesterOf(td);

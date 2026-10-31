@@ -5,7 +5,7 @@
  * gathers them: the todos' buttons, the AI's dictionary (only the installed plugins'), the
  * validation of what an AI proposes, the runner. Client-safe.
  */
-import type { TodoOp } from "@/lib/boards/shared";
+import type { TodoOp } from "@/lib/todos/shared";
 import { translator, type T as Translate } from "@/lib/i18n/shared";
 import type { PluginId } from "../catalog";
 

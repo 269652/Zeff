@@ -81,7 +81,7 @@ export async function draftReply(target: { channel: string; to: string; subject:
   const { conversationOf } = await import("@/lib/mail/store");
   const history = target.conv && !target.conv.startsWith("19:") ? conversationOf(target.conv, 12).map((m) => `${m.receivedAt.slice(0, 16).replace("T", " ")} ${m.fromName ?? m.fromEmail ?? "?"}: ${m.preview.slice(0, 1500)}`) : [alone];
   const { fillPrompt } = await import("@/lib/prompts");
-  const { INSTRUCTIONS } = await import("@/lib/boards/reply-draft");
+  const { INSTRUCTIONS } = await import("@/lib/todos/reply-draft");
   const channel = target.channel === "Outlook" || target.channel === "Gmail" ? "Mail" : target.channel === "Teams" ? "Teams-Nachricht" : `${target.channel}-Unterhaltung`;
   const { runAi } = await import("@/lib/ai");
   const r = await runAi<{ text?: string }>(

@@ -2,8 +2,9 @@
  * Jira briefing's boards, client-safe: "My briefing" and your Jira boards, each card with its ticket's briefing — what
  * they are made into Workspace databases from (to-workspace.ts), and the state of their runs (the briefing buttons).
  */
-import type { TicketQuestion, TodoSource, TodoUserNote } from "@/lib/boards/shared";
-import type { ChatItem } from "@/lib/boards/ticket-chat";
+import type { TicketQuestion } from "@/lib/runs/shared";
+import type { TodoSource, TodoUserNote } from "@/lib/todos/shared";
+import type { ChatItem } from "@/lib/runs/ticket-chat";
 
 export type BoardSummary = { id: string; name: string; description: string; color: string; source: string; cards: number; open: number; href: string; updatedAt: string | null };
 

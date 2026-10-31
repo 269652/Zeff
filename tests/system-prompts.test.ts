@@ -15,10 +15,10 @@ test("system prompts: pages made once, read by the code, protected, reset to the
   for (const id of ["workspace", "todos", "knowledge", "llm"]) setInstalled(id, true);
   const w = await import("@/plugins/workspace/store");
   const { markdownToDoc } = await import("@/plugins/workspace/doc");
-  const { setStepPrefs } = await import("@/lib/boards/context-prefs");
-  const { extraBlock } = await import("@/lib/boards/context-prefs");
+  const { setStepPrefs } = await import("@/lib/runs/context-prefs");
+  const { extraBlock } = await import("@/lib/runs/context-prefs");
   const p = await import("@/lib/prompts");
-  const { INSTRUCTIONS } = await import("@/lib/boards/collect");
+  const { INSTRUCTIONS } = await import("@/lib/runs/collect");
 
   // Before: the built-in text (and a step's own addition on top, as before).
   assert.equal(p.promptText("ticket-lage", INSTRUCTIONS), INSTRUCTIONS);
@@ -45,7 +45,7 @@ test("system prompts: pages made once, read by the code, protected, reset to the
 
   // An untouched page: the built-in text exactly.
   const q = pages.find((x) => x.key === "ticket-questions")!;
-  const { INSTRUCTIONS: QUESTIONS_INSTRUCTIONS } = await import("@/lib/boards/questions");
+  const { INSTRUCTIONS: QUESTIONS_INSTRUCTIONS } = await import("@/lib/runs/questions");
   assert.equal(p.promptText("ticket-questions", QUESTIONS_INSTRUCTIONS), QUESTIONS_INSTRUCTIONS);
   assert.equal(q.modified, false);
 

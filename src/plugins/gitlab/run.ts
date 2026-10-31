@@ -1,5 +1,5 @@
 /** The GitLab plugin's actions, run: through the automation Chrome (and GitLab's API where it can). Server only. */
-import type { TodoOp } from "@/lib/boards/shared";
+import type { TodoOp } from "@/lib/todos/shared";
 import { mergeGitlabMr, openGitlabMr, postGitlabReply, resolveGitlabThread } from "@/lib/gitlab/reply";
 import { gitlabItemsByKeys, setGitlabState } from "@/lib/gitlab/store";
 import { setGitlabResolved } from "@/lib/resolved";

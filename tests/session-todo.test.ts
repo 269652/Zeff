@@ -5,7 +5,7 @@ import { setupTempData } from "./helpers";
 setupTempData();
 
 test("a session names a todo (T-165) or has one open todo on its ticket: that is the todo worked on — no new one", async () => {
-  const { addManualTodo, findSessionTodo, listTodos } = await import("@/lib/boards/store");
+  const { addManualTodo, findSessionTodo, listTodos } = await import("@/lib/todos/store");
   const first = addManualTodo({ ticket: "PROJ-306", text: "Umsetzung abschließen" });
   const before = listTodos({ status: "all" }).length;
   assert.equal(findSessionTodo(`Schließe du Umsetzung von ${first.ref} vollständig ab`, "PROJ-306")?.id, first.id, "by the T- number in the words");
@@ -18,7 +18,7 @@ test("a session names a todo (T-165) or has one open todo on its ticket: that is
 });
 
 test("a session without a todo gets a placeholder in the Worker tab — never in yours — with the action that makes it your todo", async () => {
-  const { addSessionTodo, getTodo, listTodos } = await import("@/lib/boards/store");
+  const { addSessionTodo, getTodo, listTodos } = await import("@/lib/todos/store");
   const ph = addSessionTodo({ ticket: "PROJ-400", text: "Die Navigation prüfen" });
   assert.equal(ph.byWorker, true);
   assert.deepEqual(ph.ops, [{ type: "todo-promote", text: "Die Navigation prüfen" }]);

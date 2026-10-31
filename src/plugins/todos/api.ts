@@ -13,7 +13,7 @@ export const TODOS_API: ApiContribution = {
       perm: "todos.read",
       summary: "Your todos (status open | done | dismissed | all, ticket, limit).",
       run: async (p) => {
-        const { listTodos } = await import("@/lib/boards/store");
+        const { listTodos } = await import("@/lib/todos/store");
         const status = str(p, "status", { max: 12 }) || "open";
         if (!["open", "done", "dismissed", "all"].includes(status)) throw new ApiError("bad_request", 'status: "open", "done", "dismissed" or "all"');
         const limit = int(p, "limit", { min: 1, max: 500 }) ?? 200;
@@ -29,7 +29,7 @@ export const TODOS_API: ApiContribution = {
       run: async (p) => {
         const ticket = str(p, "ticket", { max: 40 });
         if (ticket && !TICKET.test(ticket)) throw new ApiError("bad_request", "ticket: a ticket key like ABC-123");
-        const { addSessionTodo } = await import("@/lib/boards/store");
+        const { addSessionTodo } = await import("@/lib/todos/store");
         const todo = addSessionTodo({ ticket, text: str(p, "text", { required: true, max: 500 }) });
         return { id: todo.id, ref: todo.ref };
       },

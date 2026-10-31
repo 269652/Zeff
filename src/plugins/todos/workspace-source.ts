@@ -1,4 +1,4 @@
-import { listTodos } from "@/lib/boards/store";
+import { listTodos } from "@/lib/todos/store";
 import { t } from "@/lib/i18n/server";
 import type { WorkspaceSource } from "@/plugins/workspace/source-point";
 

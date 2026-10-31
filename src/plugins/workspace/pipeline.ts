@@ -1,6 +1,6 @@
 import { getDb, getSqlite, schema } from "@/db";
 import { fillPrompt, promptText } from "@/lib/prompts";
-import { dateOf } from "@/lib/boards/collect";
+import { dateOf } from "@/lib/runs/collect";
 import { classifyNoise, contentKeyOf, noiseOf, type Noise, type NoiseRecord } from "@/lib/noise";
 import { memoAll, memoForget, memoGet, memoHash, memoMigrate, memoSet } from "@/lib/ai/memo";
 import { errorMessage } from "@/lib/errors";
@@ -65,8 +65,8 @@ const at = (s: string | null | undefined) => dateOf(s)?.getTime() || 0;
 
 export async function jiraRecords(c: NonNullable<PipelineStep["jira"]>): Promise<SourceRecord[]> {
   const from = since(c.recentDays);
-  const followed = c.involved ? new Set([...(await import("@/lib/boards/followed")).followedTickets().keys()].map((k) => k.toUpperCase())) : null;
-  const briefed = c.briefed ? new Set([...(await import("@/lib/boards/ticket-lage")).analyzedByTicketLage()].map((k) => k.toUpperCase())) : null;
+  const followed = c.involved ? new Set([...(await import("@/lib/todos/followed")).followedTickets().keys()].map((k) => k.toUpperCase())) : null;
+  const briefed = c.briefed ? new Set([...(await import("@/lib/runs/ticket-lage")).analyzedByTicketLage()].map((k) => k.toUpperCase())) : null;
   const doneFrom = since(c.doneDays);
   const commented = c.commented
     ? new Set((getSqlite().prepare("select distinct upper(ticket) as t from jira_comments where at >= ?").all(new Date(from || 0).toISOString()) as { t: string }[]).map((r) => r.t))
@@ -117,7 +117,7 @@ async function keepRecords(label: string | undefined): Promise<SourceRecord[]> {
 }
 
 async function todoRecords(status: "open" | "all"): Promise<SourceRecord[]> {
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   return listTodos({ status: status === "all" ? "all" : "open" })
     .filter((t) => t.status !== "dismissed")
     .map((t) => ({
@@ -1039,7 +1039,7 @@ async function suggestActions(dbId: number, step: PipelineStep, force?: boolean)
   const { createHash } = await import("node:crypto");
   const { instructionText } = await import("./instructions");
   const { fillPrompt, promptText } = await import("@/lib/prompts");
-  const { opsDictionary, TODO_OP_TYPES } = await import("@/lib/boards/shared");
+  const { opsDictionary, TODO_OP_TYPES } = await import("@/lib/todos/shared");
   const { cleanActions, actionOf } = await import("@/plugins/actions/catalog");
   const { t } = await import("@/lib/i18n/server");
   const { rowCanRun } = await import("./row-actions");

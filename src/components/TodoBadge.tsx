@@ -1,7 +1,7 @@
 "use client";
 
 import { setTodoStatusConfirmed } from "@/components/boards/todo-status";
-import { todoKindLabels, type TodoSource, type TodoView } from "@/lib/boards/shared";
+import { todoKindLabels, type TodoSource, type TodoView } from "@/lib/todos/shared";
 import { SourceCard } from "./SourceCard";
 import { TodoSources } from "./boards/TodoSources";
 import { ResolveToggle } from "./ResolveToggle";

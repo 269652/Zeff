@@ -15,7 +15,7 @@ test("lage: a ticket's notes — linked by its todos or naming it, from boards i
   setInstalled("workspace", true);
   const k = await import("@/plugins/keep/boards");
   const g = await import("@/plugins/keep/store");
-  const { addNoteTodo } = await import("@/lib/boards/store");
+  const { addNoteTodo } = await import("@/lib/todos/store");
   const { lageNoteLines } = await import("@/plugins/keep/lage");
 
   const b = k.createKeepBoard({ name: "Arbeit" });

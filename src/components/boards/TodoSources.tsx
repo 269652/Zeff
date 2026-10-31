@@ -1,7 +1,7 @@
 "use client";
 
 import { ChatIcon } from "@/components/MailBadge";
-import { mergeJiraNotes, sourceKey, todoRef, type SyncedComment, type TodoSource, type TodoUserNote, type TodoView } from "@/lib/boards/shared";
+import { mergeJiraNotes, sourceKey, todoRef, type SyncedComment, type TodoSource, type TodoUserNote, type TodoView } from "@/lib/todos/shared";
 import { NoteBadge, NoteRow } from "./NoteBadge";
 import { DismissButton } from "../DismissButton";
 import { SourceBadge, SourceDetails } from "../SourceBadge";

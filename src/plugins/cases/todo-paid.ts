@@ -1,6 +1,6 @@
-import { getTodo } from "@/lib/boards/store";
-import type { TodoView } from "@/lib/boards/shared";
-import { evidenceOfTodo, refDue, refLabeler, refPayable, rowRefs, todoAmount, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
+import { getTodo } from "@/lib/todos/store";
+import type { TodoView } from "@/lib/todos/shared";
+import { evidenceOfTodo, refDue, refLabeler, refPayable, rowRefs, todoAmount, todoLinkFinder, todoSettler, type Evidence } from "@/lib/todos/settle";
 import { getSqlite } from "@/db";
 import * as ledger from "@/lib/money/ledger";
 import { isInstalled } from "@/plugins/state";
@@ -10,7 +10,7 @@ import { getPage, rawRows } from "@/plugins/workspace/store";
 import { casesOfRef, getCase, updateCase } from "./store";
 
 /**
- * A payment todo ticked off pays its case (the Cases plugin, through lib/boards/todo-settle.ts): the todos come from the cases (a
+ * A payment todo ticked off pays its case (the Cases plugin, through lib/todos/settle.ts): the todos come from the cases (a
  * letter's instalment, a warning) — done, the money went out. Its amount is booked on each open case it belongs to (as the bank's bookings are, case_payments) and the case
  * follows: the instalment due moves on a month, a rest paid leaves nothing due and the case done. The transfer on the statement later
  * is this payment (bank.ts counts it once). Server only.
@@ -120,7 +120,7 @@ export function settleCase(caseId: number): void {
 // The ledger: a case's allocations changed (a booking matched, a todo ticked off, one taken back) — its figures follow.
 ledger.onLedgerChange("case", (ref) => settleCase(Number(ref.slice(5))));
 
-// What hangs on a proof (lib/boards/todo-settle.ts): the cases a payment todo pays — settled by booking the payment. (A booking on the
+// What hangs on a proof (lib/todos/settle.ts): the cases a payment todo pays — settled by booking the payment. (A booking on the
 // statement is the cases' own: bank.ts matches it; "paid" by hand names its case.)
 todoLinkFinder((e) => {
   const todo = e.todoId ? getTodo(e.todoId) : undefined;

@@ -4,9 +4,9 @@ import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { runTodoAlternativeAction } from "@/plugins/todos/server-actions";
-import { opsButton, type TodoView } from "@/lib/boards/shared";
+import { opsButton, type TodoView } from "@/lib/todos/shared";
 import { toast } from "../Toaster";
-import { opLook } from "@/lib/boards/op-look";
+import { opLook } from "@/lib/todos/op-look";
 import { ActionCard } from "./ActionCard";
 import { useT } from "@/components/I18nProvider";
 

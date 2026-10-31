@@ -1,6 +1,6 @@
 import { formatHours, formatTime } from "@/lib/format";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
-import type { RecapFact, RecapView as Recap } from "@/lib/boards/recap-shared";
+import type { RecapFact, RecapView as Recap } from "@/lib/runs/recap-shared";
 import type { Entity } from "@/lib/entities-shared";
 import { TicketLink } from "../TicketLink";
 import { RecapSources } from "./RecapSources";

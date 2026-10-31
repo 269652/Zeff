@@ -20,8 +20,8 @@ async function seedAll() {
   const { getDb, schema } = await import("@/db");
   const { setInstalled } = await import("@/plugins/state");
   for (const id of ["keep", "people", "auto-actions", "teams"]) setInstalled(id, true);
-  const { attributed } = await import("@/lib/boards/activity");
-  const { addMailTodo, addNoteTodo, setTodoStatus, addManualTodo } = await import("@/lib/boards/store");
+  const { attributed } = await import("@/lib/todos/activity");
+  const { addMailTodo, addNoteTodo, setTodoStatus, addManualTodo } = await import("@/lib/todos/store");
   const db = getDb();
   const mail = (key: string, fromName: string, subject: string, preview = "Bitte kurz anschauen und Bescheid geben.") =>
     db.insert(schema.emails).values({ key, convId: key, folder: "Inbox", fromName, fromEmail: `${key}@x.de`, subject, preview, receivedAt: now, syncedAt: now } as never).run();
@@ -204,7 +204,7 @@ test("auto-actions × ledger: a todo whose proposed actions you took off all at 
   await seed();
   const { getDb, schema } = await import("@/db");
   const { eq } = await import("drizzle-orm");
-  const { addManualTodo, dropProposedOps } = await import("@/lib/boards/store");
+  const { addManualTodo, dropProposedOps } = await import("@/lib/todos/store");
   const x5 = addManualTodo({ ticket: "", text: "Carla wegen dem Umzug schreiben" });
   getDb().update(schema.todos).set({ ops: JSON.stringify([{ type: "teams-message", to: "Carla", body: "Hi" }]), autoOpsWhy: "Weil." }).where(eq(schema.todos.id, x5.id)).run();
   dropProposedOps(x5.id);

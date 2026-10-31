@@ -9,7 +9,7 @@ async function board(ticket: string) {
   getDb().insert(schema.jiraTickets).values({ key: ticket, summary: `Ticket ${ticket}`, status: "Open", statusCategory: "inprogress", url: `https://jira.example/browse/${ticket}`, boardId: 3359, syncedAt: new Date().toISOString() } as never).run();
 }
 async function todoWithNote(ticket: string, text: string) {
-  const { addFollowUp, addTodoUserNote } = await import("@/lib/boards/store");
+  const { addFollowUp, addTodoUserNote } = await import("@/lib/todos/store");
   // (each todo its own words: todos that only repeat each other aren't made twice)
   const t = addFollowUp({ ticket, text: `Aufgabe ${Math.random().toString(36).slice(2, 10)} ${Math.random().toString(36).slice(2, 10)}`, kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   return { todo: t, note: addTodoUserNote(t.id, text).userNotes[0] };
@@ -63,7 +63,7 @@ test("@-tagged people become Jira mentions: by name, alias or username; people w
 });
 
 test("your note on a todo can be edited", async () => {
-  const { updateTodoUserNote, getTodo } = await import("@/lib/boards/store");
+  const { updateTodoUserNote, getTodo } = await import("@/lib/todos/store");
   const { todo, note } = await todoWithNote("NS-2", "Erster Text");
   const t = updateTodoUserNote(todo.id, note.at, "  Zweiter Text  ");
   assert.equal(t.userNotes[0].text, "Zweiter Text");
@@ -77,7 +77,7 @@ test("a note is synced to the todo's Jira ticket as a comment — mentions trans
   await board("NS-3");
   const { createPerson, addAccount } = await import("@/plugins/people/store");
   const { syncNoteToJira } = await import("@/lib/jira/note-sync");
-  const { updateTodoUserNote, getTodo, addTodoAiNote } = await import("@/lib/boards/store");
+  const { updateTodoUserNote, getTodo, addTodoAiNote } = await import("@/lib/todos/store");
   const chris = createPerson({ name: "Christopher Lorenz" });
   addAccount(chris, "jira", "chrlorenz1");
   const { todo, note } = await todoWithNote("NS-3", "@Christopher Lorenz bitte die Navigation-Story prüfen");
@@ -120,7 +120,7 @@ test("a tagged person whose Jira user Zeff knows by name but hasn't linked yet i
   await jiraRun(["Anna Verlinkt (averlinkt)"]);
   const { createPerson, getPerson } = await import("@/plugins/people/store");
   const { syncNoteToJira } = await import("@/lib/jira/note-sync");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   const anna = createPerson({ name: "Anna Verlinkt" });
   assert.deepEqual(getPerson(anna)!.accounts, []);
   const { todo, note } = await todoWithNote("NS-4", "@Anna Verlinkt bitte testen");
@@ -133,7 +133,7 @@ test("a tagged person whose Jira user Zeff knows by name but hasn't linked yet i
   assert.equal(getTodo(todo.id)!.userNotes[0].jiraCommentId, "20001");
 
   // Posted earlier as plain words (no account was known then): syncing again edits the comment.
-  const { updateTodoUserNote, markNoteSynced } = await import("@/lib/boards/store");
+  const { updateTodoUserNote, markNoteSynced } = await import("@/lib/todos/store");
   const old = await todoWithNote("NS-4", "@Anna Verlinkt noch eine Notiz");
   markNoteSynced(old.todo.id, old.note.at, { commentId: "20002", hash: "plain-words-hash", url: null });
   assert.equal((await syncNoteToJira(old.todo.id, old.note.at, deps)).state, "updated");
@@ -144,7 +144,7 @@ test("a tagged person whose Jira user Zeff knows by name but hasn't linked yet i
 test("a comment that is gone from Jira is made again; any other failure is reported and nothing is marked", async () => {
   await board("NS-5");
   const { syncNoteToJira } = await import("@/lib/jira/note-sync");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   const { todo, note } = await todoWithNote("NS-5", "Eine Notiz für Jira");
   let next = 30000;
   const base = { post: async () => String(++next) };
@@ -162,9 +162,9 @@ test("a comment that is gone from Jira is made again; any other failure is repor
 
 test("a note tells whether it still matches its comment on Jira: not synced, in sync, or changed since the last sync", async () => {
   await board("NS-6");
-  const { noteSyncState } = await import("@/lib/boards/shared");
+  const { noteSyncState } = await import("@/lib/todos/shared");
   const { syncNoteToJira } = await import("@/lib/jira/note-sync");
-  const { updateTodoUserNote, getTodo } = await import("@/lib/boards/store");
+  const { updateTodoUserNote, getTodo } = await import("@/lib/todos/store");
   const { todo, note } = await todoWithNote("NS-6", "Erster Stand");
   assert.equal(noteSyncState(getTodo(todo.id)!.userNotes[0]), "none");
   await syncNoteToJira(todo.id, note.at, { post: async () => "40001", edit: async () => {} });
@@ -183,8 +183,8 @@ test("a note is out of sync when what would go to Jira differs from what is ther
   await board("NS-7");
   const { createPerson, addAccount } = await import("@/plugins/people/store");
   const { syncNoteToJira } = await import("@/lib/jira/note-sync");
-  const { getTodo } = await import("@/lib/boards/store");
-  const { noteSyncState } = await import("@/lib/boards/shared");
+  const { getTodo } = await import("@/lib/todos/store");
+  const { noteSyncState } = await import("@/lib/todos/shared");
   const paul = createPerson({ name: "Paul Spaeter" });
   const { todo, note } = await todoWithNote("NS-7", "@Paul Spaeter bitte schauen");
   const posts: string[] = [];

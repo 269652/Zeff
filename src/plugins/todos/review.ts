@@ -1,5 +1,5 @@
-import { opsButton, opTitle, type TodoView } from "@/lib/boards/shared";
-import { clearWorkerDone, dropProposedOps, listTodos } from "@/lib/boards/store";
+import { opsButton, opTitle, type TodoView } from "@/lib/todos/shared";
+import { clearWorkerDone, dropProposedOps, listTodos } from "@/lib/todos/store";
 import { t } from "@/lib/i18n/server";
 import type { ReviewSource } from "@/lib/review/point";
 
@@ -73,7 +73,7 @@ export const TODOS_REVIEW: ReviewSource[] = [
   },
   {
     // Prepared, not proposed: the next step Zeff worked out itself — a branch's push and merge request, a reply to the one who
-    // asked with the link (lib/boards/requester.ts) — one click each, from here (and from the phone: its home-screen shortcut).
+    // asked with the link (lib/todos/requester.ts) — one click each, from here (and from the phone: its home-screen shortcut).
     id: "todo-prepared",
     get label() {
       return t("Prepared — one click");

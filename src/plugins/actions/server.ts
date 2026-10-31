@@ -1,5 +1,5 @@
 import "@/plugins/contributions";
-import { setOpsDictionaryExtras } from "@/lib/boards/shared";
+import { setOpsDictionaryExtras } from "@/lib/todos/shared";
 import { apiPoint } from "@/lib/plugins/api-point";
 import type { ApiMethod } from "@/lib/plugins/api-kit";
 import { setZeffDoCheck } from "./zeff-do";

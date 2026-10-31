@@ -1,5 +1,5 @@
 /** WhatsApp's action, run: a message through WhatsApp Web in the automation Chrome (on your click). Server only. */
-import type { TodoOp } from "@/lib/boards/shared";
+import type { TodoOp } from "@/lib/todos/shared";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";

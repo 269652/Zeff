@@ -23,7 +23,7 @@ export async function peopleRecords() {
   const soonest = new Map<number, { on: string; kind: string }>();
   for (const u of upcoming({ days: 366 }).sort((a, b) => a.on.localeCompare(b.on))) if (!soonest.has(u.person.id)) soonest.set(u.person.id, { on: u.on, kind: u.date.kind === "other" ? u.date.label || label.other : label[u.date.kind] });
   const { pagesMentioning } = await import("@/plugins/workspace/store");
-  const todos = isInstalled("todos") ? (await import("@/lib/boards/store")).listTodos({ status: "open" }) : [];
+  const todos = isInstalled("todos") ? (await import("@/lib/todos/store")).listTodos({ status: "open" }) : [];
   const clip = (items: string[], n = 8) => items.slice(0, n).join(" · ");
   const people = listPeople();
   const last = await (await import("./pulse")).lastContactsAll(people);

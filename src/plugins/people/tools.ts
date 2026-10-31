@@ -5,7 +5,7 @@ import { findAllProgress } from "./dates";
 import { compileProgress, startCompile } from "./compile";
 import { acceptSuggestion, pendingSuggestions, rejectSuggestion, type Suggestion } from "./identity";
 import { openCommitments, proposedClaims, proposedLinks, reviewClaim, reviewLink, staleClaims, type Link } from "./graph";
-import { addManualTodo } from "@/lib/boards/store";
+import { addManualTodo } from "@/lib/todos/store";
 import { personCardExtras } from "./card";
 import { detailsOf } from "./details";
 import { acceptConfident, lastContactsAll, meetingBriefs, myName, nudgeWeeks, nudges, setMyName, setNudgeWeeks, snoozeNudge, type LastContact, type MeetingBrief, type Nudge } from "./pulse";

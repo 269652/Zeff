@@ -1,4 +1,4 @@
-import { ATTENTIONS, isAttention } from "@/lib/boards/shared";
+import { ATTENTIONS, isAttention } from "@/lib/runs/shared";
 import { rowsByKeys } from "./collections";
 import type { Property } from "./model";
 import { getDatabase, getPage, setCell, updateSchema } from "./store";

@@ -1,8 +1,8 @@
 import { and, eq, inArray, isNull, ne } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { dateOf, FIELDS, plain, who, type Issue } from "@/lib/boards/collect";
-import { followedTickets } from "@/lib/boards/followed";
-import { analyzedByTicketLage } from "@/lib/boards/ticket-lage";
+import { dateOf, FIELDS, plain, who, type Issue } from "@/lib/runs/collect";
+import { followedTickets } from "@/lib/todos/followed";
+import { analyzedByTicketLage } from "@/lib/runs/ticket-lage";
 import { keepComments } from "@/lib/jira/comments";
 import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";
 import { getJiraSyncConfig } from "@/lib/jira/sync";

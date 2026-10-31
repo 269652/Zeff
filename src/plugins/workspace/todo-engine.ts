@@ -1,5 +1,5 @@
 import { getSqlite } from "@/db";
-import { addCalendarTodo, getTodo, setTodoDue, setTodoStatus, setTodoText, todoByRef } from "@/lib/boards/store";
+import { addCalendarTodo, getTodo, setTodoDue, setTodoStatus, setTodoText, todoByRef } from "@/lib/todos/store";
 import { dateRange, todoColumns, type DbSchema, type Property } from "./model";
 
 export { todoColumns };

@@ -6,7 +6,7 @@ setupTempData();
 
 /** The worker is told, with every message, which todo it is on - so it can tell a change of subject without being named one. */
 test("an instruction run's brief lists the session's todos: its own, those it began, the ticket's other open ones", async () => {
-  const { addSessionTodo, getTodo } = await import("@/lib/boards/store");
+  const { addSessionTodo, getTodo } = await import("@/lib/todos/store");
   const { createRun, updateRun } = await import("@/lib/work/store");
   const { taskFor } = await import("@/lib/work/brief");
   const own = addSessionTodo({ ticket: "ABC-5", text: "Fix the header" });

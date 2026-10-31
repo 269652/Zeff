@@ -5,7 +5,7 @@ import { setupTempData } from "./helpers";
 setupTempData();
 
 async function withOps(ops: unknown[], why = "weil der Termin sonst fehlt") {
-  const { addFollowUp, setTodoOps, getDb } = await import("@/lib/boards/store").then(async (m) => ({ ...m, getDb: (await import("@/db")).getDb }));
+  const { addFollowUp, setTodoOps, getDb } = await import("@/lib/todos/store").then(async (m) => ({ ...m, getDb: (await import("@/db")).getDb }));
   const t = addFollowUp({ ticket: `CM-${Math.random().toString(36).slice(2, 6)}`, text: `Termin ${Math.random().toString(36).slice(2, 10)} vereinbaren`, kind: "other", parentId: null as unknown as number, workRunId: null, source: "test", ops });
   void setTodoOps;
   const { schema } = await import("@/db");
@@ -15,7 +15,7 @@ async function withOps(ops: unknown[], why = "weil der Termin sonst fehlt") {
 }
 
 test("an appointment a todo proposes can be moved: its action gets the new start and length, the rest of the todo stays as it is", async () => {
-  const { moveCalendarOp, getTodo } = await import("@/lib/boards/store");
+  const { moveCalendarOp, getTodo } = await import("@/lib/todos/store");
   const t = await withOps([
     { type: "jira-transition", ticket: "CM-1", to: "In Progress" },
     { type: "calendar-event", subject: "PROJ-415 gemeinsam prüfen", start: "2026-10-13T14:00", minutes: 30, attendees: "", body: "Prüfen" },
@@ -32,7 +32,7 @@ test("an appointment a todo proposes can be moved: its action gets the new start
 });
 
 test("only appointments move, to a real time, on an open todo", async () => {
-  const { moveCalendarOp, setTodoStatus } = await import("@/lib/boards/store");
+  const { moveCalendarOp, setTodoStatus } = await import("@/lib/todos/store");
   const t = await withOps([{ type: "jira-transition", ticket: "CM-1", to: "Done" }, { type: "calendar-event", subject: "Termin", start: "2026-10-13T14:00", minutes: 30, attendees: "", body: "" }]);
   assert.throws(() => moveCalendarOp(t.id, 0, "2026-10-14T09:00", 30), /isn't an appointment/i);
   assert.throws(() => moveCalendarOp(t.id, 5, "2026-10-14T09:00", 30), /isn't an appointment|no such/i);
@@ -45,7 +45,7 @@ test("only appointments move, to a real time, on an open todo", async () => {
 
 test("the drag's end becomes the action's length: start and end → start and minutes", async () => {
   const { moveProposedEventAction } = await import("@/plugins/calendar/server-actions");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   const t = await withOps([{ type: "calendar-event", subject: "Termin", start: "2026-10-13T14:00", minutes: 30, attendees: "", body: "" }]);
   const r = await moveProposedEventAction(t.id, 0, "2026-10-15T10:30", "2026-10-15T11:45");
   // (Outside a request Next's revalidation can't run — the move itself is done before it.)

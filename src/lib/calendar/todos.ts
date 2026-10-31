@@ -5,7 +5,7 @@
  * appointment or series (calendar-todos); without the AI plugin each one is a todo. Ticking it off
  * leaves the appointment as it is. Server only.
  */
-import { addCalendarTodo, getTodo, setTodoDue, setTodoStatus, todoByRef } from "@/lib/boards/store";
+import { addCalendarTodo, getTodo, setTodoDue, setTodoStatus, todoByRef } from "@/lib/todos/store";
 import { getPref, setPref } from "@/lib/prefs";
 import { eventsBetween } from "./ir";
 import { dayOf, type CalendarEventView } from "./ir-shared";

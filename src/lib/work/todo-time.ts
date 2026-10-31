@@ -1,7 +1,7 @@
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import type { TodoTime } from "@/db/schema";
-import { todoRef } from "@/lib/boards/shared";
+import { todoRef } from "@/lib/todos/shared";
 import { ValidationError } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";

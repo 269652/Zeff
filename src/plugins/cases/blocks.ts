@@ -1,7 +1,7 @@
 import { getSqlite } from "@/db";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import type { TodoSource, TodoView } from "@/lib/boards/shared";
+import type { TodoSource, TodoView } from "@/lib/todos/shared";
 import { compileCases } from "./compile";
 import { detectCases } from "./detect";
 import { casePayment, type CasePayment } from "./payments";
@@ -50,7 +50,7 @@ export async function caseBundle(caseId: number): Promise<CaseBundle> {
   const refs = all.filter((s) => s.kind !== "todo").map((s) => s.ref);
   let sources: TodoSource[] = [];
   if (refs.length) {
-    const { todoSources } = await import("@/lib/boards/sources");
+    const { todoSources } = await import("@/lib/todos/sources");
     const found = todoSources([{ refs } as unknown as TodoView], []);
     sources = refs.map((r) => found[r]).filter((s): s is TodoSource => !!s);
   }

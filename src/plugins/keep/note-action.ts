@@ -6,7 +6,7 @@
 import { action, EN, str } from "../actions/types";
 
 /** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
-declare module "@/lib/boards/shared" {
+declare module "@/lib/todos/shared" {
   interface TodoOpMap {
   /** A note on one of your Keep boards (Google Keep's extension for Auto-Aktionen). */
   "keep-note": { board: string; title: string; text: string };

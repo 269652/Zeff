@@ -2,7 +2,7 @@
 
 import { useEffect, useSyncExternalStore } from "react";
 import { useT } from "@/components/I18nProvider";
-import { ACTIVITY_SEEN_EVENT, ACTIVITY_SEEN_KEY } from "@/lib/boards/activity-shared";
+import { ACTIVITY_SEEN_EVENT, ACTIVITY_SEEN_KEY } from "@/lib/todos/activity-shared";
 
 /** The newest todo event seen in this browser (null: never looked). */
 export function readActivitySeen(): number | null {

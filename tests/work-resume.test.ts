@@ -20,7 +20,7 @@ const until = async (what: string, ok: () => boolean, ms = 20000) => {
 test("a Codex session's next message resumes its thread (and Claude-only rules stay Claude's)", async () => {
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("codex-cli", true);
-  const { addSessionTodo } = await import("@/lib/boards/store");
+  const { addSessionTodo } = await import("@/lib/todos/store");
   const { dispatchTodo } = await import("@/lib/work/runner");
   const { getRun } = await import("@/lib/work/store");
   const { liveDriverFor } = await import("@/lib/work/live-driver");

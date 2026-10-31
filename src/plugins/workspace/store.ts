@@ -798,7 +798,7 @@ export async function labelsFor(schema: DbSchema, rows: Row[]): Promise<{ people
     out.pages[id] = { title: p?.title || "Untitled", icon: p?.icon ?? "" };
   }
   if (todos.size) {
-    const { getTodo } = await import("@/lib/boards/store");
+    const { getTodo } = await import("@/lib/todos/store");
     for (const id of todos) out.todos[id] = getTodo(id)?.ref ?? `T-${id}`;
   }
   return out;

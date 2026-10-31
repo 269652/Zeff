@@ -8,7 +8,7 @@ import { setupTempData } from "./helpers";
 setupTempData();
 
 test("sessions archive, come back, and delete — not while they work", async () => {
-  const { addSessionTodo, getTodo } = await import("@/lib/boards/store");
+  const { addSessionTodo, getTodo } = await import("@/lib/todos/store");
   const { createRun, getRun, updateRun } = await import("@/lib/work/store");
   const { logPath } = await import("@/lib/work/log");
   const { sessionTickets } = await import("@/lib/work/sessions");

@@ -75,7 +75,7 @@ export async function loadDatabaseAction(dbId: number): Promise<Result<{ data: D
     if (d.schema.pipeline?.steps.some((s) => s.kind === "source")) for (const k of Object.keys(tickets)) tickets[k] = { ...tickets[k], attention: null, attentionLabel: null, lead: null, summary: null, happened: [] };
     // A board's Lage fields (its AI review): the card's stripe, lead and summary from them.
     const { LAGE_FIELDS } = await import("../lage-fields");
-    const { attentionLabels, isAttention } = await import("@/lib/boards/shared");
+    const { attentionLabels, isAttention } = await import("@/lib/runs/shared");
     for (const r of d.rows) {
       const k = keys[r.id];
       const att = r.cells[LAGE_FIELDS.attention];
@@ -313,7 +313,7 @@ export async function cellChoicesAction(kind: "person" | "todo", q: string) {
       return { items: listPeople().filter((p) => !w || p.name.toLowerCase().includes(w) || p.aliases.some((a) => a.toLowerCase().includes(w))).slice(0, 10).map((p) => ({ id: p.id, label: p.name })) };
     }
     if (!isInstalled("todos")) return { items: [] as { id: number; label: string }[] };
-    const { listTodos, searchTodos } = await import("@/lib/boards/store");
+    const { listTodos, searchTodos } = await import("@/lib/todos/store");
     const found = w ? searchTodos(w, 10) : listTodos({ status: "open" }).slice(0, 10);
     return { items: found.map((x) => ({ id: x.id, label: `${x.ref} ${x.text}`.slice(0, 80) })) };
   });

@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { TONE, type OpTone } from "@/lib/boards/op-look";
+import { TONE, type OpTone } from "@/lib/todos/op-look";
 import { useT } from "@/components/I18nProvider";
 
 /**

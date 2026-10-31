@@ -34,7 +34,7 @@ test("personBundle: what the blocks show", async () => {
   const { p } = await setup();
   const g = await import("@/plugins/people/graph");
   const { personBundle } = await import("@/plugins/people/blocks");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const id = p.createPerson({ name: "Kim Bundle", aliases: ["Kimmy"], emails: ["kim@bundle.example"], whatsapp: "Kim WA", note: "mag Tee" });
   p.addAccount(id, "jira", "kbundle");
   p.addDate(id, { kind: "birthday", day: 1, month: 2, year: 1991 });

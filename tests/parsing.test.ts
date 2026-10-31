@@ -28,7 +28,7 @@ test("the AI's proposed actions are cleaned", async () => {
 });
 
 test("a deadline is a real day or nothing", async () => {
-  const { dueDay } = await import("@/lib/boards/shared");
+  const { dueDay } = await import("@/lib/todos/shared");
   assert.equal(dueDay("2026-10-21"), "2026-10-21");
   assert.equal(dueDay(" 2026-10-21 "), "2026-10-21");
   assert.equal(dueDay("21.10.2026"), null);
@@ -51,7 +51,7 @@ test("WhatsApp list times are read", async () => {
 });
 
 test("the Auswerten settings fall back to their defaults and stay in range", async () => {
-  const { withDefaults } = await import("@/lib/boards/context-prefs-shared");
+  const { withDefaults } = await import("@/lib/runs/context-prefs-shared");
   const p = withDefaults({ lage: { numbers: { chatDays: 999 }, sources: { teams: false } } });
   assert.equal(p.lage.numbers.chatDays, 30);
   assert.equal(p.lage.sources.teams, false);

@@ -1,7 +1,7 @@
 import { extWorkPanels } from "@/lib/ext/work";
 import Link from "next/link";
-import { getTodo } from "@/lib/boards/store";
-import { todoRef } from "@/lib/boards/shared";
+import { getTodo } from "@/lib/todos/store";
+import { todoRef } from "@/lib/todos/shared";
 import { getTicketCards } from "@/lib/jira/store";
 import { formatDateTime } from "@/lib/format";
 import { t } from "@/lib/i18n/server";

@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { groupTodos } from "@/lib/boards/todo-groups";
+import { groupTodos } from "@/lib/todos/groups";
 
 const day = (d: number) => {
   const x = new Date();

@@ -23,7 +23,7 @@ test("note review: a Keep note's line in the prompt, its todo with the note as s
   await setup();
   const k = await import("@/plugins/keep/boards");
   const { reviewNotesForTodos } = await import("@/plugins/keep/note-review");
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const b = k.createKeepBoard({ name: "Privat" });
   const n = k.createOwnNote(b, { title: "Auto", text: "- [ ] Reifen wechseln\n- [x] TÜV", labels: ["Auto"] });
   // The AI names the note without its "keep:" prefix: Zeff adds it.
@@ -50,7 +50,7 @@ test("note review: a Workspace database in the briefing is read too, its row the
   const w = await import("@/plugins/workspace/store");
   const { setCollection } = await import("@/lib/items");
   const { reviewNotesForTodos } = await import("@/plugins/keep/note-review");
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const dbId = w.createPage({ kind: "database", title: "Haushalt" });
   const row = w.addRow(dbId, { title: "Steuer" });
   w.updatePage(row, { content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Erklärung bis 31.7. abgeben" }] }] } });
@@ -71,7 +71,7 @@ test("note matching: a todo gets the notes it's about — Keep's, and rows of a 
   const w = await import("@/plugins/workspace/store");
   const { setCollection } = await import("@/lib/items");
   const { relateNotes } = await import("@/plugins/keep/note-relations");
-  const { addManualTodo, getTodo } = await import("@/lib/boards/store");
+  const { addManualTodo, getTodo } = await import("@/lib/todos/store");
   const b = k.createKeepBoard({ name: "Urlaub" });
   const note = k.createOwnNote(b, { title: "Packliste Norwegen", text: "Regenjacke Wanderschuhe Norwegen Fähre" });
   const dbId = w.createPage({ kind: "database", title: "Reisen" });

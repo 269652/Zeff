@@ -3,7 +3,7 @@ import { LiveRefresh } from "@/components/LiveRefresh";
 import { HashHighlight } from "@/components/HashHighlight";
 import { AttentionBar } from "@/components/AttentionBar";
 import { listAttention } from "@/lib/attention";
-import { activityNewsIds } from "@/lib/boards/activity";
+import { activityNewsIds } from "@/lib/todos/activity";
 import { getWorkSettings } from "@/lib/work/store";
 import type { Metadata } from "next";
 import { connection } from "next/server";

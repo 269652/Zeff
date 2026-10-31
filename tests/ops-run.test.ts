@@ -10,7 +10,7 @@ async function setup() {
   const ticket = `OP-${++n}`;
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("gitlab", true);
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   const ops = [
     { type: "gitlab-reply", note: `note:${n}1`, body: "first" },
     { type: "gitlab-reply", note: `note:${n}2`, body: "second" },
@@ -18,7 +18,7 @@ async function setup() {
   ];
   return addFollowUp({ ticket, text: `Answer the review threads of ticket number ${n} in its merge request`, kind: "reply", parentId: null as unknown as number, workRunId: null, source: "test", ops: ops as never });
 }
-const opsOf = async (id: number) => (await import("@/lib/boards/store")).getTodo(id)!.ops;
+const opsOf = async (id: number) => (await import("@/lib/todos/store")).getTodo(id)!.ops;
 
 test("running one action takes only that one off the todo — the others stay", async () => {
   const todo = await setup();
@@ -32,7 +32,7 @@ test("running one action takes only that one off the todo — the others stay", 
   await runTodoOpsNow(todo.id, { only: [0] });
   assert.deepEqual(ran, ["note:11"]);
   assert.deepEqual((await opsOf(todo.id)).map((o) => o.type), ["gitlab-reply", "work-instruct"], "the second reply and the hand-over are still there");
-  assert.equal((await import("@/lib/boards/store")).getTodo(todo.id)!.status, "open");
+  assert.equal((await import("@/lib/todos/store")).getTodo(todo.id)!.status, "open");
 });
 
 test("what changes on the todo while an action runs is kept: a list written meanwhile isn't overwritten by the old one", async () => {

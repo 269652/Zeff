@@ -132,7 +132,7 @@ export const SEARCHERS: Record<Exclude<RagSource, "knowledge">, Searcher> = {
     return searchPeople(words, { dated: true }).map((h) => ({ source: "people" as const, ref: `person:${h.personId}`, title: `${h.name} (Person)`, text: clip(h.text, 400), score: h.score }));
   },
   todos: async (words, q) => {
-    const { searchTodos } = await import("@/lib/boards/store");
+    const { searchTodos } = await import("@/lib/todos/store");
     // searchTodos wants every word: the whole query first, then the single words.
     const found = new Map<number, ReturnType<typeof searchTodos>[number]>();
     for (const t of [...searchTodos(q, 6), ...words.flatMap((w) => searchTodos(w, 4))]) found.set(t.id, t);

@@ -5,7 +5,7 @@ import { SubmitButton } from "@/components/SubmitButton";
 import { BoardSettingsForm } from "@/components/boards/BoardSettingsForm";
 import { aiChoice } from "@/lib/ai";
 import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
-import { getBoardSettings } from "@/lib/boards/store";
+import { getBoardSettings } from "@/lib/runs/store";
 import { listJiraBoards } from "@/lib/jira/store";
 import { t } from "@/lib/i18n/server";
 import { AREAS, KNOWLEDGE_KINDS } from "@/lib/todo-display";

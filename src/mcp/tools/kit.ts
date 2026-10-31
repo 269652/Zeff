@@ -2,7 +2,7 @@ import { isInstalled } from "@/plugins/state";
 import { z } from "zod";
 import { ConflictError, NotFoundError, ValidationError, errorMessage } from "@/lib/errors";
 import type { EntryWithJob, WeeklyReport } from "@/lib/entries";
-import { getTodo } from "@/lib/boards/store";
+import { getTodo } from "@/lib/todos/store";
 import { formatHours } from "@/lib/format";
 import { NO_JOB_NUMBER } from "@/lib/projects-shared";
 import { formatDay, formatWeekRange } from "@/lib/week";

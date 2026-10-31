@@ -36,7 +36,7 @@ test("a collecting entry books the hours; the tasks stay whole and nothing is re
   const jonas = await mk(day, "Jonas antworten", "PROJ-415", "10:00", 0.25);
   const noStart = await mk(day, "Ohne Start", "PROJ-3", undefined, 0.5);
   const evening = await mk(day, "Abends", null, "18:30", 1);
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   const todo = addFollowUp({ ticket: "PROJ-415", text: "Antworten", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   getDb().update(schema.todos).set({ entryId: jonas.id }).where(eq(schema.todos.id, todo.id)).run();
 

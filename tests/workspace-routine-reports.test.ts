@@ -13,7 +13,7 @@ async function world() {
   await import("@/plugins/workspace/server");
   const w = await import("@/plugins/workspace/store");
   const r = await import("@/plugins/workspace/routines");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const { createRun } = await import("@/lib/work/store");
   const page = w.createPage({ title });
   r.createRoutine(page, "agent");
@@ -68,7 +68,7 @@ test("only an agent routine's worker reports — others are told so", async () =
 test("your OK — ticking the todo off — makes the report final; the button does the same", async () => {
   const { page, todo, run } = await world();
   const reports = await import("@/plugins/workspace/routine-reports");
-  const { setTodoStatus } = await import("@/lib/boards/store");
+  const { setTodoStatus } = await import("@/lib/todos/store");
   const s = await fakeServer();
   await call(s, "agent_report", { title: "Bericht", body: "Text" }, run.id);
   assert.equal(reports.listReports(page)[0].finalAt, null);
@@ -82,6 +82,6 @@ test("your OK — ticking the todo off — makes the report final; the button do
   const id = reports.listReports(b.page)[0].id;
   reports.approveReport(id);
   assert.equal(reports.listReports(b.page)[0].status, "final");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   assert.equal(getTodo(b.todo.id)!.status, "done");
 });

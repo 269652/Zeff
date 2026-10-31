@@ -59,7 +59,7 @@ async function startHost() {
 
 test("a conversation on the launcher's work host: asked, answered, open between turns, finished", async () => {
   await startHost();
-  const { addSessionTodo } = await import("@/lib/boards/store");
+  const { addSessionTodo } = await import("@/lib/todos/store");
   const { createRun, getRun, updateRun } = await import("@/lib/work/store");
   const live = await import("@/plugins/claude-cli/live");
   const todo = addSessionTodo({ ticket: "", text: "On the host" });
@@ -102,7 +102,7 @@ test("a work host from before an update (no live features) isn't used: the sessi
   const before = process.env.ZEFF_WORK_HOST;
   process.env.ZEFF_WORK_HOST = `http://127.0.0.1:${port}`;
   try {
-    const { addSessionTodo } = await import("@/lib/boards/store");
+    const { addSessionTodo } = await import("@/lib/todos/store");
     const { createRun, getRun, updateRun } = await import("@/lib/work/store");
     const live = await import("@/plugins/claude-cli/live");
     const todo = addSessionTodo({ ticket: "", text: "Old host" });

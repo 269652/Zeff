@@ -58,7 +58,7 @@ export async function belongsTo(pageId: number): Promise<Belongs> {
   }
   const todos: BelongTodo[] = [];
   try {
-    const { getTodo } = await import("@/lib/boards/store");
+    const { getTodo } = await import("@/lib/todos/store");
     for (const id of [...todoIds].slice(0, 20)) {
       const x = getTodo(id);
       if (x) todos.push({ id: x.id, ref: x.ref, text: x.text, done: x.status !== "open", ticket: x.ticket });

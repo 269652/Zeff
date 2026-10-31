@@ -30,7 +30,7 @@ async function addDoc(name: string, text: string) {
 test("document review: a todo with its deadline, the document as its source — and a document is read once", async () => {
   await setup();
   const { reviewDocumentsForTodos, excerpt } = await import("@/plugins/documents/review");
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const doc = await addDoc("Mahnung Badenova.txt", "Mahnung vor Sperrung. Bitte überweisen Sie 186,83 EUR bis zum 16.10.2026 auf das Vertragskonto 1285554639.");
   process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ todos: [{ text: "Mahnung der Badenova über 186,83 € bis 16.10. bezahlen", kind: "other", owner: "me", due: "2026-10-16", refs: [doc.ref] }, { text: "Ohne passende Quelle", refs: ["doc:999"] }] });
   const r = await reviewDocumentsForTodos(null);
@@ -54,7 +54,7 @@ test("document review: a todo with its deadline, the document as its source — 
 test("document matching: each todo gets the documents it is about — documents attached by hand stay", async () => {
   await setup();
   const { relateDocuments, candidates, words } = await import("@/plugins/documents/relations");
-  const { addManualTodo, addTodoContext, getTodo } = await import("@/lib/boards/store");
+  const { addManualTodo, addTodoContext, getTodo } = await import("@/lib/todos/store");
   const mietvertrag = await addDoc("Mietvertrag Stockmattenweg.txt", "Mietvertrag Stockmattenweg Freiburg. Die Kündigungsfrist beträgt drei Monate, die Kaution 1500 EUR.");
   const handmade = await addDoc("Foto Zählerstand.txt", "Zählerstand Strom 4711");
   const todo = addManualTodo({ ticket: "", text: "Mietvertrag Stockmattenweg prüfen: Kündigungsfrist und Kaution klären" });

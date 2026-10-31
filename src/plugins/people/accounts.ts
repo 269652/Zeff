@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { desc, eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import type { BoardTicket } from "@/lib/boards/shared";
+import type { BoardTicket } from "@/lib/runs/shared";
 import { addAccount, listPeople } from "./store";
 import type { Person } from "./shared";
 import { escapeRegExp } from "@/lib/text";

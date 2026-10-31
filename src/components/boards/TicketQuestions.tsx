@@ -1,6 +1,6 @@
 "use client";
 
-import type { TicketQuestion } from "@/lib/boards/shared";
+import type { TicketQuestion } from "@/lib/runs/shared";
 import { useT } from "../I18nProvider";
 
 /** A ticket's possible questions with their answers (from the context, or looked up in the knowledge base). */

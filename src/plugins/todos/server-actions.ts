@@ -20,7 +20,7 @@ export async function runBoardAction(): Promise<ActionState> {
 export async function saveBoardSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   const jql = (str(fd, "jql") ?? "").trim();
   if (jql.length < 5) return { ok: false, error: t("A JQL filter, e.g.: {example}", { example: "assignee = currentUser() AND resolution = Unresolved" }) };
-  const { updateBoardSettings } = await import("@/lib/boards/store");
+  const { updateBoardSettings } = await import("@/lib/runs/store");
   updateBoardSettings({ jql: jql.slice(0, 1000) });
   revalidatePath("/todos");
   return { ok: true, message: t("Saved.") };
@@ -41,7 +41,7 @@ export async function addCardTodoAction(ticket: string, text: string): Promise<A
     const k = String(ticket ?? "").trim();
     if (!body) return { ok: false, error: t("What's to be done?") };
     if (!k) return { ok: false, error: t("No card.") };
-    const { addManualTodo } = await import("@/lib/boards/store");
+    const { addManualTodo } = await import("@/lib/todos/store");
     const todo = addManualTodo({ ticket: k, text: body });
     revalidateAll();
     return { ok: true, message: todo.outcome === "merged" ? t("{ref} says the same already - merged into it.", { ref: todo.ref }) : t("{ref} created.", { ref: todo.ref }) };
@@ -53,7 +53,7 @@ export async function addCardTodoAction(ticket: string, text: string): Promise<A
 /** A todo's text changed in the todo block. */
 export async function setTodoTextAction(id: number, text: string): Promise<ActionState> {
   try {
-    const { setTodoText } = await import("@/lib/boards/store");
+    const { setTodoText } = await import("@/lib/todos/store");
     setTodoText(Number(id), String(text ?? ""));
     revalidateAll();
     return { ok: true, message: t("Saved.") };
@@ -69,11 +69,11 @@ export async function setTodoTextAction(id: number, text: string): Promise<Actio
 export async function setTodoStatusAction(id: number, status: "open" | "done" | "dismissed", opts: { early?: boolean } = {}): Promise<ActionState & { confirm?: string }> {
   try {
     if (!Number.isInteger(id) || !["open", "done", "dismissed"].includes(status)) return { ok: false, error: t("Unknown todo.") };
-    const { getTodo, setTodoStatus } = await import("@/lib/boards/store");
-    const { attributed } = await import("@/lib/boards/activity");
+    const { getTodo, setTodoStatus } = await import("@/lib/todos/store");
+    const { attributed } = await import("@/lib/todos/activity");
     const before = getTodo(id);
     if (status === "done" && before?.status === "open" && !opts.early) {
-      const { repeatNotYet } = await import("@/lib/boards/due-shared");
+      const { repeatNotYet } = await import("@/lib/todos/due-shared");
       const { formatDate } = await import("@/lib/format");
       const days = repeatNotYet(before);
       if (days !== null) {
@@ -89,7 +89,7 @@ export async function setTodoStatusAction(id: number, status: "open" | "done" | 
       recordFeedback(workerDoneFeedback(before, "accepted"));
     }
     // A step ticked off brings the next one (a delivery): its actions from git, at once — no AI.
-    if (status === "done") void import("@/lib/boards/delivery-ops").then((m) => m.attachOpenMrOps()).then(() => revalidateAll()).catch(() => {});
+    if (status === "done") void import("@/lib/todos/delivery-ops").then((m) => m.attachOpenMrOps()).then(() => revalidateAll()).catch(() => {});
     revalidateAll();
     return { ok: true };
   } catch (err) {
@@ -98,8 +98,8 @@ export async function setTodoStatusAction(id: number, status: "open" | "done" | 
 }
 
 /** The context search's todos: done ones first (work that backs an entry), then open ones. */
-export async function searchTodosAction(q: string): Promise<import("@/lib/boards/shared").TodoView[]> {
-  const { searchTodos } = await import("@/lib/boards/store");
+export async function searchTodosAction(q: string): Promise<import("@/lib/todos/shared").TodoView[]> {
+  const { searchTodos } = await import("@/lib/todos/store");
   return searchTodos(String(q ?? "").slice(0, 200));
 }
 
@@ -107,7 +107,7 @@ export async function searchTodosAction(q: string): Promise<import("@/lib/boards
 export async function runTodoOpsAction(todoId: number, only?: number[]): Promise<ActionState> {
   try {
     const { runTodoOpsNow } = await import("@/lib/ops");
-    const { getTodo } = await import("@/lib/boards/store");
+    const { getTodo } = await import("@/lib/todos/store");
     const proposed = getTodo(Number(todoId));
     const r = await runTodoOpsNow(Number(todoId), { only: Array.isArray(only) ? only.map(Number).filter(Number.isInteger) : undefined });
     // The auto-actions' proposal, run by you: a verdict for the ledger.
@@ -141,7 +141,7 @@ export async function instructTodoAction(todoId: number, instruction: string): P
 /** A todo flagged important (to the top of its list, urgent for the Ticket-Lage) — or the flag taken off. */
 export async function flagTodoAction(todoId: number, flagged: boolean): Promise<ActionState> {
   try {
-    const { setTodoFlagged } = await import("@/lib/boards/store");
+    const { setTodoFlagged } = await import("@/lib/todos/store");
     setTodoFlagged(Number(todoId), !!flagged);
     revalidateAll();
     return { ok: true };
@@ -151,9 +151,9 @@ export async function flagTodoAction(todoId: number, flagged: boolean): Promise<
 }
 
 /** A reply to the message a todo is about, drafted by the AI from the conversation — never sent. */
-export async function draftReplyAction(todoId: number): Promise<import("@/lib/boards/reply-draft").ReplyDraft> {
+export async function draftReplyAction(todoId: number): Promise<import("@/lib/todos/reply-draft").ReplyDraft> {
   try {
-    return await (await import("@/lib/boards/reply-draft")).draftReply(Number(todoId));
+    return await (await import("@/lib/todos/reply-draft")).draftReply(Number(todoId));
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }
@@ -161,7 +161,7 @@ export async function draftReplyAction(todoId: number): Promise<import("@/lib/bo
 
 /** A todo that is a payment, as a GiroCode: the account (its text, your notes, a person it names, its knowledge), amount and purpose — or null. */
 export async function paymentForTodoAction(todoId: number): Promise<import("@/lib/girocode-todo").TodoPayment | null> {
-  const todo = (await import("@/lib/boards/store")).getTodo(Number(todoId));
+  const todo = (await import("@/lib/todos/store")).getTodo(Number(todoId));
   if (!todo) return null;
   const people = (await import("@/plugins/state")).isInstalled("people") ? (await import("@/plugins/people/details")).payees() : [];
   return (await import("@/lib/girocode-todo")).paymentForTodo(todo, people);
@@ -170,7 +170,7 @@ export async function paymentForTodoAction(todoId: number): Promise<import("@/li
 /** A reply's "Öffnen": WhatsApp Web, Gmail, Outlook or Teams at the front of the automation Chrome (signed in there). */
 export async function openReplyTargetAction(url: string): Promise<ActionState> {
   try {
-    const { REPLY_HOSTS } = await import("@/lib/boards/reply-draft");
+    const { REPLY_HOSTS } = await import("@/lib/todos/reply-draft");
     if (!REPLY_HOSTS.test(String(url))) return { ok: false, error: t("Zeff doesn't open this address.") };
     const { openInAutomationChrome } = await import("@/lib/attention");
     const r = await openInAutomationChrome(String(url), new URL(String(url)).host);
@@ -183,9 +183,9 @@ export async function openReplyTargetAction(url: string): Promise<ActionState> {
 /** The Auswerten page: one step's context settings (sources, numbers, its own instructions). */
 export async function saveContextPrefsAction(step: string, patch: { sources?: Record<string, boolean>; numbers?: Record<string, number>; extra?: string }): Promise<ActionState> {
   try {
-    const { CONTEXT_STEP_IDS } = await import("@/lib/boards/context-prefs-shared");
+    const { CONTEXT_STEP_IDS } = await import("@/lib/runs/context-prefs-shared");
     if (!(CONTEXT_STEP_IDS as readonly string[]).includes(step)) return { ok: false, error: t("Unknown step.") };
-    const { setStepPrefs } = await import("@/lib/boards/context-prefs");
+    const { setStepPrefs } = await import("@/lib/runs/context-prefs");
     setStepPrefs(step as (typeof CONTEXT_STEP_IDS)[number], patch ?? {});
     revalidatePath("/settings/ai");
     return { ok: true, message: t("Saved — applies from the next run on.") };
@@ -197,10 +197,10 @@ export async function saveContextPrefsAction(step: string, patch: { sources?: Re
 /** A todo's deadline (YYYY-MM-DD) — or none. */
 export async function setTodoDueAction(todoId: number, due: string | null): Promise<ActionState> {
   try {
-    const { setTodoDue } = await import("@/lib/boards/store");
+    const { setTodoDue } = await import("@/lib/todos/store");
     setTodoDue(Number(todoId), due ? String(due) : null);
     // Set by you: the things that take their date from it follow (a debt of your own — todo-settle.ts).
-    (await import("@/lib/boards/todo-settle")).pushTodoDue(Number(todoId));
+    (await import("@/lib/todos/settle")).pushTodoDue(Number(todoId));
     revalidateAll();
     return { ok: true };
   } catch (err) {
@@ -211,10 +211,10 @@ export async function setTodoDueAction(todoId: number, due: string | null): Prom
 /** A todo that comes back: its rule (monthly on its due day, weekly, yearly, every day) — or none. The calendar shows the series. */
 export async function setTodoRecurrenceAction(todoId: number, freq: "daily" | "weekly" | "monthly" | "yearly" | null): Promise<ActionState> {
   try {
-    const { setRecurrence } = await import("@/lib/boards/recurring");
+    const { setRecurrence } = await import("@/lib/todos/recurring");
     setRecurrence(Number(todoId), freq ? { freq, interval: 1 } : null);
     // The words of its repeats, by the AI — in the background (the next sync does it otherwise).
-    if (freq) void import("@/lib/boards/repeat-text-ai").then((m) => m.writeRepeatTexts([Number(todoId)])).catch(() => undefined);
+    if (freq) void import("@/lib/todos/repeat-text-ai").then((m) => m.writeRepeatTexts([Number(todoId)])).catch(() => undefined);
     (await import("@/lib/events")).emitChange("todos");
     revalidateAll();
     return { ok: true };
@@ -226,7 +226,7 @@ export async function setTodoRecurrenceAction(todoId: number, freq: "daily" | "w
 /** A recurring todo's calendar appointments and its actions made again (the actions the AI proposed; ones you made stay). */
 export async function regenerateRecurringAction(todoId: number): Promise<ActionState> {
   try {
-    (await import("@/lib/boards/recurring")).regenerateSeries(Number(todoId));
+    (await import("@/lib/todos/recurring")).regenerateSeries(Number(todoId));
     const { isInstalled } = await import("@/plugins/state");
     let actions = "";
     if (isInstalled("auto-actions")) {
@@ -245,7 +245,7 @@ export async function regenerateRecurringAction(todoId: number): Promise<ActionS
 /** A todo put to the bottom for now — it comes back up when something new happens on it — or taken back up. */
 export async function deferTodoAction(todoId: number, deferred: boolean): Promise<ActionState> {
   try {
-    const { setTodoDeferred } = await import("@/lib/boards/store");
+    const { setTodoDeferred } = await import("@/lib/todos/store");
     setTodoDeferred(Number(todoId), !!deferred);
     revalidateAll();
     return { ok: true };
@@ -258,14 +258,14 @@ export async function deferTodoAction(todoId: number, deferred: boolean): Promis
 export async function addTodoNoteAction(todoId: number, text: string): Promise<ActionState> {
   try {
     if (!String(text ?? "").trim()) return { ok: false, error: t("The note is empty.") };
-    const { addTodoUserNote } = await import("@/lib/boards/store");
+    const { addTodoUserNote } = await import("@/lib/todos/store");
     const todo = addTodoUserNote(Number(todoId), String(text));
     // Pictures the note shows inline are the todo's files (the AI that works on it gets them as attachments).
     if (todo) await (await import("@/plugins/documents/attachments")).linkNoteImages(todo.id, String(text)).catch(() => 0);
     revalidateAll();
     // The todo brought up to date with the note at once (its text, kind, done …, then its actions) —
     // in the background, just this todo: no whole run needed. While a run is under way, it reads the note itself.
-    const { canRefreshTodo, refreshTodoSoon } = await import("@/lib/boards/todo-refresh");
+    const { canRefreshTodo, refreshTodoSoon } = await import("@/lib/todos/refresh");
     if (todo && canRefreshTodo(todo)) {
       refreshTodoSoon(todo.id);
       return { ok: true, message: t("Note saved — the todo is being updated with it.") };
@@ -310,7 +310,7 @@ export async function workedOnTodoAction(todoId: number): Promise<ActionState> {
 /** Your note on a todo changed. */
 export async function updateTodoNoteAction(todoId: number, at: string, text: string): Promise<ActionState> {
   try {
-    const { updateTodoUserNote } = await import("@/lib/boards/store");
+    const { updateTodoUserNote } = await import("@/lib/todos/store");
     updateTodoUserNote(Number(todoId), String(at), String(text ?? ""));
     await (await import("@/plugins/documents/attachments")).linkNoteImages(Number(todoId), String(text ?? "")).catch(() => 0);
     revalidateAll();
@@ -349,7 +349,7 @@ export async function searchPeopleAction(q: string): Promise<{ id: number; name:
 /** A context item taken out of a todo by hand — it stays out. */
 export async function dismissTodoContextAction(todoId: number, ref: string): Promise<ActionState> {
   try {
-    const { dismissTodoContext } = await import("@/lib/boards/store");
+    const { dismissTodoContext } = await import("@/lib/todos/store");
     dismissTodoContext(Number(todoId), String(ref ?? ""));
     revalidateAll();
     return { ok: true };
@@ -359,9 +359,9 @@ export async function dismissTodoContextAction(todoId: number, ref: string): Pro
 }
 
 /** A question to a ticket: answered from what Zeff has on it, kept as the ticket's context (until dismissed). */
-export async function askTicketAction(ticket: string, question: string): Promise<{ ok: boolean; item?: import("@/lib/boards/ticket-chat").ChatItem; error?: string }> {
+export async function askTicketAction(ticket: string, question: string): Promise<{ ok: boolean; item?: import("@/lib/runs/ticket-chat").ChatItem; error?: string }> {
   try {
-    const { askTicket } = await import("@/lib/boards/ticket-chat");
+    const { askTicket } = await import("@/lib/runs/ticket-chat");
     const item = await askTicket(String(ticket ?? ""), String(question ?? ""));
     revalidateAll();
     return { ok: true, item };
@@ -373,7 +373,7 @@ export async function askTicketAction(ticket: string, question: string): Promise
 /** An answer of a ticket's chat taken out of its context. */
 export async function dismissChatItemAction(id: number): Promise<ActionState> {
   try {
-    const { dismissChatItem } = await import("@/lib/boards/ticket-chat");
+    const { dismissChatItem } = await import("@/lib/runs/ticket-chat");
     dismissChatItem(Number(id));
     revalidateAll();
     return { ok: true };
@@ -396,7 +396,7 @@ export async function deleteTodoTimeAction(id: number): Promise<ActionState> {
 
 export async function removeTodoNoteAction(todoId: number, at: string): Promise<ActionState> {
   try {
-    const { removeTodoUserNote } = await import("@/lib/boards/store");
+    const { removeTodoUserNote } = await import("@/lib/todos/store");
     removeTodoUserNote(Number(todoId), String(at));
     revalidateAll();
     return { ok: true };
@@ -408,7 +408,7 @@ export async function removeTodoNoteAction(todoId: number, at: string): Promise<
 /** One of a Boards run's suggested ticket changes (transition, assignee, comment), done in Jira — on your click. */
 export async function runTicketActionAction(runId: number, ticket: string, idx: number): Promise<ActionState> {
   try {
-    const { runTicketAction } = await import("@/lib/boards/actions");
+    const { runTicketAction } = await import("@/lib/runs/actions");
     const r = await runTicketAction(Number(runId), String(ticket), Number(idx));
     revalidateAll();
     return { ok: true, message: `${ticket}: ${r.detail}.` };
@@ -421,8 +421,8 @@ export async function runTicketActionAction(runId: number, ticket: string, idx: 
 /** A todo done another way (one of its alternatives — "Sarah zuweisen", "Merge into main"): its operations replaced, then run. */
 export async function runTodoAlternativeAction(todoId: number, label: string): Promise<ActionState> {
   try {
-    const { getTodo, setTodoOps } = await import("@/lib/boards/store");
-    const { todoAlternatives } = await import("@/lib/boards/alternatives");
+    const { getTodo, setTodoOps } = await import("@/lib/todos/store");
+    const { todoAlternatives } = await import("@/lib/todos/alternatives");
     const todo = getTodo(Number(todoId));
     if (!todo || todo.status !== "open") return { ok: false, error: t("That todo isn't open.") };
     const alt = (todoAlternatives([todo])[todo.id] ?? []).find((a) => a.label === String(label));
@@ -430,8 +430,8 @@ export async function runTodoAlternativeAction(todoId: number, label: string): P
     const { dispatchTodo } = await import("@/lib/work/runner");
     if (alt.also) {
       // On its own: a todo of its own (traceable, under this one), run at once — this one stays as it is.
-      const { addFollowUp } = await import("@/lib/boards/store");
-      const { attributed } = await import("@/lib/boards/activity");
+      const { addFollowUp } = await import("@/lib/todos/store");
+      const { attributed } = await import("@/lib/todos/activity");
       const child = attributed("you", () => addFollowUp({ ticket: todo.ticket, text: alt.title, kind: "update", parentId: todo.id, workRunId: null, source: `Option for ${todo.ref}`, ops: alt.ops }));
       const run = dispatchTodo(child.id);
       revalidateAll();
@@ -461,7 +461,7 @@ export async function startRecapAction(day: string): Promise<ActionState> {
 /** An operation's text (a comment, a reply, a Teams message) changed before it's sent. */
 export async function saveTodoOpTextAction(todoId: number, index: number, text: string): Promise<ActionState> {
   try {
-    const { getTodo, setTodoOps } = await import("@/lib/boards/store");
+    const { getTodo, setTodoOps } = await import("@/lib/todos/store");
     const todo = getTodo(Number(todoId));
     if (!todo || todo.status !== "open") return { ok: false, error: t("That todo isn't open.") };
     const op = todo.ops[Number(index)];
@@ -479,7 +479,7 @@ export async function saveTodoOpTextAction(todoId: number, index: number, text: 
 /** A transfer's fields changed on its card (recipient, account, amount, purpose) — checked like the action itself. */
 export async function saveTransferAction(todoId: number, index: number, fields: { name: string; iban: string; bic: string; amount: string; purpose: string }): Promise<ActionState & { kept?: string }> {
   try {
-    const { getTodo, setTodoOps } = await import("@/lib/boards/store");
+    const { getTodo, setTodoOps } = await import("@/lib/todos/store");
     const todo = getTodo(Number(todoId));
     if (!todo || todo.status !== "open") return { ok: false, error: t("That todo isn't open.") };
     const op = todo.ops[Number(index)];
@@ -500,7 +500,7 @@ export async function saveTransferAction(todoId: number, index: number, fields: 
 /** A ticket followed in the Ticket-Lage besides the boards' filter (1), not any more (-1), or as it comes (0). */
 export async function setTicketFollowAction(key: string, value: 1 | -1 | 0): Promise<ActionState> {
   try {
-    const { setFollowed } = await import("@/lib/boards/followed");
+    const { setFollowed } = await import("@/lib/todos/followed");
     setFollowed(String(key), value === 1 || value === -1 ? value : 0);
     revalidateAll();
     return {
@@ -519,7 +519,7 @@ export async function setTicketFollowAction(key: string, value: 1 | -1 | 0): Pro
  */
 export async function doneBrowserOpAction(todoId: number, index: number): Promise<ActionState> {
   try {
-    const { getTodo, addTodoUserNote, setTodoStatus } = await import("@/lib/boards/store");
+    const { getTodo, addTodoUserNote, setTodoStatus } = await import("@/lib/todos/store");
     const { actionHref } = await import("@/plugins/actions/catalog");
     const { getDb, schema } = await import("@/db");
     const { eq } = await import("drizzle-orm");
@@ -559,7 +559,7 @@ export async function doneBrowserOpAction(todoId: number, index: number): Promis
     // A transfer: paying is the todo (only the todos that ask you to pay get one) — done with it, whatever else is on it.
     const settles = (op.type === "mail-compose" && !left.length && todo.owner === "me" && ["reply", "comment", "clarify", "update"].includes(todo.kind)) || op.type === "bank-transfer" || op.type === "revolut-pay";
     if (settles) {
-      const { attributed } = await import("@/lib/boards/activity");
+      const { attributed } = await import("@/lib/todos/activity");
       attributed("you", () => setTodoStatus(todo.id, "done", `Done: ${what}`));
     }
     revalidateAll();
@@ -588,7 +588,7 @@ export async function suggestTodoActionsAction(todoId: number): Promise<ActionSt
 /** An action taken off a todo, without a trace (not wanted) — the auto-actions don't propose it again till the todo changes. */
 export async function removeTodoOpAction(todoId: number, index: number): Promise<ActionState> {
   try {
-    const { getTodo } = await import("@/lib/boards/store");
+    const { getTodo } = await import("@/lib/todos/store");
     const { getDb, schema } = await import("@/db");
     const { eq } = await import("drizzle-orm");
     const todo = getTodo(Number(todoId));
@@ -624,10 +624,10 @@ export async function saveTodoDisplayFormAction(fd: FormData): Promise<void> {
   revalidateAll();
 }
 
-/** A Lage run taken back: its todos you haven't touched dismissed (lib/boards/run-undo.ts). */
+/** A Lage run taken back: its todos you haven't touched dismissed (lib/runs/run-undo.ts). */
 export async function undoLageRunAction(runId: number): Promise<{ ok: true; dismissed: number; kept: number; claims: number } | { ok: false; error: string }> {
   try {
-    const r = (await import("@/lib/boards/run-undo")).undoLageRun(Number(runId));
+    const r = (await import("@/lib/runs/run-undo")).undoLageRun(Number(runId));
     revalidateAll();
     return { ok: true, ...r };
   } catch (err) {

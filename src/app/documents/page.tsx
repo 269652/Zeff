@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { MailAttachmentsOffer } from "@/components/MailAttachments";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { attachmentOfferOpen, documentOrigins } from "@/lib/mail/attachments-store";
-import { listTodos } from "@/lib/boards/store";
+import { listTodos } from "@/lib/todos/store";
 import { t } from "@/lib/i18n/server";
 import { DocumentsApp } from "@/plugins/documents/DocumentsApp";
 import { pollAbstracts, pullAbstracts, readingStatus, startProcessing } from "@/plugins/documents/process";

@@ -5,7 +5,7 @@
  */
 import { action, EN, str } from "../actions/types";
 
-declare module "@/lib/boards/shared" {
+declare module "@/lib/todos/shared" {
   interface TodoOpMap {
     /** A payment by RevTag: to whom, their tag (without @), the amount in euro ("150.00", empty: you type it), a note. */
     "revolut-pay": { name: string; revtag: string; amount: string; note: string };

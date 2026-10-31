@@ -19,7 +19,7 @@ async function seed() {
   db.insert(schema.jiraComments).values({ id: "pj1", ticket: "PC-1", author: "Julia Freidank", at: ago(5), body: "Abnahme für die Navigation ist durch." } as never).run();
   db.insert(schema.boardRuns).values({ status: "ok", jql: "x", tickets: JSON.stringify([{ key: "PC-1", summary: "Navigation", analyzed: true, people: ["Julia Freidank (julfreid)"] }]), result: "{}" } as never).run();
   db.insert(schema.facts).values({ subject: "Julias Hobby", text: "Julia klettert und fährt gern Rennrad", createdAt: ago(9), updatedAt: ago(9) } as never).run();
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   addFollowUp({ ticket: "PC-1", text: "Mit Julia die Abnahme der Navigation klären", kind: "clarify", parentId: null as unknown as number, workRunId: null, source: "test" });
   return { julia, quiet };
 }

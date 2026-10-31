@@ -7,9 +7,9 @@
  * agents'. Documents you attached by hand stay as they are. Server only.
  */
 import { promptText } from "@/lib/prompts";
-import { plain } from "@/lib/boards/collect";
-import type { TodoView } from "@/lib/boards/shared";
-import { listTodos, setTodoDocRefs } from "@/lib/boards/store";
+import { plain } from "@/lib/runs/collect";
+import type { TodoView } from "@/lib/todos/shared";
+import { listTodos, setTodoDocRefs } from "@/lib/todos/store";
 import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
 import { readableDocuments, type ReadableDoc } from "./store";

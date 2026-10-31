@@ -1,4 +1,4 @@
-import { euroAmounts, refDue, refLabeler, refPayable, rowRefs, settledBy, todoAmount, todoAmounts, todoLinkFinder, todoSettler, type Evidence } from "@/lib/boards/todo-settle";
+import { euroAmounts, refDue, refLabeler, refPayable, rowRefs, settledBy, todoAmount, todoAmounts, todoLinkFinder, todoSettler, type Evidence } from "@/lib/todos/settle";
 import { claimById, claimsOf } from "@/plugins/people/graph";
 import { peoplePaid, promisedAmount } from "@/plugins/people/todo-settle";
 import { isInstalled } from "@/plugins/state";
@@ -11,7 +11,7 @@ import { DEBT } from "./fields";
 import { setDebtMoney } from "./own";
 
 /**
- * What hangs on a proof, for the Finances plugin (lib/boards/todo-settle.ts): the debts of what was found before — the one written down
+ * What hangs on a proof, for the Finances plugin (lib/todos/settle.ts): the debts of what was found before — the one written down
  * from a promise (its claim), a case's row; and, for a booking no todo took (the fallback), a debt of your own to whoever it paid, of
  * its instalment or of what is open — unless a todo or "paid" by hand settled it with that amount in the ten days before (the same
  * payment, already counted). Settled: a debt of your own is down by what it paid (an instalment's due a month on, paid off: nothing

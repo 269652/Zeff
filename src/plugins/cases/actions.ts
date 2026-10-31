@@ -7,7 +7,7 @@ import { ibanValid } from "@/lib/girocode";
 import { action, EN, str } from "../actions/types";
 
 /** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
-declare module "@/lib/boards/shared" {
+declare module "@/lib/todos/shared" {
   interface TodoOpMap {
     /** A transfer: to whom, the account, the amount in euro ("11.52", empty: you type it), the purpose. */
     "bank-transfer": { name: string; iban: string; bic: string; amount: string; purpose: string };

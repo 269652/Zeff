@@ -125,7 +125,7 @@ test("people overview: each card's last contact, circle and what is open; a circ
   assert.equal(o.cards[ids.hans].circleSource, "manual");
   assert.ok(o.cards[ids.hans].owed.some((x) => x.text === "Schickt die Folien" && x.direction === "theirs"));
   await peopleTool({ tool: "todo", id: ids.hans, text: "Folien nachfragen" });
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   assert.ok(listTodos({ status: "open" }).some((x) => x.text === "Folien nachfragen (Hans Kruger)"));
   await peopleTool({ tool: "settings", weeks: 3, myName: "Moritz Roessler" });
   assert.equal((await peopleOverview()).settings.weeks, 3);

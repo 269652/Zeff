@@ -59,7 +59,7 @@ export async function profileTerms(): Promise<ProfileTerm[]> {
     // no facts
   }
   try {
-    input.todos = (await import("@/lib/boards/store")).listTodos({ status: "open" }).map((t) => ({ ref: t.ref, text: t.text }));
+    input.todos = (await import("@/lib/todos/store")).listTodos({ status: "open" }).map((t) => ({ ref: t.ref, text: t.text }));
   } catch {
     // no todos
   }

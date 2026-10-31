@@ -5,7 +5,7 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { addTodoNoteAction, draftReplyAction, instructTodoAction, openReplyTargetAction, paymentForTodoAction, suggestTodoActionsAction } from "@/plugins/todos/server-actions";
 import type { TodoPayment } from "@/lib/girocode-todo";
 import { GiroCode } from "../GiroCode";
-import type { ReplyTarget } from "@/lib/boards/reply-draft";
+import type { ReplyTarget } from "@/lib/todos/reply-draft";
 import { MentionTextarea } from "../MentionTextarea";
 import { TagSuggestions } from "@/plugins/people/TagSuggestions";
 import { NoteIcon, SparkIcon } from "../icons";

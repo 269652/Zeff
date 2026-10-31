@@ -1,9 +1,9 @@
-import type { Issue } from "@/lib/boards/collect";
-import { attentionLabels, isAttention } from "@/lib/boards/shared";
-import { contextByTicket, lageByTicket, type TicketContextItem } from "@/lib/boards/ticket-lage";
-import { ticketChats, type ChatItem } from "@/lib/boards/ticket-chat";
-import type { TicketAction, TicketQuestion } from "@/lib/boards/shared";
-import { listTodos } from "@/lib/boards/store";
+import type { Issue } from "@/lib/runs/collect";
+import { attentionLabels, isAttention } from "@/lib/runs/shared";
+import { contextByTicket, lageByTicket, type TicketContextItem } from "@/lib/runs/ticket-lage";
+import { ticketChats, type ChatItem } from "@/lib/runs/ticket-chat";
+import type { TicketAction, TicketQuestion } from "@/lib/runs/shared";
+import { listTodos } from "@/lib/todos/store";
 import { t } from "@/lib/i18n/server";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
 import { isInstalled } from "@/plugins/state";

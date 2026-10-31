@@ -10,20 +10,21 @@ import "@/plugins/actions/server";
 import { fillPrompt, promptText } from "@/lib/prompts";
 import { createHash } from "node:crypto";
 import { throwIfAborted } from "@/lib/abort";
-import { extraBlock } from "@/lib/boards/context-prefs";
+import { extraBlock } from "@/lib/runs/context-prefs";
 import { and, desc, eq, isNotNull, isNull, or, sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { runAi } from "@/lib/ai";
 import { emitChange } from "@/lib/events";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { withoutAppointments } from "@/lib/boards/recurring";
+import { withoutAppointments } from "@/lib/todos/recurring";
 import { appointmentsAllowed, placeAppointment, PRIVATE_WINDOW } from "./placing";
-import { cleanOps, opsDictionary, sourcesOf, TODO_KIND_LABELS, type TodoOp, type TodoView } from "@/lib/boards/shared";
-import { plain } from "@/lib/boards/collect";
-import { commentTodos, dropObsoleteInstructs, withCommentOps } from "@/lib/boards/comment-ops";
-import { todoSources } from "@/lib/boards/sources";
-import { lastGoodRun, listTodos } from "@/lib/boards/store";
+import { cleanOps, opsDictionary, sourcesOf, TODO_KIND_LABELS, type TodoOp, type TodoView } from "@/lib/todos/shared";
+import { plain } from "@/lib/runs/collect";
+import { commentTodos, dropObsoleteInstructs, withCommentOps } from "@/lib/todos/comment-ops";
+import { todoSources } from "@/lib/todos/sources";
+import { lastGoodRun } from "@/lib/runs/store";
+import { listTodos } from "@/lib/todos/store";
 import { entityHeadline, entitySourceLabel, entityText, entityWhoWhen } from "@/lib/entities-shared";
 import { myJiraName, getJiraTicket } from "@/lib/jira/store";
 import { busyBetween } from "@/lib/calendar/ir";
@@ -302,7 +303,7 @@ export function reviewTodosForActions(opts: { all?: boolean; ids?: number[] } = 
     // What can be done changed (a plugin or an extension came — WhatsApp, Gmail, Keep, a calendar):
     // every open todo without actions is looked at again, once — and those whose actions this review
     // proposed itself (not run yet: what ran is gone from a todo), so they can get the new kind.
-    const { TODO_OP_TYPES } = await import("@/lib/boards/shared");
+    const { TODO_OP_TYPES } = await import("@/lib/todos/shared");
     const { getPref, setPref } = await import("@/lib/prefs");
     // (The prompt's own text counts too: a better prompt looks at every todo without actions again, once.)
     const promptHash = createHash("sha1").update(promptText("auto-actions", INSTRUCTIONS)).digest("hex").slice(0, 8);

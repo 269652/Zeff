@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { omniSearch } from "@/lib/boards/omnibar";
-import type { TodoView } from "@/lib/boards/shared";
+import { omniSearch } from "@/lib/todos/omnibar";
+import type { TodoView } from "@/lib/todos/shared";
 
 const todo = (id: number, over: Partial<TodoView>): TodoView =>
   ({ id, ref: `T-${id}`, ticket: "", alsoTickets: [], text: "", kind: "other", status: "open", refs: [], mailRefs: [], userNotes: [], planned: [], note: null, draft: null, ...over }) as unknown as TodoView;

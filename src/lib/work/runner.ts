@@ -13,12 +13,12 @@ import { aiChoice, defaultModelOf, getAppSettings } from "@/lib/ai";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
 import { COPILOT_MAX_PROMPT, findCopilotCli, runCopilot } from "@/plugins/copilot-cli/cli";
 import { isAiProvider, type AiProvider } from "@/lib/ai/shared";
-import { asksForApproval, opsSettle, todoRef } from "@/lib/boards/shared";
-import type { TodoOp, TodoView } from "@/lib/boards/shared";
+import { asksForApproval, opsSettle, todoRef } from "@/lib/todos/shared";
+import type { TodoOp, TodoView } from "@/lib/todos/shared";
 import { linkBranchContext, linkedBranchesOf } from "./branch-context";
 import { newBranchName } from "./branch-name";
 import { branchNameFor, namingBlock, proposeBranchName } from "./branch-naming";
-import { addFollowUp, addTestedDelivery, addTodoInstruction, getTodo, handOverPlan, setTodoOps } from "@/lib/boards/store";
+import { addFollowUp, addTestedDelivery, addTodoInstruction, getTodo, handOverPlan, setTodoOps } from "@/lib/todos/store";
 import { commentOnMr, openGitlabMr, postGitlabReply } from "@/lib/gitlab/reply";
 import { runTodoOps } from "@/lib/ops";
 import { gitlabItemsByKeys, listGitlabItems } from "@/lib/gitlab/store";
@@ -601,7 +601,7 @@ async function runOps(r: WorkRun, todo: TodoView): Promise<void> {
     const { done, next, delivered } = await runTodoOps(todo, note);
     // Delivered: the one who asked for it gets a reply todo in their chat, the link in its draft.
     if (delivered) {
-      const told = await (await import("@/lib/boards/requester")).tellRequester(todo, delivered).catch(() => null);
+      const told = await (await import("@/lib/todos/requester")).tellRequester(todo, delivered).catch(() => null);
       if (told) note(`[Zeff] ${told.ref}: tell the one who asked — ${told.text}`);
     }
     // What's next (the following delivery step) as a todo of its own.

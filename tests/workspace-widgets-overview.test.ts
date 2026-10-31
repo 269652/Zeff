@@ -17,7 +17,7 @@ async function seed() {
   const { createJob } = await import("@/lib/jobs");
   const { createEntry } = await import("@/lib/entries");
   const { saveGitlabItems } = await import("@/lib/gitlab/store");
-  const store = await import("@/lib/boards/store");
+  const store = await import("@/lib/todos/store");
   const { createRun } = await import("@/lib/work/store");
   createJob({ number: "100500", name: "Dash" });
   const today = new Date().toLocaleDateString("sv-SE");

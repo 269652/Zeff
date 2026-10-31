@@ -1,6 +1,6 @@
 import { isInstalled } from "@/plugins/state";
-import { getTodo } from "@/lib/boards/store";
-import { mergedIntoChain } from "@/lib/boards/merge";
+import { getTodo } from "@/lib/todos/store";
+import { mergedIntoChain } from "@/lib/todos/merge";
 
 /** /t/37: T-37 on the Todos tab — among the open ones, or the done ones when it's settled. */
 export async function GET(request: Request, ctx: { params: Promise<{ id: string }> }) {

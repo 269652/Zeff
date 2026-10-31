@@ -41,7 +41,7 @@ built-in instructions at the base ref and in the working tree.
 
 | Step | What | Instructions | Item | must | negative | open |
 |---|---|---|---|---|---|---|
-| `mail` | Mail-Durchsicht | `src/lib/boards/mail-todos.ts` | a mail | a todo of it you did; every must-do mail (training, signature) | a todo of it you dropped | its todo still open |
+| `mail` | Mail-Durchsicht | `src/lib/todos/mail-todos.ts` | a mail | a todo of it you did; every must-do mail (training, signature) | a todo of it you dropped | its todo still open |
 | `notes` | Notiz-Durchsicht | `src/plugins/keep/note-review.ts` | a note | its todo you did | its todo you dropped | its todo open |
 | `people` | Personen-Extraktion | `src/plugins/people/extract.ts` | person + message (`<personId>@<ref>`) | a claim/link you confirmed | rejected | still proposed |
 | `auto-actions` | Auto-Aktionen | `src/plugins/auto-actions/review.ts` | `todo:<id>` (gets ≥ 1 valid action), `todo:<id>:<type>` | a todo with proposed actions you did; an action you ran (ledger) | an action you took off; all of them: the todo too (ledger) | open todo; each kind of action it has |

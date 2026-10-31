@@ -1,4 +1,4 @@
-import { AGENT_INSTRUCTION_DEFAULTS } from "@/lib/boards/shared";
+import { AGENT_INSTRUCTION_DEFAULTS } from "@/lib/todos/shared";
 import { promptText } from "@/lib/prompts";
 import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";

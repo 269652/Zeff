@@ -22,7 +22,7 @@ test("without an index or an @ the text is one plain piece", () => {
   assert.deepEqual(splitTags("@Julia", null), [{ text: "@Julia" }]);
 });
 
-import { mergeJiraNotes, type TodoSource, type TodoUserNote } from "../src/lib/boards/shared";
+import { mergeJiraNotes, type TodoSource, type TodoUserNote } from "../src/lib/todos/shared";
 
 const jiraComment = (id: string) => ({ source: "jira-comment", comment: { id, ticket: "PROJ-364", author: "Moritz Roessler", at: "2026-10-12T11:53:00Z", body: "x", url: null } }) as unknown as TodoSource;
 

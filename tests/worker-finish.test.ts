@@ -5,12 +5,12 @@ import { setupTempData } from "./helpers";
 setupTempData();
 
 async function mk(ticket: string, text: string, planned?: unknown[]) {
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   return addFollowUp({ ticket, text, kind: "implement", parentId: null as unknown as number, workRunId: null, source: "test", planned: planned as never });
 }
 
 test("a worker only suggests its todo as done (grey tick) — ticking it off is yours", async () => {
-  const { markWorkerDone, getTodo } = await import("@/lib/boards/store");
+  const { markWorkerDone, getTodo } = await import("@/lib/todos/store");
   const t = await mk("WF-1", "Implement it");
   markWorkerDone(t.id, "W-62 · Claude Code", "Die Migration legt keine Datenbank an");
   const v = getTodo(t.id)!;
@@ -20,7 +20,7 @@ test("a worker only suggests its todo as done (grey tick) — ticking it off is 
 });
 
 test("the delivery of a worker's branch is planned behind its todo: test by hand first, then the delivery — both appear only once the todo is ticked off", async () => {
-  const { addTestedDelivery, getTodo, listTodos, setTodoStatus } = await import("@/lib/boards/store");
+  const { addTestedDelivery, getTodo, listTodos, setTodoStatus } = await import("@/lib/todos/store");
   const t = await mk("WF-2", "Migrationslogik umbauen", [{ path: null, steps: [{ text: "Deploy auf Test und prüfen", kind: "other", owner: "me", ops: [] }] }]);
   const ops = [{ type: "git-push", repo: "C:/r", branch: "zeff/w1", remote: "feature/WF-2-umbau", target: "main", title: "t", description: "d" }];
   const r = addTestedDelivery({ from: t, workRunId: null, source: "Follow-up from W-62", branch: "feature/WF-2-umbau", delivery: { text: "Deliver feature/WF-2-umbau: merge request into main", ops: ops as never } });
@@ -43,7 +43,7 @@ test("the delivery of a worker's branch is planned behind its todo: test by hand
 
 test("a worker's feature branch and its merge request join the todo's context, linked — once they're known to Zeff", async () => {
   const { getDb, schema } = await import("@/db");
-  const { addTestedDelivery, getTodo } = await import("@/lib/boards/store");
+  const { addTestedDelivery, getTodo } = await import("@/lib/todos/store");
   const { linkBranchContext } = await import("@/lib/work/branch-context");
   const t = await mk("WF-3", "Source-DB-Name konfigurierbar");
   const ops = [
@@ -74,7 +74,7 @@ test("a worker's branch is shown as context even before GitLab has synced it —
   const { getDb, schema } = await import("@/db");
   const { saveRepo } = await import("@/lib/repos");
   const { createRun } = await import("@/lib/work/store");
-  const { addFollowUp, getTodo } = await import("@/lib/boards/store");
+  const { addFollowUp, getTodo } = await import("@/lib/todos/store");
   const { linkBranchContext } = await import("@/lib/work/branch-context");
   const { saveGitlabItems } = await import("@/lib/gitlab/store");
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-repo-"));
@@ -103,7 +103,7 @@ test("a worker's branch is shown as context even before GitLab has synced it —
 });
 
 test("the briefing run keeps a todo's context — the branch and merge request included — when it rewrites the todo", async () => {
-  const { reconcileTodos, getTodo, addTodoContext } = await import("@/lib/boards/store");
+  const { reconcileTodos, getTodo, addTodoContext } = await import("@/lib/todos/store");
   const t = await mk("WF-5", "Migrationslogik umbauen");
   addTodoContext(t.id, ["teams:19:x|1", "gitlab:branch:grp/proj:feature/WF-5-x", "gitlab:mr:grp/proj!9"], "", "Zeff");
   reconcileTodos({ tickets: [{ key: "WF-5", resolved: [], todos: [{ id: t.id, text: "Migrationslogik fertigstellen", kind: "implement", owner: "me", refs: ["teams:19:x|2"] }] }] } as never, 1);

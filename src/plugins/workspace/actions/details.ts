@@ -64,16 +64,16 @@ export async function pressButtonAction(rowId: number, propId: string) {
 }
 
 /**
- * What hangs together with a row or a todo (lib/boards/todo-settle.ts): the things it stands for — what settled them, what "paid"
+ * What hangs together with a row or a todo (lib/todos/settle.ts): the things it stands for — what settled them, what "paid"
  * pays — and the open todos that would settle them.
  */
 export async function linksAction(target: { rowId: number } | { todoId: number }) {
   return run(async () => {
-    const s = await import("@/lib/boards/todo-settle");
+    const s = await import("@/lib/todos/settle");
     if ("todoId" in target) return s.linksOf({ todoId: Number(target.todoId) });
     const refs = s.refsOfRow(Number(target.rowId));
     if (!refs.length) return { things: [], todos: [] };
-    const { listTodos } = await import("@/lib/boards/store");
+    const { listTodos } = await import("@/lib/todos/store");
     return s.linksOf({ refs }, { openTodos: listTodos({ status: "open" }) });
   });
 }
@@ -81,7 +81,7 @@ export async function linksAction(target: { rowId: number } | { todoId: number }
 /** "Paid" said by hand on a thing (a debt, a case): settled as a proof of its own. Its key, to take it back. */
 export async function markPaidAction(ref: string, amount: number | null) {
   return run(async () => {
-    const s = await import("@/lib/boards/todo-settle");
+    const s = await import("@/lib/todos/settle");
     const n = amount != null && Number.isFinite(Number(amount)) && Number(amount) > 0 ? Math.round(Number(amount) * 100) / 100 : null;
     const r = s.settleByHand(String(ref), n, t("by hand"));
     if (!r.settled.length) throw new Error(t("Nothing to pay there."));
@@ -93,7 +93,7 @@ export async function markPaidAction(ref: string, amount: number | null) {
 export async function undoPaidAction(key: string) {
   return run(async () => {
     if (!String(key).startsWith("hand:")) throw new Error(t("Nothing to undo."));
-    return { back: (await import("@/lib/boards/todo-settle")).unsettle(String(key), t("by hand")) };
+    return { back: (await import("@/lib/todos/settle")).unsettle(String(key), t("by hand")) };
   });
 }
 
@@ -102,10 +102,10 @@ export async function tryRulesAction(dbId: number) {
   return run(async () => (await import("../rules")).tryRulesDatabase(Number(dbId)));
 }
 
-/** A payment released from a thing (a wrong match — lib/boards/todo-settle.ts releasePayment): its figures back. */
+/** A payment released from a thing (a wrong match — lib/todos/settle.ts releasePayment): its figures back. */
 export async function releasePaymentAction(paymentId: number, ref: string) {
   return run(async () => {
-    (await import("@/lib/boards/todo-settle")).releasePayment(Number(paymentId), String(ref));
+    (await import("@/lib/todos/settle")).releasePayment(Number(paymentId), String(ref));
     return {};
   });
 }

@@ -57,7 +57,7 @@ const nextQuarter = (now: Date) => stampOf(new Date(Math.ceil(now.getTime() / 9e
 /** Today's plan, proposed by the AI (rejects without the LLM plugin or with nothing to plan). */
 export async function planDay(now: Date = new Date()): Promise<DayPlan> {
   const day = dayOf(now);
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const todos = listTodos({ status: "open" }).filter((x) => x.owner === "me" && !x.byWorker && ((x.due && x.due.slice(0, 10) <= day) || x.flaggedAt));
   const { t } = await import("@/lib/i18n/server");
   if (!todos.length) throw new Error(t("Nothing due today to plan."));

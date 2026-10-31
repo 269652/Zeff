@@ -1,5 +1,5 @@
 import { t } from "@/lib/i18n/server";
-import { getBoardSettings, updateBoardSettings } from "@/lib/boards/store";
+import { getBoardSettings, updateBoardSettings } from "@/lib/runs/store";
 import type { PluginSyncSettings } from "../sync-settings";
 
 /** Todos' part of the Sync settings: the Ticket-Lage run (the Auswertung) and the morning's Recap. */

@@ -1,7 +1,7 @@
 import { eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import type { TodoOp, TodoView } from "@/lib/boards/shared";
-import { getTodo, recordBranch } from "@/lib/boards/store";
+import type { TodoOp, TodoView } from "@/lib/todos/shared";
+import { getTodo, recordBranch } from "@/lib/todos/store";
 import { listRepos } from "@/lib/repos";
 import { repoWebUrl } from "./remote";
 

@@ -19,7 +19,7 @@ test("reviewDatabase: the AI properties of the changed rows, choices kept to, un
   const w = await import("@/plugins/workspace/store");
   const m = await import("@/plugins/workspace/model");
   const { reviewDatabase, reviewDatabases } = await import("@/plugins/workspace/review");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
 
   const attention: import("@/plugins/workspace/model").Property = { id: "att", name: "Attention", type: "ai", aiPrompt: "How it stands.", aiChoices: ["blocked", "active", "ready"] };
   const lead: import("@/plugins/workspace/model").Property = { id: "lead", name: "Lead", type: "ai", aiPrompt: "One sentence: what's next." };

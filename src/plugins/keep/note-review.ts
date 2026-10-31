@@ -1,11 +1,12 @@
 import { memoAll, memoMigrate, memoSetMany } from "@/lib/ai/memo";
 import { promptText } from "@/lib/prompts";
 import { runAi } from "@/lib/ai";
-import { attributed } from "@/lib/boards/activity";
-import { plain } from "@/lib/boards/collect";
-import { isTodoKind, TODO_KINDS } from "@/lib/boards/shared";
-import { duplicateTodo } from "@/lib/boards/similar";
-import { addNoteTodo, droppedByYou, lastGoodRun, listTodos } from "@/lib/boards/store";
+import { attributed } from "@/lib/todos/activity";
+import { plain } from "@/lib/runs/collect";
+import { isTodoKind, TODO_KINDS } from "@/lib/todos/shared";
+import { duplicateTodo } from "@/lib/todos/similar";
+import { addNoteTodo, droppedByYou, listTodos } from "@/lib/todos/store";
+import { lastGoodRun } from "@/lib/runs/store";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { emitChange } from "@/lib/events";

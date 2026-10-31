@@ -1,8 +1,8 @@
 import { workingTodoIds } from "@/lib/work/live-driver";
 import { healthLabel, type HealthState } from "@/lib/sync/source-health-shared";
 import { isInstalled, stepAvailable } from "@/plugins/state";
-import { getContextPrefs } from "@/lib/boards/context-prefs";
-import { PRESYNC_ORDER } from "@/lib/boards/context-prefs-shared";
+import { getContextPrefs } from "@/lib/runs/context-prefs";
+import { PRESYNC_ORDER } from "@/lib/runs/context-prefs-shared";
 /**
  * The Ticket-Lage's pages, shared: the Todos tab (Todos plugin — your todos, and the recap) and
  * the Tickets tab (Tickets plugin — each ticket with its Lage). One base, two plugins: either tab
@@ -17,19 +17,20 @@ import { BoardRunControls } from "@/components/boards/BoardRunControls";
 import { RecapControls } from "@/components/boards/RecapControls";
 import { RecapDayPicker } from "@/components/boards/RecapDayPicker";
 import { RecapView } from "@/components/boards/RecapView";
-import { recapEntities, recapsOf, recapState } from "@/lib/boards/recap";
-import { previousWorkday, shiftWorkday, todayIso } from "@/lib/boards/recap-shared";
+import { recapEntities, recapsOf, recapState } from "@/lib/runs/recap";
+import { previousWorkday, shiftWorkday, todayIso } from "@/lib/runs/recap-shared";
 import { BoardView } from "@/components/boards/BoardView";
 import { aiChoice } from "@/lib/ai";
 import { AI_PROVIDER_INFO } from "@/lib/ai/shared";
-import { boardRunState } from "@/lib/boards/run";
-import { actionsDone } from "@/lib/boards/actions";
-import { todoSources } from "@/lib/boards/sources";
+import { boardRunState } from "@/lib/runs/run";
+import { actionsDone } from "@/lib/runs/actions";
+import { todoSources } from "@/lib/todos/sources";
 
 import { WorkFollow } from "@/components/work/WorkFollow";
-import { withAlternatives } from "@/lib/boards/alternatives";
-import { activityNewsIds, todoActivity } from "@/lib/boards/activity";
-import { boardTodos, doneTodos, doneTodoTickets, lastGoodRun, latestRun, workerTodos } from "@/lib/boards/store";
+import { withAlternatives } from "@/lib/todos/alternatives";
+import { activityNewsIds, todoActivity } from "@/lib/todos/activity";
+import { boardTodos, doneTodos, doneTodoTickets, workerTodos } from "@/lib/todos/store";
+import { lastGoodRun, latestRun } from "@/lib/runs/store";
 import { gitlabCommentsByTicket } from "@/lib/gitlab/store";
 import { mailsForTickets } from "@/lib/mail/store";
 import { getTicketCards } from "@/lib/jira/store";

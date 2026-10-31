@@ -41,7 +41,7 @@ test("payments: the todos that are payments get a transfer of their own (no AI) 
   const other = add("Bei der Bank 20 € Gebühr nachfragen");
   const { attachPayments } = await import("@/plugins/cases/payments");
   assert.equal(attachPayments(), 1);
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   const ops = getTodo(pay.id)!.ops;
   assert.deepEqual(ops.map((o) => o.type), ["calendar-entry", "bank-transfer"], "added, the others kept");
   const transfer = ops[1] as { name: string; iban: string; amount: string; purpose: string };
@@ -73,7 +73,7 @@ test("transfer card: its fields saved on the todo — checked like the action (a
   const op = { type: "bank-transfer", name: "Nathanael Dienstkonto", iban: IBAN, bic: "GENODE61BBB", amount: "11.52", purpose: "DR II 810/26" };
   const row = getDb().insert(schema.todos).values({ ticket: "", text: "Rest 11,52 € überweisen", kind: "other", owner: "me", status: "open", source: "Mail", refs: "[]", ops: JSON.stringify([op]), createdAt: now, updatedAt: now } as never).returning().get() as { id: number };
   const { saveTransferAction, doneBrowserOpAction } = await import("@/plugins/todos/server-actions");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   const ok = await saveTransferAction(row.id, 0, { name: "Nathanael Dienstkonto", iban: IBAN, bic: "GENODE61BBB", amount: "20,00", purpose: "DR II 810/26 Rest" });
   assert.equal(ok?.ok, true);
   assert.deepEqual(getTodo(row.id)!.ops[0], { ...op, amount: "20.00", purpose: "DR II 810/26 Rest" });
@@ -94,7 +94,7 @@ test("payments: a transfer added beside proposed actions leaves them proposed (f
   const row = getDb().insert(schema.todos).values({ ticket: "", text: "Erste Rate 300 € (Az. DR II 1121/26) überweisen", kind: "other", owner: "me", status: "open", source: "Mail", refs: "[]", ops: JSON.stringify([{ type: "calendar-entry", calendar: "", title: "Rate", start: "2026-11-15T09:00", minutes: 15, body: "" }]), autoOpsWhy: "Die Rate ist fällig.", createdAt: now, updatedAt: now } as never).returning().get() as { id: number };
   const { attachPayments } = await import("@/plugins/cases/payments");
   attachPayments();
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   const todo = getTodo(row.id)!;
   assert.equal(todo.ops.at(-1)?.type, "bank-transfer");
   assert.equal(todo.autoOpsWhy, "Die Rate ist fällig.");

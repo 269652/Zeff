@@ -323,7 +323,7 @@ export async function snapshotMetrics(now = new Date()): Promise<{ taken: number
     const side = beyond(m.value, m.alert);
     if (side && alerted[m.key] !== side) {
       const limit = side === "below" ? m.alert!.below! : m.alert!.above!;
-      const { addAgentTodo } = await import("@/lib/boards/store");
+      const { addAgentTodo } = await import("@/lib/todos/store");
       addAgentTodo({ ticket: "", text: t("Metric {name} is {side} {limit}{unit}: {value}{unit} — look into it", { name: m.label, side: side === "below" ? t("below") : t("above"), limit: String(limit), value: String(m.value), unit: m.unit ? ` ${m.unit}` : "" }) });
       alerts.push(m.key);
     }

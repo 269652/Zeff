@@ -5,12 +5,12 @@ import { setupTempData } from "./helpers";
 setupTempData();
 
 async function todo(ticket: string, text: string) {
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   return addFollowUp({ ticket, text, kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
 }
 
 test("the AI only suggests a todo as done: it stays open, marked as a suggestion, until you confirm", async () => {
-  const { suggestDone, getTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const { suggestDone, getTodo, setTodoStatus } = await import("@/lib/todos/store");
   const t = await todo("SD-1", "Answer Lisa");
   suggestDone(t.id, "Mail-Durchsicht", "Lisa hat geantwortet");
   const s = getTodo(t.id)!;
@@ -23,7 +23,7 @@ test("the AI only suggests a todo as done: it stays open, marked as a suggestion
 });
 
 test("the briefing run's 'resolved: done' is a suggestion; 'resolved: outdated' still drops the todo", async () => {
-  const { reconcileTodos, getTodo } = await import("@/lib/boards/store");
+  const { reconcileTodos, getTodo } = await import("@/lib/todos/store");
   const a = await todo("SD-2", "Probably done");
   const b = await todo("SD-2", "Outdated");
   reconcileTodos({ tickets: [{ key: "SD-2", resolved: [{ id: a.id, done: true, why: "merged" }, { id: b.id, done: false, why: "obsolete" }], todos: [] }] } as never, 1);

@@ -81,14 +81,14 @@ test("Google Calendar lines", async () => {
 test("calendar todos: today's and tomorrow's appointments, once", async () => {
   const ir = await import("@/lib/calendar/ir");
   const { calendarTodos } = await import("@/lib/calendar/todos");
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const own = ir.createCalendar("Haushalt");
   assert.equal(own.todos, true);
   ir.addEvent(own.id, { title: "Kleider waschen", start: "2026-11-02T12:45", end: "2026-11-02T14:00" });
   ir.addEvent(own.id, { title: "Müll rausbringen", start: "2026-11-03", end: "2026-11-04", allDay: true });
   ir.addEvent(own.id, { title: "Später", start: "2026-11-04T10:00", end: "2026-11-04T11:00" });
   // One made for a todo (a proposal accepted): that todo gets the day, no second todo.
-  const { addManualTodo, getTodo } = await import("@/lib/boards/store");
+  const { addManualTodo, getTodo } = await import("@/lib/todos/store");
   const asked = addManualTodo({ ticket: "", text: "Geschenk besorgen" });
   ir.addEvent(own.id, { title: "Geschenk besorgen", start: "2026-11-02T18:00", end: "2026-11-02T19:00", todoId: asked.id });
   const g = ir.ensureCalendar("google:todo-test@example.com", { source: "google", name: "Google" });

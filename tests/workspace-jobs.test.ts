@@ -122,7 +122,7 @@ test("with the real worker system: a queued run with the job's text, a todo for 
   const { updateAppSettings } = await import("@/lib/ai");
   updateAppSettings({ aiProvider: "claude" });
   const { createRun, updateRun, getRun, getWorkSettings } = await import("@/lib/work/store");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   const w = await import("@/plugins/workspace/store");
   const { createJobsDatabase, addJob, dispatchJob, settleJobs, stateOf, JOB } = await import("@/plugins/workspace/jobs");
   // The workers are all busy: the queue starts nothing (no process, no cost).
@@ -331,7 +331,7 @@ test("what a worker is told: the feature branch's name, to commit but not push, 
 test("what a job's card shows: the question it waits on, and the delivery proposed under it with its actions", async () => {
   const w = await import("@/plugins/workspace/store");
   const { addJob, setState, jobPanels, JOB } = await import("@/plugins/workspace/jobs");
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   const jobs = await autoJobs();
   const asking = addJob(jobs, { title: "Fragt", instruction: "a" });
   const done = addJob(jobs, { title: "Fertig mit Code", instruction: "b" });
@@ -375,7 +375,7 @@ test("links on a job's card: the branch (a link once it is pushed) and the merge
 test("the card follows the branch: when the named delivery is closed, the open todo that now carries its actions is shown (the merge request after the push)", async () => {
   const w = await import("@/plugins/workspace/store");
   const { addJob, setState, jobPanels, JOB } = await import("@/plugins/workspace/jobs");
-  const store = await import("@/lib/boards/store");
+  const store = await import("@/lib/todos/store");
   const { createRun } = await import("@/lib/work/store");
   const jobs = await autoJobs();
   const id = addJob(jobs, { title: "Folgt dem Branch", instruction: "x" });
@@ -444,7 +444,7 @@ test("links: the ticket's open merge request is shown when the worker's own bran
 test("a delivery whose merge request is open already becomes a merge: 'open merge request' is replaced by 'merge !n'", async () => {
   const w = await import("@/plugins/workspace/store");
   const { addJob, setState, upgradeDeliveries, jobPanels, JOB } = await import("@/plugins/workspace/jobs");
-  const store = await import("@/lib/boards/store");
+  const store = await import("@/lib/todos/store");
   const { createRun } = await import("@/lib/work/store");
   const { recordOpenedMr } = await import("@/lib/gitlab/store");
   const jobs = await autoJobs();

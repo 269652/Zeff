@@ -6,8 +6,8 @@ setupTempData();
 
 /** What became of each step's todos: done, dropped by you (against the step), taken back by the AI (not against it). */
 test("each step's todos are counted by what became of them", async () => {
-  const { attributed } = await import("@/lib/boards/activity");
-  const { addMailTodo, addNoteTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const { attributed } = await import("@/lib/todos/activity");
+  const { addMailTodo, addNoteTodo, setTodoStatus } = await import("@/lib/todos/store");
   const { aiQuality } = await import("@/lib/ai-quality");
   const mail = (text: string) => attributed("lage:1", () => addMailTodo({ ticket: "", text, kind: "other", refs: ["mail:a"], runId: 1 }));
 
@@ -38,9 +38,9 @@ test("each step's todos are counted by what became of them", async () => {
 
 /** A todo you dropped isn't one the reviews make again; one made anyway shows as proposed again. */
 test("what you dropped counts as there for the reviews, and a repeat is shown", async () => {
-  const { attributed } = await import("@/lib/boards/activity");
-  const { addMailTodo, droppedByYou, setTodoStatus } = await import("@/lib/boards/store");
-  const { duplicateTodo } = await import("@/lib/boards/similar");
+  const { attributed } = await import("@/lib/todos/activity");
+  const { addMailTodo, droppedByYou, setTodoStatus } = await import("@/lib/todos/store");
+  const { duplicateTodo } = await import("@/lib/todos/similar");
   const { aiQuality } = await import("@/lib/ai-quality");
   const mail = (text: string) => attributed("lage:3", () => addMailTodo({ ticket: "", text, kind: "other", refs: ["mail:b"], runId: 3 }));
 

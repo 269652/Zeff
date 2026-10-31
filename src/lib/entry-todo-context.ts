@@ -1,9 +1,10 @@
 import { eq, inArray } from "drizzle-orm";
 import { getDb, getSqlite, schema } from "@/db";
-import { sourcesOf, sourceKey, type TodoSource, type TodoUserNote } from "@/lib/boards/shared";
-import { todoSources } from "@/lib/boards/sources";
-import { lastGoodRun, todosByIds } from "@/lib/boards/store";
-import type { TodoView } from "@/lib/boards/shared";
+import { sourcesOf, sourceKey, type TodoSource, type TodoUserNote } from "@/lib/todos/shared";
+import { todoSources } from "@/lib/todos/sources";
+import { lastGoodRun } from "@/lib/runs/store";
+import { todosByIds } from "@/lib/todos/store";
+import type { TodoView } from "@/lib/todos/shared";
 
 const { todos, workRuns, entrySuggestions, entryContexts, contexts, timeEntries } = schema;
 

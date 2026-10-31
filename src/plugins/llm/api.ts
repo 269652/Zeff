@@ -1,5 +1,5 @@
-import { getContextPrefs, setStepPrefs } from "@/lib/boards/context-prefs";
-import { CONTEXT_STEP_IDS, contextSteps, type ContextStepId } from "@/lib/boards/context-prefs-shared";
+import { getContextPrefs, setStepPrefs } from "@/lib/runs/context-prefs";
+import { CONTEXT_STEP_IDS, contextSteps, type ContextStepId } from "@/lib/runs/context-prefs-shared";
 import { t } from "@/lib/i18n/server";
 import { ApiError, str, type ApiContribution, type Params } from "@/lib/plugins/api-kit";
 

@@ -7,7 +7,7 @@
  * prompt builder, the AI, the safety net that makes a todo of a must-do mail the AI skipped. Item: the mail's key.
  */
 import { getSqlite } from "@/db";
-import type { TodoView } from "@/lib/boards/shared";
+import type { TodoView } from "@/lib/todos/shared";
 import type { EvalAdapter, EvalCase, Label } from "../harness";
 import { mergeLabel } from "../golden";
 
@@ -23,11 +23,12 @@ export const mailAdapter: EvalAdapter<MailInput> = {
   step: "mail",
   title: "Mail-Durchsicht",
   task: "mail-todos",
-  prompt: { file: "src/lib/boards/mail-todos.ts" },
+  prompt: { file: "src/lib/todos/mail-todos.ts" },
   costUsd: 1,
   async build() {
-    const { lastGoodRun, listTodos } = await import("@/lib/boards/store");
-    const { mustDo, notForReview } = await import("@/lib/boards/mail-todos");
+    const { lastGoodRun } = await import("@/lib/runs/store");
+    const { listTodos } = await import("@/lib/todos/store");
+    const { mustDo, notForReview } = await import("@/lib/todos/mail-todos");
     const { isInstalled } = await import("@/plugins/state");
     const db = getSqlite();
     const rows = db
@@ -62,7 +63,7 @@ export const mailAdapter: EvalAdapter<MailInput> = {
     return [c];
   },
   async run(c, instructions, ask) {
-    const { mailReviewPrompt, mustDoLeftOut, MAIL_REVIEW_SCHEMA } = await import("@/lib/boards/mail-todos");
+    const { mailReviewPrompt, mustDoLeftOut, MAIL_REVIEW_SCHEMA } = await import("@/lib/todos/mail-todos");
     const { mails, tickets } = c.input;
     const open = c.input.open.map((t) => ({ userNotes: [], ...t }) as unknown as TodoView);
     const answer = (await ask(mailReviewPrompt({ instructions, tickets, open, verdicts: { dropped: [], done: [] }, mails }), MAIL_REVIEW_SCHEMA, { task: "mail-todos", step: "mail" })) as {

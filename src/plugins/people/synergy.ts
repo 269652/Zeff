@@ -7,7 +7,7 @@
  * stays, unless the fact is deleted). Server only.
  */
 import { getDb, schema } from "@/db";
-import { similarText, wordOverlap } from "@/lib/boards/similar";
+import { similarText, wordOverlap } from "@/lib/todos/similar";
 import { claimsFrom, claimsOf, addClaim, deleteClaim, setClaimText, type Claim } from "./graph";
 import { claimReviewed, flushSoon } from "./knowledge-sync";
 import { buildPeopleIndex, mentionMatcher, splitMentions } from "./mentions";

@@ -45,7 +45,7 @@ export const TODOS_WIDGETS: WorkspaceWidget[] = [
     },
     ttl: 20,
     data: async (config) => {
-      const { listTodos } = await import("@/lib/boards/store");
+      const { listTodos } = await import("@/lib/todos/store");
       const q = String(config.q ?? "").trim().toLowerCase();
       const ticket = String(config.ticket ?? "").trim().toUpperCase();
       const status = config.status === "done" || config.status === "all" ? config.status : "open";
@@ -69,7 +69,7 @@ export const TODOS_WIDGETS: WorkspaceWidget[] = [
     act: async (action, payload) => {
       // Ticked: done; ticked again: open.
       if (action !== "toggle") throw new Error("unknown action");
-      const { getTodo, setTodoStatus } = await import("@/lib/boards/store");
+      const { getTodo, setTodoStatus } = await import("@/lib/todos/store");
       const todo = getTodo(Number(payload.id));
       if (!todo) throw new Error(t("This todo is gone."));
       setTodoStatus(todo.id, todo.status === "open" ? "done" : "open");

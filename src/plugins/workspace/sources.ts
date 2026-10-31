@@ -1,7 +1,7 @@
 import "@/plugins/contributions";
 import { getSqlite } from "@/db";
 import { workspaceSources } from "./source-point";
-import { listTodos } from "@/lib/boards/store";
+import { listTodos } from "@/lib/todos/store";
 import { listJiraBoards } from "@/lib/jira/store";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { briefingDatabase, jiraBoardDatabase } from "@/plugins/jira-lage/to-workspace";

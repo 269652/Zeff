@@ -79,7 +79,7 @@ test("today's page: made once under Daily notes, with the todos that are due as 
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("workspace", true);
   setInstalled("todos", true);
-  const { addManualTodo, listTodos } = await import("@/lib/boards/store");
+  const { addManualTodo, listTodos } = await import("@/lib/todos/store");
   const { getDb, schema } = await import("@/db");
   const todo = addManualTodo({ ticket: "", text: "Call the printer" });
   getDb().update(schema.todos).set({ due: "2020-01-01" } as never).run();

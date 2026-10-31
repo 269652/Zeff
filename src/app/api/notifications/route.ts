@@ -15,7 +15,7 @@ export async function GET() {
   for (const a of await listAttention()) items.push({ id: a.key, title: a.title, body: a.body.slice(0, 200), href: a.href ?? (a.kind === "login" ? "/settings/connections#sign-ins" : "/heute"), at: a.at });
   const { isInstalled } = await import("@/plugins/state");
   if (isInstalled("todos")) {
-    const { listTodos } = await import("@/lib/boards/store");
+    const { listTodos } = await import("@/lib/todos/store");
     const now = new Date();
     const today = isoDay(now);
     for (const todo of listTodos({ status: "open" }))

@@ -7,8 +7,8 @@ import { setupTempData } from "./helpers";
 setupTempData();
 
 test("a kind you mostly dropped (enough decided): in the prompt with its examples — one you mostly ticked off, or a rule's decisions, not", async () => {
-  const store = await import("@/lib/boards/store");
-  const { attributed } = await import("@/lib/boards/activity");
+  const store = await import("@/lib/todos/store");
+  const { attributed } = await import("@/lib/todos/activity");
   const { lageLearnedBlock, lageVerdicts } = await import("@/lib/learning/lage-learned");
   const { getDb, schema } = await import("@/db");
   const { eq } = await import("drizzle-orm");

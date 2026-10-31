@@ -1,7 +1,7 @@
 import { getDb, getSqlite, schema } from "@/db";
 import { eq } from "drizzle-orm";
-import { addManualTodo, getTodo, setTodoDue } from "@/lib/boards/store";
-import { euroAmounts, linkedRefs } from "@/lib/boards/todo-settle";
+import { addManualTodo, getTodo, setTodoDue } from "@/lib/todos/store";
+import { euroAmounts, linkedRefs } from "@/lib/todos/settle";
 import { isInstalled } from "@/plugins/state";
 import { openCommitments, type Claim } from "./graph";
 

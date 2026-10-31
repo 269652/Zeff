@@ -35,7 +35,7 @@ test("normalizeResult: nothing is dropped silently - what is changed or ignored 
 });
 
 test("applyOutcome: the top-level ops end up as a worker todo that carries the jira-create, and the todo says what was off", async () => {
-  const { addFollowUp, getTodo, listTodos } = await import("@/lib/boards/store");
+  const { addFollowUp, getTodo, listTodos } = await import("@/lib/todos/store");
   const { applyOutcome, normalizeResult } = await import("@/lib/work/outcome");
   const { createRun, getRun } = await import("@/lib/work/store");
   const own = addFollowUp({ ticket: "PROJ-321", text: "Ticket-Entwurf", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });

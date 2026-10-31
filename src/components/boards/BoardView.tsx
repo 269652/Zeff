@@ -1,6 +1,6 @@
 "use client";
 
-import { groupTodos, type TodoGroup } from "@/lib/boards/todo-groups";
+import { groupTodos, type TodoGroup } from "@/lib/todos/groups";
 import { confirmAction } from "@/components/confirm";
 import type { MailView } from "@/lib/mail/shared";
 import { HoverCard } from "../HoverCard";
@@ -10,17 +10,9 @@ import { useEffect, useState, useTransition } from "react";
 import { createPortal } from "react-dom";
 import { runTicketActionAction } from "@/plugins/todos/server-actions";
 import { setJiraCommentResolvedAction } from "@/plugins/jira/server-actions";
-import type { ActionDone } from "@/lib/boards/actions";
-import {
-  attentionLabels,
-  ATTENTIONS,
-  type Attention,
-  type BoardRunView,
-  type BoardTicket,
-  type TicketAction,
-  type TodoSource,
-  type TodoView,
-} from "@/lib/boards/shared";
+import type { ActionDone } from "@/lib/runs/actions";
+import { attentionLabels, ATTENTIONS, type Attention, type BoardRunView, type BoardTicket, type TicketAction } from "@/lib/runs/shared";
+import { type TodoSource, type TodoView } from "@/lib/todos/shared";
 import { gitlabDone, type GitlabItemView } from "@/lib/gitlab/shared";
 import type { TicketCard } from "@/lib/jira/ticket-card-shared";
 import { GitlabResolve } from "../GitlabItemBadge";
@@ -28,7 +20,7 @@ import { ResolveToggle } from "../ResolveToggle";
 import { toast } from "../Toaster";
 import { TicketLink } from "../TicketLink";
 import { PersistedDetails } from "../PersistedDetails";
-import type { TodoEventView } from "@/lib/boards/activity-shared";
+import type { TodoEventView } from "@/lib/todos/activity-shared";
 import { ActivityList } from "./ActivityList";
 import { TicketQuestions } from "./TicketQuestions";
 import { LinkPending } from "../LinkPending";

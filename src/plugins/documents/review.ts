@@ -8,11 +8,12 @@
 import { memoAll, memoMigrate, memoSetMany } from "@/lib/ai/memo";
 import { promptText } from "@/lib/prompts";
 import { runAi } from "@/lib/ai";
-import { attributed } from "@/lib/boards/activity";
-import { plain } from "@/lib/boards/collect";
-import { isTodoKind, TODO_KINDS } from "@/lib/boards/shared";
-import { duplicateTodo } from "@/lib/boards/similar";
-import { addDocTodo, droppedByYou, lastGoodRun, listTodos } from "@/lib/boards/store";
+import { attributed } from "@/lib/todos/activity";
+import { plain } from "@/lib/runs/collect";
+import { isTodoKind, TODO_KINDS } from "@/lib/todos/shared";
+import { duplicateTodo } from "@/lib/todos/similar";
+import { addDocTodo, droppedByYou, listTodos } from "@/lib/todos/store";
+import { lastGoodRun } from "@/lib/runs/store";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
@@ -146,7 +147,7 @@ export function reviewDocumentsForTodos(runId: number | null = null): Promise<Do
           addDocTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId, due: td.due ?? null }),
         );
         // A todo that comes back (a rate every month): its rule is kept on it — the calendar shows the series, done it comes again.
-        if (td.repeat && ["daily", "weekly", "monthly", "yearly"].includes(td.repeat) && made.outcome !== "known") (await import("@/lib/boards/recurring")).setRecurrence(made.id, { freq: td.repeat as "monthly", interval: 1, ...(/^\d{4}-\d{2}-\d{2}$/.test(td.repeatUntil ?? "") ? { until: td.repeatUntil } : {}), ...(/^\d{4}-\d{2}-\d{2}$/.test(td.repeatFrom ?? "") ? { start: td.repeatFrom } : {}) });
+        if (td.repeat && ["daily", "weekly", "monthly", "yearly"].includes(td.repeat) && made.outcome !== "known") (await import("@/lib/todos/recurring")).setRecurrence(made.id, { freq: td.repeat as "monthly", interval: 1, ...(/^\d{4}-\d{2}-\d{2}$/.test(td.repeatUntil ?? "") ? { until: td.repeatUntil } : {}), ...(/^\d{4}-\d{2}-\d{2}$/.test(td.repeatFrom ?? "") ? { start: td.repeatFrom } : {}) });
         if (made.outcome === "merged") merged++;
         else if (!made.outcome) {
           open.push(made);

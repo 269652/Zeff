@@ -1,8 +1,9 @@
 import { mailKeyOfLink } from "./mail/shared";
 import { mailsByKeys } from "./mail/store";
-import { todoSources } from "./boards/sources";
-import { lastGoodRun, todosByIds } from "./boards/store";
-import { sourcesOf } from "./boards/shared";
+import { todoSources } from "./todos/sources";
+import { lastGoodRun } from "./runs/store";
+import { todosByIds } from "./todos/store";
+import { sourcesOf } from "./todos/shared";
 import { jiraLinkOf, timeIdOfLink, todoIdOfLink, workIdOfLink, type EntityMap, type TimeBrief, type WorkRunBrief } from "./entities-shared";
 import { inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";

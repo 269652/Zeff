@@ -5,7 +5,7 @@ import { t } from "@/lib/i18n/server";
 import Link from "next/link";
 import { getPref } from "@/lib/prefs";
 import { connection } from "next/server";
-import { dueText } from "@/lib/boards/due-shared";
+import { dueText } from "@/lib/todos/due-shared";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { formatHours, formatLongDay, roundQuarter } from "@/lib/format";
 import { dayFrame, dayProgress, freeWindows, phaseOf, workSpan, type DayPhase } from "@/lib/heute-day";
@@ -15,7 +15,7 @@ import { TodayTodo } from "./TodayTodo";
 import { dayOf } from "@/lib/calendar/ir-shared";
 import type { TodayAppointment } from "@/lib/heute-today";
 import { MeetingSoon } from "@/plugins/know/ui/MeetingSoon";
-import type { TodoView } from "@/lib/boards/shared";
+import type { TodoView } from "@/lib/todos/shared";
 import { promiseKeptFormAction, remindedFormAction } from "@/plugins/people/server-actions";
 import { LOOP_VIEWS, type LoopView } from "@/plugins/loops/shared";
 import { LoopsList } from "@/plugins/loops/ui/LoopsList";
@@ -40,7 +40,8 @@ const ago = (iso: string, now: number) => {
 /** Everything the page shows, gathered (outside the render: the clock is read here). */
 async function heuteData() {
   const now = Date.now();
-  const { listTodos, latestRun } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
+  const { latestRun } = await import("@/lib/runs/store");
   const run = latestRun();
   const open = listTodos({ status: "open" });
   const mine = open.filter((x) => x.owner === "me" && !x.byWorker);

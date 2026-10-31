@@ -1,4 +1,4 @@
-import type { TodoView } from "@/lib/boards/shared";
+import type { TodoView } from "@/lib/todos/shared";
 
 /**
  * The pattern for a new branch: the Jira ticket key, then a few words the AGENT picks for the code

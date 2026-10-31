@@ -5,7 +5,7 @@
  */
 import { eq } from "drizzle-orm";
 import { getDb, getSqlite, schema } from "@/db";
-import type { TodoOp, TodoView } from "@/lib/boards/shared";
+import type { TodoOp, TodoView } from "@/lib/todos/shared";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
 import { actionOf } from "./catalog";
@@ -14,7 +14,7 @@ const same = (a: unknown, b: unknown) => JSON.stringify(a, (_k, v) => (typeof v 
 
 /** The todo and its action at `index`, of this type — else an error (it was run already, or changed meanwhile). */
 export async function clickedOp<T extends TodoOp["type"]>(todoId: number, index: number, type: T): Promise<{ todo: TodoView; op: Extract<TodoOp, { type: T }> }> {
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   const todo = getTodo(Number(todoId));
   const op = todo?.ops[Number(index)];
   if (!todo || !op || op.type !== type) throw new Error(t("That action isn't on the todo (any more)."));
@@ -40,7 +40,7 @@ function logClick(todo: TodoView, op: TodoOp, what: string): void {
 /** What ran, off the todo and noted on it; done with it when it was the todo (a reply, a question …). Whether it was. */
 export async function settleClickedOp(todo: TodoView, op: TodoOp, what: string): Promise<boolean> {
   logClick(todo, op, what);
-  const store = await import("@/lib/boards/store");
+  const store = await import("@/lib/todos/store");
   const now = store.getTodo(todo.id);
   const ops = now?.ops ?? [];
   const at = ops.findIndex((o) => same(o, op));
@@ -54,7 +54,7 @@ export async function settleClickedOp(todo: TodoView, op: TodoOp, what: string):
   }
   const settles = !!actionOf(op.type).comms && !left.length && todo.owner === "me" && ["reply", "comment", "clarify", "update"].includes(todo.kind);
   if (settles) {
-    const { attributed } = await import("@/lib/boards/activity");
+    const { attributed } = await import("@/lib/todos/activity");
     attributed("you", () => store.setTodoStatus(todo.id, "done", `Done: ${what}`.slice(0, 500)));
   }
   emitChange("todos");

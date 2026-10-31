@@ -54,8 +54,8 @@ test("branch knowledge: what the briefing's AI read is kept with its message —
 
 test("the branch name is always there: feature/PROJ-432-fileadmin-relations — from a kept change, else the todo's words, else the ticket's title; the limits and your words follow the settings", async () => {
   const { addArtifact } = await import("@/lib/work/branch-knowledge");
-  const { addManualTodo, addSessionTodo, getTodo } = await import("@/lib/boards/store");
-  const { setStepPrefs } = await import("@/lib/boards/context-prefs");
+  const { addManualTodo, addSessionTodo, getTodo } = await import("@/lib/todos/store");
+  const { setStepPrefs } = await import("@/lib/runs/context-prefs");
   const { namingBlock, namingLimits, branchNameFor, proposeBranchName } = await import("@/lib/work/branch-naming");
   const todo = getTodo(addManualTodo({ ticket: "XYZ-5", text: "Fileadmin Relations auf die neue Struktur umstellen" }).id)!;
 
@@ -98,7 +98,7 @@ test("the branch name is always there: feature/PROJ-432-fileadmin-relations — 
 
 test("the worker's brief for a new branch asks for a short name and carries what is kept", async () => {
   const { taskFor } = await import("@/lib/work/brief");
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const todo = listTodos({ status: "all" })[0];
   const task = taskFor("code", { todo, runId: 1, repo: "/r", cwd: "/w", branch: "feature/PROJ-364-w1", base: "main", isolation: "worktree", linked: [], newBranch: "feature/PROJ-364-<short-change>", branchKnowledge: "\n\n## Branch-Benennung (Tag branch-naming)\n- gemerkt" });
   assert.match(task, /kleingeschriebene Wörter/);
@@ -107,7 +107,7 @@ test("the worker's brief for a new branch asks for a short name and carries what
 });
 
 test("the briefing's answer: branch knowledge is cleaned — a kind, a text, a ref only of a kind of message", async () => {
-  const { cleanResult } = await import("@/lib/boards/run");
+  const { cleanResult } = await import("@/lib/runs/run");
   const ticket = { key: "PROJ-1", analyzed: true } as never;
   const r = cleanResult(
     {

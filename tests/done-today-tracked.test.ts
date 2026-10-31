@@ -14,13 +14,13 @@ async function setup(ticket: string) {
   setTicketJob(ticket, number);
 }
 async function todo(ticket: string, text: string) {
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   return addFollowUp({ ticket, text, kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
 }
 
 test("time tracked today on todos that aren't done shows up in Done today, grouped by ticket with the done ones", async () => {
   await setup("DT-1");
-  const { setTodoStatus, getTodo } = await import("@/lib/boards/store");
+  const { setTodoStatus, getTodo } = await import("@/lib/todos/store");
   const { addTodoTime } = await import("@/lib/work/todo-time");
   const { doneToday } = await import("@/lib/work/booking");
   const done = await todo("DT-1", "Done by hand");
@@ -49,7 +49,7 @@ test("time tracked today on todos that aren't done shows up in Done today, group
 
 test("booking it books the tracked time but leaves the open todo open for tomorrow", async () => {
   await setup("DT-3");
-  const { getTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const { getTodo, setTodoStatus } = await import("@/lib/todos/store");
   const { addTodoTime, listTodoTimes } = await import("@/lib/work/todo-time");
   const { doneToday, bookDoneToday } = await import("@/lib/work/booking");
   const { getDb, schema } = await import("@/db");

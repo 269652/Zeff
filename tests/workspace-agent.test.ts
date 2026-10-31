@@ -67,7 +67,7 @@ test("starting an agent: a todo for it, handed to a worker with the prompt — t
   const run = r.routineRuns(agent)[0];
   assert.equal(run.status, "running");
   assert.equal(run.workRunId, 4711, "its worker run (the Code tab shows it)");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   assert.match(getTodo(calls[0].todoId)!.text, /Wochenbericht/, "a todo named for the agent");
   // a second run reuses the agent's todo
   await a.startAgent(agent, { kind: "manual" }, {}, { dispatch: (todoId) => (calls.push({ todoId, instruction: "" }), { id: 4712 }) });

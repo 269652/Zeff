@@ -2,7 +2,7 @@
 import "@/plugins/actions/server";
 import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { opLabel, opTitle, type TodoOp, type TodoView } from "@/lib/boards/shared";
+import { opLabel, opTitle, type TodoOp, type TodoView } from "@/lib/todos/shared";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
@@ -100,7 +100,7 @@ export async function runTodoOps(
       // What's next as a todo — unless this run delivers further itself (commit → push → MR, or → merge, in one go).
       if (r.next && !left.some((o) => actionOf(o.type).delivery)) next.push(r.next);
       if (op.type === "git-push" || op.type === "gitlab-open-mr" || op.type === "gitlab-merge" || op.type === "git-merge-main") {
-        const { mrLink } = await import("@/lib/boards/requester");
+        const { mrLink } = await import("@/lib/todos/requester");
         // The merge request's link wins over a push's words (push → MR in one go: the MR is what they review).
         const link = mrLink(r.what);
         if (link || !delivered?.link) delivered = { what: r.what, link };
@@ -122,8 +122,8 @@ export async function runTodoOps(
  * (a reply, a message); what's next (a delivery step) as a todo of its own. One at a time per todo.
  */
 export async function runTodoOpsNow(todoId: number, opts: { only?: number[] } = {}): Promise<{ done: string[]; settled: boolean }> {
-  const store = await import("@/lib/boards/store");
-  const { opsSettle, todoRef } = await import("@/lib/boards/shared");
+  const store = await import("@/lib/todos/store");
+  const { opsSettle, todoRef } = await import("@/lib/todos/shared");
   const todo = store.getTodo(todoId);
   if (!todo) throw new Error(t("{ref} doesn't exist.", { ref: todoRef(todoId) }));
   if (todo.status !== "open") throw new Error(todo.status === "done" ? t("{ref} is done already.", { ref: todo.ref }) : t("{ref} is dismissed already.", { ref: todo.ref }));
@@ -141,7 +141,7 @@ export async function runTodoOpsNow(todoId: number, opts: { only?: number[] } = 
       store.handOverPlan(todo.id, f.id, ["merge", "review"]);
     }
     // Delivered: the one who asked for it gets a reply todo in their chat, the link in its draft.
-    if (delivered) await (await import("@/lib/boards/requester")).tellRequester(todo, delivered).catch((e) => console.error(`[ops ${todo.ref}] telling the asker failed:`, e));
+    if (delivered) await (await import("@/lib/todos/requester")).tellRequester(todo, delivered).catch((e) => console.error(`[ops ${todo.ref}] telling the asker failed:`, e));
     // Settled when what ran is the todo — and nothing else is left on it.
     const ran = opts.only ? todo.ops.filter((_, i) => opts.only!.includes(i)) : todo.ops;
     const settled = (!opts.only || ran.length === todo.ops.length) && opsSettle({ ...todo, ops: ran });

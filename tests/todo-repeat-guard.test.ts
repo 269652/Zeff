@@ -14,8 +14,8 @@ process.env.FAKE_CLAUDE_PROMPT_FILE = promptFile;
 const day = (n: number) => new Date(Date.now() + n * 864e5).toLocaleDateString("sv-SE");
 
 async function rate(text: string) {
-  const { addManualTodo, setTodoDue } = await import("@/lib/boards/store");
-  const { setRecurrence } = await import("@/lib/boards/recurring");
+  const { addManualTodo, setTodoDue } = await import("@/lib/todos/store");
+  const { setRecurrence } = await import("@/lib/todos/recurring");
   const t = addManualTodo({ ticket: "KB-9", text });
   setTodoDue(t.id, day(-1));
   setRecurrence(t.id, { freq: "monthly", interval: 1 });
@@ -23,8 +23,8 @@ async function rate(text: string) {
 }
 
 test("ticked off, the next one waits set aside — until a week before its day, then it comes up saying so", async () => {
-  const { getTodo, listTodos, setTodoStatus } = await import("@/lib/boards/store");
-  const { deferral } = await import("@/lib/boards/deferral");
+  const { getTodo, listTodos, setTodoStatus } = await import("@/lib/todos/store");
+  const { deferral } = await import("@/lib/todos/deferral");
   const t = await rate("Rate 120 € (Az. 1/26) überweisen");
   setTodoStatus(t.id, "done");
   const next = listTodos({ status: "open" }).find((x) => x.text.includes("Az. 1/26"))!;
@@ -35,7 +35,7 @@ test("ticked off, the next one waits set aside — until a week before its day, 
 });
 
 test("a repeat ticked off weeks before its day asks first; yes does it, a due one is done at once", async () => {
-  const { getTodo, listTodos, setTodoStatus } = await import("@/lib/boards/store");
+  const { getTodo, listTodos, setTodoStatus } = await import("@/lib/todos/store");
   const { setTodoStatusAction } = await import("@/plugins/todos/server-actions");
   const t = await rate("Garagenmiete 80 € an Herrn Koch zahlen");
   setTodoStatus(t.id, "done");
@@ -56,8 +56,8 @@ test("the AI writes the repeats' words once; the next todo carries them — and 
   for (const id of ["llm", "claude-cli"]) setInstalled(id, true);
   const { updateAppSettings } = await import("@/lib/ai");
   updateAppSettings({ aiProvider: "claude" });
-  const { getTodo, listTodos, setTodoStatus, setTodoText } = await import("@/lib/boards/store");
-  const { writeRepeatTexts } = await import("@/lib/boards/repeat-text-ai");
+  const { getTodo, listTodos, setTodoStatus, setTodoText } = await import("@/lib/todos/store");
+  const { writeRepeatTexts } = await import("@/lib/todos/repeat-text-ai");
   const t = await rate("Anzahlung 500 € (Az. 4/26) zunächst überweisen, dann monatlich 100 €");
   process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ todos: [{ id: t.id, text: "Monatsrate 100 € (Az. 4/26) überweisen" }] });
   const r = await writeRepeatTexts([t.id]);

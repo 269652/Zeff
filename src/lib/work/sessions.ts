@@ -1,4 +1,4 @@
-import { listTodos, todosByIds } from "@/lib/boards/store";
+import { listTodos, todosByIds } from "@/lib/todos/store";
 import { getTicketCards } from "@/lib/jira/store";
 import type { WorkRunView } from "./shared";
 import { recentRuns, runsByStatus, toRunView } from "./store";

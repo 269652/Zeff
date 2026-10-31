@@ -20,11 +20,12 @@ export const notesAdapter: EvalAdapter<NotesInput> = {
   prompt: { file: "src/plugins/keep/note-review.ts" },
   costUsd: 1,
   async build() {
-    const { lastGoodRun, listTodos } = await import("@/lib/boards/store");
+    const { lastGoodRun } = await import("@/lib/runs/store");
+    const { listTodos } = await import("@/lib/todos/store");
     const { briefingNotes } = await import("@/lib/items");
     const { noteLine } = await import("@/plugins/keep/note-review");
     const { getJiraTicket } = await import("@/lib/jira/store");
-    const { plain } = await import("@/lib/boards/collect");
+    const { plain } = await import("@/lib/runs/collect");
     const rows = getSqlite()
       .prepare(
         `select t.status, t.refs, (select e.actor from todo_events e where e.todo_id = t.id and e.event in ('done','dismissed') order by e.id desc limit 1) as by

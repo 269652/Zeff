@@ -101,7 +101,7 @@ test("widgets and chart views in Markdown: written back the same", async () => {
 
 test("the widgets that took the old blocks' places: todos of a ticket or by words, ticked off in place", async () => {
   await setup();
-  const { addFollowUp, getTodo } = await import("@/lib/boards/store");
+  const { addFollowUp, getTodo } = await import("@/lib/todos/store");
   const a = addFollowUp({ ticket: "ABC-1", text: "Write the offer", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   addFollowUp({ ticket: "XYZ-2", text: "Call the bank", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   const { TODOS_WIDGETS } = await import("@/plugins/todos/widgets");
@@ -143,7 +143,7 @@ test("everything that belongs: pages it links to and that link to it, related ro
   const store = await import("@/plugins/workspace/store");
   const { belongsTo } = await import("@/plugins/workspace/belongs");
   const { markdownToDoc } = await import("@/plugins/workspace/doc");
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   const todo = addFollowUp({ ticket: "ABC-7", text: "Send the quote", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   const other = store.createPage({ title: "Roadmap" });
   const back = store.createPage({ title: "Meeting notes", content: markdownToDoc("See [[page:" + other + "|Roadmap]] too") });

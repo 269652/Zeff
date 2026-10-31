@@ -27,11 +27,11 @@ async function setup(ticket: string) {
   return number;
 }
 async function todo(ticket: string, textOf: string, extra: { parentId?: number } = {}) {
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   return addFollowUp({ ticket, text: textOf, kind: "other", parentId: (extra.parentId ?? null) as unknown as number, workRunId: null, source: "test" });
 }
 async function finishToday(...ids: number[]) {
-  const { setTodoStatus } = await import("@/lib/boards/store");
+  const { setTodoStatus } = await import("@/lib/todos/store");
   for (const id of ids) setTodoStatus(id, "done");
 }
 
@@ -190,7 +190,7 @@ test("a suggestion covers its records: not offered again; accepting books them; 
   const { addTodoTime, listTodoTimes } = await import("@/lib/work/todo-time");
   const { doneToday } = await import("@/lib/work/booking");
   const { acceptSuggestion, openSuggestions, getSuggestion } = await import("@/lib/work/suggestions");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
 
   // A record its clock measured on the way; finish_todo without a clock: the minutes it names are no time — ONE suggestion of the measured.
   const t = await todo("TT-6", "Agent work");
@@ -207,7 +207,7 @@ test("a suggestion covers its records: not offered again; accepting books them; 
   assert.equal(mine[0].times.length, 1);
 
   // The todo is done, but the suggestion covers it: not offered by doneToday.
-  const { setTodoStatus } = await import("@/lib/boards/store");
+  const { setTodoStatus } = await import("@/lib/todos/store");
   setTodoStatus(t.id, "done");
   assert.equal(doneToday().find((g) => g.todoIds.includes(t.id)), undefined);
 

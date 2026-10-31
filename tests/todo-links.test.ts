@@ -6,7 +6,7 @@ setupTempData();
 
 const at = () => new Date().toISOString();
 async function todo(ticket: string, text: string) {
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   return addFollowUp({ ticket, text, kind: "implement", parentId: null as unknown as number, workRunId: null, source: "test" });
 }
 async function gitlab(key: string, kind: "branch" | "mr", branch: string) {
@@ -15,7 +15,7 @@ async function gitlab(key: string, kind: "branch" | "mr", branch: string) {
 }
 
 test("the relation todo ↔ branch is recorded on its own: its GitLab branch and merge request are context whatever happens to the todo", async () => {
-  const { recordBranch, todoBranches, getTodo, reconcileTodos, setTodoOps } = await import("@/lib/boards/store");
+  const { recordBranch, todoBranches, getTodo, reconcileTodos, setTodoOps } = await import("@/lib/todos/store");
   const t = await todo("TL-1", "Migrationslogik umbauen");
   await gitlab("branch:grp/proj:feature/TL-1-x", "branch", "feature/TL-1-x");
   await gitlab("mr:grp/proj!7", "mr", "feature/TL-1-x");
@@ -33,7 +33,7 @@ test("the relation todo ↔ branch is recorded on its own: its GitLab branch and
 });
 
 test("context stays until you dismiss it by hand: the briefing run adds to it, it doesn't replace it — and a dismissed item stays out", async () => {
-  const { reconcileTodos, getTodo, dismissTodoContext, addTodoContext, recordBranch } = await import("@/lib/boards/store");
+  const { reconcileTodos, getTodo, dismissTodoContext, addTodoContext, recordBranch } = await import("@/lib/todos/store");
   const t = await todo("TL-2", "Antworten");
   addTodoContext(t.id, ["teams:19:x|1", "mail:abc"], "", "Zeff");
   reconcileTodos({ tickets: [{ key: "TL-2", resolved: [], todos: [{ id: t.id, text: "Antworten", kind: "other", owner: "me", refs: ["teams:19:x|2"] }] }] } as never, 1);
@@ -59,7 +59,7 @@ test("context stays until you dismiss it by hand: the briefing run adds to it, i
 });
 
 test("the mail, note and document relations add to what a todo is related to — once related, it stays until you dismiss it", async () => {
-  const { setTodoMailRefs, getTodo, dismissTodoContext } = await import("@/lib/boards/store");
+  const { setTodoMailRefs, getTodo, dismissTodoContext } = await import("@/lib/todos/store");
   const t = await todo("TL-3", "Mail beantworten");
   setTodoMailRefs(new Map([[t.id, ["mail:a", "mail:b"]]]));
   setTodoMailRefs(new Map([[t.id, ["mail:c"]]])); // the next run picks another one

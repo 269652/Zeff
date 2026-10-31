@@ -1,15 +1,15 @@
 import type { WorkRun } from "@/db/schema";
-import { whoWrote } from "@/lib/boards/requester";
-import { isTodoKind, todoRef, type TodoOp } from "@/lib/boards/shared";
-import { addFollowUp, addTodoAiNote, getTodo, listTodos, markWorkerDone, setTodoDraft, setTodoOps, setTodoStatus } from "@/lib/boards/store";
+import { whoWrote } from "@/lib/todos/requester";
+import { isTodoKind, todoRef, type TodoOp } from "@/lib/todos/shared";
+import { addFollowUp, addTodoAiNote, getTodo, listTodos, markWorkerDone, setTodoDraft, setTodoOps, setTodoStatus } from "@/lib/todos/store";
 import { pushedLink } from "./remote";
 import { linkBranchContext } from "./branch-context";
 import { saveReport } from "./report";
 import { runActions } from "./log";
-import { sameTodo } from "@/lib/boards/similar";
+import { sameTodo } from "@/lib/todos/similar";
 
 export { sameTodo };
-import { applyTodoRules } from "@/lib/boards/todo-rules";
+import { applyTodoRules } from "@/lib/todos/rules";
 import { WORK_RESULT_SCHEMA, workRef, type Channel, type WorkFollowUp, type WorkResult } from "./shared";
 
 const channelOf = (c: unknown): Channel | null => (c === "jira" || c === "teams" || c === "gitlab" ? c : null);

@@ -9,7 +9,7 @@ import { action, EN, str } from "../actions/types";
 import { localStamp as stampOf } from "@/lib/dates";
 
 /** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
-declare module "@/lib/boards/shared" {
+declare module "@/lib/todos/shared" {
   interface TodoOpMap {
   /** An appointment entered in one of Zeff's own calendars (by name; "": the first) — local start "YYYY-MM-DDTHH:MM". */
   "calendar-entry": { calendar: string; title: string; start: string; minutes: number; body: string };

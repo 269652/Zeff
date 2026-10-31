@@ -4,8 +4,8 @@
  */
 import { sql } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { norm, transitionsOf } from "@/lib/boards/actions";
-import type { TodoOp } from "@/lib/boards/shared";
+import { norm, transitionsOf } from "@/lib/runs/actions";
+import type { TodoOp } from "@/lib/todos/shared";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";

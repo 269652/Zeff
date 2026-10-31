@@ -70,7 +70,7 @@ export async function skipDocumentAction(id: number): Promise<ActionState> {
 export async function attachDocumentAction(todoId: number, docId: number): Promise<ActionState> {
   return run(async () => {
     const { getDocument } = await import("./store");
-    const { addTodoContext } = await import("@/lib/boards/store");
+    const { addTodoContext } = await import("@/lib/todos/store");
     const doc = getDocument(Number(docId));
     if (!doc) throw new Error(t("This document doesn't exist (any more)."));
     if (!addTodoContext(Number(todoId), [doc.ref], "", "Document")) throw new Error(t("This todo doesn't exist (any more)."));

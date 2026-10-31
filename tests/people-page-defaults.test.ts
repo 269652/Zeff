@@ -83,7 +83,7 @@ test("All about a person leaves out what the detail widgets on the same page sho
   const { addClaim } = await import("@/plugins/people/graph");
   addClaim({ personId: fritz, kind: "commitment", text: "Leiter zurückbringen", direction: "mine", status: "confirmed" });
   addClaim({ personId: fritz, kind: "fact", text: "segelt gern", status: "confirmed" });
-  const { addAgentTodo } = await import("@/lib/boards/store");
+  const { addAgentTodo } = await import("@/lib/todos/store");
   addAgentTodo({ ticket: "", text: "Fritz Vogel wegen Garten fragen" });
   const row = w.addRow(db, { title: "Fritz Vogel" });
   (await import("@/db")).getSqlite().prepare("update ws_pages set props = ? where id = ?").run(JSON.stringify({ srcref: `person:${fritz}` }), row);

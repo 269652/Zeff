@@ -3,7 +3,7 @@
  * your todos due today or before, the promises due (yours) or overdue (theirs), and what is new since yesterday (people learned,
  * news). Each part only with its plugin; nothing but the database is read. Server only.
  */
-import type { TodoView } from "@/lib/boards/shared";
+import type { TodoView } from "@/lib/todos/shared";
 import { dayOf, stampOf } from "@/lib/calendar/ir-shared";
 import { isInstalled } from "@/plugins/state";
 
@@ -42,7 +42,7 @@ async function appointments(now: Date): Promise<TodayAppointment[]> {
 
 /** Your open todos (not a worker's) due today or before — the oldest first. */
 async function dueTodos(today: string): Promise<TodoView[]> {
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   return listTodos({ status: "open" })
     .filter((x) => x.owner === "me" && !x.byWorker && x.due && x.due.slice(0, 10) <= today)
     .sort((a, b) => a.due!.localeCompare(b.due!));

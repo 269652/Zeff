@@ -24,7 +24,7 @@ if (!fs.existsSync(out)) {
   const rows = [addRow(dbId, { title: "Alpha", cells: { [dose.id]: 10 } }), addRow(dbId, { title: "Beta", cells: { [dose.id]: 20 } })];
   // Todos about the person (the person widgets tick and dismiss them).
   (await import("@/plugins/state")).setInstalled("todos", true);
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const todos = [`${personName} anrufen`, `${personName} das Buch zurückgeben`].map((text) => addManualTodo({ ticket: "", text }).text);
   // A page with the person's todos widget and a checklist of the page that feeds the engine (its item a todo about them).
   const mergeItem = `${personName} wegen Hamburg fragen`;
@@ -52,7 +52,7 @@ if (!fs.existsSync(out)) {
 const seed = JSON.parse(fs.readFileSync(out, "utf8"));
 if (!seed.heuteTodos) {
   (await import("@/plugins/state")).setInstalled("todos", true);
-  const { addManualTodo, setTodoDue } = await import("@/lib/boards/store");
+  const { addManualTodo, setTodoDue } = await import("@/lib/todos/store");
   const d = new Date();
   const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
   seed.heuteTodos = ["E2E Heute: Steuer abgeben", "E2E Heute: Keller aufräumen"].map((text) => {

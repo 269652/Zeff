@@ -36,7 +36,7 @@ test("today: appointments of today and tomorrow morning with whom to prepare, du
   graph.addClaim({ personId: max, kind: "commitment", direction: "theirs", text: "Heute zurückrufen", due: today, status: "confirmed" });
   graph.addClaim({ personId: max, kind: "fact", text: "Spielt Schach", status: "proposed", confidence: 0.6 });
 
-  const store = await import("@/lib/boards/store");
+  const store = await import("@/lib/todos/store");
   const { getDb, schema } = await import("@/db");
   const todo = (text: string, due: string | null, extra: Record<string, unknown> = {}) => {
     const id = getDb().insert(schema.todos).values({ ticket: "", text, owner: "me", ...extra } as never).returning().get().id;

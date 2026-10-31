@@ -12,7 +12,7 @@ const T125 =
   "Erste Rate von 300,00 € (Az. DR II 1121/26, Sparkasse-Vollstreckung) heute auf das Dienstkonto der Gerichtsvollzieherin (IBAN DE22 6609 0800 0007 7773 02, Verwendungszweck „DR II 1121/26“) überweisen; danach jeweils 300 € am 15. von 15.11.2026 bis 15.09.2027 zahlen und die 13. Zahlung am 15.10.2027 nach schriftlicher Mitteilung des Restbetrags (Rückstand über zwei Wochen macht den Plan hinfällig).";
 
 test("the rule a todo's text names: monthly on the 15th, from 15.11.2026 to 15.09.2027 — after a one-off today", async () => {
-  const { recurrenceFromText } = await import("@/lib/boards/recurrence-text");
+  const { recurrenceFromText } = await import("@/lib/todos/recurrence-text");
   const r = recurrenceFromText(T125, "2026-10-20")!;
   assert.equal(r.freq, "monthly");
   assert.equal(r.start, "2026-11-15");
@@ -20,7 +20,7 @@ test("the rule a todo's text names: monthly on the 15th, from 15.11.2026 to 15.0
 });
 
 test("other ways to say it: every month, every week, yearly; and nothing where the text names no repetition", async () => {
-  const { recurrenceFromText } = await import("@/lib/boards/recurrence-text");
+  const { recurrenceFromText } = await import("@/lib/todos/recurrence-text");
   assert.equal(recurrenceFromText("Miete jeden Monat am 3. überweisen", "2026-10-20")!.start, "2026-11-03", "the next 3rd after the due day");
   assert.equal(recurrenceFromText("Rate monatlich zahlen", "2026-10-20")!.start, undefined, "the due day itself starts it");
   assert.equal(recurrenceFromText("Bericht jede Woche abgeben", "2026-10-20")!.freq, "weekly");
@@ -30,8 +30,8 @@ test("other ways to say it: every month, every week, yearly; and nothing where t
 });
 
 test("after an evaluation: the open todos that name a repetition get their rule, the series and the one-off — once; a rule set by hand stays", async () => {
-  const { addManualTodo, getTodo, setTodoDue } = await import("@/lib/boards/store");
-  const { detectRecurrences, setRecurrence } = await import("@/lib/boards/recurring");
+  const { addManualTodo, getTodo, setTodoDue } = await import("@/lib/todos/store");
+  const { detectRecurrences, setRecurrence } = await import("@/lib/todos/recurring");
   const { eventsBetween } = await import("@/lib/calendar/ir");
   const a = addManualTodo({ ticket: "KB-2", text: T125 });
   setTodoDue(a.id, "2026-10-20");
@@ -49,7 +49,7 @@ test("after an evaluation: the open todos that name a repetition get their rule,
 });
 
 test("the words of the repeats: the first payment's (erste, sofort, heute, a date it is due by) and the rule's clause left out", async () => {
-  const { repeatText } = await import("@/lib/boards/recurrence-text");
+  const { repeatText } = await import("@/lib/todos/recurrence-text");
   assert.equal(repeatText("Erste Rate 300 € (Az. DR II 1121/26) sofort überweisen; Folgeraten jeweils 300 € am 15. bis 15.09.2027"), "Rate 300 € (Az. DR II 1121/26) überweisen");
   assert.equal(repeatText("Rate 50 € (Az. DR II 810/26) bis 15.11.2026 überweisen, danach monatlich am 15. bis 15.01.2027"), "Rate 50 € (Az. DR II 810/26) überweisen");
   assert.match(repeatText(T125), /^Rate von 300,00 € \(Az\. DR II 1121\/26, Sparkasse-Vollstreckung\) auf das Dienstkonto der Gerichtsvollzieherin .* überweisen$/);

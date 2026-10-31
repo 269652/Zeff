@@ -95,7 +95,7 @@ test("once a day: each value into its history; beyond a threshold a todo, once p
   assert.ok(r1.taken >= 2);
   assert.deepEqual(r1.alerts, ["ausgaben"]);
   assert.equal((await m.snapshotMetrics(day1)).taken, 0, "once a day");
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   assert.equal(listTodos({ status: "open" }).filter((t) => /Ausgaben/.test(t.text)).length, 1);
   // The next day still beyond: no second todo.
   assert.deepEqual((await m.snapshotMetrics(new Date("2026-11-03T08:00:00"))).alerts, []);

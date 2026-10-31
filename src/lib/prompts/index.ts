@@ -97,7 +97,7 @@ async function folder(title: string, icon: string, parentId: number | null, get:
 export async function ensureSystemPrompts(): Promise<void> {
   if (!isInstalled("workspace")) return;
   const { createPage, updatePage } = await import("@/plugins/workspace/store");
-  const { getContextPrefs } = await import("@/lib/boards/context-prefs");
+  const { getContextPrefs } = await import("@/lib/runs/context-prefs");
   const root = await folder(t("System"), "🛠", null, () => getPref<number | null>(ROOT, null) ?? undefined, (id) => setPref(ROOT, id));
   const top = await folder("Prompts", "💬", root, () => getPref<number | null>(FOLDER, null) ?? undefined, (id) => setPref(FOLDER, id));
   for (const g of PROMPT_GROUPS) {

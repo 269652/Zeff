@@ -12,8 +12,8 @@ async function setup(key: string) {
 
 test("a question about a ticket is answered from its data; what the AI misses it asks for and gets looked up (knowledge base and Zeff's data) — and it is kept as context on the ticket", async () => {
   await setup("CH-1");
-  const { askTicket, ticketChat } = await import("@/lib/boards/ticket-chat");
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { askTicket, ticketChat } = await import("@/lib/runs/ticket-chat");
+  const { addFollowUp } = await import("@/lib/todos/store");
   addFollowUp({ ticket: "CH-1", text: "Mit Nikolai einen Termin abstimmen", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   const prompts: string[] = [];
   const searched: string[] = [];
@@ -39,7 +39,7 @@ test("a question about a ticket is answered from its data; what the AI misses it
 
 test("earlier answers go into the next question's prompt; dismissing one takes it out of the context", async () => {
   await setup("CH-3");
-  const { askTicket, ticketChat, dismissChatItem } = await import("@/lib/boards/ticket-chat");
+  const { askTicket, ticketChat, dismissChatItem } = await import("@/lib/runs/ticket-chat");
   const { listContexts } = await import("@/lib/contexts");
   const prompts: string[] = [];
   const deps = { ask: async (p: string) => (prompts.push(p), { answer: `Antwort ${prompts.length}` }) };
@@ -61,7 +61,7 @@ test("earlier answers go into the next question's prompt; dismissing one takes i
 
 test("nothing is kept for an empty question or an answer the AI didn't give", async () => {
   await setup("CH-4");
-  const { askTicket, ticketChat } = await import("@/lib/boards/ticket-chat");
+  const { askTicket, ticketChat } = await import("@/lib/runs/ticket-chat");
   await assert.rejects(askTicket("CH-4", "   ", { ask: async () => ({ answer: "x" }) }), /question/i);
   await assert.rejects(askTicket("CH-4", "Frage?", { ask: async () => ({ answer: "  " }) }), /answer/i);
   assert.deepEqual(ticketChat("CH-4"), []);
@@ -69,8 +69,8 @@ test("nothing is kept for an empty question or an answer the AI didn't give", as
 
 test("what was asked about a ticket reaches its todos' briefs (workers, agents over MCP) — until it's dismissed", async () => {
   await setup("CH-5");
-  const { askTicket, dismissChatItem } = await import("@/lib/boards/ticket-chat");
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { askTicket, dismissChatItem } = await import("@/lib/runs/ticket-chat");
+  const { addFollowUp } = await import("@/lib/todos/store");
   const { briefFor } = await import("@/lib/work/brief");
   const todo = addFollowUp({ ticket: "CH-5", text: "MR anpassen", kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
   const item = await askTicket("CH-5", "Warum vier MRs?", { ask: async () => ({ answer: "Weil die Migration in Teile zerlegt wurde." }) });

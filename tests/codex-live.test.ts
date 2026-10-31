@@ -26,7 +26,7 @@ const driver = async () => {
 
 /** A running run on a fresh todo, and its live session started through the driver (as the runner does). */
 async function session(prompt: string, conversation: boolean, disallowedTools: string[] = ["mcp__zeff__report_time"]) {
-  const { addSessionTodo } = await import("@/lib/boards/store");
+  const { addSessionTodo } = await import("@/lib/todos/store");
   const { createRun, updateRun } = await import("@/lib/work/store");
   const todo = addSessionTodo({ ticket: "", text: "Live Codex session test" });
   const run = createRun({ ticket: "", todoId: todo.id, mode: "instruct", provider: "codex", model: null, permissionMode: "ask", repo: null, prompt });

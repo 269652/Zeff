@@ -12,14 +12,14 @@ const open = (id: number) => ({ type: "gitlab-open-mr" as const, repo: "C:\r", p
 const comment = (id: number, state: string | null = null) => ({ key: `note:${id}`, kind: "comment" as const, state, resolvedAt: null });
 
 test("which notes a todo names, and which of them are threads still open", async () => {
-  const { noteKeysOf, openThreads } = await import("@/lib/boards/comment-ops");
+  const { noteKeysOf, openThreads } = await import("@/lib/todos/comment-ops");
   assert.deepEqual(noteKeysOf(["teams:x|1", "gitlab:note:472364", "gitlab:note:472373", "gitlab:note:472364", "jira:abc"]), ["note:472364", "note:472373"]);
   const items = new Map([["note:472364", comment(472364, "unresolved")], ["note:472373", comment(472373, "resolved")], ["note:472374", comment(472374)]]);
   assert.deepEqual(openThreads(["note:472364", "note:472373", "note:472374", "note:1"], items as never), ["note:472364", "note:472374"], "a resolved one and an unknown one are not offered");
 });
 
 test("Resolve for each open thread, the reply before it; what is there stays; nothing twice", async () => {
-  const { withCommentOps } = await import("@/lib/boards/comment-ops");
+  const { withCommentOps } = await import("@/lib/todos/comment-ops");
   const base = [open(1)];
   const withResolve = withCommentOps(base as never, ["note:1", "note:2"], []);
   assert.deepEqual(withResolve.map((o) => o.type), ["gitlab-open-mr", "gitlab-resolve", "gitlab-resolve"]);
@@ -39,8 +39,8 @@ test("attachCommentOps: the open todos with open threads get their Resolve actio
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("gitlab", true);
   const { saveGitlabItems } = await import("@/lib/gitlab/store");
-  const store = await import("@/lib/boards/store");
-  const { attachCommentOps } = await import("@/lib/boards/comment-ops");
+  const store = await import("@/lib/todos/store");
+  const { attachCommentOps } = await import("@/lib/todos/comment-ops");
   const note = (id: number, state: string) => ({ key: `note:${id}`, kind: "comment" as const, project: "g/p", projectUrl: "https://git.example.com/g/p", ref: "!189", title: "c", body: "Bitte ändern", author: "chris", state, createdAt: "2026-10-19T10:00:00Z", updatedAt: "2026-10-19T10:00:00Z", url: `https://git.example.com/g/p/-/merge_requests/189#note_${id}`, branch: null, parent: "g/p!189", thread: "t", resolvedAt: null });
   saveGitlabItems([note(472364, "unresolved"), note(472373, "resolved"), note(472374, "unresolved")]);
   const t = store.addManualTodo({ ticket: "PROJ-454", text: "Threads in !189 beantworten" });
@@ -58,7 +58,7 @@ test("attachCommentOps: the open todos with open threads get their Resolve actio
 });
 
 test("an Open MR action while that merge request is open already becomes the merge of it", async () => {
-  const { upgradeOpenOps, upgradeOpenMrOps } = await import("@/lib/boards/delivery-ops");
+  const { upgradeOpenOps, upgradeOpenMrOps } = await import("@/lib/todos/delivery-ops");
   const mr = { project: "g/p", branch: "feature/x", state: "opened", ref: "!189" };
   const openOp = { type: "gitlab-open-mr" as const, repo: "C:\r", project: "g/p", source: "feature/x", target: "main", title: "t", description: "d" };
   const push = { type: "git-push" as const, repo: "C:\r", branch: "feature/x", remote: "feature/x", target: "main", title: "t", description: "d" };
@@ -68,7 +68,7 @@ test("an Open MR action while that merge request is open already becomes the mer
   assert.equal(upgradeOpenOps([push], [mr]), null);
 
   const { saveGitlabItems } = await import("@/lib/gitlab/store");
-  const store = await import("@/lib/boards/store");
+  const store = await import("@/lib/todos/store");
   saveGitlabItems([{ key: "g/p!189", kind: "mr", project: "g/p", projectUrl: "https://git.example.com/g/p", ref: "!189", title: "feat(PROJ-454): x", body: "", author: "moritz", state: "opened", createdAt: "2026-10-19T10:00:00Z", updatedAt: "2026-10-19T10:00:00Z", url: "https://git.example.com/g/p/-/merge_requests/189", branch: "feature/PROJ-454-up", parent: null, thread: null, resolvedAt: null }] as never);
   const t = store.addManualTodo({ ticket: "PROJ-454", text: "Merge request öffnen" });
   store.setTodoOps(t.id, [{ ...openOp, source: "feature/PROJ-454-up" }] as never);
@@ -78,7 +78,7 @@ test("an Open MR action while that merge request is open already becomes the mer
 });
 
 test("when replies answer every open thread, the hand-over to a worker is obsolete (the work is done: the replies say so)", async () => {
-  const { dropObsoleteInstructs } = await import("@/lib/boards/comment-ops");
+  const { dropObsoleteInstructs } = await import("@/lib/todos/comment-ops");
   const instruct = { type: "work-instruct" as const, instruction: "Entferne den Checker" };
   const reply = (n: number) => ({ type: "gitlab-reply" as const, note: `note:${n}`, body: "Umgesetzt." });
   const resolve = (n: number) => ({ type: "gitlab-resolve" as const, note: `note:${n}` });

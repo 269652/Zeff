@@ -38,7 +38,7 @@ export async function caseTodoAction(caseId: number) {
     const { caseTitle } = await import("@/plugins/cases/shared");
     const c = getCase(Number(caseId));
     if (!c) throw new Error(t("This case is gone."));
-    const { addManualTodo, setTodoDue } = await import("@/lib/boards/store");
+    const { addManualTodo, setTodoDue } = await import("@/lib/todos/store");
     const next = c.compiled?.nextWhat?.trim();
     const todo = addManualTodo({ ticket: "", text: `${next || t("Next step")} (Az. ${c.label}, ${caseTitle(c)})` });
     addSource(c.id, { ref: `todo:${todo.id}`, kind: "todo", at: new Date().toISOString(), title: todo.text });

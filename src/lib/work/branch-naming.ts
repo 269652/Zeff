@@ -5,9 +5,9 @@
  * are set under Prompts → Branch names. A worker's branch gets this name when it starts, and its brief and the MCP's
  * start_todo carry the rule and what is kept. Server only.
  */
-import type { TodoView } from "@/lib/boards/shared";
-import { getContextPrefs } from "@/lib/boards/context-prefs";
-import { getTodo } from "@/lib/boards/store";
+import type { TodoView } from "@/lib/todos/shared";
+import { getContextPrefs } from "@/lib/runs/context-prefs";
+import { getTodo } from "@/lib/todos/store";
 import { getJiraTicket } from "@/lib/jira/store";
 import { artifactsFor, BRANCH_TAG, suggestSlug, type BranchArtifact } from "./branch-knowledge";
 

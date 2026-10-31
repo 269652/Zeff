@@ -2,7 +2,7 @@
 import { action, EN, str } from "../actions/types";
 
 /** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
-declare module "@/lib/boards/shared" {
+declare module "@/lib/todos/shared" {
   interface TodoOpMap {
     /** A work session that belongs to no todo yet: its placeholder (Worker tab) becomes a todo of yours with this title. */
     "todo-promote": { text: string };

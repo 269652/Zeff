@@ -14,7 +14,7 @@ const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { day: 
 /**
  * What hangs together with a row (its debt, its case) or a todo (what it settles): each thing with what settled it and when — a
  * todo, a booking, "paid" by hand — the open todos that would settle it, and "Mark as paid" for a thing that can be paid (its
- * instalment to start with, yours to change; undone from the toast). Nothing when nothing hangs on it (lib/boards/todo-settle.ts).
+ * instalment to start with, yours to change; undone from the toast). Nothing when nothing hangs on it (lib/todos/settle.ts).
  */
 export function LinkedPanel({ target, onChanged }: { target: { rowId: number } | { todoId: number }; onChanged?: () => void }) {
   const t = useT();

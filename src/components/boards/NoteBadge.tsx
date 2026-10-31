@@ -4,7 +4,7 @@ import { useState, useTransition } from "react";
 import { MentionTextarea } from "../MentionTextarea";
 import { rich } from "@/lib/i18n/rich";
 import { removeTodoNoteAction, syncNoteToJiraAction, updateTodoNoteAction } from "@/plugins/todos/server-actions";
-import { noteSyncState, type TodoSource, type TodoUserNote } from "@/lib/boards/shared";
+import { noteSyncState, type TodoSource, type TodoUserNote } from "@/lib/todos/shared";
 import { PeopleGroup, TaggedText, useTaggedPeople } from "@/plugins/people/PersonMention";
 import { NoteIcon, PencilIcon, SparkIcon } from "../icons";
 import { DismissButton } from "../DismissButton";

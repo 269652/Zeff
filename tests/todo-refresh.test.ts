@@ -22,8 +22,8 @@ async function setup() {
 
 test("a note rewrites its todo — the AI's answer applied, noted on the todo", async () => {
   await setup();
-  const { addManualTodo, addTodoUserNote, getTodo } = await import("@/lib/boards/store");
-  const { refreshTodo } = await import("@/lib/boards/todo-refresh");
+  const { addManualTodo, addTodoUserNote, getTodo } = await import("@/lib/todos/store");
+  const { refreshTodo } = await import("@/lib/todos/refresh");
   const todo = addManualTodo({ ticket: "", text: "Julia fragen, ob der Link ein Deployment braucht" });
   addTodoUserNote(todo.id, "Julia hat gesagt, sie meldet sich Montag — ich warte darauf.");
   process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ action: "update", text: "Auf Julias Antwort zum Deployment warten", kind: todo.kind, owner: "other", due: "2026-10-12", why: "Julia meldet sich Montag." });
@@ -42,8 +42,8 @@ test("a note rewrites its todo — the AI's answer applied, noted on the todo", 
 
 test("a note saying it's done closes the todo", async () => {
   await setup();
-  const { addManualTodo, addTodoUserNote, getTodo } = await import("@/lib/boards/store");
-  const { refreshTodo } = await import("@/lib/boards/todo-refresh");
+  const { addManualTodo, addTodoUserNote, getTodo } = await import("@/lib/todos/store");
+  const { refreshTodo } = await import("@/lib/todos/refresh");
   const todo = addManualTodo({ ticket: "", text: "Bestell-Link prüfen" });
   addTodoUserNote(todo.id, "Erledigt, hab ich gestern geprüft.");
   process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ action: "done", text: todo.text, kind: todo.kind, owner: "me", due: null, why: "Laut deiner Notiz gestern geprüft." });
@@ -53,8 +53,8 @@ test("a note saying it's done closes the todo", async () => {
 
 test("nothing happens for a todo that's no longer open, or without the LLM plugin", async () => {
   await setup();
-  const { addManualTodo, setTodoStatus } = await import("@/lib/boards/store");
-  const { canRefreshTodo, refreshTodo } = await import("@/lib/boards/todo-refresh");
+  const { addManualTodo, setTodoStatus } = await import("@/lib/todos/store");
+  const { canRefreshTodo, refreshTodo } = await import("@/lib/todos/refresh");
   const todo = addManualTodo({ ticket: "", text: "Etwas" });
   setTodoStatus(todo.id, "dismissed");
   assert.equal(await refreshTodo(todo.id), null);

@@ -16,7 +16,7 @@ test("a person's widgets: todos naming them, all about them, promises both ways 
   addClaim({ personId: chris, kind: "commitment", text: "Bohrmaschine zurückgeben", direction: "mine", status: "confirmed", due: "2020-01-01" });
   addClaim({ personId: chris, kind: "commitment", text: "schickt die Fotos", direction: "theirs", status: "confirmed" });
   addClaim({ personId: chris, kind: "fact", text: "spielt Gitarre", status: "confirmed" });
-  const { addAgentTodo } = await import("@/lib/boards/store");
+  const { addAgentTodo } = await import("@/lib/todos/store");
   addAgentTodo({ ticket: "", text: "Chris wegen Umzug anrufen" });
   addAgentTodo({ ticket: "", text: "Steuer machen" });
   const { widgetData } = await import("@/plugins/workspace/widgets");
@@ -59,7 +59,7 @@ test("the todos widget shows Zeff's todos — also those that are a checklist of
   const content = { type: "doc", content: [{ type: "taskList", attrs: { listId: "tdora", title: "", engine: true }, content: [{ type: "taskItem", attrs: { checked: false, itemId: "idora1" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Dora wegen Hamburg fragen" }] }] }] }] };
   const pageId = w.createPage({ title: "Dora", content });
   (await import("@/plugins/workspace/task-lists")).syncPageLists(pageId);
-  const { addAgentTodo } = await import("@/lib/boards/store");
+  const { addAgentTodo } = await import("@/lib/todos/store");
   addAgentTodo({ ticket: "", text: "Dora das Buch zurückgeben" });
   const { widgetData } = await import("@/plugins/workspace/widgets");
   const on = await widgetData("people.todos", { person: "Dora Klein", __page: pageId });

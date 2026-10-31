@@ -6,7 +6,7 @@ setupTempData();
 
 test("a Jira comment Zeff posted points back to the todo whose action wrote it — found by the todo's done event, a moment after the comment", async () => {
   const { getSqlite } = await import("@/db");
-  const { postedFrom } = await import("@/lib/boards/sources");
+  const { postedFrom } = await import("@/lib/todos/sources");
   const db = getSqlite();
   const insert = db.prepare("insert into todo_events (todo_id, event, ticket, text, note, at) values (?, 'done', ?, ?, ?, ?)");
   insert.run(129, "PROJ-364", "Rico/Jens im Ticket bestätigen", "Comment posted on PROJ-364", "2026-10-12T15:46:48.742Z");

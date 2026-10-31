@@ -1,6 +1,6 @@
 import { amountIn } from "@/lib/girocode";
 import { emitChange } from "@/lib/events";
-import { caseRefs } from "@/lib/boards/similar";
+import { caseRefs } from "@/lib/todos/similar";
 import { contactFor } from "@/plugins/cases/parties";
 import { caseKey } from "@/plugins/cases/shared";
 import { casesDb, listCases } from "@/plugins/cases/store";

@@ -9,8 +9,8 @@ export async function GET(req: Request) {
   await connection();
   try {
     const q = (new URL(req.url).searchParams.get("q") ?? "").slice(0, 200);
-    const { listTodos } = await import("@/lib/boards/store");
-    const { omniSearch } = await import("@/lib/boards/omnibar");
+    const { listTodos } = await import("@/lib/todos/store");
+    const { omniSearch } = await import("@/lib/todos/omnibar");
     const { isInstalled } = await import("@/plugins/state");
     const todos = listTodos({ status: "all" }).filter((todo) => todo.status !== "dismissed");
     const people = isInstalled("people") ? (await import("@/plugins/people/store")).listPeople().map((p) => ({ id: p.id, name: p.name, aliases: p.aliases })) : [];

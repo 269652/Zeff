@@ -4,8 +4,8 @@ import Link from "next/link";
 import { BranchNamingAdmin } from "@/components/BranchNamingAdmin";
 import { ContextStepForm } from "@/components/ContextStepForm";
 import { aiQuality, STALE_DAYS, type AiQuality } from "@/lib/ai-quality";
-import { getContextPrefs } from "@/lib/boards/context-prefs";
-import { contextSteps } from "@/lib/boards/context-prefs-shared";
+import { getContextPrefs } from "@/lib/runs/context-prefs";
+import { contextSteps } from "@/lib/runs/context-prefs-shared";
 import { installedPlugins } from "@/plugins/state";
 import { ensureSystemPrompts, PROMPTS, PROMPT_GROUPS, systemPrompts } from "@/lib/prompts";
 

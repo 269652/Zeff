@@ -13,7 +13,7 @@ export async function register() {
   // Resuming work runs, documents, the plugin event watcher … stay with the web server — twice would be wrong.
   if (process.env.ZEFF_ROLE === "sync") {
     try {
-      const { failInterruptedRuns } = await import("./lib/boards/store");
+      const { failInterruptedRuns } = await import("./lib/runs/store");
       const { listAccounts, withAccount } = await import("./db/accounts");
       // A board run or recap can't outlive the server that ran it — this one, now.
       for (const a of listAccounts()) withAccount(a.id, failInterruptedRuns);
@@ -47,7 +47,7 @@ export async function register() {
   if (delegates()) (await import("./lib/host/mirror")).startHostMirror();
   try {
     if (!runsWork()) throw new Error("skipped");
-    const { failInterruptedRuns } = await import("./lib/boards/store");
+    const { failInterruptedRuns } = await import("./lib/runs/store");
     const { listAccounts, withAccount } = await import("./db/accounts");
     // A board run or recap can't outlive the server that ran it — in every account, not only the one you're in.
     for (const a of listAccounts()) withAccount(a.id, failInterruptedRuns);

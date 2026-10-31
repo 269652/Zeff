@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { regenerateRecurringAction, setTodoDueAction, setTodoRecurrenceAction } from "@/plugins/todos/server-actions";
 import { DateField } from "@/components/DateField";
-import { duePill, dueText } from "@/lib/boards/due-shared";
+import { duePill, dueText } from "@/lib/todos/due-shared";
 import { formatDate } from "@/lib/format";
 import { toast } from "../Toaster";
 import { useT } from "@/components/I18nProvider";

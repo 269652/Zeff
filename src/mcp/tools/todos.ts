@@ -1,8 +1,8 @@
 import { isInstalled } from "@/plugins/state";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
-import { getTodo, listTodos } from "@/lib/boards/store";
-import { parseTodoRef, todoRef } from "@/lib/boards/shared";
+import { getTodo, listTodos } from "@/lib/todos/store";
+import { parseTodoRef, todoRef } from "@/lib/todos/shared";
 import { run, pluginOff, ok, fail, type ToolResult } from "./kit";
 
 /** Registers list_todos, start_todo, todo_context, ticket_brief, todo_attachment. */

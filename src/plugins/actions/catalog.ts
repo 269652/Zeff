@@ -3,7 +3,7 @@
  * validation of what an AI proposes and the AI's dictionary. Which of them can run now is the
  * installed plugins' business (opAvailable on the server). Client-safe.
  */
-import type { TodoOp } from "@/lib/boards/shared";
+import type { TodoOp } from "@/lib/todos/shared";
 import { pluginById } from "../catalog";
 import { ACTION_LISTS } from "../actions.generated";
 import type { ActionSpec, ActionType, CleanContext } from "./types";

@@ -72,7 +72,7 @@ test("subtaskCounts: done/total per parent through a relation within the databas
 test("ticketExtras: a card's todos and Lage by its key", async () => {
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("todos", true);
-  const { addManualTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const { addManualTodo, setTodoStatus } = await import("@/lib/todos/store");
   const { ticketExtras } = await import("@/lib/items/tickets");
   const a = addManualTodo({ ticket: "WS-41", text: "Fliesen aussuchen" }) as { id: number };
   const b = addManualTodo({ ticket: "WS-41", text: "Termin machen" }) as { id: number };

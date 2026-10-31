@@ -1,7 +1,7 @@
 import { promptText } from "@/lib/prompts";
-import { plain } from "@/lib/boards/collect";
-import type { TodoView } from "@/lib/boards/shared";
-import { listTodos, setTodoNoteRefs } from "@/lib/boards/store";
+import { plain } from "@/lib/runs/collect";
+import type { TodoView } from "@/lib/todos/shared";
+import { listTodos, setTodoNoteRefs } from "@/lib/todos/store";
 import { t } from "@/lib/i18n/server";
 import { getJiraTicket } from "@/lib/jira/store";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";

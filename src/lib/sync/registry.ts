@@ -1,6 +1,6 @@
 import { eq, sql, type AnyColumn } from "drizzle-orm";
 import { getDb, schema } from "@/db";
-import { getBoardSettings, latestRun } from "@/lib/boards/store";
+import { getBoardSettings, latestRun } from "@/lib/runs/store";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { getPref } from "@/lib/prefs";
@@ -271,7 +271,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     get what() { return t("Your tickets through the AI: what happened, what's to do"); },
     ownRecord: true,
     run: async () => {
-      const { startBoardRun, boardRunState } = await import("@/lib/boards/run");
+      const { startBoardRun, boardRunState } = await import("@/lib/runs/run");
       const r = startBoardRun();
       if (!r.ok) return r;
       // It runs in the background: wait for it, so "Sync all" ends when it does.
@@ -280,7 +280,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
       return run?.status === "ok" ? { ok: true, message: t("Briefing updated.") } : { ok: false, message: run?.error ?? t("The run failed.") };
     },
     stop: () => {
-      void import("@/lib/boards/run").then((m) => m.stopBoardRun());
+      void import("@/lib/runs/run").then((m) => m.stopBoardRun());
     },
     // The Lage itself: not while its run syncs first or relates the mails (their own steps show that).
     busy: () => {
@@ -303,7 +303,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     href: "/todos",
     get what() { return t("Todos from your mails — what they ask of you (trainings, deadlines, forms), by the AI (after each briefing)"); },
     run: async () => {
-      const r = await (await import("@/lib/boards/mail-todos")).reviewMailsForTodos(
+      const r = await (await import("@/lib/todos/mail-todos")).reviewMailsForTodos(
         accountFlag<{ id: number }>("__zeffBoardRun")?.id ?? null,
       );
       return r.ok
@@ -335,14 +335,14 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     href: "/todos",
     get what() { return t("Open todos that repeat an older one (the same message or numbers, mostly the same words) merged into the oldest, which keeps its id - the gate does the same for every new todo (after each briefing)"); },
     run: async () => {
-      const { mergeDuplicateTodos } = await import("@/lib/boards/dedupe");
-      const { attributed } = await import("@/lib/boards/activity");
+      const { mergeDuplicateTodos } = await import("@/lib/todos/dedupe");
+      const { attributed } = await import("@/lib/todos/activity");
       const r = attributed("merge", () => mergeDuplicateTodos({ actor: "merge" }));
       // Todos that name a repetition (a rate every 15th) get their rule and the series in the calendar.
-      const { detectRecurrences } = await import("@/lib/boards/recurring");
+      const { detectRecurrences } = await import("@/lib/todos/recurring");
       const rec = detectRecurrences();
       // Their next todos' words (without “Erste Rate … sofort”), by the AI — once per todo.
-      await (await import("@/lib/boards/repeat-text-ai")).writeRepeatTexts().catch(() => undefined);
+      await (await import("@/lib/todos/repeat-text-ai")).writeRepeatTexts().catch(() => undefined);
       const merged = r.merged ? t("{n} duplicates merged", { n: r.merged }) : t("No duplicates.");
       return { ok: true, message: rec.set ? `${merged} ${t("{n} todos repeat — their series are in the calendar.", { n: rec.set })}` : merged };
     },
@@ -382,7 +382,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     href: "/todos",
     get what() { return t("Which mails each open todo is about — the AI reads them by content (after each briefing)"); },
     run: async () => {
-      const r = await (await import("@/lib/boards/mail-relations")).relateMails();
+      const r = await (await import("@/lib/todos/mail-relations")).relateMails();
       return r.ok
         ? { ok: true, message: `${t("{todos} todos, {changed} changed", { todos: r.todos, changed: r.changed })}${r.error ? ` (${r.error})` : ""}` }
         : { ok: false, message: r.error ?? t("Failed.") };
@@ -570,7 +570,7 @@ async function runStep(key: SyncKey): Promise<void> {
   }
   // Your answers it brought close the reply todos they answer (by rule, no AI) — at once, not only with the next briefing.
   if (outcome?.ok && (key === "mail" || key === "teams" || key === "whatsapp" || key === "signal" || key === "gmail" || key === "jira")) {
-    const r = await (await import("@/lib/boards/evidence-close")).closeTodosByEvidence().catch((e) => (console.error("[evidence] closing by your replies failed", e), null));
+    const r = await (await import("@/lib/todos/evidence-close")).closeTodosByEvidence().catch((e) => (console.error("[evidence] closing by your replies failed", e), null));
     if (r && (r.closed || r.proposed)) console.log(`[evidence] after ${key}: ${r.closed} todo(s) closed, ${r.proposed} proposed — you replied`);
   }
   // What it brought, into the timeline (by rule, no AI — cheap; the minute's tick catches up on what is left).

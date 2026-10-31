@@ -111,7 +111,7 @@ export function jobLinks(v: { baseUrl: string; project: string; local: string; r
  * database is opened; what is not a job's delivery is left alone.
  */
 export async function upgradeDeliveries(rows: { id: number; cells: Record<string, unknown> }[]): Promise<void> {
-  const { getTodo, listTodos, setTodoOps } = await import("@/lib/boards/store");
+  const { getTodo, listTodos, setTodoOps } = await import("@/lib/todos/store");
   const { getRun } = await import("@/lib/work/store");
   const { listGitlabItems } = await import("@/lib/gitlab/store");
   const open = listTodos({ status: "open" });
@@ -141,7 +141,7 @@ export async function upgradeDeliveries(rows: { id: number; cells: Record<string
 }
 
 /** The open todo of a ticket that carries actions (push, merge request, merge) for one of these branch names — the delivery as it stands now. */
-function liveDeliveryTodo(open: import("@/lib/boards/shared").TodoView[], ticket: string | null | undefined, names: (string | null | undefined)[]): import("@/lib/boards/shared").TodoView | undefined {
+function liveDeliveryTodo(open: import("@/lib/todos/shared").TodoView[], ticket: string | null | undefined, names: (string | null | undefined)[]): import("@/lib/todos/shared").TodoView | undefined {
   const wanted = new Set(names.filter((n): n is string => !!n).map((n) => n.replace(/^origin\//, "")));
   if (!ticket || !wanted.size) return undefined;
   return open.find(
@@ -163,9 +163,9 @@ const SHOWS_WORK: JobState[] = ["In Arbeit", "Rückfrage", "Zur Prüfung", "Fert
 
 export async function jobPanels(rows: { id: number; cells: Record<string, unknown> }[]): Promise<Record<number, JobPanel>> {
   const out: Record<number, JobPanel> = {};
-  const { getTodo, listTodos } = await import("@/lib/boards/store");
+  const { getTodo, listTodos } = await import("@/lib/todos/store");
   const openTodos = listTodos({ status: "open" });
-  const { opLabel } = await import("@/lib/boards/shared");
+  const { opLabel } = await import("@/lib/todos/shared");
   const { getRun } = await import("@/lib/work/store");
   const { ticketExtras } = await import("@/lib/items/tickets");
   const { getGitlabSettings, listGitlabItems } = await import("@/lib/gitlab/store");
@@ -322,7 +322,7 @@ export function useJobDeps(deps: JobDeps | undefined): void {
 
 async function realDeps(): Promise<JobDeps> {
   if (override) return override;
-  const [{ addManualTodo, setTodoStatus, getTodo, setTodoNeedsInput, deliveryTodo }, runner, { getRun }] = await Promise.all([import("@/lib/boards/store"), import("@/lib/work/runner"), import("@/lib/work/store")]);
+  const [{ addManualTodo, setTodoStatus, getTodo, setTodoNeedsInput, deliveryTodo }, runner, { getRun }] = await Promise.all([import("@/lib/todos/store"), import("@/lib/work/runner"), import("@/lib/work/store")]);
   return {
     addTodo: (v) => addManualTodo(v),
     dispatch: (todoId, v) => runner.dispatchTodo(todoId, { instruction: v.instruction, ...(v.continueRun ? { continueRun: v.continueRun } : {}) }),

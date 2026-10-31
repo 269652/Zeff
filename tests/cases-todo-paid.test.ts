@@ -18,7 +18,7 @@ const plusMonth = (iso: string) => {
 async function world() {
   const { setInstalled } = await import("@/plugins/state");
   for (const p of ["people", "todos", "cases"]) setInstalled(p, true);
-  const { addManualTodo, setTodoOps } = await import("@/lib/boards/store");
+  const { addManualTodo, setTodoOps } = await import("@/lib/todos/store");
   const rate = addManualTodo({ ticket: "", text: "Rate 300 € (Az. DR II 1121/26) überweisen" });
   setTodoOps(rate.id, [{ type: "bank-transfer", name: "Sparkasse", iban: "DE02120300000000202051", bic: "", amount: "300.00", purpose: "DR II 1121/26" } as never], undefined, true);
   const rest = addManualTodo({ ticket: "", text: "Restforderung 11,52 € (Az. DR II 810/26) heute überweisen" });
@@ -36,7 +36,7 @@ async function world() {
 
 test("a payment todo ticked off: the case paid — the instalment's due on to next month, a rest paid closes it", async () => {
   const { rate, rest, spk, swr, getCase } = await world();
-  const { setTodoStatus } = await import("@/lib/boards/store");
+  const { setTodoStatus } = await import("@/lib/todos/store");
   const { paymentsOf } = await import("@/plugins/cases/bank");
   const due = getCase(spk.id)!.compiled!.nextDue!;
   setTodoStatus(rate.id, "done");
@@ -65,7 +65,7 @@ test("a plan paid on a day of the month: the next instalment on that day of the 
 
 test("what is open after a payment, wherever it shows: the letter's amount less what was paid since", async () => {
   const { rate, spk, getCase } = await world();
-  (await import("@/lib/boards/store")).setTodoStatus(rate.id, "done");
+  (await import("@/lib/todos/store")).setTodoStatus(rate.id, "done");
   const { openOf, caseStanding } = await import("@/plugins/cases/bank");
   const now = caseStanding(spk.id).open!;
   assert.ok(now < 3618.13, "paid on it");
@@ -89,7 +89,7 @@ test("the statement's booking settles the open todo: one payment, not the bookin
 
 test("ticked off by hand, on the statement days later: the same payment — counted once", async () => {
   const { rate, spk } = await world();
-  const { setTodoStatus } = await import("@/lib/boards/store");
+  const { setTodoStatus } = await import("@/lib/todos/store");
   const { paymentsOf, addBookings, matchPayments } = await import("@/plugins/cases/bank");
   setTodoStatus(rate.id, "done");
   const after = paymentsOf(spk.id).length;

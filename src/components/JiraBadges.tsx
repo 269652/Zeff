@@ -1,7 +1,7 @@
 "use client";
 
 import { setJiraCommentResolvedAction } from "@/plugins/jira/server-actions";
-import type { JiraCommentView } from "@/lib/boards/shared";
+import type { JiraCommentView } from "@/lib/todos/shared";
 import type { JiraTicketBrief } from "@/lib/entities-shared";
 import { SourceCard } from "./SourceCard";
 import { ResolvedMark } from "./ResolvedMark";

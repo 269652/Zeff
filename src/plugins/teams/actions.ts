@@ -2,7 +2,7 @@
 import { action, EN, str } from "../actions/types";
 
 /** The operation types this plugin brings (an entry per `type`); the core's TodoOp is the union of all plugins'. */
-declare module "@/lib/boards/shared" {
+declare module "@/lib/todos/shared" {
   interface TodoOpMap {
   /** A 1:1 Teams message to a colleague (by display name) — sent through the Teams tab of the automation Chrome. */
   "teams-message": { to: string; body: string };

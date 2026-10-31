@@ -1,5 +1,5 @@
 import { getSqlite } from "@/db";
-import { getTodo } from "@/lib/boards/store";
+import { getTodo } from "@/lib/todos/store";
 import { formatAgo } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { cancelRun } from "@/lib/work/runner";

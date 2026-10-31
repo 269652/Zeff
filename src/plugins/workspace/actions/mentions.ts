@@ -35,7 +35,7 @@ export async function mentionSearchAction(q: string): Promise<MentionItem[]> {
       for (const p of await searchPeopleAction(w)) items.push({ kind: "person", ref: String(p.id), label: p.name, hint: t("Person"), icon: "👤", href: (await import("../people-database")).personHref(p.id) });
     }
     if (isInstalled("todos")) {
-      const { searchTodos } = await import("@/lib/boards/store");
+      const { searchTodos } = await import("@/lib/todos/store");
       if (w) for (const x of searchTodos(w, 5)) items.push({ kind: "todo", ref: String(x.id), label: `${x.ref} ${x.text}`.slice(0, 90), hint: x.status === "done" ? t("Todo · done") : t("Todo"), icon: x.status === "done" ? "✅" : "☐", href: `/t/${x.id}` });
     }
     // Tickets: by key (any key is allowed), and the synced ones by words.
@@ -75,7 +75,7 @@ export async function mentionStateAction(refs: { kind: DocRef["kind"]; ref: stri
         const p = store.getPage(Number(r.ref));
         out[key] = p && !p.archivedAt ? { label: p.title || t("Untitled"), icon: p.icon || kindIcon(p.kind) } : { missing: true };
       } else if (r.kind === "todo" && isInstalled("todos")) {
-        const { getTodo } = await import("@/lib/boards/store");
+        const { getTodo } = await import("@/lib/todos/store");
         const x = getTodo(Number(r.ref));
         out[key] = x ? { label: `${x.ref} ${x.text}`.slice(0, 80), done: x.status === "done", status: x.status } : { missing: true };
       } else if (r.kind === "ticket") {

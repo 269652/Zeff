@@ -55,7 +55,7 @@ export const PEOPLE_ROW_BADGES: RowBadgeSource = {
 
     // Todos about them.
     if (isInstalled("todos")) {
-      const { listTodos } = await import("@/lib/boards/store");
+      const { listTodos } = await import("@/lib/todos/store");
       const todos = listTodos({ status: "open" }).map((x) => ({ text: `${x.text} ${x.note ?? ""}`, low: `${x.text} ${x.note ?? ""}`.toLowerCase(), overdue: !!x.due && x.due < today }));
       const firsts = new Map<string, number>();
       for (const p of people) {

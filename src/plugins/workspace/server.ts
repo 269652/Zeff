@@ -18,7 +18,7 @@ import { workspaceFieldTypes } from "./field-point";
 import { CORE_FIELD_TYPES } from "./field-types";
 import { ROUTINES_SOURCE, RUNS_SOURCE } from "./automation-databases";
 import { TASKS_SOURCE } from "./task-source";
-import { onTodoDone } from "@/lib/boards/done-hooks";
+import { onTodoDone } from "@/lib/todos/done-hooks";
 import { blockTodoDone } from "./task-lists";
 import { todoDone } from "./todo-engine";
 

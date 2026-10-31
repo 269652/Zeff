@@ -1,7 +1,7 @@
 import { getSqlite } from "@/db";
-import { listTodos } from "@/lib/boards/store";
-import { duplicateTodo } from "@/lib/boards/similar";
-import type { TodoView } from "@/lib/boards/shared";
+import { listTodos } from "@/lib/todos/store";
+import { duplicateTodo } from "@/lib/todos/similar";
+import type { TodoView } from "@/lib/todos/shared";
 import { pushTo } from "@/lib/collections";
 import { t } from "@/lib/i18n/server";
 

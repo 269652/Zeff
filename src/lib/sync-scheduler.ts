@@ -1,7 +1,7 @@
-import { recapsOf, startRecap } from "./boards/recap";
-import { previousWorkday } from "./boards/recap-shared";
-import { startBoardRun } from "./boards/run";
-import { getBoardSettings, latestRun } from "./boards/store";
+import { recapsOf, startRecap } from "./runs/recap";
+import { previousWorkday } from "./runs/recap-shared";
+import { startBoardRun } from "./runs/run";
+import { getBoardSettings, latestRun } from "./runs/store";
 import { getGitlabSettings } from "./gitlab/store";
 import { syncGitlab } from "./gitlab/sync";
 import { getTeamsSettings } from "./teams/store";

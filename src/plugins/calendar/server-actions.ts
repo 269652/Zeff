@@ -22,7 +22,7 @@ export async function moveProposedEventAction(todoId: number, index: number, sta
   try {
     const minutes = Math.round((Date.parse(`${String(end).slice(0, 16)}:00`) - Date.parse(`${String(start).slice(0, 16)}:00`)) / 60000);
     if (!(minutes > 0)) return { ok: false, error: t("The end has to be after the start.") };
-    const { moveCalendarOp } = await import("@/lib/boards/store");
+    const { moveCalendarOp } = await import("@/lib/todos/store");
     moveCalendarOp(Number(todoId), Number(index), String(start).slice(0, 16), minutes);
     changed();
     return { ok: true, message: t("Appointment moved — it is entered when you run the todo's action.") };
@@ -236,7 +236,7 @@ export async function syncCalendarsAction(range?: { from: string; to: string }):
  */
 export async function acceptProposedEventAction(todoId: number, index: number, title: string): Promise<ActionState> {
   return run(async () => {
-    const { getTodo, addTodoUserNote } = await import("@/lib/boards/store");
+    const { getTodo, addTodoUserNote } = await import("@/lib/todos/store");
     const todo = getTodo(Number(todoId));
     const op = todo?.ops[Number(index)];
     // Google Calendar's (with its write access): entered there through Google's API, on this click.

@@ -8,7 +8,7 @@ setupTempData();
 test("side work of a session: shown while it goes, ended with its run", async () => {
   const { endSideWork, sideTodos, sideWorker } = await import("@/lib/work/actions");
   const { startAgentWork } = await import("@/lib/work/agent");
-  const { addFollowUp, getTodo } = await import("@/lib/boards/store");
+  const { addFollowUp, getTodo } = await import("@/lib/todos/store");
   const { createRun, getRun, runsByStatus, updateRun } = await import("@/lib/work/store");
 
   const own = addFollowUp({ ticket: "ABC-4", text: "Session", kind: "other", parentId: null, workRunId: null, source: "test" });
@@ -33,7 +33,7 @@ test("side work of a session: shown while it goes, ended with its run", async ()
 
 test("the session's instructions tell the worker to mark other todos itself", async () => {
   const { taskFor } = await import("@/lib/work/brief");
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   const todo = addFollowUp({ ticket: "ABC-5", text: "Session", kind: "other", parentId: null, workRunId: null, source: "test" });
   const text = taskFor("instruct", { todo, runId: 7, repo: null, cwd: "x", branch: null, base: null, isolation: "checkout" });
   assert.match(text, /start_todo/);
@@ -42,7 +42,7 @@ test("the session's instructions tell the worker to mark other todos itself", as
 
 test("the worker is told the todo's linked branch, or the naming convention when there is none", async () => {
   const { taskFor } = await import("@/lib/work/brief");
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   const todo = addFollowUp({ ticket: "ABC-6", text: "Fix it", kind: "fix", parentId: null, workRunId: null, source: "test" });
   const base = { todo, runId: 8, repo: "r", cwd: "x", branch: "zeff/ABC-6-w8", base: "main", isolation: "worktree" as const };
   const linked = taskFor("code", { ...base, linked: [{ branch: "feature/ABC-6-footer", label: "Merge Request !12", url: "https://x/mr/12" }], newBranch: "fix/ABC-6-<short-change>" });
@@ -56,7 +56,7 @@ test("the worker is told the todo's linked branch, or the naming convention when
 /** A session started without a ticket that takes a todo through start_todo moves under its ticket - no second session beside it. */
 test("a session without a ticket moves under the todo it takes", async () => {
   const { startAgentWork } = await import("@/lib/work/agent");
-  const { addFollowUp, addSessionTodo, getTodo } = await import("@/lib/boards/store");
+  const { addFollowUp, addSessionTodo, getTodo } = await import("@/lib/todos/store");
   const { createRun, getRun, runsByStatus, updateRun } = await import("@/lib/work/store");
   const { withCallerRun } = await import("@/mcp/caller");
 

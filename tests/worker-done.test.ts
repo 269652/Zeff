@@ -6,7 +6,7 @@ setupTempData();
 
 /** A worker's "done" is a mark on the todo (highlighted, still open) - closing it is yours. */
 test("a worker's completedTodos mark the todo, a click of yours closes it; Zeff's own runs still close", async () => {
-  const { addFollowUp, getTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const { addFollowUp, getTodo, setTodoStatus } = await import("@/lib/todos/store");
   const { applyOutcome } = await import("@/lib/work/outcome");
   const { createRun, getRun } = await import("@/lib/work/store");
 

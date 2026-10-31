@@ -10,14 +10,14 @@ import { promptText } from "@/lib/prompts";
 import { getDb, getSqlite, schema } from "@/db";
 import { runAi } from "@/lib/ai";
 import { NOT_A_CONTACT } from "@/lib/noise";
-import { listTodos } from "@/lib/boards/store";
-import { plain } from "@/lib/boards/collect";
+import { listTodos } from "@/lib/todos/store";
+import { plain } from "@/lib/runs/collect";
 import { errorMessage } from "@/lib/errors";
 import { isInstalled } from "@/plugins/state";
 import { buildPeopleIndex, mentionMatcher, splitMentions } from "./mentions";
 import { addAliases, addRelation, createPerson, getPerson, listPeople, mergePeople, namesOf, namesThem, relationsOf, updatePerson, whatsappChats } from "./store";
 import type { Person } from "./shared";
-import type { TodoView } from "@/lib/boards/shared";
+import type { TodoView } from "@/lib/todos/shared";
 import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 const { emails } = schema;

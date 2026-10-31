@@ -56,7 +56,7 @@ test("follow-ups: what others promised and didn't keep — past its day, or a we
   assert.equal(items.length, 1);
   assert.match(items[0].title, /Rico/);
   await reviewAct(items[0].key, "yes");
-  const { listTodos } = await import("@/lib/boards/store");
+  const { listTodos } = await import("@/lib/todos/store");
   const made = listTodos({ status: "open" }).find((t) => /Rico/.test(t.text) && /nachfassen/i.test(t.text));
   assert.ok(made, "a todo to follow up");
   assert.deepEqual(made!.refs, ["mail:r1"]);

@@ -101,7 +101,7 @@ export async function startAgent(pageId: number, trigger: Trigger, ctx: { row?: 
   try {
     // (Its pages' excerpts and the row in hand: what is marked secret is left out — lib/boundaries.)
     const prompt = guardPrompt(buildAgentPrompt(pageId, trigger, ctx));
-    const { addManualTodo } = await import("@/lib/boards/store");
+    const { addManualTodo } = await import("@/lib/todos/store");
     const todo = addManualTodo({ ticket: "", text: `Agent: ${page.title || "Untitled"}` });
     const run = await { ...realDeps, ...deps }.dispatch(todo.id, { instruction: prompt, provider: getRoutine(pageId)?.provider, ...(getRoutine(pageId)?.permissions.gmail ? { approvedTools: GMAIL_CHANGE_TOOLS } : {}) });
     setWorkRun(runId, run.id);

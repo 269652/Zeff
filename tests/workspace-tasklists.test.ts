@@ -38,8 +38,8 @@ test("block to-do lists: ids at once, a path with the breadcrumb, written from a
 
 test("block to-do lists: a list that feeds the Todo engine - both ways, an item that is gone is dismissed", async () => {
   const { lists, page } = await world();
-  const { todoByRef, getTodo } = await import("@/lib/boards/store");
-  const { setTodoStatus } = await import("@/lib/boards/store");
+  const { todoByRef, getTodo } = await import("@/lib/todos/store");
+  const { setTodoStatus } = await import("@/lib/todos/store");
   const l = lists.allTaskLists().find((x) => x.pageId === page)!;
   lists.setListMeta(page, l.listId, { engine: true });
   const call = l.items[0];
@@ -92,7 +92,7 @@ test("block to-do lists as a data source: records with the list's path; ticking 
 
 test("block to-do lists: turned into a database - rows, the Todo view, the list's place taken by its view, todos follow", async () => {
   const { lists, page, store } = await world();
-  const { todoByRef } = await import("@/lib/boards/store");
+  const { todoByRef } = await import("@/lib/todos/store");
   const l = lists.allTaskLists().find((x) => x.pageId === page)!;
   lists.setListMeta(page, l.listId, { title: "Office tasks", engine: true });
   const open = l.items[0];
@@ -117,7 +117,7 @@ test("todo lists as databases: feeding the Todo engine both ways, text and date 
   const store = await import("@/plugins/workspace/store");
   const { createTodoDatabase } = await import("@/plugins/workspace/todo-lists");
   const engine = await import("@/plugins/workspace/todo-engine");
-  const { todoByRef, getTodo, setTodoStatus } = await import("@/lib/boards/store");
+  const { todoByRef, getTodo, setTodoStatus } = await import("@/lib/todos/store");
   const { dbId } = createTodoDatabase({ title: "Chores", items: [{ title: "Wash up" }, { title: "Tax", done: true }] });
   const [a, b] = store.rowsOf(dbId)!.rows;
   assert.equal(todoByRef(`ws:${a.id}`), undefined, "off by default");
@@ -177,7 +177,7 @@ test("block to-do lists in Markdown: the head keeps id, title and engine; items 
 test("one model for lists and databases: a due day on an item, in Markdown, in the engine and across a conversion", async () => {
   const { lists, page, store } = await world();
   const { docToMarkdown, markdownToDoc } = await import("@/plugins/workspace/doc");
-  const { todoByRef } = await import("@/lib/boards/store");
+  const { todoByRef } = await import("@/lib/todos/store");
   const l = lists.allTaskLists().find((x) => x.pageId === page)!;
   lists.setItemDue(page, l.listId, l.items[0].itemId, "2026-11-02");
   assert.equal(lists.getTaskList(page, l.listId)!.items[0].due, "2026-11-02");
@@ -197,7 +197,7 @@ test("one model for lists and databases: a due day on an item, in Markdown, in t
 test("a todo database turned back into a list: the rows are its items, the database's place is taken, the todos stay the same ones", async () => {
   const { lists, page, store } = await world();
   const { convertToList } = await import("@/plugins/workspace/todo-lists");
-  const { todoByRef } = await import("@/lib/boards/store");
+  const { todoByRef } = await import("@/lib/todos/store");
   const l = lists.allTaskLists().find((x) => x.pageId === page)!;
   lists.setItemDue(page, l.listId, l.items[0].itemId, "2026-11-02");
   lists.setListMeta(page, l.listId, { title: "Office tasks", engine: true });

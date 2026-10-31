@@ -47,7 +47,7 @@ async function attachContextLater(entryId: number, ticket: string | null, todoId
   if (!todoIds.length) return;
   try {
     const { attachTodoContext, commentTickets } = await import("@/lib/work/booking");
-    const { refreshTicketComments } = await import("@/lib/boards/collect");
+    const { refreshTicketComments } = await import("@/lib/runs/collect");
     await refreshTicketComments(commentTickets(todoIds)).catch(() => 0);
     attachTodoContext(entryId, ticket, todoIds);
   } catch (e) {

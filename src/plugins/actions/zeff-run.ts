@@ -1,4 +1,4 @@
-import type { TodoOp } from "@/lib/boards/shared";
+import type { TodoOp } from "@/lib/todos/shared";
 import { ApiError } from "@/lib/plugins/api-kit";
 import type { ActionContext, ActionResult } from "./run-types";
 

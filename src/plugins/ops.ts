@@ -1,4 +1,4 @@
-import { opPlugin } from "@/lib/boards/shared";
+import { opPlugin } from "@/lib/todos/shared";
 import { actionExtensionOk } from "./extension-state";
 import { isInstalled } from "./state";
 

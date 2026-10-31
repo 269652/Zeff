@@ -1,4 +1,4 @@
-import { similarText } from "@/lib/boards/similar";
+import { similarText } from "@/lib/todos/similar";
 
 /**
  * Trust in facts — what a value means (client-safe, pure): the kinds of things Zeff keeps about someone or

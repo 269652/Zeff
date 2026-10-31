@@ -37,7 +37,7 @@ test("people matching: the AI's answer becomes aliases, merges and structured re
   const { updateAppSettings } = await import("@/lib/ai");
   updateAppSettings({ aiProvider: "claude" });
   const { createPerson, listPeople, relationsOf } = await import("@/plugins/people/store");
-  const { addManualTodo } = await import("@/lib/boards/store");
+  const { addManualTodo } = await import("@/lib/todos/store");
   const { getDb, schema } = await import("@/db");
   const mama = createPerson({ name: "Mama" });
   const johanna = createPerson({ name: "Johanna Roessler" });

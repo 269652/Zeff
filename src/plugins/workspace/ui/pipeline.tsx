@@ -9,7 +9,7 @@ import { RunLog } from "./RunLog";
 import { previewJoinAction, previewSetAction, previewAiFilterAction, instructionsAction, newInstructionAction, rejudgeAction, sourceSyncsAction } from "../actions";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
-import { ATTENTIONS } from "@/lib/boards/shared";
+import { ATTENTIONS } from "@/lib/runs/shared";
 import { FILTER_OPS, newId, type DataType, type FilterRule, type JiraCriteria, type Pipeline, type PipelineSource, type PipelineStep } from "../model";
 import { Dropdown, MenuItem, Modal } from "./kit";
 

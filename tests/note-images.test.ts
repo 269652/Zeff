@@ -9,7 +9,7 @@ setupTempData();
 const PNG = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6kgAAAABJRU5ErkJggg==", "base64");
 
 async function todoOn(ticket: string) {
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   // (each todo its own words: todos that only repeat each other aren't made twice)
   return addFollowUp({ ticket, text: `Aufgabe ${Math.random().toString(36).slice(2, 10)} ${Math.random().toString(36).slice(2, 10)}`, kind: "other", parentId: null as unknown as number, workRunId: null, source: "test" });
 }
@@ -24,7 +24,7 @@ async function picture(name: string, described: string) {
 
 /** A picture in a note is a file of the todo, known to the AI that works on it and reviews it. */
 test("pictures in a note become files of the todo; the brief, the AI review and the search know them", async () => {
-  const { addTodoUserNote, getTodo } = await import("@/lib/boards/store");
+  const { addTodoUserNote, getTodo } = await import("@/lib/todos/store");
   const { linkNoteImages, todoAttachments, parseDocQuery } = await import("@/plugins/documents/attachments");
   const { briefFor } = await import("@/lib/work/brief");
   const { SEARCHERS } = await import("@/lib/rag");
@@ -72,7 +72,7 @@ test("pictures in a note become files of the todo; the brief, the AI review and 
 /** The note on Jira: the pictures go up as attachments first, then the comment names them. */
 test("syncing a note with pictures uploads them to the ticket first, then references them in the comment", async () => {
   const { getDb, schema } = await import("@/db");
-  const { addTodoUserNote, getTodo } = await import("@/lib/boards/store");
+  const { addTodoUserNote, getTodo } = await import("@/lib/todos/store");
   const { syncNoteToJira, noteBodyForJira, noteImageFiles } = await import("@/lib/jira/note-sync");
   const { documentFile } = await import("@/plugins/documents/store");
   getDb().insert(schema.jiraTickets).values({ key: "IMG-2", summary: "Ticket", status: "Open", statusCategory: "inprogress", url: "https://jira.example/browse/IMG-2", boardId: 3359, syncedAt: new Date().toISOString() } as never).run();
@@ -94,7 +94,7 @@ test("syncing a note with pictures uploads them to the ticket first, then refere
 
   // Synced again (the note edited): the picture is not uploaded twice.
   calls.length = 0;
-  const { updateTodoUserNote } = await import("@/lib/boards/store");
+  const { updateTodoUserNote } = await import("@/lib/todos/store");
   updateTodoUserNote(todo.id, at, `Neu: ![Entwurf](doc:${doc.id})`);
   const again = await syncNoteToJira(todo.id, at, deps);
   assert.equal(again.state, "updated");
@@ -108,7 +108,7 @@ test("syncing a note with pictures uploads them to the ticket first, then refere
 /** The page is told after the data is written — a refresh on the announcement finds the closed todo and the next one. */
 test("closing a todo and making a follow-up announce the change only once it is written", async () => {
   const { onChange } = await import("@/lib/events");
-  const { addFollowUp, setTodoStatus, listTodos, getTodo } = await import("@/lib/boards/store");
+  const { addFollowUp, setTodoStatus, listTodos, getTodo } = await import("@/lib/todos/store");
   const todo = await todoOn("EV-1");
   // A planned step: closing the todo makes it the next todo (afterDone).
   const { getDb, schema } = await import("@/db");
@@ -136,7 +136,7 @@ test("pasting a picture into a note works with the Documents plugin off: it inst
   const { setInstalled, isInstalled } = await import("@/plugins/state");
   const { ensureDocumentsAction, attachDocumentAction } = await import("@/plugins/documents/server-actions");
   const { POST } = await import("@/app/api/documents/route");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { getTodo } = await import("@/lib/todos/store");
   setInstalled("documents", false);
   assert.equal(isInstalled("documents"), false);
   // Off: the upload route is not there.

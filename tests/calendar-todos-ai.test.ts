@@ -20,7 +20,7 @@ test("calendar todos: only appointments with something to do, a daily blocker no
   updateAppSettings({ aiProvider: "claude" });
   const ir = await import("@/lib/calendar/ir");
   const { calendarTodos } = await import("@/lib/calendar/todos");
-  const { addCalendarTodo, listTodos, todoByRef } = await import("@/lib/boards/store");
+  const { addCalendarTodo, listTodos, todoByRef } = await import("@/lib/todos/store");
 
   const own = ir.createCalendar("Mein Kalender");
   const pause = ir.addEvent(own.id, { title: "Pause", start: "2026-11-02T12:30", end: "2026-11-02T13:00", recurrence: { freq: "daily", interval: 1 } });

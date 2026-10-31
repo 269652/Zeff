@@ -50,8 +50,8 @@ export async function firstLook(): Promise<FirstLook> {
     const { openOf } = await import("@/plugins/cases/bank");
     const { caseHref } = await import("@/plugins/cases/database");
     const { caseTitle } = await import("@/plugins/cases/shared");
-    const { listTodos } = await import("@/lib/boards/store");
-    const { linkedRefs } = await import("@/lib/boards/todo-settle");
+    const { listTodos } = await import("@/lib/todos/store");
+    const { linkedRefs } = await import("@/lib/todos/settle");
     const open = isInstalled("todos") ? listTodos({ status: "open" }) : [];
     const withTodo = new Set(open.flatMap((t) => linkedRefs(t)).filter((r) => r.startsWith("case:")));
     for (const c of listCases().filter((x) => x.status === "open" && !x.compiled?.done)) {
@@ -71,9 +71,9 @@ export async function firstLook(): Promise<FirstLook> {
   }
 
   if (isInstalled("todos")) {
-    const { listTodos } = await import("@/lib/boards/store");
+    const { listTodos } = await import("@/lib/todos/store");
     const taken = new Set(out.dueSoon.map((x) => x.ref));
-    const { linkedRefs } = await import("@/lib/boards/todo-settle");
+    const { linkedRefs } = await import("@/lib/todos/settle");
     for (const t of listTodos({ status: "open" })) {
       if (!t.due || t.due > ahead) continue;
       // (A todo for an instalment or a debt listed already: once, as that.)

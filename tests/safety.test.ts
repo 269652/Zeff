@@ -33,10 +33,10 @@ const WRITES: Record<string, string[]> = {
   gitlab_merge_mr: ["src/lib/gitlab/reply.ts"],
   gitlab_comment: ["src/lib/gitlab/reply.ts"],
   // (note-sync.ts: your note put on its ticket — the "Sync to Jira" click on a note.)
-  jira_add_comment: ["src/lib/boards/actions.ts", "src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
-  jira_transition_issue: ["src/lib/boards/actions.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
+  jira_add_comment: ["src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts", "src/lib/runs/actions.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
+  jira_transition_issue: ["src/lib/runs/actions.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
   // (note-sync.ts: the pictures of your note uploaded as attachments to its ticket, right before its comment — the same "Sync to Jira" click.)
-  jira_update_issue: ["src/lib/boards/actions.ts", "src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
+  jira_update_issue: ["src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts", "src/lib/runs/actions.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
   jira_create_issue_link: ["src/plugins/jira/run.ts"],
   jira_edit_comment: ["src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts"],
   jira_create_issue: ["src/plugins/jira/run.ts"],
@@ -106,10 +106,10 @@ test("no agent tool (MCP), worker or todo's Run can send a mail or write an even
 
 test("the automatic steps don't import what runs actions", () => {
   const automatic = [
-    "src/lib/boards/run.ts",
-    "src/lib/boards/collect.ts",
-    "src/lib/boards/mail-todos.ts",
-    "src/lib/boards/mail-relations.ts",
+    "src/lib/runs/run.ts",
+    "src/lib/runs/collect.ts",
+    "src/lib/todos/mail-todos.ts",
+    "src/lib/todos/mail-relations.ts",
     "src/plugins/auto-actions/review.ts",
     "src/plugins/knowledge/relations.ts",
     "src/lib/sync-scheduler.ts",
@@ -122,7 +122,7 @@ test("the automatic steps don't import what runs actions", () => {
   ];
   // The action runners: the ops runner, the plugins' run modules (teams/run, whatsapp/run, signal/run …), GitLab's writes —
   // and the clicks themselves (the server actions: Zeff's and each plugin's).
-  // (The Ticket-Lage's own run — boards/run — isn't one.)
+  // (The Ticket-Lage's own run — runs/run — isn't one.)
   const target = String.raw`(@\/lib\/ops|(@\/plugins|\.\.)\/(actions|teams|whatsapp|signal|jira|keep|work|gitlab|gmail|outlook)\/run|@\/lib\/gitlab\/reply|@\/app\/actions|(@\/plugins\/[\w-]+|\.)\/server-actions)`;
   const runners = new RegExp(String.raw`from\s+["']${target}["']|import\(["']${target}["']\)`);
   for (const f of automatic) {

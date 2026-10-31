@@ -1,5 +1,5 @@
 import { getSqlite } from "@/db";
-import { caseRefs } from "@/lib/boards/similar";
+import { caseRefs } from "@/lib/todos/similar";
 import { isInstalled } from "@/plugins/state";
 import { caseKey, type CaseSource } from "./shared";
 import { addSource, ensureCase, getCase, updateCase } from "./store";

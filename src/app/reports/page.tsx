@@ -5,7 +5,7 @@ import { desc } from "drizzle-orm";
 import { getDb } from "@/db";
 import { workReports } from "@/db/schema";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
-import { todoRef } from "@/lib/boards/shared";
+import { todoRef } from "@/lib/todos/shared";
 import { formatSmart } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
 import { backfillReports, reportsForTodo } from "@/lib/work/report";

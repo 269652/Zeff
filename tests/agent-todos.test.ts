@@ -28,7 +28,7 @@ test("add_todo: the agent's steps as todos on the ticket, none twice; complete_t
   const again = await t.add_todo({ ticket: "PROJ-1", text: "Partial überschreiben" });
   assert.equal(text(again).match(/T-\d+/)![0], text(a).match(/T-\d+/)![0], "the same todo, not a second");
 
-  const { listTodos, addManualTodo } = await import("@/lib/boards/store");
+  const { listTodos, addManualTodo } = await import("@/lib/todos/store");
   const mine = listTodos({ status: "open" }).filter((x) => x.ticket === "PROJ-1");
   assert.equal(mine.length, 1);
   assert.equal(mine[0].owner, "me");
@@ -55,7 +55,7 @@ test("add_todo: the agent's steps as todos on the ticket, none twice; complete_t
 test("deliveryTodo: its own todo with the actions; one that already pushes the branch gets the merge request; a similar unrelated todo is left alone", async () => {
   const { setInstalled } = await import("@/plugins/state");
   setInstalled("todos", true);
-  const store = await import("@/lib/boards/store");
+  const store = await import("@/lib/todos/store");
   const push = (branch: string, remote = branch) => ({ type: "git-push" as const, repo: "C:\r", branch, remote, target: "main", title: "PROJ-9: x", description: "d" });
   const mr = (source: string) => ({ type: "gitlab-open-mr" as const, repo: "C:\r", project: "grp/proj", source, target: "main", title: "PROJ-9: x", description: "d" });
 
@@ -85,7 +85,7 @@ test("todo_note: the AI leaves a note on a todo (an AI note, with its name; show
   setInstalled("todos", true);
   const t = await tools();
   assert.ok(t.todo_note, "the tool is there");
-  const { addManualTodo, getTodo } = await import("@/lib/boards/store");
+  const { addManualTodo, getTodo } = await import("@/lib/todos/store");
   const todo = addManualTodo({ ticket: "NOTE-1", text: "Etwas prüfen" });
   const r = await t.todo_note({ todo: todo.ref, note: "Der Fix liegt auf feature/NOTE-1-x; Tests laufen.", agent: "Copilot", url: "https://git.example.com/mr/1", urlLabel: "MR !1" });
   assert.ok(!r.isError, text(r));

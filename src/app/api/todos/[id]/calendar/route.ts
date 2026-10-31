@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { getTodo } from "@/lib/boards/store";
+import { getTodo } from "@/lib/todos/store";
 import { calendarDatabase } from "@/plugins/workspace/calendar-database";
 
 /** GET /api/todos/:id/calendar — to the calendar at the day a recurring todo is due (the series of the todo: its next appointment). */

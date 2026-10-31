@@ -34,7 +34,7 @@ function repoWithBranch(name: string) {
 async function setup(ticket: string, repo: string, branch: string, provider = "agent", gitlabProject: string | null = null) {
   const { saveRepo } = await import("@/lib/repos");
   const { createRun } = await import("@/lib/work/store");
-  const { addFollowUp } = await import("@/lib/boards/store");
+  const { addFollowUp } = await import("@/lib/todos/store");
   saveRepo({ name: `r-${ticket}`, path: repo, gitlabProject, boards: [], tickets: [ticket], instructions: "", delivery: "mr" });
   const todo = addFollowUp({ ticket, text: "Implement the setting", kind: "implement", parentId: null as unknown as number, workRunId: null, source: "test", ops: [{ type: "jira-transition", ticket, to: "In Progress" }] });
   createRun({ ticket, todoId: todo.id, mode: "code", provider, model: "Claude Code", permissionMode: null, repo, prompt: "x", branch });
@@ -44,8 +44,8 @@ async function setup(ticket: string, repo: string, branch: string, provider = "a
 test("a work branch that exists but isn't pushed gets a push action — no AI, added to the todo's other actions, once", async () => {
   const repo = repoWithBranch("feature/PU-1-setting");
   const todo = await setup("PU-1", repo, "feature/PU-1-setting");
-  const { attachOpenMrOps } = await import("@/lib/boards/delivery-ops");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { attachOpenMrOps } = await import("@/lib/todos/delivery-ops");
+  const { getTodo } = await import("@/lib/todos/store");
   assert.ok((await attachOpenMrOps()) >= 1);
   const ops = getTodo(todo.id)!.ops;
   assert.deepEqual(ops.map((o) => o.type), ["jira-transition", "git-push"]);
@@ -59,8 +59,8 @@ test("a work branch that exists but isn't pushed gets a push action — no AI, a
 });
 
 test("nothing to push: already on origin, no commits of its own, or a worker's own worktree branch", async () => {
-  const { attachOpenMrOps } = await import("@/lib/boards/delivery-ops");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { attachOpenMrOps } = await import("@/lib/todos/delivery-ops");
+  const { getTodo } = await import("@/lib/todos/store");
   const pushed = repoWithBranch("feature/PU-2-done");
   git(pushed, "push", "-q", "origin", "feature/PU-2-done");
   const a = await setup("PU-2", pushed, "feature/PU-2-done");
@@ -74,8 +74,8 @@ test("nothing to push: already on origin, no commits of its own, or a worker's o
 });
 
 test("once the branch is on the remote the push action goes and \"Open MR\" comes — unless a merge request exists; and not without a GitLab project", async () => {
-  const { attachOpenMrOps } = await import("@/lib/boards/delivery-ops");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { attachOpenMrOps } = await import("@/lib/todos/delivery-ops");
+  const { getTodo } = await import("@/lib/todos/store");
   const { getDb, schema } = await import("@/db");
   const repo = repoWithBranch("feature/PU-5-mr");
   const todo = await setup("PU-5", repo, "feature/PU-5-mr", "agent", "grp/proj");
@@ -105,10 +105,10 @@ test("once the branch is on the remote the push action goes and \"Open MR\" come
 });
 
 test("pushing a work branch is its own action: it runs alone (the other actions stay) and doesn't close the implement todo", async () => {
-  const { attachOpenMrOps } = await import("@/lib/boards/delivery-ops");
-  const { getTodo } = await import("@/lib/boards/store");
+  const { attachOpenMrOps } = await import("@/lib/todos/delivery-ops");
+  const { getTodo } = await import("@/lib/todos/store");
   const { runTodoOpsNow } = await import("@/lib/ops");
-  const { opsSettle } = await import("@/lib/boards/shared");
+  const { opsSettle } = await import("@/lib/todos/shared");
   const repo = repoWithBranch("feature/PU-8-own-action");
   const todo = await setup("PU-8", repo, "feature/PU-8-own-action");
   await attachOpenMrOps();
@@ -127,13 +127,13 @@ test("pushing a work branch is its own action: it runs alone (the other actions 
 });
 
 test("a delivery todo that names the branch carries the push and the merge request — the implement todo before it doesn't take the push — and its context shows the branch", async () => {
-  const { attachOpenMrOps } = await import("@/lib/boards/delivery-ops");
-  const { getTodo, addFollowUp } = await import("@/lib/boards/store");
+  const { attachOpenMrOps } = await import("@/lib/todos/delivery-ops");
+  const { getTodo, addFollowUp } = await import("@/lib/todos/store");
   const { getDb, schema } = await import("@/db");
   const repo = repoWithBranch("feature/PU-9-delivery");
   const work = await setup("PU-9", repo, "feature/PU-9-delivery", "agent", "grp/proj");
   // (An earlier pass had given the implement todo its own push.)
-  const { setTodoOps } = await import("@/lib/boards/store");
+  const { setTodoOps } = await import("@/lib/todos/store");
   setTodoOps(work.id, [...getTodo(work.id)!.ops, { type: "git-push", repo, branch: "feature/PU-9-delivery", remote: "feature/PU-9-delivery", target: "main", title: "t", description: "d" }]);
   const test = addFollowUp({ ticket: "PU-9", text: "Manuell testen", kind: "test", parentId: work.id, workRunId: null, source: "test" });
   const deliver = addFollowUp({ ticket: "PU-9", text: "Merge Request für feature/PU-9-delivery öffnen.", kind: "merge", parentId: test.id, workRunId: null, source: "Planned after test" });
@@ -148,8 +148,8 @@ test("a delivery todo that names the branch carries the push and the merge reque
 });
 
 test("a todo that asks for the merge request still gets its push and MR buttons when the AI only suggested handing it to a worker", async () => {
-  const { attachOpenMrOps } = await import("@/lib/boards/delivery-ops");
-  const { addFollowUp, getTodo } = await import("@/lib/boards/store");
+  const { attachOpenMrOps } = await import("@/lib/todos/delivery-ops");
+  const { addFollowUp, getTodo } = await import("@/lib/todos/store");
   const { saveRepo } = await import("@/lib/repos");
   const repo = repoWithBranch("feature/TY-8-typography-tokens");
   saveRepo({ name: "r-TY-8", path: repo, gitlabProject: "grp/proj", boards: [], tickets: ["TY-8"], instructions: "", delivery: "mr" });
@@ -164,7 +164,7 @@ test("a todo that asks for the merge request still gets its push and MR buttons 
 });
 
 test("a push that ran is taken off the todo even when the stored action has a title with a trailing space (the view trims it)", async () => {
-  const { addFollowUp, getTodo, setTodoOps } = await import("@/lib/boards/store");
+  const { addFollowUp, getTodo, setTodoOps } = await import("@/lib/todos/store");
   const { saveRepo } = await import("@/lib/repos");
   const { runTodoOpsNow } = await import("@/lib/ops");
   const repo = repoWithBranch("feature/TZ-1-spaced");
@@ -177,7 +177,7 @@ test("a push that ran is taken off the todo even when the stored action has a ti
 });
 
 test("a pushed branch becomes a context entry of the todo, on the remote — not a line of text", async () => {
-  const { addFollowUp, getTodo, setTodoOps } = await import("@/lib/boards/store");
+  const { addFollowUp, getTodo, setTodoOps } = await import("@/lib/todos/store");
   const { saveRepo } = await import("@/lib/repos");
   const { runTodoOpsNow } = await import("@/lib/ops");
   const { getDb, schema } = await import("@/db");
