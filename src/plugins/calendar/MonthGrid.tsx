@@ -6,7 +6,7 @@ import { addDays } from "@/lib/calendar/recurrence";
 import { LANGUAGES } from "@/lib/i18n/shared";
 import { textOn } from "@/lib/contrast";
 import { nudged, nudgeOf } from "./nudge";
-import { isProposal, isoWeek, itemLabel, itemOn, local, mergeDone, minutesBetween, timeText, weekdayHeads, type Item } from "./view-shared";
+import { isProposal, isoWeek, itemLabel, shownTitle, itemOn, local, mergeDone, minutesBetween, timeText, weekdayHeads, type Item } from "./view-shared";
 
 const MAX = 3;
 
@@ -152,7 +152,7 @@ export function MonthGrid({
                     >
                       {!it.allDay && <span className="size-1.5 shrink-0 rounded-full" style={{ background: it.color }} />}
                       {!it.allDay && <span className="shrink-0 text-zinc-600 tabular-nums dark:text-zinc-400">{it.start.slice(0, 10) === d ? timeText(it.start) : "…"}</span>}
-                      <span className={`min-w-0 truncate ${from ? "invisible" : ""}`}>{it.title}</span>
+                      <span className={`min-w-0 truncate ${from ? "invisible" : ""}`}>{isProposal(it) ? shownTitle(it, t) : it.title}</span>
                       {it.merged && <span className="shrink-0 text-emerald-600 dark:text-emerald-400" aria-hidden>✓</span>}
                     </button>
                     );

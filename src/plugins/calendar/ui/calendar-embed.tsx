@@ -68,7 +68,7 @@ function CalendarEmbedView(p: NodeViewProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- updateAttributes is the node view's, the same while it lives
     [view],
   );
-  const { grid, overlays } = useCalendarBody({ view, day, calendars, events: data?.events ?? NONE, proposed: proposals ? (data?.proposed ?? NONE) : NONE, now: data?.now ?? `${day}T00:00`, shown, showProposed: proposals, go, onChanged: load, defaultCalendarId: calendarId || undefined });
+  const { grid, overlays } = useCalendarBody({ view, day, calendars, events: data?.events ?? NONE, proposed: proposals ? (data?.proposed ?? NONE) : NONE, now: data?.now ?? `${day}T00:00`, shown, showProposed: proposals, go, onChanged: load, defaultCalendarId: calendarId || undefined, offerProposals: true });
 
   const row = "flex w-full cursor-pointer items-center gap-2 rounded px-1.5 py-1 text-left hover:bg-zinc-100 focus:bg-zinc-100 dark:hover:bg-zinc-800 dark:focus:bg-zinc-800";
   const heading = "px-1.5 pt-1 text-[11px] font-medium uppercase tracking-wide text-zinc-500";

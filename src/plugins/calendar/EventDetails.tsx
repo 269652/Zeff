@@ -11,7 +11,7 @@ import type { T } from "@/lib/i18n/shared";
 import { ScopeChoice } from "./EventEditor";
 import { doneBrowserOpAction, removeTodoOpAction } from "@/plugins/todos/server-actions";
 import { acceptProposalAction, acceptProposedEventAction, deleteEventAction, dismissProposalAction, respondEventAction, saveEventAction } from "./server-actions";
-import { isProposal, whenText, type Item } from "./view-shared";
+import { isProposal, shownTitle, whenText, type Item } from "./view-shared";
 import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 import { useDismiss } from "@/components/useDismiss";
 
@@ -112,7 +112,7 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
           <div className="flex items-start gap-2">
             <span className={`mt-1.5 size-3 shrink-0 rounded ${isProposal(item) ? "border-2 border-dashed" : ""}`} style={isProposal(item) ? { borderColor: item.color } : { background: item.color }} />
             <div className="min-w-0 flex-1">
-              <p className="text-base leading-snug font-semibold break-words">{isProposal(item) ? t("Proposed: {title}", { title: item.title }) : item.title}</p>
+              <p className="text-base leading-snug font-semibold break-words">{shownTitle(item, t)}</p>
               <p className="text-zinc-600 dark:text-zinc-300">{whenText(item, t)}</p>
               {e?.recurrence && <p className="text-xs text-zinc-500">↻ {describeRecurrence(e.recurrence, e.start, t)}</p>}
             </div>

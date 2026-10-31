@@ -23,7 +23,8 @@ test("a proposed appointment: blocks no time, shows as a proposal, is a proposal
   const calendars = ir.listCalendars();
   const events = ir.eventsBetween("2026-11-03T00:00", "2026-11-03T23:59", { proposals: true }).map(({ calendar: _c, ...x }) => x);
   const titles = (items: import("@/plugins/calendar/view-shared").Item[]) => items.map((i) => `${i.title}${isProposal(i) ? " (proposed)" : ""}`).sort();
-  assert.deepEqual(titles(calendarItems(events, [], calendars, () => true, false)), ["Schwimmen (proposed)", "Wandern (proposed)", "Zahnarzt"], "shown as proposals");
+  assert.deepEqual(titles(calendarItems(events, [], calendars, () => true, true)), ["Schwimmen (proposed)", "Wandern (proposed)", "Zahnarzt"], "shown as proposals");
+  assert.deepEqual(titles(calendarItems(events, [], calendars, () => true, false)), ["Zahnarzt"], "proposals switched off: not shown");
   assert.deepEqual(
     ir.eventsBetween("2026-11-03T00:00", "2026-11-03T23:59").map((e) => e.title),
     ["Zahnarzt"],
@@ -48,6 +49,19 @@ test("a proposed appointment: blocks no time, shows as a proposal, is a proposal
 
   // Proposed again unchanged: the dismissed one stays out.
   assert.deepEqual(ir.proposeEvents(own.id, [{ title: "Schwimmen", start: "2026-11-03T16:00", end: "2026-11-03T17:00" }]), [], "not proposed twice");
+
+  // Options: the same thing at three times, proposed at once — accepting one dismisses the others.
+  const { proposeEventAction } = await import("@/plugins/calendar/server-actions");
+  const made = await proposeEventAction({ calendarId: own.id, title: "Ausflug", allDay: true, times: ["2026-11-07", "2026-11-14", "2026-11-21"].map((d) => ({ start: d, end: d })) });
+  assert.equal(made?.ok, true, String(made && "error" in made ? made.error : ""));
+  const options = openProposals("calendar").map((p) => p.payload as { title: string; option?: string; start: string });
+  assert.deepEqual(options.map((x) => `${x.option} ${x.start}`).sort(), ["A 2026-11-07", "B 2026-11-14", "C 2026-11-21"]);
+  const b = ir.eventsBetween("2026-11-14T00:00", "2026-11-15T00:00", { proposals: true }).find((e) => e.title === "Ausflug")!;
+  const { proposalTitle } = await import("@/plugins/calendar/view-shared");
+  assert.equal(proposalTitle({ title: b.title, event: b }, (s, v) => s.replace("{letter}", String(v?.letter)).replace("{title}", String(v?.title))), "Option B: Ausflug");
+  assert.equal((await acceptProposalAction(b.id))?.ok, true);
+  assert.deepEqual(openProposals("calendar"), [], "the other options dismissed with it");
+  assert.deepEqual(ir.eventsBetween("2026-11-01T00:00", "2026-11-30T00:00", { proposals: true }).filter((e) => e.title === "Ausflug").map((e) => [e.start, e.proposed]), [["2026-11-14", false]]);
 
   const { docToMarkdown, markdownToDoc } = await import("@/plugins/workspace/doc");
   const doc = markdownToDoc(`Plan\n\n:::calendar ${own.id} month\n`);

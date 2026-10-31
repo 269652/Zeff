@@ -140,6 +140,37 @@ export async function saveEventAction(v: {
   });
 }
 
+/**
+ * A new appointment as a proposal (dashed, accepted or dismissed later) — with several times, options for the same thing
+ * ("Option A", "B" …): made at once as a group, accepting one dismisses the others. Never written to Google.
+ */
+export async function proposeEventAction(v: { calendarId: number; title: string; allDay?: boolean; location?: string; description?: string; times: { start: string; end: string }[] }): Promise<ActionState> {
+  return run(async () => {
+    const ir = await import("@/lib/calendar/ir");
+    const { addDays } = await import("@/lib/calendar/recurrence");
+    const title = String(v.title ?? "").trim();
+    if (!title) throw new Error(t("A title, please."));
+    const allDay = !!v.allDay;
+    const stamp = (s: unknown) => (typeof s === "string" && /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2})?$/.test(s.slice(0, 16)) ? s.slice(0, allDay ? 10 : 16) : "");
+    const times = (Array.isArray(v.times) ? v.times : []).slice(0, 26).map((x) => {
+      const start = stamp(x?.start);
+      let end = stamp(x?.end);
+      if (allDay && start && end === start) end = addDays(start, 1);
+      if (!start || !end || end < start || (!allDay && end === start)) throw new Error(t("A start and an end after it, please."));
+      return { start, end };
+    });
+    if (!times.length) throw new Error(t("A start and an end after it, please."));
+    const calendarId = Number(v.calendarId) || ir.zeffCalendar().id;
+    const { optionKey } = await import("@/lib/calendar/ir-shared");
+    const group = times.length > 1 ? (await import("node:crypto")).randomUUID().slice(0, 8) : "";
+    const made = ir.proposeEvents(
+      calendarId,
+      times.map((x, i) => ({ ...(group ? { key: optionKey(group, i) } : {}), title, start: x.start, end: x.end, allDay, location: String(v.location ?? ""), description: String(v.description ?? "") })),
+    );
+    return made.length > 1 ? t("{n} options proposed — accepting one dismisses the others.", { n: made.length }) : t('"{title}" proposed.', { title });
+  });
+}
+
 /** The Google calendar's id of Zeff's calendar ("google:<id>"), and an event's id from Zeff's key for it. */
 async function googleIds(calendarKey: string, eventKey: string | null): Promise<{ calendarId: string; eventId: string | null }> {
   const calendarId = calendarKey.replace(/^google:/, "");

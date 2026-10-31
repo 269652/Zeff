@@ -3,7 +3,7 @@
 import { useLang, useT } from "@/components/I18nProvider";
 import { LANGUAGES } from "@/lib/i18n/shared";
 import { ProposalButtons, type Decide } from "./ProposalButtons";
-import { isProposal, itemOn, local, mergeDone, timeText, type Item } from "./view-shared";
+import { isProposal, itemOn, shownTitle, local, mergeDone, timeText, type Item } from "./view-shared";
 
 /** The next days as a list: each day with appointments, its appointments in order — a click opens one. */
 export function AgendaList({ days, items, today, onOpen, onDecide }: { days: string[]; items: Item[]; today: string; onOpen: (item: Item, rect: DOMRect) => void; onDecide?: Decide }) {
@@ -34,7 +34,7 @@ export function AgendaList({ days, items, today, onOpen, onDecide }: { days: str
                   <span className="min-w-0 flex-1">
                     <span className="font-medium">
                       {it.event?.recurrence ? "↻ " : ""}
-                      {isProposal(it) ? t("Proposed: {title}", { title: it.title }) : it.title}
+                      {shownTitle(it, t)}
                       {it.merged && (
                         <span className="ml-1 font-normal text-emerald-600 dark:text-emerald-400" title={it.merged.title}>
                           ✓

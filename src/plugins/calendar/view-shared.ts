@@ -4,7 +4,7 @@
  * times as they're written, snapping. Client-safe.
  */
 import { pad2 as two } from "@/lib/text";
-import type { CalendarEventView, CalendarView, ProposedEvent } from "@/lib/calendar/ir-shared";
+import { optionOf, type CalendarEventView, type CalendarView, type ProposedEvent } from "@/lib/calendar/ir-shared";
 import { addDays, weekdayOf } from "@/lib/calendar/recurrence";
 import { currentLocale, formatDate } from "@/lib/format";
 import type { T } from "@/lib/i18n/shared";
@@ -41,12 +41,20 @@ export type Item = {
 /** A proposal (dashed, "Proposed"): a calendar's proposed appointment (accept / dismiss), or one a todo proposes. */
 export const isProposal = (it: Pick<Item, "proposed" | "event">): boolean => !!it.proposed || !!it.event?.proposed;
 
+/** A proposal's title as the views show it: "Proposed: …" — one of several options: "Option A: …". */
+export const proposalTitle = (it: Pick<Item, "proposed" | "event" | "title">, t: T): string => {
+  const opt = it.event?.proposed ? optionOf(it.event.key) : null;
+  return opt ? t("Option {letter}: {title}", { letter: opt.letter, title: it.title }) : t("Proposed: {title}", { title: it.title });
+};
+/** An item's title: a proposal's said so. */
+export const shownTitle = (it: Pick<Item, "proposed" | "event" | "title">, t: T): string => (isProposal(it) ? proposalTitle(it, t) : it.title);
+
 /** The actions that are an appointment and can be moved by dragging (their start and length are in the action). */
 const MOVABLE_PROPOSALS = new Set(["calendar-event", "gcal-event", "calendar-entry"]);
 
 /**
  * What a view shows: the appointments of the calendars switched on (not cancelled), in their calendar's colour — Zeff's own
- * changeable, a proposed one (dashed) wherever it is — and, when wanted, those todos propose. `moved`: dragged here, shown where they went until the server has them.
+ * changeable — and, when wanted, the proposals: a calendar's proposed appointments (dashed), those todos propose. `moved`: dragged here, shown where they went until the server has them.
  */
 export function calendarItems(
   events: CalendarEventView[],
@@ -59,7 +67,7 @@ export function calendarItems(
   const byId = new Map(calendars.map((c) => [c.id, c]));
   return [
     ...events
-      .filter((e) => !e.cancelled && byId.has(e.calendarId) && shown(byId.get(e.calendarId)!))
+      .filter((e) => !e.cancelled && byId.has(e.calendarId) && shown(byId.get(e.calendarId)!) && (showProposed || !e.proposed))
       .map((e): Item => {
         const id = e.occurrence ? `e${e.id}@${e.occurrence}` : `e${e.id}`;
         const cal = byId.get(e.calendarId);
@@ -211,5 +219,5 @@ export function mergeDone<T extends Pick<Item, "start" | "end" | "calendar" | "p
 
 /** What a screen reader says for an appointment's block: title, when, calendar (not the title alone). */
 export function itemLabel(it: Item, t: T): string {
-  return [isProposal(it) ? t("Proposed: {title}", { title: it.title }) : it.title, whenText(it, t), it.calendar?.name].filter(Boolean).join(", ");
+  return [shownTitle(it, t), whenText(it, t), it.calendar?.name].filter(Boolean).join(", ");
 }

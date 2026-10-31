@@ -6,7 +6,7 @@ import { useOverlayFocus } from "@/components/Overlay";
 import type { CalendarView, SeriesScope } from "@/lib/calendar/ir-shared";
 import { addDays, describeRecurrence, monthlyChoices, presets, weekdayOf, weekdayShort, type Frequency, type Recurrence } from "@/lib/calendar/recurrence";
 import type { T } from "@/lib/i18n/shared";
-import { deleteEventAction, saveEventAction } from "./server-actions";
+import { deleteEventAction, proposeEventAction, saveEventAction } from "./server-actions";
 import { durationText, local, minutesBetween, plus } from "./view-shared";
 
 /** What the editor opens with: a new appointment (no id), or one to change (a series' occurrence: its day). */
@@ -76,9 +76,23 @@ export function ScopeChoice({ title, onPick, onCancel, pending }: { title: strin
  * A new appointment, or one of Zeff's own calendars changed: title, all day or from–to, calendar,
  * repeat (a preset or a rule of your own, ending never / on a day / after n times), place, notes.
  * A series' occurrence asks first: this one, it and the following, or all. In a Google calendar you
- * may write to: no series and no delete from here; a new one can invite guests (Google mails them).
+ * may write to: no series and no delete from here; a new one can invite guests (Google mails them). `offerProposals` (a page's
+ * calendar block): a new one can be made as a proposal instead — or as options, several times for the same thing (A, B, C …),
+ * accepting one dismisses the others.
  */
-export function EventEditor({ init, calendars, onClose, onDone }: { init: EditorInit; calendars: CalendarView[]; onClose: () => void; onDone: (r: Result, undo?: () => unknown) => void }) {
+export function EventEditor({
+  init,
+  calendars,
+  onClose,
+  onDone,
+  offerProposals = false,
+}: {
+  init: EditorInit;
+  calendars: CalendarView[];
+  onClose: () => void;
+  onDone: (r: Result, undo?: () => unknown) => void;
+  offerProposals?: boolean;
+}) {
   const t = useT();
   const [v, setV] = useState(init);
   const [pending, start] = useTransition();
@@ -95,6 +109,9 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
   })();
   const [custom, setCustom] = useState(presetKey === "custom");
   const set = (patch: Partial<EditorInit>) => setV((x) => ({ ...x, ...patch }));
+  // Options B, C … (A is the time above): their starts — each as long as A.
+  const [extra, setExtra] = useState<string[]>([]);
+  const proposing = offerProposals && !init.id;
 
   useEffect(() => {
     title.current?.focus();
@@ -153,6 +170,23 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
         }),
       ),
     );
+  // An option's times: its start, as long as A (all day: its days).
+  const length = minutesBetween(v.start, v.end);
+  const timesOf = (s: string) => ({ start: s, end: v.allDay ? addDays(s, Math.max(1, Math.round(length / 1440))) : plus(s, Math.max(15, length)) });
+  const addOption = () => setExtra((xs) => [...xs, v.allDay ? addDays((xs.at(-1) ?? v.start).slice(0, 10), 7) : plus(xs.at(-1) ?? v.start, 7 * 1440)]);
+  const propose = () =>
+    start(async () =>
+      finish(
+        await proposeEventAction({
+          calendarId: v.calendarId,
+          title: v.title,
+          allDay: v.allDay,
+          location: v.location,
+          description: v.description,
+          times: [{ start: v.start, end: v.end }, ...extra.map(timesOf)],
+        }),
+      ),
+    );
   const remove = (scope?: SeriesScope) =>
     start(async () =>
       finish(
@@ -197,6 +231,40 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
               {!v.allDay ? <input type="time" step={300} className="input w-28" value={endTime} aria-label={t("End time")} onChange={(e) => e.target.value && setEnd(endDay, e.target.value)} required /> : <span />}
             </div>
             {!v.allDay && minutes > 0 && <p className="-mt-1 pl-14 text-xs text-zinc-500">{durationText(minutes, t)}</p>}
+            {proposing && (
+              // Options: the same thing at other times (a weekend A, B, C) — proposed together, one of them accepted.
+              <div className="space-y-1.5 rounded-lg border border-dashed border-zinc-300 p-2 text-sm dark:border-zinc-700">
+                {extra.length > 0 && <p className="text-xs text-zinc-500">{t("Option A: the time above. Accepting one option dismisses the others.")}</p>}
+                {extra.map((s, i) => (
+                  <div key={i} className="flex flex-wrap items-center gap-2">
+                    <span className="w-16 text-xs font-medium text-zinc-600 dark:text-zinc-400">{t("Option {letter}", { letter: String.fromCharCode(66 + i) })}</span>
+                    <input
+                      type="date"
+                      className="input w-auto"
+                      value={s.slice(0, 10)}
+                      aria-label={t("Option {letter}: date", { letter: String.fromCharCode(66 + i) })}
+                      onChange={(e) => e.target.value && setExtra((xs) => xs.map((x, j) => (j === i ? (v.allDay ? e.target.value : `${e.target.value}T${x.slice(11, 16)}`) : x)))}
+                    />
+                    {!v.allDay && (
+                      <input
+                        type="time"
+                        step={300}
+                        className="input w-28"
+                        value={s.slice(11, 16)}
+                        aria-label={t("Option {letter}: time", { letter: String.fromCharCode(66 + i) })}
+                        onChange={(e) => e.target.value && setExtra((xs) => xs.map((x, j) => (j === i ? `${x.slice(0, 10)}T${e.target.value}` : x)))}
+                      />
+                    )}
+                    <button type="button" className="icon-btn" aria-label={t("Remove")} onClick={() => setExtra((xs) => xs.filter((_, j) => j !== i))}>
+                      ×
+                    </button>
+                  </div>
+                ))}
+                <button type="button" className="text-xs text-indigo-600 hover:underline dark:text-indigo-400" onClick={addOption} disabled={extra.length >= 25}>
+                  {t("+ Another option (the same thing at another time)")}
+                </button>
+              </div>
+            )}
 
             <div className="grid gap-2 sm:grid-cols-2">
               <label className="block text-sm">
@@ -336,9 +404,16 @@ export function EventEditor({ init, calendars, onClose, onDone }: { init: Editor
               <button type="button" className="btn btn-sm" onClick={onClose}>
                 {t("Cancel")}
               </button>
-              <button type="submit" className="btn btn-primary btn-sm" disabled={pending || !v.title.trim()}>
-                {pending ? t("Saving…") : t("Save")}
-              </button>
+              {proposing && (
+                <button type="button" className={`btn btn-sm border-dashed ${extra.length ? "btn-primary" : ""}`} disabled={pending || !v.title.trim()} onClick={propose} title={t("Proposed: dashed in the calendar until you accept or dismiss it — it blocks no time")}>
+                  {extra.length ? t("Propose {n} options", { n: extra.length + 1 }) : t("As a proposal")}
+                </button>
+              )}
+              {!(proposing && extra.length) && (
+                <button type="submit" className="btn btn-primary btn-sm" disabled={pending || !v.title.trim()}>
+                  {pending ? t("Saving…") : t("Save")}
+                </button>
+              )}
             </div>
           </form>
         )}

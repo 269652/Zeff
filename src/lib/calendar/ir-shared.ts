@@ -58,6 +58,16 @@ export type CalendarEventView = {
   proposed: boolean;
 };
 
+/**
+ * Options: alternative proposals for the same thing (a weekend A, B or C), made at once — accepting one dismisses the others.
+ * Their group and letter are in their key ("opt:<group>:<letter>"); null: not one of them.
+ */
+export const optionOf = (key: string): { group: string; letter: string } | null => {
+  const m = /^opt:([\w-]+):([A-Z])$/.exec(key);
+  return m ? { group: m[1], letter: m[2] } : null;
+};
+export const optionKey = (group: string, index: number) => `opt:${group}:${String.fromCharCode(65 + Math.min(25, index))}`;
+
 /** Which occurrences a change to a series means. */
 export type SeriesScope = "one" | "following" | "all";
 

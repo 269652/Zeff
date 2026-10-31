@@ -41,6 +41,7 @@ export function useCalendarBody({
   go,
   onChanged,
   defaultCalendarId,
+  offerProposals = false,
 }: {
   view: ViewKind;
   day: string;
@@ -54,6 +55,8 @@ export function useCalendarBody({
   onChanged?: () => void;
   /** Where a new appointment goes (the embedded calendar's) — else the first of Zeff's own. */
   defaultCalendarId?: number;
+  /** A new appointment can be made as a proposal, or as options (the calendar block of a page). */
+  offerProposals?: boolean;
 }): { items: Item[]; days: string[]; today: string; pending: boolean; start: TransitionStartFunction; done: (r: Result, undo?: () => unknown) => boolean; newNow: () => void; grid: ReactNode; overlays: ReactNode } {
   const t = useT();
   const locale = LANGUAGES[useLang()].locale;
@@ -186,7 +189,7 @@ export function useCalendarBody({
   const overlays = (
     <>
       {picked && <EventDetails key={picked.item.id} item={picked.item} anchor={picked.rect} onClose={() => setPicked(null)} onEdit={() => edit(picked.item)} onDone={(r, undo) => done(r, undo) && setPicked(null)} />}
-      {editor && <EventEditor init={editor} calendars={own} onClose={() => setEditor(null)} onDone={(r, undo) => done(r, undo) && setEditor(null)} />}
+      {editor && <EventEditor init={editor} calendars={own} offerProposals={offerProposals} onClose={() => setEditor(null)} onDone={(r, undo) => done(r, undo) && setEditor(null)} />}
       {moving && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-zinc-950/40 p-4">
           <FocusDialog label={t("Move recurring event")} className="card w-full max-w-sm p-4 shadow-2xl">

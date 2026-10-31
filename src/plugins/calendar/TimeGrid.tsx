@@ -7,7 +7,7 @@ import { textOn } from "@/lib/contrast";
 import { LANGUAGES } from "@/lib/i18n/shared";
 import { nudged, nudgeOf } from "./nudge";
 import { ProposalButtons, type Decide } from "./ProposalButtons";
-import { durationText, isProposal, isoWeek, itemLabel, itemOn, lanes, local, mergeDone, minutesBetween, minutesOf, plus, snap, stampAt, timeText, type Item } from "./view-shared";
+import { durationText, isProposal, shownTitle, isoWeek, itemLabel, itemOn, lanes, local, mergeDone, minutesBetween, minutesOf, plus, snap, stampAt, timeText, type Item } from "./view-shared";
 
 const HOUR = 48;
 const STEP = 15;
@@ -274,10 +274,10 @@ export function TimeGrid({
                       aria-label={itemLabel(it, t)}
                       className={`block w-full truncate rounded px-1.5 py-0.5 text-left text-xs font-medium ${isProposal(it) ? "border-2 border-dashed" : ""} ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${dragging === it.id ? "opacity-70 shadow-lg ring-2 ring-white/70" : ""}`}
                       style={isProposal(it) ? { borderColor: it.color } : { background: it.color, color: textOn(it.color) }}
-                      title={isProposal(it) ? t("Proposed: {title}", { title: it.title }) : it.title}
+                      title={shownTitle(it, t)}
                     >
                       {it.start < d ? "↳ " : ""}
-                      {isProposal(it) ? t("Proposed: {title}", { title: it.title }) : it.title}
+                      {shownTitle(it, t)}
                     </button>
                   ))}
               </div>
@@ -371,7 +371,7 @@ export function TimeGrid({
                           <>
                             <span className="block truncate font-semibold">
                               {it.event?.recurrence ? "↻ " : ""}
-                              {isProposal(it) ? t("Proposed: {title}", { title: it.title }) : it.title}
+                              {shownTitle(it, t)}
                             </span>
                             <span className="block truncate text-zinc-600 dark:text-zinc-400">
                               {timeText(it.start)} – {timeText(it.end)}

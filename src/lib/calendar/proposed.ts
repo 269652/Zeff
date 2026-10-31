@@ -8,6 +8,7 @@
  */
 import { and, eq, inArray, or } from "drizzle-orm";
 import { getDb, schema } from "@/db";
+import { optionOf } from "./ir-shared";
 import { expireProposals, inputHashOf, openProposals, propose, proposalByHash, type Proposal } from "@/lib/proposals";
 
 const { calendars, calendarEvents } = schema;
@@ -18,7 +19,18 @@ const OLD_SOURCE = "calendar-shadow";
 /** The day plan's blocks (lib/heute-plan): their keys start so. */
 export const DAY_PLAN_KEY = "plan:";
 
-export type ProposedPayload = { calendarId: number; key: string; title: string; start: string; end: string; allDay: boolean; calendar: string };
+export type ProposedPayload = {
+  calendarId: number;
+  key: string;
+  title: string;
+  start: string;
+  end: string;
+  allDay: boolean;
+  calendar: string;
+  /** One of several options (its group, its letter "A"): accepted, the others of its group are dismissed. */
+  group?: string;
+  option?: string;
+};
 
 const subjectPrefix = (calendarId: number) => `event:${calendarId}:`;
 
@@ -49,12 +61,13 @@ export function syncProposals(calendarId: number): void {
         continue;
       }
       live.add(hash);
+      const opt = optionOf(e.key);
       propose<ProposedPayload>({
         source: PROPOSAL_SOURCE,
         inputHash: hash,
         kind: "event",
         subjectRef: `${prefix}${e.key}`,
-        payload: { calendarId, key: e.key, title: e.title, start: e.start, end: e.end, allDay: e.allDay, calendar: cal?.name ?? "" },
+        payload: { calendarId, key: e.key, title: e.title, start: e.start, end: e.end, allDay: e.allDay, calendar: cal?.name ?? "", ...(opt ? { group: opt.group, option: opt.letter } : {}) },
         why: cal?.name ?? "",
         evidenceRefs: e.todoId ? [`todo:${e.todoId}`] : [],
         reopen: true,
@@ -79,6 +92,13 @@ export function syncAllProposals(): void {
   const ids = new Set(db.select({ id: calendarEvents.calendarId }).from(calendarEvents).where(eq(calendarEvents.proposed, true)).all().map((r) => r.id));
   for (const p of openProposals(PROPOSAL_SOURCE)) ids.add(Number((p.payload as Partial<ProposedPayload>).calendarId));
   for (const id of ids) if (id > 0) syncProposals(id);
+}
+
+/** The open proposals of the other options of a proposal's group (none: it isn't an option). */
+export function otherOptions(p: Proposal): Proposal[] {
+  const x = p.payload as Partial<ProposedPayload>;
+  if (!x.group) return [];
+  return openProposals(PROPOSAL_SOURCE, { subjectPrefix: `${subjectPrefix(Number(x.calendarId))}opt:${x.group}:` }).filter((o) => o.id !== p.id);
 }
 
 /** The proposed appointment a proposal is about (its row id) — null: gone (or accepted in the calendar meanwhile). */
