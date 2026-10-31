@@ -80,18 +80,39 @@ export type LiveDriver = {
 const state = globalThis as { __zeffLiveDrivers?: Map<string, LiveDriver> };
 const drivers = (state.__zeffLiveDrivers ??= new Map<string, LiveDriver>());
 
-/** A provider's driver joins (see the end of this file). */
+/**
+ * The drivers Zeff brings — another provider's is imported and added here too. On first use, not
+ * at load: a driver's module can lead back here through its imports (mcp → … → runner) before it
+ * has its driver (a test that loads plugins/claude-cli/live.ts first). Their modules import only
+ * types from this one. Each load of this module adds them again (fresh code after a reload).
+ */
+let builtIn = false;
+function builtIns() {
+  if (builtIn) return;
+  builtIn = true;
+  drivers.set(claudeLiveDriver.provider, claudeLiveDriver);
+  drivers.set(codexLiveDriver.provider, codexLiveDriver);
+}
+
+/** A provider's driver joins (after Zeff's own). */
 export function registerLiveDriver(d: LiveDriver): void {
+  builtIns();
   drivers.set(d.provider, d);
 }
 
-export const liveDrivers = (): LiveDriver[] => [...drivers.values()];
-export const liveDriverFor = (provider: string): LiveDriver | undefined => drivers.get(provider);
+export const liveDrivers = (): LiveDriver[] => {
+  builtIns();
+  return [...drivers.values()];
+};
+export const liveDriverFor = (provider: string): LiveDriver | undefined => {
+  builtIns();
+  return drivers.get(provider);
+};
 /** The driver whose session this run is (or was). */
 export const liveDriverOf = (runId: number): LiveDriver | undefined => liveDrivers().find((d) => d.has(runId));
 /** A run's live session as the pages see it (none: not live, or over). */
 export const liveSessionView = (runId: number) => {
-  for (const d of drivers.values()) {
+  for (const d of liveDrivers()) {
     const v = d.view(runId);
     if (v) return v;
   }
@@ -114,8 +135,3 @@ export function askTitle(a: ClaudeAsk, t: (s: string) => string): string {
   if (a.tool === "AskUserQuestion") return t("A question for you");
   return `${a.tool}${a.description ? `: ${a.description}` : ""}`;
 }
-
-// The drivers Zeff brings — another provider's is imported and registered here too. (Their modules
-// import only types from this one: no cycle at load.)
-registerLiveDriver(claudeLiveDriver);
-registerLiveDriver(codexLiveDriver);
