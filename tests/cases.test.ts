@@ -146,7 +146,7 @@ test("widgets: the money of the open cases as figures, the payments and deadline
   const w = (id: string) => CASES_WIDGETS.find((x) => x.id === id)!;
   const figures = (await w("cases.figures").data({})) as { kind: "stats"; tiles: { label: string; value: string; tone?: string }[] };
   assert.equal(figures.kind, "stats");
-  assert.match(figures.tiles[0].value, /3[.,]629[.,]65/, "open in all: 11,52 + 3.618,13");
+  assert.match(figures.tiles[0].value, /^3[.,]6(29[.,]65|30) €$/, "open in all: 11,52 + 3.618,13 (a Kennzahl: whole euros)");
   assert.equal(figures.tiles.find((x) => x.tone === "bad")?.value, "1", "one overdue");
   const due = (await w("cases.due").data({ days: 30 })) as { kind: "list"; items: { text: string; tone?: string }[] };
   assert.deepEqual(due.items.map((i) => i.tone), ["bad", undefined]);
