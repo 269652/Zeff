@@ -79,6 +79,17 @@ export function PersonCard({ p, info, now, soonUntil, weeks, open, run }: { p: C
             </p>
           )}
           <div className="flex flex-wrap gap-1 pt-0.5 text-xs">
+            {/* Unread from them: first and loud — the inbox opens on them. */}
+            {!!info?.unread && (
+              <a
+                href={`/mail?q=${encodeURIComponent(p.name)}`}
+                className={`${chip} inline-flex items-center gap-1 bg-teal-600 font-semibold text-white no-underline hover:bg-teal-700 dark:bg-teal-500 dark:text-teal-950`}
+                title={t("Open their unread messages")}
+                onClick={(e) => e.stopPropagation()}
+              >
+                ✉ {info.unread === 1 ? t("1 unread message") : t("{n} unread messages", { n: info.unread })}
+              </a>
+            )}
             {info?.lastContact ? (
               <span className={`${chip} ${quiet ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`} title={t("Last contact: {when}", { when: new Date(info.lastContact.at).toLocaleString() })}>
                 {channel(info.lastContact.channel)} · {agoText(t, info.lastContact.at, now)}

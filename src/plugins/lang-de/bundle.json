@@ -8219,5 +8219,6 @@
   "Finds the todos a page asks of you (Workspace).": "Findet die Todos, die eine Seite von dir verlangt (Workspace).",
   "Questions to the workspace": "Fragen an den Workspace",
   "Answers a question from the pages that fit, naming them (Workspace).": "Beantwortet eine Frage aus den passenden Seiten und nennt sie (Workspace).",
-  "{n} waiting, {late} of them late": "{n} wartend, davon {late} überfällig"
+  "{n} waiting, {late} of them late": "{n} wartend, davon {late} überfällig",
+  "Open their unread messages": "Ungelesene Nachrichten öffnen"
 }

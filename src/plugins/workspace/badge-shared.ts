@@ -5,13 +5,14 @@
  * up. Shared by the server (badges.ts) and the tree (Sidebar.tsx).
  */
 
-export type BadgeTone = "important" | "unread" | "activity";
+/** messages: unread messages from someone (a person's row) — a pill of its own beside what waits. */
+export type BadgeTone = "important" | "unread" | "activity" | "messages";
 
 /** One source's part: how many, its tone, what it counts in words. */
 export type BadgePart = { count: number; tone: BadgeTone; label: string };
 
 /** A page's badge: the counts by tone and what they are made of. */
-export type Badge = { important: number; unread: number; activity: number; parts: string[] };
+export type Badge = { important: number; unread: number; activity: number; messages: number; parts: string[] };
 
 /** The tree's badges: a page's own (its widgets, a mail database's unread, its activity), what its rows add up to (a database), and the rows that have one (for the entries under a database). */
 export type PageBadges = { own: Record<number, Badge>; inner: Record<number, Badge>; rows: Record<number, Badge> };
@@ -20,7 +21,7 @@ export const noBadges = (): PageBadges => ({ own: {}, inner: {}, rows: {} });
 
 /** Parts as a badge (none: null). */
 export function badgeOf(parts: BadgePart[]): Badge | null {
-  const b: Badge = { important: 0, unread: 0, activity: 0, parts: [] };
+  const b: Badge = { important: 0, unread: 0, activity: 0, messages: 0, parts: [] };
   for (const p of parts) {
     if (!(p.count > 0)) continue;
     b[p.tone] += p.count;
@@ -29,17 +30,23 @@ export function badgeOf(parts: BadgePart[]): Badge | null {
   return b.parts.length ? b : null;
 }
 
+/** The unread messages a badge carries (their own pill). */
+export function shownMessages(b: Badge | null | undefined): number {
+  return b?.messages ?? 0;
+}
+
 /** Badges added up (none: null) — a parent's of its children; `parts` keep at most a few lines. */
 export function sumBadges(list: (Badge | null | undefined)[], maxParts = 6): Badge | null {
-  const b: Badge = { important: 0, unread: 0, activity: 0, parts: [] };
+  const b: Badge = { important: 0, unread: 0, activity: 0, messages: 0, parts: [] };
   for (const x of list) {
     if (!x) continue;
     b.important += x.important;
     b.unread += x.unread;
     b.activity += x.activity;
+    b.messages += x.messages ?? 0;
     for (const p of x.parts) if (b.parts.length < maxParts && !b.parts.includes(p)) b.parts.push(p);
   }
-  return b.important || b.unread || b.activity ? b : null;
+  return b.important || b.unread || b.activity || b.messages ? b : null;
 }
 
 /** What the pill shows: important wins over unread over activity (activity: a dot, no number). */

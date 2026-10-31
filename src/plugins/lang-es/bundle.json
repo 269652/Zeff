@@ -8219,5 +8219,6 @@
   "Finds the todos a page asks of you (Workspace).": "Encuentra las tareas que una página te pide (Workspace).",
   "Questions to the workspace": "Preguntas al Workspace",
   "Answers a question from the pages that fit, naming them (Workspace).": "Responde una pregunta a partir de las páginas que encajan y las nombra (Workspace).",
-  "{n} waiting, {late} of them late": "{n} pendientes, {late} atrasados"
+  "{n} waiting, {late} of them late": "{n} pendientes, {late} atrasados",
+  "Open their unread messages": "Abrir sus mensajes no leídos"
 }

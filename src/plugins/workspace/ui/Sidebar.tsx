@@ -8,7 +8,7 @@ import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, setTemplateAction, templatesAction } from "../actions";
 import { kindIcon, moveBefore } from "../model";
-import { countLabel, noBadges, shownBadge, sumBadges, type Badge, type PageBadges } from "../badge-shared";
+import { countLabel, noBadges, shownBadge, shownMessages, sumBadges, type Badge, type PageBadges } from "../badge-shared";
 import { pageBadgesAction } from "../badge-actions";
 import type { TreeItem } from "../store";
 import type { AppNav } from "../app-nav";
@@ -101,7 +101,24 @@ function useBadges(initial: PageBadges & { stale?: boolean }, current: number | 
 function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; dim?: boolean }) {
   const t = useT();
   const s = shownBadge(badge);
-  if (!s) return null;
+  const msgs = shownMessages(badge);
+  // Unread messages from someone: a pill of their own (✉), beside what waits — not mixed into the todos.
+  const mail = msgs > 0 && (
+    <span
+      className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-4 ${dim ? "bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400" : "bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300"} ${s ? "" : "ml-auto"}`}
+      data-badge="messages"
+    >
+      <span aria-hidden>✉ {countLabel(msgs)}</span>
+      <span className="sr-only">{t("{n} unread messages", { n: msgs })}</span>
+    </span>
+  );
+  if (!s) return mail || null;
+  if (mail) return (
+    <span className="ml-auto flex shrink-0 items-center gap-1">
+      {mail}
+      <BadgePill badge={{ ...badge!, messages: 0 }} dim={dim} />
+    </span>
+  );
   const label =
     s.tone === "important" ? t("{n} waiting, {late} of them late", { n: s.count, late: s.late ?? 0 }) : s.tone === "unread" ? t("{n} unread", { n: s.count }) : t("Changed since you last opened it");
   const said = dim ? t("Below: {what}", { what: label }) : label;
@@ -118,7 +135,7 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
     <span
       className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-4 ${color}`}
       data-badge={s.tone}
-      {...(s.tone !== "activity" && !dim ? { "data-unread": true } : {})}
+      {...(!dim ? { "data-unread": true } : {})}
     >
       {s.tone === "important" && <span aria-hidden className="size-1.5 rounded-full bg-red-500" />}
       <span aria-hidden>{countLabel(s.count)}</span>
@@ -128,7 +145,7 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
 }
 
 /** Two badges saying the same (their counts by tone). */
-const sameBadge = (a: Badge, b: Badge) => a.important === b.important && a.unread === b.unread;
+const sameBadge = (a: Badge, b: Badge) => a.important === b.important && a.unread === b.unread && (a.messages ?? 0) === (b.messages ?? 0);
 
 /** A row's tooltip: its title, what its badge is made of, and what is below it. */
 function badgeTip(title: string, own: Badge | null | undefined, below: Badge | null | undefined, belowWord: string): string | undefined {
@@ -349,7 +366,7 @@ export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), ch
             <span className="truncate">{item.title || t("Untitled")}</span>
             {/* What waits on it (a mail inbox's unread, as a mail client's folders show it; a person's open todos …), and below it. */}
             <BadgePill badge={own} />
-            {shownBadge(sub) && <span className={own ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={sub} dim /></span>}
+            {(shownBadge(sub) || shownMessages(sub) > 0) && <span className={own ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={sub} dim /></span>}
           </Link>
           <span data-hover className="flex shrink-0 items-center">
             <Dropdown label="⋯" title={t("More")} className="icon-btn size-6 text-xs" align="left">
@@ -565,7 +582,7 @@ export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), ch
                   <span>{f.icon || kindIcon(f.kind)}</span>
                   <span className="truncate">{f.title || t("Untitled")}</span>
                   <BadgePill badge={ownBadge(f.id)} />
-                  {shownBadge(below.get(f.id)) && <span className={ownBadge(f.id) ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={below.get(f.id)} dim /></span>}
+                  {(shownBadge(below.get(f.id)) || shownMessages(below.get(f.id)) > 0) && <span className={ownBadge(f.id) ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={below.get(f.id)} dim /></span>}
                 </Link>
               </li>
             ))}
