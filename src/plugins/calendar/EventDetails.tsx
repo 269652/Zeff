@@ -10,8 +10,8 @@ import { describeRecurrence } from "@/lib/calendar/recurrence";
 import type { T } from "@/lib/i18n/shared";
 import { ScopeChoice } from "./EventEditor";
 import { doneBrowserOpAction, removeTodoOpAction } from "@/plugins/todos/server-actions";
-import { acceptProposedEventAction, acceptShadowEventAction, deleteEventAction, dismissShadowEventAction, respondEventAction, saveEventAction } from "./server-actions";
-import { whenText, type Item } from "./view-shared";
+import { acceptProposalAction, acceptProposedEventAction, deleteEventAction, dismissProposalAction, respondEventAction, saveEventAction } from "./server-actions";
+import { isProposal, whenText, type Item } from "./view-shared";
 import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 import { useDismiss } from "@/components/useDismiss";
 
@@ -81,9 +81,10 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
   };
   const respond = (answer: "accepted" | "tentative" | "declined") => e && start(async () => onDone(await respondEventAction(e.id, answer)));
   const dismiss = () => p && start(async () => onDone(await removeTodoOpAction(p.todoId, p.index)));
-  // A shadow calendar's appointment (a suggestion planned in a page): into your own calendar, or away.
-  const acceptShadow = () => e && start(async () => onDone(await acceptShadowEventAction(e.id)));
-  const dismissShadow = () => e && start(async () => onDone(await dismissShadowEventAction(e.id)));
+  // A calendar's proposed appointment (the day plan's block, an assistant's plan): kept in its calendar, or away.
+  const proposal = !!e?.proposed;
+  const keep = () => e && start(async () => onDone(await acceptProposalAction(e.id)));
+  const drop = () => e && start(async () => onDone(await dismissProposalAction(e.id)));
 
   const remove = (scope?: SeriesScope) =>
     start(async () =>
@@ -109,9 +110,9 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
       ) : (
         <>
           <div className="flex items-start gap-2">
-            <span className={`mt-1.5 size-3 shrink-0 rounded ${item.proposed ? "border-2 border-dashed" : ""}`} style={item.proposed ? { borderColor: item.color } : { background: item.color }} />
+            <span className={`mt-1.5 size-3 shrink-0 rounded ${isProposal(item) ? "border-2 border-dashed" : ""}`} style={isProposal(item) ? { borderColor: item.color } : { background: item.color }} />
             <div className="min-w-0 flex-1">
-              <p className="text-base leading-snug font-semibold break-words">{item.proposed || item.shadow ? t("Proposed: {title}", { title: item.title }) : item.title}</p>
+              <p className="text-base leading-snug font-semibold break-words">{isProposal(item) ? t("Proposed: {title}", { title: item.title }) : item.title}</p>
               <p className="text-zinc-600 dark:text-zinc-300">{whenText(item, t)}</p>
               {e?.recurrence && <p className="text-xs text-zinc-500">↻ {describeRecurrence(e.recurrence, e.start, t)}</p>}
             </div>
@@ -121,7 +122,7 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
                   ✎
                 </button>
               )}
-              {item.editable && !item.proposed && !google && (
+              {item.editable && !item.proposed && (!google || proposal) && (
                 <button type="button" className="icon-btn" disabled={pending} onClick={() => (series ? setAsking(true) : remove())} aria-label={t("Delete")} title={t("Delete")}>
                   🗑
                 </button>
@@ -160,12 +161,12 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
             </p>
           )}
           <div className="flex flex-wrap gap-2 pt-1">
-            {item.shadow && e && (
+            {proposal && (
               <>
-                <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={acceptShadow} title={t("Enters it in your own calendar and takes it out of the shadow calendar")}>
+                <button type="button" className="btn btn-primary btn-sm" disabled={pending} onClick={keep} title={t("Keeps it in {calendar} as an appointment", { calendar: item.calendar?.name ?? "" })}>
                   {pending ? "…" : t("Accept")}
                 </button>
-                <button type="button" className="btn btn-sm" disabled={pending} onClick={dismissShadow} title={t("Takes it out of the shadow calendar")}>
+                <button type="button" className="btn btn-sm" disabled={pending} onClick={drop} title={t("Takes the proposal out of the calendar")}>
                   {t("Dismiss")}
                 </button>
               </>
@@ -206,7 +207,7 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
               </span>
             )}
             {!item.editable && !item.proposed && !invitation && item.calendar && <p className="text-xs text-zinc-600 dark:text-zinc-400">{t("Read-only here — change it in {source}.", { source: SOURCE_LABELS[item.calendar.source] })}</p>}
-            {item.editable && google && !item.proposed && <p className="text-xs text-zinc-500">{t("Zeff never deletes Google events — delete it in Google Calendar.")}</p>}
+            {item.editable && google && !item.proposed && !proposal && <p className="text-xs text-zinc-500">{t("Zeff never deletes Google events — delete it in Google Calendar.")}</p>}
           </div>
         </>
       )}

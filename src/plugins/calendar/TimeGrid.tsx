@@ -6,6 +6,7 @@ import { addDays, weekdayOf } from "@/lib/calendar/recurrence";
 import { textOn } from "@/lib/contrast";
 import { LANGUAGES } from "@/lib/i18n/shared";
 import { nudged, nudgeOf } from "./nudge";
+import { ProposalButtons, type Decide } from "./ProposalButtons";
 import { durationText, isProposal, isoWeek, itemLabel, itemOn, lanes, local, mergeDone, minutesBetween, minutesOf, plus, snap, stampAt, timeText, type Item } from "./view-shared";
 
 const HOUR = 48;
@@ -36,10 +37,13 @@ export function TimeGrid({
   onOpen,
   onMove,
   onPickDay,
+  onDecide,
 }: {
   days: string[];
   items: Item[];
   now: string;
+  /** A proposed appointment accepted or dismissed from its hover buttons. */
+  onDecide?: Decide;
   onCreate: (v: { start: string; end: string; allDay: boolean }) => void;
   onOpen: (item: Item, rect: DOMRect) => void;
   onMove: (item: Item, start: string, end: string) => void;
@@ -376,6 +380,7 @@ export function TimeGrid({
                           </>
                         )}
                       </div>
+                      <ProposalButtons item={it} onDecide={onDecide} className="absolute top-0.5 right-0.5" />
                       {it.editable && it.end.slice(0, 10) === d && (
                         <div
                           onPointerDown={(e) => startResize(e, it, d)}

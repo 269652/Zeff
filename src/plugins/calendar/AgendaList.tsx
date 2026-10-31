@@ -2,10 +2,11 @@
 
 import { useLang, useT } from "@/components/I18nProvider";
 import { LANGUAGES } from "@/lib/i18n/shared";
+import { ProposalButtons, type Decide } from "./ProposalButtons";
 import { isProposal, itemOn, local, mergeDone, timeText, type Item } from "./view-shared";
 
 /** The next days as a list: each day with appointments, its appointments in order — a click opens one. */
-export function AgendaList({ days, items, today, onOpen }: { days: string[]; items: Item[]; today: string; onOpen: (item: Item, rect: DOMRect) => void }) {
+export function AgendaList({ days, items, today, onOpen, onDecide }: { days: string[]; items: Item[]; today: string; onOpen: (item: Item, rect: DOMRect) => void; onDecide?: Decide }) {
   const t = useT();
   const locale = LANGUAGES[useLang()].locale;
   const groups = days
@@ -22,7 +23,7 @@ export function AgendaList({ days, items, today, onOpen }: { days: string[]; ite
           </div>
           <ul className="space-y-0.5">
             {list.map((it) => (
-              <li key={it.id}>
+              <li key={it.id} className="group relative">
                 <button
                   type="button"
                   onClick={(e) => onOpen(it, e.currentTarget.getBoundingClientRect())}
@@ -44,6 +45,7 @@ export function AgendaList({ days, items, today, onOpen }: { days: string[]; ite
                     {it.calendar && <span className="block text-xs text-zinc-400">{it.calendar.name}</span>}
                   </span>
                 </button>
+                <ProposalButtons item={it} onDecide={onDecide} className="absolute top-1 right-2" />
               </li>
             ))}
           </ul>

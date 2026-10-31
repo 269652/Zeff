@@ -11,7 +11,7 @@ import { AgendaList } from "./AgendaList";
 import { EventDetails } from "./EventDetails";
 import { EventEditor, ScopeChoice, type EditorInit } from "./EventEditor";
 import { MonthGrid } from "./MonthGrid";
-import { moveProposedEventAction, saveEventAction } from "./server-actions";
+import { acceptProposalAction, dismissProposalAction, moveProposedEventAction, saveEventAction } from "./server-actions";
 import { TimeGrid } from "./TimeGrid";
 import { calendarItems, local, minutesOf, plus, stepDay, viewRange, ymd, type Item, type ViewKind } from "./view-shared";
 
@@ -52,8 +52,6 @@ export function useCalendarBody({
   showProposed: boolean;
   go: (view: ViewKind, day: string) => void;
   onChanged?: () => void;
-  /** @deprecated Shadow calendars are gone: a proposed appointment is one wherever it shows — ignored. */
-  shadowAsProposal?: boolean;
   /** Where a new appointment goes (the embedded calendar's) — else the first of Zeff's own. */
   defaultCalendarId?: number;
 }): { items: Item[]; days: string[]; today: string; pending: boolean; start: TransitionStartFunction; done: (r: Result, undo?: () => unknown) => boolean; newNow: () => void; grid: ReactNode; overlays: ReactNode } {
@@ -167,15 +165,20 @@ export function useCalendarBody({
   });
 
   const open = (item: Item, rect: DOMRect | null) => setPicked({ item, rect });
+  // A calendar's proposed appointment, from its hover buttons: kept, or gone.
+  const decide = (item: Item, verdict: "accepted" | "dismissed") => {
+    const id = item.event?.id;
+    if (id) start(async () => void done(verdict === "accepted" ? await acceptProposalAction(id) : await dismissProposalAction(id)));
+  };
   const grid =
     view === "month" ? (
       <MonthGrid days={days} month={day.slice(0, 7)} items={items} today={today} onCreate={create} onOpen={open} onMove={move} onPickDay={(d) => go("day", d)} />
     ) : view === "agenda" ? (
-      <AgendaList days={days} items={items} today={today} onOpen={open} />
+      <AgendaList days={days} items={items} today={today} onOpen={open} onDecide={decide} />
     ) : (
       <div className="h-full overflow-x-auto">
         <div className={`h-full ${view === "week" ? "min-w-[720px]" : ""}`}>
-          <TimeGrid days={days} items={items} now={now} onCreate={create} onOpen={open} onMove={move} onPickDay={(d) => go("day", d)} />
+          <TimeGrid days={days} items={items} now={now} onCreate={create} onOpen={open} onMove={move} onPickDay={(d) => go("day", d)} onDecide={decide} />
         </div>
       </div>
     );

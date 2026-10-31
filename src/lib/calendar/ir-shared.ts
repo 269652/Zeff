@@ -26,8 +26,6 @@ export type CalendarView = {
   todos: boolean;
   /** A Google calendar Zeff may write to (you own it or may write; Google holds Calendar's write access) — set by the calendar app's data. */
   writable?: boolean;
-  /** @deprecated Shadow calendars are gone (any calendar holds proposed appointments: CalendarEventView.proposed) — never set. */
-  shadow?: boolean;
 };
 
 export type CalendarEventView = {
