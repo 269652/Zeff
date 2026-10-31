@@ -63,11 +63,19 @@ test("connectToChrome attaches to a Chrome with a hung tab — closing that tab 
   const chrome = spawn(browser.path, [`--remote-debugging-port=${port}`, `--user-data-dir=${profile}`, "--headless=new", "--no-first-run", "--no-default-browser-check", "about:blank"], { stdio: "ignore" });
   const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
   try {
-    for (let i = 0; i < 60 && !(await fetch(`${cdp}/json/version`).then((r) => r.ok).catch(() => false)); i++) await sleep(500);
+    let up = false;
+    for (let i = 0; i < 60 && !(up = await fetch(`${cdp}/json/version`).then((r) => r.ok).catch(() => false)); i++) await sleep(500);
+    if (!up) return t.skip("the headless browser did not come up in 30 s (a busy machine)");
     // A good tab, and one whose renderer never comes back.
     await fetch(`${cdp}/json/new?${encodeURIComponent("data:text/html,<title>good</title>ok")}`, { method: "PUT" });
     await fetch(`${cdp}/json/new?${encodeURIComponent("data:text/html,<title>hung</title><script>setTimeout(()=>{while(true){}},300)</script>")}`, { method: "PUT" });
-    await sleep(2500);
+    // Not a fixed wait (a busy machine loads slower): both tabs titled, then the hung one past its 300 ms and stuck.
+    const titled = async () => {
+      const list = (await fetch(`${cdp}/json/list`).then((r) => r.json()).catch(() => [])) as { type: string; title: string }[];
+      return ["good", "hung"].every((x) => list.some((p) => p.type === "page" && p.title === x));
+    };
+    for (let i = 0; i < 40 && !(await titled()); i++) await sleep(500);
+    await sleep(2000);
 
     const pw = await connectToChrome(cdp, { timeout: 20000 });
     try {

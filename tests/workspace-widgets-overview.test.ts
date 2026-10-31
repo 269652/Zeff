@@ -42,12 +42,14 @@ test("overview: figures of the day as tiles — hours, todos (overdue noted), me
   assert.equal(d.kind, "stats");
   if (d.kind !== "stats") return;
   const tile = (label: RegExp) => d.tiles.find((t) => label.test(t.label))!;
-  assert.equal(tile(/hours today/i).value, "3.5 h");
-  assert.equal(tile(/open todos/i).value, "2");
-  assert.match(tile(/open todos/i).detail ?? "", /1 overdue/);
-  assert.equal(tile(/open merge requests/i).value, "2");
-  assert.match(tile(/open merge requests/i).detail ?? "", /1 .*(waiting|without)/i);
-  assert.equal(tile(/workers/i).value, "1");
+  // The tiles are Kennzahlen (metrics-overview.ts): named as the metrics are, each linking to its metric.
+  assert.match(tile(/^Stunden heute$/).value, /^3[.,]5 h$/);
+  assert.equal(tile(/^Offene Todos$/).value, "2");
+  assert.match(tile(/^Offene Todos$/).detail ?? "", /Überfällige Todos: 1/);
+  assert.equal(tile(/^Offene Merge Requests$/).value, "2");
+  assert.match(tile(/^Offene Merge Requests$/).detail ?? "", /Wartende Merge Requests: 1/);
+  assert.equal(tile(/^Worker aktiv$/).value, "1");
+  assert.match(tile(/^Offene Todos$/).href ?? "", /^\/workspace\/metrics#/);
 });
 
 test("attention: what needs you, most pressing first — an overdue todo, a merge request without movement", async () => {
