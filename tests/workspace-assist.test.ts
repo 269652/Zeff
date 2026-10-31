@@ -319,3 +319,33 @@ test("asked through the ✨ composer with a wish: the card keeps it and the AI i
   await runAssist(pageId, null, newAssistState("page"), new Date(2026, 9, 29));
   assert.doesNotMatch(fs.readFileSync(promptFile, "utf8"), /Was der Nutzer möchte/, "without a wish: no such part");
 });
+
+test("whole days by their last day (inclusive): Fri 8 – Sun 10 is three days; an old answer's end is still the day after", async () => {
+  const { cleanActions } = await import("@/plugins/workspace/assist");
+  const [cal] = cleanActions(
+    [
+      {
+        kind: "events",
+        events: [
+          { title: "Besuch bei Nadine", start: "2027-01-08", lastDay: "2027-01-10", allDay: true },
+          { title: "Alt", start: "2027-01-15", end: "2027-01-17", allDay: true },
+          { title: "Ein Tag", start: "2027-01-20", lastDay: "2027-01-20", allDay: true },
+          { title: "Verkehrt", start: "2027-01-25", lastDay: "2027-01-24", allDay: true },
+        ],
+      },
+    ],
+    check(),
+  ) as Extract<import("@/plugins/workspace/assist-shared").AssistAction, { kind: "events" }>[];
+  assert.deepEqual(
+    cal.events.map((e) => [e.title, e.start, e.end]),
+    [["Besuch bei Nadine", "2027-01-08", "2027-01-11"], ["Alt", "2027-01-15", "2027-01-17"], ["Ein Tag", "2027-01-20", "2027-01-21"], ["Verkehrt", "2027-01-25", "2027-01-26"]],
+  );
+  const { runAssist } = await import("@/plugins/workspace/assist");
+  await setup();
+  const w = await import("@/plugins/workspace/store");
+  const pageId = w.createPage({ title: "Besuch", content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Besuch im Januar" }] }] } });
+  const { newAssistState } = await import("@/plugins/workspace/assist-shared");
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ intent: "Besuch", summary: "x", questions: [], actions: [{ kind: "text", label: "x", markdown: "x" }] });
+  await runAssist(pageId, null, newAssistState("page"), new Date(2026, 9, 29));
+  assert.match(fs.readFileSync(promptFile, "utf8"), /lastDay ist der LETZTE Tag selbst/, "the prompt asks for the last day itself");
+});

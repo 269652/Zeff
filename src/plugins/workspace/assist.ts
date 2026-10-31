@@ -117,8 +117,12 @@ function cleanEvent(raw: unknown, busy: Busy[]): AssistEvent | null {
   let ev: AssistEvent;
   if (allDay) {
     from = new Date(start.getFullYear(), start.getMonth(), start.getDate());
-    // Its end: the day after the last (a time given on that last day: the day after it).
-    end = !end || end <= from ? new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1) : new Date(end.getFullYear(), end.getMonth(), end.getDate() + (DAY.test(String(o.end)) ? 0 : 1));
+    // Its end: the day after the last. `lastDay` is that last day itself (what the prompt asks for — unambiguous); an `end`
+    // (older answers) is the day after already (a time given on that last day: the day after it).
+    const last = DAY.test(String(o.lastDay ?? "")) ? when(o.lastDay) : null;
+    if (last) end = new Date(last.getFullYear(), last.getMonth(), last.getDate() + 1);
+    else if (end) end = new Date(end.getFullYear(), end.getMonth(), end.getDate() + (DAY.test(String(o.end)) ? 0 : 1));
+    if (!end || end <= from) end = new Date(from.getFullYear(), from.getMonth(), from.getDate() + 1);
     ev = { title, start: localDay(from), end: localDay(end), allDay: true };
   } else {
     if (!end || end <= start) return null;
@@ -232,7 +236,7 @@ const SCHEMA = {
           kind: { type: "string", enum: ASSIST_ACTION_KINDS },
           label: { type: "string" },
           name: { type: "string" },
-          events: { type: "array", items: { type: "object", required: ["title", "start", "end"], properties: { title: { type: "string" }, start: { type: "string" }, end: { type: "string" }, allDay: { type: "boolean" } } } },
+          events: { type: "array", items: { type: "object", required: ["title", "start"], properties: { title: { type: "string" }, start: { type: "string" }, end: { type: "string" }, lastDay: { type: "string" }, allDay: { type: "boolean" } } } },
           calendarId: { type: "integer" },
           text: { type: "string" },
           due: { type: "string" },
@@ -306,7 +310,7 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
   const widgets = [...v.check.widgets].map(([id, w]) => `${id} (${w.label}${w.settings.length ? `; config: ${w.settings.join(", ")}` : ""})`).join("; ");
   const kinds = [
     v.check.can.calendar &&
-      `- {"kind":"events","label","calendarId","events":[{"title","start","end","allDay"}]} — Terminvorschläge in einem Kalender (blockieren nichts; der Nutzer nimmt jeden an oder verwirft ihn). calendarId: einer dieser Kalender (weglassen: der Zeff-Kalender): ${[...(v.check.calendars ?? [])].map(([id, name]) => `${id} "${name}"`).join(", ") || "(keine)"}. Ganze Tage "YYYY-MM-DD" (end = Tag nach dem letzten, allDay true), sonst "YYYY-MM-DDTHH:MM". Meide die belegten Zeiten. Pro Zeitraum genau ein Vorschlag, nichts überlappt (auch keine Anreise im Besuch) — der Nutzer verschiebt die Tage per Drag & Drop.`,
+      `- {"kind":"events","label","calendarId","events":[{"title","start","lastDay" | "end","allDay"}]} — Terminvorschläge in einem Kalender (blockieren nichts; der Nutzer nimmt jeden an oder verwirft ihn). calendarId: einer dieser Kalender (weglassen: der Zeff-Kalender): ${[...(v.check.calendars ?? [])].map(([id, name]) => `${id} "${name}"`).join(", ") || "(keine)"}. Ganze Tage: start und lastDay "YYYY-MM-DD" — lastDay ist der LETZTE Tag selbst (Fr 8. bis So 10. = start "…-08", lastDay "…-10"), allDay true, kein end; sonst start und end "YYYY-MM-DDTHH:MM". Meide die belegten Zeiten. Pro Zeitraum genau ein Vorschlag, nichts überlappt (auch keine Anreise im Besuch) — der Nutzer verschiebt die Tage per Drag & Drop.`,
     v.check.can.todos && `- {"kind":"todo","label","text","due"} — eine Aufgabe; Personen beim Namen; due "YYYY-MM-DD" nur wenn sinnvoll.`,
     `- {"kind":"widget","label","widget","person","config"} — ein Baustein der Seite; person = id einer Person oben. Widgets: ${widgets || "(keine)"}`,
     `- {"kind":"text","label","markdown"} — Text für die Seite (z. B. eine Checkliste "- [ ] …").`,
