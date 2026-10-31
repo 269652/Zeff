@@ -23,6 +23,7 @@ import { reviewItems } from "@/lib/review";
 import { ReviewList } from "@/app/review/ReviewList";
 import { TodayNoteLink } from "./TodayNoteLink";
 import { TodayMetrics } from "./TodayMetrics";
+import { TodayDayLists } from "./TodayDayLists";
 import { peopleHome, personHref } from "@/plugins/workspace/people-database";
 import { inDaysText, upcomingTitle } from "@/plugins/people/shared";
 import { isInstalled } from "@/plugins/state";
@@ -425,6 +426,9 @@ export default async function HeutePage({ searchParams }: { searchParams: Promis
 
       {/* The Kennzahlen you put on Today (Workspace → Metrics: "Show on Today"). */}
       <TodayMetrics />
+
+      {/* The day lists (medicines, a routine): how far each is today, what is open ticked here. */}
+      <TodayDayLists />
 
       {/* A meeting about to start: what you should know before it (the know plugin). */}
       <MeetingSoon now={now} />
