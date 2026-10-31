@@ -1,25 +1,15 @@
-import { spawn } from "node:child_process";
-import { RunMap } from "@/lib/work/run-map";
 import crypto from "node:crypto";
 import fs from "node:fs";
-import type net from "node:net";
 import path from "node:path";
-import { currentAccountId, withAccount } from "@/db/accounts";
-import { killPid } from "@/lib/abort";
-import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
-import { closeOnHost, killOnHost, spawnOnHost, workHostFeatures, writeToHost } from "@/lib/work/host";
-import { errPath, inPath, logPath, workDir } from "@/lib/work/log";
+import { inPath, logPath } from "@/lib/work/log";
 import { workerMcpServers } from "@/lib/work/mcp";
-import { normalizeResult } from "@/lib/work/outcome";
-import { connectHost, newLines, pidAlive, readHostInfo } from "@/lib/work/session-host";
-import { WORK_RESULT_SCHEMA, workRef, type AskAnswer, type ClaudeAsk, type Effort, type SessionLiveView, type SessionMode, type WorkResult } from "@/lib/work/shared";
+import { changed, liveCore, now, reqId, resultOf, sessionsDir, type LiveBase, type LiveCfgBase } from "@/lib/work/live-core";
+import type { AskAnswer, ClaudeAsk, Effort, SessionLiveView, SessionMode } from "@/lib/work/shared";
 import type { LiveDriver, LiveOutcome, LiveStart } from "@/lib/work/live-driver";
-import { hostScript } from "@/plugins/claude-cli/live";
 import type { LiveView } from "@/plugins/copilot-cli/live-state";
 import { codexModels, codexSandboxState, findCodexCli } from "./cli";
 import { commandText, fileChangeInput, markCodexRun, type FileUpdate } from "./log";
-import { lastJson } from "@/lib/ai/json";
 
 /**
  * Live Codex sessions (ChatGPT) on the Code tab: `codex app-server`, Codex's own JSON-RPC over
@@ -27,38 +17,23 @@ import { lastJson } from "@/lib/ai/json";
  * a file, your answers. Like Claude Code's (plugins/claude-cli/live.ts) it runs under a host
  * outside Zeff's server (the launcher's work host, or scripts/work-session-host.mjs), so a
  * restart or a deploy doesn't end it: the host writes what the CLI prints into the run's log,
- * Zeff keeps what it sends beside it (log.ts: inPath) and reads both from the start after a restart.
+ * Zeff keeps what it sends beside it (log.ts: inPath) and reads both from the start after a
+ * restart. That much both share (lib/work/live-core.ts); here is Codex's protocol.
  *
  * Its thread id is the session's: a later run resumes it (thread/resume). A message sent while it
  * works steers the running turn (turn/steer); one it can't take waits for the next turn.
  */
 
-/** Where the CLI runs: the launcher's work host, or a host of its own. */
-type Transport = "launcher" | "own";
-
 /** What a session was started with — kept beside its log (a restarted server reads it). */
-type CodexCfg = {
-  runId: number;
-  conversation: boolean;
+type CodexCfg = LiveCfgBase & {
   effort: Effort;
-  model: string | null;
   mode: string;
-  allowBypass: boolean;
-  askTimeoutMin: number;
   /** Its runs that only look (no edits allowed): the read-only sandbox, whatever the mode. */
   readOnly: boolean;
-  command: string;
-  args: string[];
-  cwd: string;
-  transport?: Transport;
-  token: string;
-  pid?: number | null;
   /** The first message, till the thread is there to take it (turn/start needs its id). */
   pending: string | null;
   /** The mode was switched: the next turn takes its approval policy and sandbox. */
   policyChanged?: boolean;
-  finishing?: boolean;
-  closing?: boolean;
   resumeSession: string | null;
 };
 
@@ -70,81 +45,71 @@ type Input = { type: "text"; text: string; text_elements: [] } | { type: "localI
 /** What an open request of the CLI needs for its answer. */
 type AskMeta = { rpcId: string | number; method: string; available: unknown[] | null; questions: { id: string; question: string }[]; permissions: Record<string, unknown> | null };
 
-type Live = {
-  runId: number;
-  account: string;
-  files: { log: string; err: string; in: string; info: string; cfg: string; host: string };
-  cfg: CodexCfg;
-  offset: number;
-  rest: string;
-  inOffset: number;
-  inRest: string;
+type Live = LiveBase<CodexCfg> & {
   /** Zeff's requests by id (what a response answers), and its turn/starts not answered yet. */
   sent: Map<string, { method: string; input?: Input[] }>;
   turnRequests: Set<string>;
-  /** The CLI's requests answered (by Zeff's side log, or resolved by the CLI). */
-  answered: Set<string>;
   meta: Map<string, AskMeta>;
   /** File changes by item (an approval names the item only). */
   changes: Map<string, FileUpdate[]>;
-  sock: net.Socket | null;
-  connecting: Promise<net.Socket> | null;
-  view: SessionLiveView;
   threadId: string | null;
   turnId: string | null;
-  turnText: string;
-  waiting: string | null;
   /** Messages for the next turn (sent before the thread was there, or not taken by the running turn). */
   outbox: Input[][];
   /** Stop asked for before the turn had its id: sent once it has. */
   stopWanted: boolean;
-  resultSeen: boolean;
   /** Something that ends it (the thread didn't start). */
   fatal: string | null;
-  exited: boolean;
-  startingSince: number | null;
-  closed: boolean;
-  missing: number;
-  ticks: number;
-  stopSent: boolean;
-  caughtUp: boolean;
 };
 
-// Per account (a run's id is its account's): two accounts served side by side never see or steer each other's session.
-const state = globalThis as { __zeffCodexLive?: Map<number, Live>; __zeffCodexLiveRuns?: RunMap<Live>; __zeffCodexTick?: ReturnType<typeof setInterval> };
-export const codexLives = (state.__zeffCodexLiveRuns ??= new RunMap<Live>(currentAccountId, state.__zeffCodexLive));
+const busy = (l: Live) => l.turnId !== null || l.turnRequests.size > 0;
 
-const now = () => new Date().toISOString();
-const sessionsDir = () => path.join(workDir(), "sessions");
-// (Not <run>.json — that's Claude's: its driver would take the run for its own.)
-const filesOf = (runId: number) => ({
-  log: logPath(runId),
-  err: errPath(runId),
-  in: inPath(runId),
-  cfg: path.join(sessionsDir(), `${runId}.codex.json`),
-  host: path.join(sessionsDir(), `${runId}.codex.host-cfg.json`),
-  info: path.join(sessionsDir(), `${runId}.codex.host.json`),
+const core = liveCore<CodexCfg, Live>({
+  keys: { map: "__zeffCodexLive", runs: "__zeffCodexLiveRuns", tick: "__zeffCodexTick" },
+  // (Not <run>.json — that's Claude's: its driver would take the run for its own.)
+  infix: ".codex",
+  create: newLive,
+  take,
+  takeIn,
+  busy,
+  ready: (l) => !!l.threadId && !l.cfg.pending,
+  idle: (l) => !!l.threadId && !l.cfg.pending && !l.outbox.length,
+  mode: (l) => l.cfg.mode,
+  sidebarModes: (l) => l.view.modes.map((m) => ({ id: m.id, name: m.label })),
+  detailFields: ["command", "file_path", "url", "message"],
+  session: (l) => ({ queued: l.outbox.length, costUsd: null }),
+  afterFollow: (l) => {
+    if (l.caughtUp && !l.closed) void flush(l).catch((e) => fs.appendFileSync(/*turbopackIgnore: true*/ l.files.err, `${e instanceof Error ? e.message : String(e)}\n`));
+  },
+  onExit: (l) => {
+    l.turnId = null;
+    l.turnRequests.clear();
+  },
+  beforeSettle: (l) => {
+    if (!l.fatal) return false;
+    core.fail(l, new Error(l.fatal));
+    return true;
+  },
+  askTimeoutMessage: (min) => `Niemand hat innerhalb von ${min} Minuten geantwortet — mach ohne weiter, oder schließ mit outcome blocked und der Frage als Follow-up ab.`,
+  answer,
+  failKeepsProcess: true,
+  scrub,
+  // The pictures you sent it.
+  onDrop: (l) => {
+    try {
+      for (const f of fs.readdirSync(/*turbopackIgnore: true*/ sessionsDir())) if (f.startsWith(`${l.runId}.codex-img-`)) fs.rmSync(/*turbopackIgnore: true*/ path.join(sessionsDir(), f), { force: true });
+    } catch {
+      // no folder
+    }
+  },
+  send: (runId, text) => sendToCodex(runId, text),
 });
 
+// Per account (a run's id is its account's): two accounts served side by side never see or steer each other's session.
+export const codexLives = core.lives;
+
 /** This run is (or was) a live Codex session. */
-export const isCodexSession = (runId: number) => fs.existsSync(/*turbopackIgnore: true*/ filesOf(runId).cfg);
-
-function readCfg(runId: number): CodexCfg | null {
-  try {
-    return JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ filesOf(runId).cfg, "utf8")) as CodexCfg;
-  } catch {
-    return null;
-  }
-}
-
-function saveCfg(l: Live) {
-  fs.writeFileSync(/*turbopackIgnore: true*/ l.files.cfg, JSON.stringify(l.cfg, null, 1));
-}
-
-function changed(alsoAttention = false) {
-  emitChange("work");
-  if (alsoAttention) emitChange("attention");
-}
+export const isCodexSession = (runId: number) => core.isSession(runId);
 
 // ——— its modes: an approval policy and a sandbox each ———
 
@@ -192,40 +157,11 @@ function sandboxPolicy(s: Policy["sandbox"]) {
 
 // ——— the view ———
 
-function askTitle(a: ClaudeAsk): string {
-  if (a.tool === "AskUserQuestion") return t("A question for you");
-  return `${a.tool}${a.description ? `: ${a.description}` : ""}`;
-}
-function askDetail(a: ClaudeAsk): string | null {
-  const i = a.input;
-  const s = (k: string) => (typeof i[k] === "string" ? (i[k] as string) : "");
-  if (a.tool === "AskUserQuestion") return ((i.questions as { question?: string }[] | undefined) ?? []).map((q) => q.question).join(" · ");
-  return (s("command") || s("file_path") || s("url") || s("message") || JSON.stringify(i)).slice(0, 600);
-}
-
-const busy = (l: Live) => l.turnId !== null || l.turnRequests.size > 0;
-
 /** The live session as the pages see it (the Copilot-shaped part for the sidebar and attention; the rest under `session`). */
-export function codexLiveView(runId: number): { live: LiveView; session: SessionLiveView } | undefined {
-  const l = codexLives.get(runId);
-  if (!l || l.closed) return undefined;
-  const ask = l.view.asks[0];
-  const starting = l.view.host === "starting" || !l.threadId;
-  const live: LiveView = {
-    mode: l.cfg.mode,
-    modes: l.view.modes.map((m) => ({ id: m.id, name: m.label })),
-    busy: busy(l) || !!ask || starting || !l.caughtUp || !!l.cfg.pending,
-    permission: ask ? { title: askTitle(ask), detail: askDetail(ask), options: [] } : null,
-    waiting: !busy(l) && !ask && !starting && l.caughtUp && !l.cfg.pending ? (l.waiting ?? "") : null,
-  };
-  return { live, session: { ...l.view, asks: [...l.view.asks], queued: l.outbox.length, costUsd: null } };
-}
+export const codexLiveView = (runId: number): { live: LiveView; session: SessionLiveView } | undefined => core.view(runId);
 
 /** Waits for you (not working, nothing asked): it doesn't hold a worker. */
-export function codexIdle(runId: number): boolean {
-  const l = codexLives.get(runId);
-  return !!l && !l.closed && l.caughtUp && !busy(l) && !l.view.asks.length && l.view.host === "up" && !!l.threadId && !l.cfg.pending && !l.outbox.length;
-}
+export const codexIdle = (runId: number): boolean => core.idle(runId);
 
 // ——— the logs, followed ———
 
@@ -245,7 +181,7 @@ function take(l: Live, line: string) {
       l.exited = false;
       l.view.host = "up";
       l.startingSince = null;
-    } else if (m.event === "exit") onExit(l);
+    } else if (m.event === "exit") core.onExit(l);
     return;
   }
   if (m.method && m.id !== undefined) request(l, m);
@@ -373,7 +309,7 @@ function request(l: Live, m: Rpc) {
       return;
   }
   // Nothing Zeff serves (dynamic tools, sign-in refreshes …): refused, so it doesn't wait.
-  if (l.caughtUp) void write(l, { id: m.id, error: { code: -32601, message: `Zeff doesn't serve ${m.method}` } }).catch(() => {});
+  if (l.caughtUp) void core.write(l, { id: m.id, error: { code: -32601, message: `Zeff doesn't serve ${m.method}` } }).catch(() => {});
 }
 
 /** One line of Zeff's side log: a request it sent (to know what a response answers), an answer it gave. */
@@ -396,162 +332,30 @@ function takeIn(l: Live, line: string) {
   }
 }
 
-/** The logs' new lines, then what follows from them. */
-function follow(l: Live) {
-  const asksBefore = l.view.asks.length;
-  const busyBefore = busy(l);
-  // The side log first: a request's response, an answer's question, are read after it.
-  const inPos = { offset: l.inOffset, rest: l.inRest };
-  const ins = newLines(l.files.in, inPos);
-  l.inOffset = inPos.offset;
-  l.inRest = inPos.rest;
-  for (const line of ins ?? []) takeIn(l, line);
-  const pos = { offset: l.offset, rest: l.rest };
-  const lines = newLines(l.files.log, pos);
-  l.offset = pos.offset;
-  l.rest = pos.rest;
-  for (const line of lines ?? []) take(l, line);
-  if (!lines && !l.caughtUp) {
-    l.caughtUp = true;
-    changed();
-  }
-  if (l.caughtUp && !l.closed) void flush(l).catch((e) => fs.appendFileSync(/*turbopackIgnore: true*/ l.files.err, `${e instanceof Error ? e.message : String(e)}\n`));
-  if (lines || ins) {
-    changed(asksBefore !== l.view.asks.length || busyBefore !== busy(l));
-    void settle(l);
-  } else if (++l.ticks % 5 === 0) void settle(l);
-}
-
 /** The thread there and nothing under way: the first message, or what waited, as the next turn. */
 async function flush(l: Live) {
   if (!l.threadId || busy(l) || l.view.host !== "up" || l.exited) return;
   if (l.cfg.pending !== null) {
     const text = l.cfg.pending;
     l.cfg.pending = null;
-    saveCfg(l);
+    core.saveCfg(l);
     await startTurn(l, [textInput(text)]);
   } else if (l.outbox.length) await startTurn(l, l.outbox.splice(0).flat());
-}
-
-/** Its process ended (its own host said so, or the launcher's reported it). */
-function onExit(l: Live) {
-  l.exited = true;
-  l.view.host = "down";
-  l.turnId = null;
-  l.turnRequests.clear();
-  l.view.asks = [];
-  l.sock?.destroy();
-  l.sock = null;
-}
-
-/** After new lines: its end (a task's result, an asked-for result, its process gone), questions nobody answered. */
-async function settle(l: Live) {
-  if (l.closed) return;
-  const { getRun } = await import("@/lib/work/store");
-  const run = getRun(l.runId);
-  if (!run || run.status !== "running") {
-    // Stopped or finished meanwhile: its process goes too.
-    if (!l.exited && !l.stopSent) {
-      l.stopSent = true;
-      void stopProcess(l);
-    }
-    if (l.exited || l.missing > 5) drop(l);
-    else if (!processAlive(l)) l.missing++;
-    return;
-  }
-  if (l.fatal) {
-    fail(l, new Error(l.fatal));
-    return;
-  }
-  if (l.resultSeen && !busy(l)) {
-    l.resultSeen = false;
-    if ((!l.cfg.conversation || l.cfg.finishing) && resultOf(l.turnText)) {
-      await end(l);
-      return;
-    }
-  }
-  if (l.exited) {
-    await end(l);
-    return;
-  }
-  // Its process gone without an end of its own (killed): a few ticks, then the end.
-  l.missing = l.startingSince === null && l.view.host === "up" && !processAlive(l) ? l.missing + 1 : 0;
-  if (l.missing > (l.cfg.transport === "launcher" ? 75 : 5)) {
-    l.exited = true;
-    await end(l, true);
-    return;
-  }
-  // A task's question nobody answers: refused after a while, so the run goes on.
-  if (!l.cfg.conversation && l.cfg.askTimeoutMin > 0) {
-    const limit = Date.now() - l.cfg.askTimeoutMin * 60000;
-    for (const a of l.view.asks.filter((x) => Date.parse(x.at) < limit)) {
-      void answer(l.runId, a.requestId, { behavior: "deny", message: `Niemand hat innerhalb von ${l.cfg.askTimeoutMin} Minuten geantwortet — mach ohne weiter, oder schließ mit outcome blocked und der Frage als Follow-up ab.` }).catch(() => {});
-    }
-  }
-  if (l.startingSince !== null && Date.now() - l.startingSince > 60000 && !processAlive(l)) {
-    l.startingSince = null;
-    fail(l, new Error(t("The session didn't start.")));
-  }
-}
-
-function processAlive(l: Live): boolean {
-  if (l.cfg.transport === "launcher") return pidAlive(l.cfg.pid);
-  const info = readHostInfo(l.files.info);
-  return !!info && pidAlive(info.pid);
-}
-
-const resultOf = (text: string): WorkResult | null => normalizeResult(lastJson(text));
-
-function fail(l: Live, e: unknown) {
-  fs.appendFileSync(/*turbopackIgnore: true*/ l.files.err, `${e instanceof Error ? e.message : String(e)}\n`);
-  l.exited = l.exited || !processAlive(l);
-  void end(l, true);
-}
-
-/** The run taken in (finalize reads the log through outcome()); its process told to go. */
-async function end(l: Live, gone = false) {
-  if (l.closed) return;
-  l.closed = true;
-  const { finalize } = await import("@/lib/work/runner");
-  await withAccount(l.account, () => finalize(l.runId, gone && !l.cfg.closing));
-  if (!l.exited) await stopProcess(l);
-  drop(l);
-}
-
-function drop(l: Live) {
-  l.closed = true;
-  l.sock?.destroy();
-  codexLives.delete(l.runId, l.account);
-  fs.rmSync(/*turbopackIgnore: true*/ l.files.host, { force: true });
-  // The pictures you sent it.
-  try {
-    for (const f of fs.readdirSync(/*turbopackIgnore: true*/ sessionsDir())) if (f.startsWith(`${l.runId}.codex-img-`)) fs.rmSync(/*turbopackIgnore: true*/ path.join(sessionsDir(), f), { force: true });
-  } catch {
-    // no folder
-  }
-  changed(true);
 }
 
 /** The launcher's work host reports its process over: the run's end (Codex doesn't restart). */
 function codexWorkerExited(runId: number): boolean {
   const l = codexLives.get(runId);
-  if (l && !l.closed) onExit(l);
+  if (l && !l.closed) core.onExit(l);
   return false;
 }
 
 /** How the session ended, from its log: the last turn's ```json block, its turns, refusals, the thread. */
 export function codexOutcome(runId: number): LiveOutcome {
-  const cfg = readCfg(runId);
-  const read = (f: string) => {
-    try {
-      return fs.readFileSync(/*turbopackIgnore: true*/ f, "utf8");
-    } catch {
-      return "";
-    }
-  };
+  const cfg = core.readCfg(runId);
   let denials = 0;
   const threadRequests = new Set<string>();
-  for (const line of read(inPath(runId)).split("\n")) {
+  for (const line of core.readAll(inPath(runId)).split("\n")) {
     if (!line.startsWith("{")) continue;
     try {
       const m = (JSON.parse(line) as { msg?: Rpc }).msg;
@@ -566,7 +370,7 @@ export function codexOutcome(runId: number): LiveOutcome {
   let lastText = "";
   let turns = 0;
   let sessionId: string | null = cfg?.resumeSession ?? null;
-  for (const line of read(logPath(runId)).split("\n")) {
+  for (const line of core.readAll(logPath(runId)).split("\n")) {
     if (!line.startsWith("{")) continue;
     let m: Rpc;
     try {
@@ -587,51 +391,13 @@ export function codexOutcome(runId: number): LiveOutcome {
   return { result: resultOf(lastText), closed: !!cfg?.closing, lastText, costUsd: null, turns, denials, sessionId };
 }
 
-// ——— its process: on the launcher's work host, or a host of its own ———
+// ——— its process ———
 
-async function connect(l: Live): Promise<net.Socket> {
-  if (l.sock && !l.sock.destroyed) return l.sock;
-  l.connecting ??= connectHost(l.files.info, l.cfg.token, { waitMs: 45000, gone: () => l.exited })
-    .then((sock) => {
-      sock.on("close", () => {
-        if (l.sock === sock) l.sock = null;
-      });
-      l.sock = sock;
-      return sock;
-    })
-    .finally(() => {
-      l.connecting = null;
-    });
-  return l.connecting;
-}
-
-async function hostSend(l: Live, msg: Record<string, unknown>) {
-  const s = await connect(l);
-  await new Promise<void>((resolve, reject) => s.write(`${JSON.stringify(msg)}\n`, (e) => (e ? reject(e) : resolve())));
-}
-
-/** What Zeff sent, kept beside the log — without the MCP token. */
-function keep(l: Live, msg: Rpc) {
+/** What Zeff sent, as kept beside the log — without the MCP token. */
+function scrub(msg: Rpc): Rpc {
   const config = msg.params?.config as Record<string, unknown> | undefined;
-  const scrubbed = config?.["mcp_servers.zeff.http_headers"] ? { ...msg, params: { ...msg.params, config: { ...config, "mcp_servers.zeff.http_headers": "(hidden)" } } } : msg;
-  fs.appendFileSync(/*turbopackIgnore: true*/ l.files.in, `${JSON.stringify({ type: "zeff_in", at: now(), msg: scrubbed })}\n`);
+  return config?.["mcp_servers.zeff.http_headers"] ? { ...msg, params: { ...msg.params, config: { ...config, "mcp_servers.zeff.http_headers": "(hidden)" } } } : msg;
 }
-
-/** One JSON-RPC line to the CLI — kept beside the log, then sent where it runs. */
-async function write(l: Live, msg: Rpc) {
-  keep(l, msg);
-  if (l.cfg.transport === "launcher") await writeToHost(l.runId, JSON.stringify(msg));
-  else await hostSend(l, msg);
-}
-
-/** Its input ended: the app server quits. */
-async function stopProcess(l: Live) {
-  if (l.cfg.transport === "launcher") await closeOnHost(l.runId);
-  else await hostSend(l, { zeffHost: "stop" }).catch(() => {});
-}
-
-let nextReq = 0;
-const reqId = () => `zeff-${Date.now().toString(36)}-${++nextReq}`;
 
 const textInput = (text: string): Input => ({ type: "text", text, text_elements: [] });
 
@@ -646,14 +412,14 @@ async function startTurn(l: Live, input: Input[]) {
     params.approvalPolicy = policy.approval;
     params.sandboxPolicy = sandboxPolicy(policy.sandbox);
     l.cfg.policyChanged = false;
-    saveCfg(l);
+    core.saveCfg(l);
   }
   l.turnRequests.add(id);
   l.waiting = null;
-  await write(l, { id, method: "turn/start", params });
+  await core.write(l, { id, method: "turn/start", params });
 }
 
-/** Start the app server for a session: initialize, then its thread (new, or the conversation it goes on with). */
+/** Start the app server for a session (live-core: where it runs): initialize, then its thread (new, or the conversation it goes on with). */
 async function startProcess(l: Live, rules: string, disallowedTools: string[]) {
   const policy = policyOf(l);
   // Zeff's MCP server of this run's account — its booking tools left out.
@@ -670,70 +436,13 @@ async function startProcess(l: Live, rules: string, disallowedTools: string[]) {
     { method: "initialized" },
     l.cfg.resumeSession ? { id: reqId(), method: "thread/resume", params: { threadId: l.cfg.resumeSession, ...common } } : { id: reqId(), method: "thread/start", params: common },
   ];
-  l.view.host = "starting";
-  l.startingSince = Date.now();
-  l.exited = false;
-  changed();
-  const { workerEnv } = await import("@/lib/work/runner");
-  const features = await workHostFeatures();
-  if (features?.includes("keep") && features.includes("write")) {
-    l.cfg.transport = "launcher";
-    for (const m of lines) keep(l, m);
-    l.cfg.pid = await spawnOnHost({
-      runId: l.runId,
-      account: l.account,
-      command: l.cfg.command,
-      args: l.cfg.args,
-      cwd: l.cfg.cwd,
-      env: workerEnv(l.runId, true),
-      stdin: "",
-      stdinLines: lines.map((m) => JSON.stringify(m)),
-      outFile: l.files.log,
-      errFile: l.files.err,
-      live: true,
-      keep: true,
-    });
-    // The launcher's host writes no start line: it's up once it runs.
-    l.view.host = "up";
-    l.startingSince = null;
-    saveCfg(l);
-    const { updateRun } = await import("@/lib/work/store");
-    updateRun(l.runId, { pid: l.cfg.pid });
-    return;
-  }
-  // A host of its own: its config (the token Zeff talks to it with), started detached.
-  l.cfg.transport = "own";
-  saveCfg(l);
-  fs.writeFileSync(/*turbopackIgnore: true*/ l.files.host, JSON.stringify({ command: l.cfg.command, args: l.cfg.args, cwd: l.cfg.cwd, log: l.files.log, err: l.files.err, info: l.files.info, token: l.cfg.token }));
-  fs.rmSync(/*turbopackIgnore: true*/ l.files.info, { force: true });
-  if (!fs.existsSync(/*turbopackIgnore: true*/ hostScript())) throw new Error(t("The session host is missing: {path} (Zeff runs from {cwd}).", { path: hostScript(), cwd: process.cwd() }));
-  const err = fs.openSync(/*turbopackIgnore: true*/ l.files.err, "a");
-  const child = spawn(/*turbopackIgnore: true*/ process.execPath, [hostScript(), l.files.host, "--detach"], { cwd: l.cfg.cwd, env: workerEnv(l.runId, true) as NodeJS.ProcessEnv, detached: true, stdio: ["ignore", "ignore", err], windowsHide: true });
-  fs.closeSync(err);
-  child.on("error", (e) => fail(l, e));
-  child.on("exit", (code) => code && fail(l, new Error(t("The session host didn't start (exit {code}) — see above.", { code }))));
-  child.unref();
-  for (const m of lines) await write(l, m);
+  // The launcher's host writes no start line: it's up once it runs.
+  await core.launch(l, l.cfg.args, lines, { upOnSpawn: true });
 }
 
 function newLive(runId: number, cfg: CodexCfg): Live {
   const l: Live = {
-    runId,
-    account: currentAccountId(),
-    files: filesOf(runId),
-    cfg,
-    offset: 0,
-    rest: "",
-    inOffset: 0,
-    inRest: "",
-    sent: new Map(),
-    turnRequests: new Set(),
-    answered: new Set(),
-    meta: new Map(),
-    changes: new Map(),
-    sock: null,
-    connecting: null,
-    view: {
+    ...core.base(runId, cfg, {
       provider: "codex",
       modes: codexModes(cfg.allowBypass),
       features: ["images", "effort"],
@@ -750,22 +459,16 @@ function newLive(runId: number, cfg: CodexCfg): Live {
       costUsd: null,
       shellPending: 0,
       allowBypass: cfg.allowBypass,
-    },
+    }),
+    sent: new Map(),
+    turnRequests: new Set(),
+    meta: new Map(),
+    changes: new Map(),
     threadId: null,
     turnId: null,
-    turnText: "",
-    waiting: null,
     outbox: [],
     stopWanted: false,
-    resultSeen: false,
     fatal: null,
-    exited: false,
-    startingSince: null,
-    closed: false,
-    missing: 0,
-    ticks: 0,
-    stopSent: false,
-    caughtUp: false,
   };
   // The models your ChatGPT account offers (Codex's catalog, cached).
   void codexModels()
@@ -775,21 +478,6 @@ function newLive(runId: number, cfg: CodexCfg): Live {
     })
     .catch(() => {});
   return l;
-}
-
-/** Follow every live Codex session's logs (one timer for all). */
-function ensureTick() {
-  if (state.__zeffCodexTick) return;
-  state.__zeffCodexTick = setInterval(() => {
-    for (const l of codexLives.values()) {
-      try {
-        withAccount(l.account, () => follow(l));
-      } catch (e) {
-        console.error(`[work] following ${workRef(l.runId)} failed:`, e);
-      }
-    }
-  }, 400);
-  state.__zeffCodexTick.unref?.();
 }
 
 /** A new live Codex session for a run (LiveStart: what the runner knows; the CLI's own arguments made here). */
@@ -817,38 +505,21 @@ async function startCodex(s: LiveStart): Promise<void> {
   // Its log marked as Codex's first (readLog reads it as such), then the host appends to it.
   markCodexRun(s.runId);
   const l = newLive(s.runId, cfg);
-  saveCfg(l);
-  codexLives.set(s.runId, l);
-  ensureTick();
+  core.saveCfg(l);
+  core.register(l);
   await startProcess(l, s.rules, s.disallowedTools);
 }
 
 /** After a server start: its running sessions followed again, their logs read from the start. */
-export function reattachCodexSessions(runIds: number[]): void {
-  for (const runId of runIds) {
-    if (codexLives.has(runId)) continue;
-    const cfg = readCfg(runId);
-    if (!cfg) continue;
-    const l = newLive(runId, cfg);
-    l.view.host = processAlive(l) ? "up" : "down";
-    codexLives.set(runId, l);
-  }
-  ensureTick();
-}
+export const reattachCodexSessions = (runIds: number[]): void => core.reattach(runIds);
 
 // ——— what you do ———
-
-const liveOf = (runId: number): Live => {
-  const l = codexLives.get(runId);
-  if (!l || l.closed) throw new Error(t("The session isn't running (any more)."));
-  return l;
-};
 
 const IMAGE_EXT: Record<string, string> = { "image/png": "png", "image/jpeg": "jpg", "image/gif": "gif", "image/webp": "webp" };
 
 /** Your message (and pictures — as files beside the session, Codex reads them from disk): into the running turn, else a turn of its own. */
 export async function sendToCodex(runId: number, text: string, images: { mediaType: string; data: string }[] = []) {
-  const l = liveOf(runId);
+  const l = core.liveOf(runId);
   if (l.view.host === "down") throw new Error(t("The session isn't running (any more)."));
   const input: Input[] = [textInput(text)];
   images.forEach((img, i) => {
@@ -857,7 +528,7 @@ export async function sendToCodex(runId: number, text: string, images: { mediaTy
     input.push({ type: "localImage", path: file });
   });
   if (l.threadId && l.turnId && l.caughtUp) {
-    await write(l, { id: reqId(), method: "turn/steer", params: { threadId: l.threadId, input, expectedTurnId: l.turnId } });
+    await core.write(l, { id: reqId(), method: "turn/steer", params: { threadId: l.threadId, input, expectedTurnId: l.turnId } });
   } else if (!l.threadId || busy(l) || l.cfg.pending !== null || !l.caughtUp) l.outbox.push(input);
   else await startTurn(l, input);
   l.waiting = null;
@@ -877,7 +548,7 @@ function decision(available: unknown[] | null, a: AskAnswer): unknown {
 
 /** Your answer to what it asks. */
 export async function answer(runId: number, requestId: string, a: AskAnswer) {
-  const l = liveOf(runId);
+  const l = core.liveOf(runId);
   const meta = l.meta.get(requestId);
   if (!meta || !l.view.asks.some((x) => x.requestId === requestId)) throw new Error(t("It doesn't wait for that any more."));
   const allow = a.behavior === "allow";
@@ -899,7 +570,7 @@ export async function answer(runId: number, requestId: string, a: AskAnswer) {
       result = { decision: d };
     }
   }
-  await write(l, { id: meta.rpcId, result });
+  await core.write(l, { id: meta.rpcId, result });
   l.answered.add(requestId);
   l.view.asks = l.view.asks.filter((x) => x.requestId !== requestId);
   changed(true);
@@ -915,9 +586,9 @@ export async function answer(runId: number, requestId: string, a: AskAnswer) {
 
 /** Stop its current turn (what you sent meanwhile is dropped too). */
 export async function interruptCodex(runId: number) {
-  const l = liveOf(runId);
+  const l = core.liveOf(runId);
   l.outbox = [];
-  if (l.threadId && l.turnId) await write(l, { id: reqId(), method: "turn/interrupt", params: { threadId: l.threadId, turnId: l.turnId } });
+  if (l.threadId && l.turnId) await core.write(l, { id: reqId(), method: "turn/interrupt", params: { threadId: l.threadId, turnId: l.turnId } });
   else if (busy(l)) l.stopWanted = true;
   changed();
 }
@@ -926,75 +597,39 @@ export async function interruptCodex(runId: number) {
 function stopIfWanted(l: Live) {
   if (!l.stopWanted || !l.turnId || !l.threadId || !l.caughtUp) return;
   l.stopWanted = false;
-  void write(l, { id: reqId(), method: "turn/interrupt", params: { threadId: l.threadId, turnId: l.turnId } }).catch(() => {});
+  void core.write(l, { id: reqId(), method: "turn/interrupt", params: { threadId: l.threadId, turnId: l.turnId } }).catch(() => {});
 }
 
 /** Its mode (approval policy and sandbox), from the next turn on. */
 async function setCodexMode(runId: number, mode: string) {
-  const l = liveOf(runId);
+  const l = core.liveOf(runId);
   if (!codexModes(l.cfg.allowBypass).some((m) => m.id === mode)) throw new Error(mode === "full" ? t("Bypass isn't allowed — Code settings → “Bypass may be picked” (it applies to new sessions).") : t("Unknown mode."));
   l.cfg.mode = mode;
   l.cfg.policyChanged = true;
-  saveCfg(l);
+  core.saveCfg(l);
   changed();
 }
 
 /** Its model, from the next turn on. */
-async function setCodexModel(runId: number, model: string) {
-  const l = liveOf(runId);
-  if (!/^[\w.[\]-]{1,80}$/.test(model)) throw new Error(t("Unknown model."));
-  l.cfg.model = model;
-  l.view.model = model;
-  saveCfg(l);
-  changed();
-}
+const setCodexModel = (runId: number, model: string) => core.setModel(runId, model);
 
 /** Its reasoning effort, from the next turn on. */
 async function setCodexEffort(runId: number, effort: Effort) {
-  const l = liveOf(runId);
+  const l = core.liveOf(runId);
   l.cfg.effort = effort;
   l.view.effort = effort;
-  saveCfg(l);
+  core.saveCfg(l);
   changed();
 }
 
 /** Finish: it's asked for its result now — that ends the run. */
-export async function finishCodex(runId: number) {
-  const l = liveOf(runId);
-  l.cfg.finishing = true;
-  saveCfg(l);
-  await sendToCodex(
-    runId,
-    `Schließ jetzt ab: fasse zusammen, was du in dieser Session getan hast, und antworte mit dem Ergebnis als JSON in einem \`\`\`json-Block, nach diesem Schema:\n${JSON.stringify(WORK_RESULT_SCHEMA)}`,
-  );
-}
+export const finishCodex = (runId: number) => core.finish(runId);
 
 /** Close: end the session without a result. */
-export async function closeCodex(runId: number) {
-  const l = liveOf(runId);
-  l.cfg.closing = true;
-  saveCfg(l);
-  if (l.exited) await end(l);
-  else await stopProcess(l);
-}
+export const closeCodex = (runId: number) => core.close(runId);
 
 /** Stop it hard: the app server and everything it started. */
-export function killCodex(runId: number) {
-  const l = codexLives.get(runId);
-  const cfg = l?.cfg ?? readCfg(runId);
-  const files = l?.files ?? filesOf(runId);
-  if (cfg?.transport === "launcher") void killOnHost(runId);
-  else {
-    const info = readHostInfo(files.info);
-    if (l && !l.exited) void hostSend(l, { zeffHost: "kill" }).catch(() => {});
-    if (info?.pid && pidAlive(info.pid)) {
-      killPid(info.pid);
-    }
-  }
-  if (l) l.closed = true;
-  codexLives.delete(runId, l?.account);
-  changed(true);
-}
+export const killCodex = (runId: number) => core.kill(runId);
 
 /** OpenAI's Codex CLI as a live-session driver (see lib/work/live-driver.ts). */
 export const codexLiveDriver: LiveDriver = {

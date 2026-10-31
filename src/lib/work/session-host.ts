@@ -5,8 +5,8 @@ import { sleep } from "@/lib/abort";
 
 /**
  * What a live session's driver needs of its own host (scripts/work-session-host.mjs), whatever CLI
- * it runs: the host's info file, its socket, and the log it writes, read on line by line. (Claude
- * Code's driver has its own copies of these in plugins/claude-cli/live.ts.)
+ * it runs: the host's info file, its socket, and the log it writes, read on line by line. (The drivers
+ * use them through lib/work/live-core.ts.)
  */
 
 /** The host's info file: written once it listens, removed when it ends. */
