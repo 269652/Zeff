@@ -524,7 +524,7 @@ export async function rejudgeAction(dbId: number, stepId: string) {
   return run(async () => {
     if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
     const p = await import("./pipeline");
-    p.forgetVerdicts(String(stepId));
+    p.forgetVerdicts(String(stepId), Number(dbId));
     return { started: p.startPipeline(Number(dbId), { ai: true }).started };
   });
 }

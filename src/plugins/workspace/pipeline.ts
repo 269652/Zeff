@@ -1,13 +1,15 @@
 import { getDb, getSqlite, schema } from "@/db";
-import { fillPrompt } from "@/lib/prompts";
+import { fillPrompt, promptText } from "@/lib/prompts";
 import { dateOf } from "@/lib/boards/collect";
 import { classifyNoise, contentKeyOf, noiseOf, type Noise, type NoiseRecord } from "@/lib/noise";
+import { memoAll, memoForget, memoGet, memoHash, memoMigrate, memoSet } from "@/lib/ai/memo";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
 import { APP_VIEWS, appViewsFor } from "./app-views";
 import { quietly, viaSource } from "./events";
 import { peopleDatabase } from "./people-database";
+import { instructionText } from "./instructions";
 import { meter, newMeter, noteAi, noteJudged } from "./meter";
 import { docToMarkdown, markdownToDoc } from "./doc";
 import { cellText, COLORS, dateRange, newId, newView, type DataType, type DbSchema, type Option, type PipelineStep, type Property, type Row } from "./model";
@@ -895,10 +897,20 @@ export function runDuePipelines(opts: { ai: boolean }): number {
 export const recordText = (r: SourceRecord): string =>
   [r.title, ...(r.typed ?? []).filter((f) => f.value !== null && f.value !== "" && !/conv$/.test(f.id)).map((f) => `${f.name}: ${f.value}`), ...Object.entries(r.fields).map(([k, v]) => `${k}: ${v}`), (r.text ?? "").slice(0, 1500)].filter(Boolean).join("\n");
 
-function filterDb() {
-  getSqlite().exec("create table if not exists ws_ai_filter (step_id text not null, ref text not null, hash text not null, keep integer not null, why text, primary key (step_id, ref))");
-  return getSqlite();
+/** The verdicts an AI filter gave before the memo (by step, at a hash of condition and record) — read, no longer written. */
+function legacyVerdicts(stepId: string): Map<string, { hash: string; keep: number; why: string | null }> {
+  const db = getSqlite();
+  if (!db.prepare("select 1 from sqlite_master where type = 'table' and name = 'ws_ai_filter'").get()) return new Map();
+  return new Map((db.prepare("select ref, hash, keep, why from ws_ai_filter where step_id = ?").all(stepId) as { ref: string; hash: string; keep: number; why: string | null }[]).map((x) => [x.ref, x]));
 }
+
+/** What an AI filter's verdicts are kept under (lib/ai/memo): its condition — the instruction, the instructions picked, the frame — not the step. */
+function filterSpec(step: PipelineStep): { spec: string; scope: string } {
+  const spec = `${step.prompt ?? ""}\n${instructionText(step.instructions)}\n${promptText("ai-filter", AI_FILTER)}`;
+  return { spec, scope: `ai-filter:${memoHash(spec)}` };
+}
+
+type Verdict = { keep: boolean; why: string | null };
 
 /**
  * An AI filter step: only the records the AI keeps by its instruction ("important, urgent, or needs me to act"), each with
@@ -911,17 +923,32 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
   const told = instructionText(step.instructions);
   // No condition (no instruction, no prompt picked): everything through.
   if (!step.prompt?.trim() && !told.trim()) return records;
-  // What decides a verdict: the condition, the instructions, the frame (a change to any — the rows are judged again).
-  const { fillPrompt, promptText } = await import("@/lib/prompts");
-  const spec = `${step.prompt ?? ""}\n${told}\n${promptText("ai-filter", AI_FILTER)}`;
-  const hashOf = (r: SourceRecord) => createHash("sha1").update(`${spec}\n${recordText(r)}`).digest("hex");
-  const db = filterDb();
-  const known = new Map((db.prepare("select ref, hash, keep, why from ws_ai_filter where step_id = ?").all(step.id) as { ref: string; hash: string; keep: number; why: string | null }[]).map((x) => [x.ref, x]));
-  const todo = records.filter((r) => known.get(r.ref)?.hash !== hashOf(r));
+  // What decides a verdict: the condition, the instructions, the frame (a change to any — the rows are judged again) — kept by
+  // a hash of it (two filters of the same condition share their verdicts), each record's at a hash of its text.
+  const { fillPrompt } = await import("@/lib/prompts");
+  const { spec, scope } = filterSpec(step);
+  const hashOf = (r: SourceRecord) => memoHash(recordText(r));
+  const kept = memoAll<Verdict>(scope);
+  const legacy = legacyVerdicts(step.id);
+  const known = new Map<string, Verdict>();
+  for (const r of records) {
+    const hash = hashOf(r);
+    const m = kept.get(r.ref);
+    if (m?.hash === hash) known.set(r.ref, m.value);
+    else {
+      // Judged before the memo (by step): still good when neither changed — moved into the memo.
+      const old = legacy.get(r.ref);
+      if (old && old.hash === createHash("sha1").update(`${spec}\n${recordText(r)}`).digest("hex")) {
+        const v = { keep: !!old.keep, why: old.why };
+        known.set(r.ref, v);
+        memoSet(scope, r.ref, hash, v);
+      }
+    }
+  }
+  const todo = records.filter((r) => !known.has(r.ref));
   const { isInstalled } = await import("@/plugins/state");
   if (todo.length && isInstalled("llm")) {
     const { runAi } = await import("@/lib/ai");
-    const save = db.prepare("insert into ws_ai_filter (step_id, ref, hash, keep, why) values (?, ?, ?, ?, ?) on conflict(step_id, ref) do update set hash = excluded.hash, keep = excluded.keep, why = excluded.why");
     const SCHEMA = { type: "object", required: ["rows"], properties: { rows: { type: "array", items: { type: "object", required: ["n", "keep"], properties: { n: { type: "integer" }, keep: { type: "boolean" }, why: { type: "string" } } } } } };
     for (let i = 0; i < todo.length; i += 30) {
       const batch = todo.slice(i, i + 30);
@@ -937,8 +964,9 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
         batch.forEach((b, k) => {
           const v = verdicts.get(k + 1);
           if (!v) return;
-          save.run(step.id, b.ref, hashOf(b), v.keep ? 1 : 0, String(v.why ?? "").slice(0, 300) || null);
-          known.set(b.ref, { ref: b.ref, hash: hashOf(b), keep: v.keep ? 1 : 0, why: v.why ?? null });
+          const verdict = { keep: !!v.keep, why: String(v.why ?? "").slice(0, 300) || null };
+          memoSet(scope, b.ref, hashOf(b), verdict);
+          known.set(b.ref, verdict);
         });
       } catch (e) {
         console.error("[workspace] the AI filter failed", errorMessage(e));
@@ -947,7 +975,7 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
   }
   return records.flatMap((r) => {
     const v = known.get(r.ref);
-    if (!v || v.hash !== hashOf(r) || !v.keep) return [];
+    if (!v?.keep) return [];
     return [{ ...r, typed: [...(r.typed ?? []), { id: "filterwhy", name: "Why", type: "text" as const, value: v.why ?? "" }] }];
   });
 }
@@ -969,9 +997,13 @@ export async function syncAfterEdit(rowId: number): Promise<PipelineResult | nul
   return startPipeline(page.dbId, { ai: false }).done;
 }
 
-/** An AI filter's verdicts dropped: its rows judged all again at the next run. */
-export function forgetVerdicts(stepId: string): void {
-  filterDb().prepare("delete from ws_ai_filter where step_id = ?").run(stepId);
+/** An AI filter's verdicts dropped (those of its condition, and the ones from before the memo): its rows judged all again at the next run. */
+export function forgetVerdicts(stepId: string, dbId?: number): void {
+  const stepIn = (id: number) => getDatabase(id)?.schema.pipeline?.steps.find((s) => s.id === stepId);
+  const step = dbId ? stepIn(dbId) : tree().flatMap((p) => (p.kind === "database" ? [stepIn(p.id)] : [])).find(Boolean);
+  if (step) memoForget(filterSpec(step).scope);
+  const db = getSqlite();
+  if (db.prepare("select 1 from sqlite_master where type = 'table' and name = 'ws_ai_filter'").get()) db.prepare("delete from ws_ai_filter where step_id = ?").run(stepId);
 }
 
 /** The suggested actions' frame ({{instruction}}: the step's) — a page of System → Prompts. */
@@ -1000,14 +1032,14 @@ async function suggestActions(dbId: number, step: PipelineStep, force?: boolean)
   const told = instructionText(step.instructions);
   const frame = `${step.prompt ?? ""}\n${told}\n${promptText("row-actions", ROW_ACTIONS)}\n${[...runnable].join(",")}`;
   const text = (r: Row) => [`## [${r.id}] ${r.title}`, ...props.map((p) => `${p.name}: ${cellText(p, r.cells[p.id])}`).filter((l) => !/: $/.test(l)), docToMarkdown(getPage(r.id)?.content).slice(0, 1500)].join("\n");
-  const db = getSqlite();
-  db.exec("create table if not exists ws_row_actions (step_id text not null, row_id integer not null, hash text not null, primary key (step_id, row_id))");
-  const known = new Map((db.prepare("select row_id, hash from ws_row_actions where step_id = ?").all(step.id) as { row_id: number; hash: string }[]).map((x) => [x.row_id, x.hash]));
+  // Which row was asked at which input: in the AI memo (lib/ai/memo; the old table ws_row_actions moved in once).
+  const scope = `row-actions:${step.id}`;
+  memoMigrate("row-actions", "ws_row_actions", "select 'row-actions:' || step_id as scope, cast(row_id as text) as ref, hash, 'true' as value, datetime('now') as at from ws_row_actions");
+  const known = memoAll<boolean>(scope);
   const hashOf = (r: Row) => createHash("sha1").update(`${frame}\n${text(r)}`).digest("hex");
-  const todo = rawRows(dbId).filter((r) => force || known.get(r.id) !== hashOf(r));
+  const todo = rawRows(dbId).filter((r) => force || known.get(String(r.id))?.hash !== hashOf(r));
   if (!todo.length) return;
   const { runAi } = await import("@/lib/ai");
-  const save = db.prepare("insert into ws_row_actions (step_id, row_id, hash) values (?, ?, ?) on conflict(step_id, row_id) do update set hash = excluded.hash");
   const SCHEMA = { type: "object", required: ["rows"], properties: { rows: { type: "array", items: { type: "object", required: ["id", "ops"], properties: { id: { type: "integer" }, ops: { type: "array", items: { type: "object" } }, why: { type: "string" } } } } } };
   const today = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   for (let i = 0; i < todo.length; i += 15) {
@@ -1025,7 +1057,7 @@ async function suggestActions(dbId: number, step: PipelineStep, force?: boolean)
       const ops = cleanActions(v.ops ?? [], { ticket: rowKey(row) ?? "" }).filter((o) => runnable.has(o.type));
       const titles = ops.map((o) => actionOf(o.type).title(o as never, t));
       setCell(row.id, ROW_ACTIONS_PROP, ops.length ? JSON.stringify({ ops, titles, why: String(v.why ?? "").slice(0, 300) }) : null);
-      save.run(step.id, row.id, hashOf(row));
+      memoSet(scope, String(row.id), hashOf(row), true);
     }
   }
 }
@@ -1166,10 +1198,11 @@ async function runAiSteps(dbId: number, out: PipelineResult, force?: boolean): P
   const today = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const { createHash } = await import("node:crypto");
   for (const s of summaries) {
-    // The rows as they were at its last run: not written again.
+    // The rows as they were at its last run: not written again (the memo knows; a summary from before it, its step's hash).
     const told = instructionText(s.instructions);
     const hash = createHash("sha1").update(`${s.prompt ?? ""}\n${told}\n${lines}`).digest("hex");
-    if (!force && s.result?.hash === hash) continue;
+    const ref = `${dbId}:${s.id}`;
+    if (!force && (memoGet("pipeline-summary", ref, hash) !== undefined || s.result?.hash === hash)) continue;
     const r = await runAi<{ text?: string }>(
       [...(told ? ["Grundsätze:", told, ""] : []), fillPrompt("pipeline-summary", PIPELINE_SUMMARY, { instruction: s.prompt || "Fasse die Lage über alle Zeilen zusammen.", today }), "", lines].join("\n"),
       { type: "object", required: ["text"], properties: { text: { type: "string" } } },
@@ -1179,7 +1212,9 @@ async function runAiSteps(dbId: number, out: PipelineResult, force?: boolean): P
     const text = String(r.output?.text ?? "").trim().slice(0, 8000);
     const cur = getDatabase(dbId)!.schema;
     const pipeline = cur.pipeline ?? { steps: [] };
-    updateSchema(dbId, { ...cur, pipeline: { ...pipeline, steps: pipeline.steps.map((x) => (x.id === s.id ? { ...x, result: { text, at: new Date().toISOString(), hash } } : x)) } });
+    const at = new Date().toISOString();
+    updateSchema(dbId, { ...cur, pipeline: { ...pipeline, steps: pipeline.steps.map((x) => (x.id === s.id ? { ...x, result: { text, at } } : x)) } });
+    memoSet("pipeline-summary", ref, hash, true, at);
     out.summaries++;
   }
 }

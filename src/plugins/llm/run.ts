@@ -7,7 +7,8 @@ import { aiChoice, defaultModelOf, type AiAnswer } from "@/lib/ai";
 import { promptText } from "@/lib/prompts";
 import { AI_PROVIDER_INFO, type AiProvider } from "@/lib/ai/shared";
 import { onAbort, throwIfAborted } from "@/lib/abort";
-import { answerKey, createAnswerCache, createGate, withNoJsonRetry, type AnswerCache, type Gate } from "@/lib/ai/guard";
+import { answerKey, createGate, withNoJsonRetry, type Gate } from "@/lib/ai/guard";
+import { memoGet, memoPrune, memoSet } from "@/lib/ai/memo";
 import { ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { runClaude } from "@/plugins/claude-cli/cli";
@@ -24,14 +25,31 @@ import { IDEMPOTENT_TASKS, LLM_PREAMBLE_MAX, type LlmTaskId } from "./tasks";
 
 /** At most this many CLIs at once, from every job and loop together. */
 export const LLM_CONCURRENCY = 3;
-/** An idempotent task's answer is remembered this long, for at most this many calls. */
-const CACHE_TTL_MS = 10 * 60000;
-const CACHE_MAX = 50;
+/** An idempotent task's answer is remembered this long (lib/ai/memo: in the account's database, across restarts). */
+const MEMO_MAX_AGE_MS = 7 * 864e5;
 
-// One gate and one cache for the whole server (its module copies share them).
-const shared = globalThis as { __zeffLlmGate?: Gate; __zeffLlmCache?: AnswerCache<AiAnswer<unknown>> };
+// One gate for the whole server (its module copies share it).
+const shared = globalThis as { __zeffLlmGate?: Gate; __zeffLlmPruned?: number };
 const gate = (): Gate => (shared.__zeffLlmGate ??= createGate(LLM_CONCURRENCY));
-const cache = (): AnswerCache<AiAnswer<unknown>> => (shared.__zeffLlmCache ??= createAnswerCache({ ttlMs: CACHE_TTL_MS, max: CACHE_MAX }));
+/** An idempotent answer kept (the old ones dropped, at most once an hour). */
+function remember(task: string, key: string, answer: AiAnswer<unknown>): void {
+  try {
+    memoSet(`llm:${task}`, key, key, answer);
+    if (Date.now() - (shared.__zeffLlmPruned ?? 0) > 36e5) {
+      shared.__zeffLlmPruned = Date.now();
+      memoPrune("llm:", MEMO_MAX_AGE_MS);
+    }
+  } catch (e) {
+    console.warn("[llm] the answer could not be kept", e);
+  }
+}
+const recall = <T>(task: string, key: string): AiAnswer<T> | undefined => {
+  try {
+    return memoGet<AiAnswer<T>>(`llm:${task}`, key, key, MEMO_MAX_AGE_MS);
+  } catch {
+    return undefined;
+  }
+};
 
 /** Which backend and model a task runs with: its own (if that backend is installed), else the default. */
 export function llmChoice(task: LlmTaskId): { provider: AiProvider; model: string } {
@@ -89,15 +107,15 @@ export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { 
         ? runCodex<T>(full, schema, { model, timeoutMs: opts.timeoutMs })
         : runClaude<T>(full, schema, { model, timeoutMs: opts.timeoutMs, maxBudgetUsd: opts.maxBudgetUsd });
   const key = IDEMPOTENT_TASKS.has(task) && !opts.fresh ? answerKey([task, provider, model ?? "", schema, full]) : null;
-  const hit = key ? (cache().get(key) as AiAnswer<T> | undefined) : undefined;
-  if (hit) return Promise.resolve(structuredClone(hit));
+  const hit = key ? recall<T>(task, key) : undefined;
+  if (hit) return Promise.resolve(hit);
   // Stopped while waiting for a slot: out of the line.
   const stop = new AbortController();
   const off = onAbort(() => stop.abort());
   return gate()
     .run(() => withNoJsonRetry(provider, attempt, () => throwIfAborted()), stop.signal)
     .then((answer) => {
-      if (key) cache().set(key, structuredClone(answer));
+      if (key) remember(task, key, answer);
       recordUsage(task, provider, model, answer);
       return answer;
     })
