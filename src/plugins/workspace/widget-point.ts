@@ -82,7 +82,9 @@ export function listBadge(labels: { important?: (n: number) => string; unread?: 
     const n = data.count ?? 0;
     const out: BadgePart[] = [];
     if (labels.important && bad > 0) out.push({ tone: "important", count: bad, label: labels.important(bad) });
-    if (labels.unread && n > 0) out.push({ tone: "unread", count: n, label: labels.unread(n) });
+    // (The important ones are among the count: counted once — the pill shows all that waits, the red dot how much is late.)
+    const rest = labels.important ? Math.max(0, n - bad) : n;
+    if (labels.unread && rest > 0) out.push({ tone: "unread", count: rest, label: labels.unread(n) });
     if (labels.activity && n > 0) out.push({ tone: "activity", count: n, label: labels.activity(n) });
     return out;
   };

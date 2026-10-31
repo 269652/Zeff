@@ -281,3 +281,26 @@ export function undoCloseDay(dbId: number): void {
     for (const [p, v] of Object.entries(c)) if (schema?.properties.find((x) => x.id === p)?.type === "date") setCell(Number(row), p, v, { quiet: true });
   }
 }
+
+/** The log of a list (the database its days are written into), if it has one yet. */
+export function logIdOf(dbId: number): number | null {
+  const id = getPref<Record<string, number>>(LOGS, {})[dbId];
+  return id && getDatabase(id) && !getPage(id)?.archivedAt ? id : null;
+}
+
+/** Every list's log (by log id: its list) — the tree keeps them under their list's "History" tab, not as pages of their own. */
+export function dayLogIds(): Map<number, number> {
+  return new Map(Object.entries(getPref<Record<string, number>>(LOGS, {})).map(([list, log]) => [log, Number(list)]));
+}
+
+/** Whether the last close of a list can still be undone (the day closed is the last one, nothing ticked for the next day yet). */
+export function canUndoClose(dbId: number): boolean {
+  const last = getPref<Record<string, LastClose>>(LAST, {})[dbId];
+  return !!last && getPref<Record<string, string>>(CLOSED, {})[dbId] === last.day;
+}
+
+/** The day closed by hand last (none: null). */
+export const closedDay = (dbId: number): string | null => getPref<Record<string, string>>(CLOSED, {})[dbId] ?? null;
+
+/** The day the list was last started on (its turn at 4:00 noted) — none yet: null. */
+export const startedDay = (dbId: number): string | null => getPref<Record<string, string>>(RESET, {})[dbId] ?? null;

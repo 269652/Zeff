@@ -942,6 +942,34 @@ export async function undoCloseDayAction(dbId: number) {
   });
 }
 
+/** A day list's today, history and figures (day-lists.ts) — what its tabs show. */
+export async function dayListAction(dbId: number) {
+  return run(async () => {
+    const s = (await import("./day-lists")).dayStats(Number(dbId));
+    if (!s) throw new Error(t("Only a daily list has days to close."));
+    return { stats: s };
+  });
+}
+
+/** A new day list (New → Day list): medicines, a routine or habits. Its id. */
+export async function createDayListAction(kind: string, parentId?: number | null) {
+  return run(async () => {
+    const m = await import("./day-lists");
+    if (!(m.DAY_LIST_KINDS as readonly string[]).includes(kind)) throw new Error(t("No such kind of day list."));
+    return { id: m.createDayList(kind as (typeof m.DAY_LIST_KINDS)[number], parentId ? Number(parentId) : null) };
+  });
+}
+
+/** A database used as a day list, or no longer. */
+export async function setDayListAction(dbId: number, on: boolean) {
+  return run(async () => ((await import("./day-lists")).setDayList(Number(dbId), !!on), {}));
+}
+
+/** An item of a day list ticked or unticked in place (Today). */
+export async function tickDayItemAction(rowId: number, on: boolean) {
+  return run(async () => ((await import("./day-lists")).tickDayItem(Number(rowId), !!on), {}));
+}
+
 /** A row closed (locked, under its database in the tree) and the next one made — its ticks unticked, the next day. */
 export async function closeRowAction(rowId: number) {
   return run(async () => {

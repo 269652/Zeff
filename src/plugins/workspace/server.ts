@@ -7,6 +7,7 @@ import "./routine-agent"; // (an agent routine's permissions: guards and the too
 import { workspaceWidgets } from "./widget-point";
 import { workspaceMetrics } from "./metric-point";
 import { CORE_METRICS } from "./metrics-core";
+import { dayListMetrics } from "./day-lists";
 import { OVERVIEW_METRICS } from "./metrics-overview";
 import { METRICS_WIDGET } from "./widgets-metrics";
 import "./metrics"; // (kennzahl() in formulas reads the Kennzahlen)
@@ -27,7 +28,8 @@ collectionProviders.contribute("workspace", workspaceCollections);
 apiPoint.contribute("workspace", WORKSPACE_API);
 workspaceWidgets.contribute("workspace", [...WORKSPACE_WIDGETS, ...OVERVIEW_WIDGETS, METRICS_WIDGET]);
 // Zeff's own numbers as Kennzahlen: the hours booked, the todos, the mails, the meetings.
-workspaceMetrics.contribute("workspace", [...CORE_METRICS, ...OVERVIEW_METRICS]);
+// (With each day list's: how much of it was done, what is open today — day-lists.ts.)
+workspaceMetrics.contribute("workspace", () => [...CORE_METRICS, ...OVERVIEW_METRICS, ...dayListMetrics()]);
 // Its automations and their runs as rows (the databases "Automations" and "Automation runs").
 workspaceSources.contribute("workspace", [ROUTINES_SOURCE, RUNS_SOURCE, TASKS_SOURCE]);
 // A todo closed in the engine ticks the row or the list item it came from.

@@ -57,6 +57,8 @@ export type PersonCardInfo = {
   birthdayIn: number | null;
   /** Money between you (the Finances plugin's debts and claims): what you owe them, what they owe you. */
   debt: { owe: number; owed: number } | null;
+  /** Their unread messages (chats, mail from them) — shown first on the card. */
+  unread?: number;
 };
 
 /** What an identity suggestion proposes, in words (`nameOf`: a profile's name by its id). */
@@ -92,6 +94,7 @@ export async function peopleOverview(): Promise<PeopleOverview> {
   // Money between you and each (with the Finances plugin): what you owe them, what they owe you.
   const debts = isInstalled("finances") ? (await import("@/plugins/finances/debts")).balances() : new Map<number, { owe: number; owed: number }>();
   const birthdays = new Map(upcoming({ days: 1 }).filter((u) => u.date.kind === "birthday").map((u) => [u.person.id, u.inDays]));
+  const unread = (await import("./badges")).unreadByPerson(people);
   const cards: PeopleOverview["cards"] = {};
   for (const p of people) {
     const x = personCardExtras(p.id, today);
@@ -109,6 +112,7 @@ export async function peopleOverview(): Promise<PeopleOverview> {
       pay: iban ? { iban, bic: details.find((d) => d.key === "bic")?.value ?? "" } : null,
       birthdayIn: birthdays.get(p.id) ?? null,
       debt: debts.get(p.id) ?? null,
+      unread: unread.get(p.id) ?? 0,
     };
   }
   return {

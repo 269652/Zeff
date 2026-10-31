@@ -6,9 +6,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, setTemplateAction, templatesAction } from "../actions";
+import { createDayListAction, setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, setTemplateAction, templatesAction } from "../actions";
 import { kindIcon, moveBefore } from "../model";
-import { countLabel, noBadges, shownBadge, sumBadges, type Badge, type PageBadges } from "../badge-shared";
+import { countLabel, noBadges, shownBadge, shownMessages, sumBadges, type Badge, type PageBadges } from "../badge-shared";
 import { pageBadgesAction } from "../badge-actions";
 import type { TreeItem } from "../store";
 import type { AppNav } from "../app-nav";
@@ -101,9 +101,26 @@ function useBadges(initial: PageBadges & { stale?: boolean }, current: number | 
 function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; dim?: boolean }) {
   const t = useT();
   const s = shownBadge(badge);
-  if (!s) return null;
+  const msgs = shownMessages(badge);
+  // Unread messages from someone: a pill of their own (✉), beside what waits — not mixed into the todos.
+  const mail = msgs > 0 && (
+    <span
+      className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-4 ${dim ? "bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400" : "bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300"} ${s ? "" : "ml-auto"}`}
+      data-badge="messages"
+    >
+      <span aria-hidden>✉ {countLabel(msgs)}</span>
+      <span className="sr-only">{t("{n} unread messages", { n: msgs })}</span>
+    </span>
+  );
+  if (!s) return mail || null;
+  if (mail) return (
+    <span className="ml-auto flex shrink-0 items-center gap-1">
+      {mail}
+      <BadgePill badge={{ ...badge!, messages: 0 }} dim={dim} />
+    </span>
+  );
   const label =
-    s.tone === "important" ? t("{n} important", { n: s.count }) : s.tone === "unread" ? t("{n} unread", { n: s.count }) : t("Changed since you last opened it");
+    s.tone === "important" ? t("{n} waiting, {late} of them late", { n: s.count, late: s.late ?? 0 }) : s.tone === "unread" ? t("{n} unread", { n: s.count }) : t("Changed since you last opened it");
   const said = dim ? t("Below: {what}", { what: label }) : label;
   if (s.tone === "activity")
     return (
@@ -112,20 +129,15 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
         <span className="sr-only">{said}</span>
       </span>
     );
-  const color =
-    s.tone === "important"
-      ? dim
-        ? "text-red-600/80 dark:text-red-400/80"
-        : "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"
-      : dim
-        ? "text-zinc-400 dark:text-zinc-500"
-        : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300";
+  // One look for every pill (a page's own and what is below it — that one only paler); something late: a red dot in it.
+  const color = dim ? "bg-indigo-50 text-indigo-500 dark:bg-indigo-950/30 dark:text-indigo-400" : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300";
   return (
     <span
-      className={`ml-auto shrink-0 rounded-full tabular-nums ${dim ? "px-1 text-[10px]" : "px-1.5 text-[11px] font-semibold"} leading-4 ${color}`}
+      className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-4 ${color}`}
       data-badge={s.tone}
-      {...(s.tone === "unread" && !dim ? { "data-unread": true } : {})}
+      {...(!dim ? { "data-unread": true } : {})}
     >
+      {s.tone === "important" && <span aria-hidden className="size-1.5 rounded-full bg-red-500" />}
       <span aria-hidden>{countLabel(s.count)}</span>
       <span className="sr-only">{said}</span>
     </span>
@@ -133,7 +145,7 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
 }
 
 /** Two badges saying the same (their counts by tone). */
-const sameBadge = (a: Badge, b: Badge) => a.important === b.important && a.unread === b.unread;
+const sameBadge = (a: Badge, b: Badge) => a.important === b.important && a.unread === b.unread && (a.messages ?? 0) === (b.messages ?? 0);
 
 /** A row's tooltip: its title, what its badge is made of, and what is below it. */
 function badgeTip(title: string, own: Badge | null | undefined, below: Badge | null | undefined, belowWord: string): string | undefined {
@@ -142,8 +154,10 @@ function badgeTip(title: string, own: Badge | null | undefined, below: Badge | n
 }
 
 /** The page tree, favorites, search and "new" — the left column of the Workspace. */
-export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), channels, extSources = [], builtins = [], templateItems = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** The pages' badges (badges.ts): their own, their rows', the rows' — read again here after a change. */ badges?: PageBadges & { stale?: boolean }; /** The built-in templates (read only — opened as a preview). */ builtins?: Pick<Meta, "key" | "name" | "icon" | "kind" | "category">[]; /** Your templates' pages (each marked a template, with what is below it). */ templateItems?: TreeItem[] }) {
+export function Sidebar({ appNav = {}, items: treeItems, favorites, badges = noBadges(), channels, extSources = [], builtins = [], templateItems = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** The pages' badges (badges.ts): their own, their rows', the rows' — read again here after a change. */ badges?: PageBadges & { stale?: boolean }; /** The built-in templates (read only — opened as a preview). */ builtins?: Pick<Meta, "key" | "name" | "icon" | "kind" | "category">[]; /** Your templates' pages (each marked a template, with what is below it). */ templateItems?: TreeItem[] }) {
   const t = useT();
+  // A day list's log isn't a page of the tree: it is its list's "History" tab (still found by the search).
+  const items = useMemo(() => treeItems.filter((i) => !i.dayLogOf), [treeItems]);
   const router = useRouter();
   const path = usePathname();
   const current = Number(/^\/workspace\/(\d+)/.exec(path)?.[1] ?? 0) || null;
@@ -352,9 +366,14 @@ export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), ch
           <Link href={`/workspace/${item.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5" title={badgeTip(item.title || t("Untitled"), own, sub, t("Below"))}>
             <span className="shrink-0">{item.icon || kindIcon(item.kind)}</span>
             <span className="truncate">{item.title || t("Untitled")}</span>
+            {item.dayList && (
+              <span className="shrink-0 text-xs opacity-70" title={t("Day list: ticked through every day, it starts again at 4:00")} aria-label={t("Day list")}>
+                🔁
+              </span>
+            )}
             {/* What waits on it (a mail inbox's unread, as a mail client's folders show it; a person's open todos …), and below it. */}
             <BadgePill badge={own} />
-            {shownBadge(sub) && <span className={own ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={sub} dim /></span>}
+            {(shownBadge(sub) || shownMessages(sub) > 0) && <span className={own ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={sub} dim /></span>}
           </Link>
           <span data-hover className="flex shrink-0 items-center">
             <Dropdown label="⋯" title={t("More")} className="icon-btn size-6 text-xs" align="left">
@@ -482,6 +501,29 @@ export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), ch
                 <MenuItem onClick={() => (close(), void create({}))}>📄 {t("Page")}</MenuItem>
                 <MenuItem onClick={() => (close(), void create({ kind: "database", title: t("Database") }))}>🗂️ {t("Database")}</MenuItem>
                 <MenuItem onClick={() => (close(), void create({ kind: "form", title: t("Form") }))}>📝 {t("Form")}</MenuItem>
+                <div className="px-2 pt-1 text-xs font-semibold text-zinc-500 uppercase">{t("Day list")}</div>
+                {(
+                  [
+                    ["meds", "💊", t("Medicines (dose + time)")],
+                    ["routine", "🔁", t("Routine (tick + time)")],
+                    ["habits", "🌱", t("Habits (tick)")],
+                  ] as const
+                ).map(([kind, icon, label]) => (
+                  <MenuItem
+                    key={kind}
+                    onClick={() =>
+                      void (async () => {
+                        close();
+                        const r = await createDayListAction(kind);
+                        if (!r.ok) return toast(r.error, { tone: "error" });
+                        router.push(`/workspace/${r.id}`);
+                        router.refresh();
+                      })()
+                    }
+                  >
+                    {icon} {label}
+                  </MenuItem>
+                ))}
                 <MenuItem onClick={() => (close(), setAutomation(true))}>⚙️ {t("Automation …")}</MenuItem>
                 {((channels && (channels.mail || channels.messages)) || extSources.length > 0) && (
                   <>
@@ -570,7 +612,7 @@ export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), ch
                   <span>{f.icon || kindIcon(f.kind)}</span>
                   <span className="truncate">{f.title || t("Untitled")}</span>
                   <BadgePill badge={ownBadge(f.id)} />
-                  {shownBadge(below.get(f.id)) && <span className={ownBadge(f.id) ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={below.get(f.id)} dim /></span>}
+                  {(shownBadge(below.get(f.id)) || shownMessages(below.get(f.id)) > 0) && <span className={ownBadge(f.id) ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={below.get(f.id)} dim /></span>}
                 </Link>
               </li>
             ))}
