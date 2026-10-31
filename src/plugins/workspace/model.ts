@@ -186,10 +186,6 @@ export type DbSchema = {
   jobs?: boolean;
   /** A daily list (day-log.ts): a log of each day, unticked at 4:00, "Close the day". Unset: on when a checkbox records the time. */
   dayList?: boolean;
-  /** The old way a database had its form (in its schema): read once by the migration to a form page (forms.ts), kept for that only. */
-  form?: FormSpec;
-  /** The form page the old `form` became (forms.ts migrateLegacyForms) — marks it done, and old /form/<database id> links go there. */
-  formPage?: number;
   /** Its entry form: a form page whose answers make its rows — "New" opens it (a dialog) instead of an empty row. Unset: an empty row. */
   entryForm?: number;
   /** A todo list: which checkbox says done and which date says due (ids), and whether its open rows are todos of the Todo engine too (todo-engine.ts). */
@@ -252,28 +248,6 @@ function protectOf(raw: unknown, props: Property[]): Protect | undefined {
   const unique = (Array.isArray(o.unique) ? o.unique : []).filter((id): id is string => typeof id === "string" && (id === "title" || props.some((p) => p.id === id && !isComputed(p))));
   const out: Protect = { ...(o.lock === true ? { lock: true } : {}), ...(o.ai === "read" || o.ai === "append" ? { ai: o.ai } : {}), ...(unique.length ? { unique: [...new Set(unique)] } : {}) };
   return Object.keys(out).length ? out : undefined;
-}
-
-/**
- * A database's form: the title and the fields in the order asked. A field may be `hidden` - then it is not asked and its `default` is
- * set on every row the form makes (a status "New", a source "Form"). Required fields must be filled.
- */
-export type FormField = { prop: string; label?: string; required?: boolean; hidden?: boolean; default?: string };
-export type FormSpec = { enabled: boolean; title: string; intro: string; thanks: string; titleLabel: string; titleRequired: boolean; fields: FormField[] };
-/** The properties a form can ask (the others hold ids or are computed). */
-export const FORM_TYPES: PropType[] = ["text", "number", "select", "multi_select", "status", "date", "checkbox", "url", "email", "phone"];
-
-function formOf(raw: unknown, props: Property[]): FormSpec | undefined {
-  if (!raw || typeof raw !== "object") return undefined;
-  const o = raw as Record<string, unknown>;
-  const str = (v: unknown, n: number) => (typeof v === "string" ? v.slice(0, n) : "");
-  const fields = (Array.isArray(o.fields) ? o.fields : []).flatMap((f): FormField[] => {
-    const x = (f ?? {}) as Record<string, unknown>;
-    const p = props.find((q) => q.id === x.prop);
-    if (!p || !FORM_TYPES.includes(p.type)) return [];
-    return [{ prop: p.id, ...(str(x.label, 120) ? { label: str(x.label, 120) } : {}), ...(x.required === true ? { required: true } : {}), ...(x.hidden === true ? { hidden: true } : {}), ...(str(x.default, 500) ? { default: str(x.default, 500) } : {}) }];
-  });
-  return { enabled: o.enabled === true, title: str(o.title, 120), intro: str(o.intro, 1000), thanks: str(o.thanks, 500), titleLabel: str(o.titleLabel, 80), titleRequired: o.titleRequired !== false, fields: fields.filter((f, i, all) => all.findIndex((g) => g.prop === f.prop) === i) };
 }
 
 /** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace, the addresses of the knowledge base. */
@@ -576,7 +550,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [], card: typeof v.card === "string" && v.card.trim() ? v.card.slice(0, 8000) : undefined, nav: (v.nav === "workspace" || v.nav === "off") && v.app ? v.nav : undefined, navHidden: Array.isArray(v.navHidden) && v.navHidden.length ? v.navHidden.filter((x): x is string => typeof x === "string").slice(0, 100) : undefined }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(formOf(o.form, props) ? { form: formOf(o.form, props) } : {}), ...(Number.isInteger(o.formPage) && o.formPage! > 0 ? { formPage: o.formPage } : {}), ...(Number.isInteger(o.entryForm) && o.entryForm! > 0 ? { entryForm: o.entryForm } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}), ...(shareOf(o.share) ? { share: shareOf(o.share)! } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(Number.isInteger(o.entryForm) && o.entryForm! > 0 ? { entryForm: o.entryForm } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}), ...(shareOf(o.share) ? { share: shareOf(o.share)! } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

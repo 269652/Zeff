@@ -24,10 +24,12 @@ async function world() {
   return { w, db };
 }
 
-test("an old form block (a database and its fields): a row from what was typed — only the fields it has, a choice only from its options, a title needed", async () => {
+test("a form's row from what was typed — only the fields it has, a choice only from its options, a title needed", async () => {
   const { w, db } = await world();
-  const { submitLegacyBlock } = await import("@/plugins/workspace/forms");
-  const send = (fields: string[], values: Record<string, unknown>) => submitLegacyBlock(db, fields, "", values);
+  const { createForm, submitForm } = await import("@/plugins/workspace/forms");
+  const { fieldItem, newStep } = await import("@/plugins/workspace/form-spec");
+  const formOf = (fields: string[]) => createForm({ dbId: db, def: { dbId: db, title: "", intro: "", submitLabel: "", thanks: "", steps: [{ ...newStep(), items: [fieldItem("title", { required: true }), ...fields.map((f) => fieldItem(f))] }] } });
+  const send = (fields: string[], values: Record<string, unknown>) => submitForm(formOf(fields), values);
   const id = send(["kunde", "prio", "menge", "eilig"], { title: "Neue Anfrage", kunde: "Anna", prio: "Hoch", menge: "3", eilig: "true", intern: "darf nicht rein" }).id!;
   const row = w.rawRows(db).find((r) => r.id === id)!;
   assert.equal(row.title, "Neue Anfrage");
@@ -38,7 +40,7 @@ test("an old form block (a database and its fields): a row from what was typed �
   assert.equal(row.cells.intern, undefined, "a field the form does not have is not set");
   assert.match(Object.values(send(["kunde"], { title: "  ", kunde: "x" }).errors).join(), /Betreff/);
   assert.match(Object.values(send(["prio"], { title: "x", prio: "Dringlichst" }).errors).join(), /choices|Priorität/i);
-  assert.throws(() => submitLegacyBlock(424242, [], "", { title: "x" }), /database/i);
+  assert.throws(() => submitForm(424242, { title: "x" }), /form/i);
   const again = send(["kunde"], { title: "Ohne Rest", kunde: "" }).id!;
   assert.equal(w.rawRows(db).find((r) => r.id === again)!.cells.kunde, undefined, "an empty field is no value");
 });
@@ -61,15 +63,15 @@ test("the blocks in a page: form and condition — their attributes kept to what
   const doc = sanitizeDoc({
     type: "doc",
     content: [
-      { type: "zeffForm", attrs: { dbId: "5", fields: '["kunde","prio",3]', label: "Senden", evil: 1 } },
-      { type: "zeffForm", attrs: { dbId: "x", fields: "[]" } },
+      { type: "zeffForm", attrs: { formId: "7", evil: 1 } },
+      { type: "zeffForm", attrs: { formId: "x" } },
       { type: "zeffIf", attrs: { field: "Status", op: "is", value: "Offen", evil: 1 }, content: [p("nur wenn offen")] },
       { type: "zeffIf", attrs: { field: "", op: "is", value: "" }, content: [p("ohne Feld: bleibt, immer sichtbar")] },
       { type: "zeffIf", attrs: { field: "Status", op: "teleport", value: "x" }, content: [p("unbekannte Bedingung")] },
     ],
   }) as { content: { type: string; attrs?: Record<string, unknown>; content?: unknown[] }[] };
-  assert.deepEqual(doc.content.map((n) => n.type), ["zeffForm", "zeffForm", "zeffIf", "zeffIf", "zeffIf"], "a block without a database is one without a form yet");
-  assert.deepEqual(doc.content[0].attrs, { dbId: 5, fields: '["kunde","prio"]', label: "Senden" }, "fields are texts");
+  assert.deepEqual(doc.content.map((n) => n.type), ["zeffForm", "zeffForm", "zeffIf", "zeffIf", "zeffIf"], "a block without a form page is one without a form yet");
+  assert.deepEqual(doc.content[0].attrs, { formId: 7 }, "only the form page it shows");
   assert.deepEqual(doc.content[1].attrs, { formId: null }, "the block offers to make a form");
   assert.deepEqual(doc.content[2].attrs, { field: "Status", op: "is", value: "Offen" });
   assert.equal(doc.content[4].attrs!.op, "is", "an unknown condition is the default one");

@@ -60,7 +60,7 @@ test("the preview: nested embeds, forms, to-do lists, widgets and a routine's co
     "Projekte",
     doc(
       { type: "flexBox", attrs: { dir: "row" }, content: [{ type: "flexBox", attrs: { dir: "col" }, content: [{ type: "databaseView", attrs: { dbId: 21, viewId: "", title: "" } }] }] },
-      { type: "zeffForm", attrs: { formId: 0, dbId: 21, fields: "", label: "" } },
+      { type: "zeffForm", attrs: { formId: 21 } },
       { type: "todoListEmbed", attrs: { pageId: 22, listId: "x" } },
       { type: "zeffWidget", attrs: { widget: "workspace.database", config: JSON.stringify({ database: "21" }), title: "" } },
       { type: "zeffWidget", attrs: { widget: "todos.done", config: JSON.stringify({ limit: 5 }), title: "" } },

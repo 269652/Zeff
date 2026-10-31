@@ -191,25 +191,13 @@ test("a form page: no database yet, another chosen (its fields leave), entry for
 
 test("the form block in a page: kept to what it can be, and as Markdown both ways", async () => {
   const { sanitizeDoc, docToMarkdown, markdownToDoc } = await import("@/plugins/workspace/doc");
-  const doc = sanitizeDoc({ type: "doc", content: [{ type: "zeffForm", attrs: { formId: "12", dbId: 5, fields: '["a"]', label: "x" } }, { type: "zeffForm", attrs: { formId: null } }, { type: "zeffForm", attrs: { dbId: 5, fields: '["a","b"]', label: "Senden" } }] }) as { content: { attrs?: Record<string, unknown> }[] };
-  assert.deepEqual(doc.content.map((n) => n.attrs), [{ formId: 12 }, { formId: null }, { dbId: 5, fields: '["a","b"]', label: "Senden" }], "a form page wins over an old block's attributes");
+  const doc = sanitizeDoc({ type: "doc", content: [{ type: "zeffForm", attrs: { formId: "12", dbId: 5, fields: '["a"]', label: "x" } }, { type: "zeffForm", attrs: { formId: null } }] }) as { content: { attrs?: Record<string, unknown> }[] };
+  assert.deepEqual(doc.content.map((n) => n.attrs), [{ formId: 12 }, { formId: null }], "only the form page it shows");
   const md = docToMarkdown(doc as never);
   assert.match(md, /^:::form 12$/m);
   assert.match(md, /^:::form$/m);
-  assert.match(md, /^:::form \{"dbId":5,"fields":\["a","b"\],"label":"Senden"\}$/m);
   const back = sanitizeDoc(markdownToDoc(md)) as { content: { type: string; attrs?: Record<string, unknown> }[] };
   assert.deepEqual(back.content.filter((n) => n.type === "zeffForm").map((n) => n.attrs), doc.content.map((n) => n.attrs), "round trip");
-});
-
-test("an old form block becomes a form page below its page, asking the title and its fields", async () => {
-  const { w, db } = await world();
-  const f = await import("@/plugins/workspace/forms");
-  const page = w.createPage({ title: "Cockpit" });
-  const id = f.convertLegacyBlock(page, db, ["art", "menge", "nope"], "Melden");
-  const form = f.getForm(id)!;
-  assert.equal(w.getPage(id)!.parentId, page);
-  assert.equal(form.def.submitLabel, "Melden");
-  assert.deepEqual(form.def.steps[0].items.map((i) => (i.kind === "field" ? `${i.prop}${i.required ? "*" : ""}` : i.kind)), ["title*", "art", "menge"]);
 });
 
 test("rows and columns: kept nested (3 deep at most, empty ones too), their fields checked by the server, conditions on them, their cells collected", async () => {

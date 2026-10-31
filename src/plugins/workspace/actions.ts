@@ -1560,25 +1560,6 @@ export async function formRelationChoicesAction(dbId: number, propId: string, q:
   return run(async () => ({ items: (await import("./forms")).relationChoices(Number(dbId), String(propId), String(q ?? "")) }));
 }
 
-/** An old form block (a database and its fields) drawn as a form, until it becomes a form page. */
-export async function legacyFormAction(dbId: number, fields: string[], label: string) {
-  return run(async () => {
-    const form = (await import("./forms")).legacyBlockForm(Number(dbId), Array.isArray(fields) ? fields.map(String) : [], String(label ?? ""));
-    if (!form) throw new Error(t("No such database."));
-    return { form };
-  });
-}
-
-/** An old form block sent from a page that is only read: a row, checked like a form page's. */
-export async function submitLegacyFormAction(dbId: number, fields: string[], label: string, answers: Record<string, unknown>) {
-  return run(async () => (await import("./forms")).submitLegacyBlock(Number(dbId), Array.isArray(fields) ? fields.map(String) : [], String(label ?? ""), answers));
-}
-
-/** An old form block made a form page (below its page): the block names the new form from then on. */
-export async function convertFormBlockAction(pageId: number, dbId: number, fields: string[], label: string) {
-  return run(async () => ({ id: (await import("./forms")).convertLegacyBlock(Number(pageId), Number(dbId), Array.isArray(fields) ? fields.map(String) : [], String(label ?? "")) }));
-}
-
 // ---------------------------------------------------------------------------
 // Packages
 // ---------------------------------------------------------------------------

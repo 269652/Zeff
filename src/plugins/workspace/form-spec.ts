@@ -5,7 +5,7 @@
  * Kept in the form page's `props.form` (forms.ts reads and writes it).
  */
 import type { T } from "@/lib/i18n/shared";
-import { isComputed, newId, SYSTEM_PROPS, TITLE, type FormSpec, type Property, type PropType } from "./model";
+import { isComputed, newId, SYSTEM_PROPS, TITLE, type Property, type PropType } from "./model";
 
 /** The kinds of property a form can ask (the others are computed, or hold what only Zeff writes). */
 export const FORM_FIELD_TYPES: PropType[] = ["text", "markdown", "number", "date", "checkbox", "select", "status", "multi_select", "url", "email", "phone", "person", "relation"];
@@ -133,18 +133,6 @@ export function prefillAnswers(def: FormDef, props: Property[], cells: Record<st
     } else if ((typeof v === "string" || typeof v === "number") && String(v).trim()) out[f.prop] = String(v);
   }
   return out;
-}
-
-/** A database's form of the old kind (its schema's `form`) as a form page's: the title field, then its fields in order. */
-export function legacyFormDef(dbId: number, spec: FormSpec): FormDef {
-  const title = fieldItem(TITLE, { ...(spec.titleLabel ? { label: spec.titleLabel } : {}), ...(spec.titleRequired ? { required: true as const } : {}) });
-  const fields = spec.fields.map((f) => fieldItem(f.prop, { ...(f.label ? { label: f.label } : {}), ...(f.required && !f.hidden ? { required: true as const } : {}), ...(f.hidden ? { hidden: true as const } : {}), ...(f.default ? { default: f.default } : {}) }));
-  return { dbId, title: spec.title, intro: spec.intro, submitLabel: "", thanks: spec.thanks, steps: [{ ...newStep(), items: [title, ...fields] }] };
-}
-
-/** An old form block (a database and the ids of the fields it asks) as a form page's: the title (required), then those fields. */
-export function blockFormDef(dbId: number, fields: string[], label: string): FormDef {
-  return { dbId, title: "", intro: "", submitLabel: label, thanks: "", steps: [{ ...newStep(), items: [fieldItem(TITLE, { required: true }), ...fields.filter((f) => f !== TITLE).map((f) => fieldItem(f))] }] };
 }
 
 const str = (v: unknown, n: number): string => (typeof v === "string" ? v.slice(0, n) : "");

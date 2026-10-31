@@ -1,6 +1,6 @@
 /**
  * One-time work that is done for good (moving old data to a new shape): kept per account in its database (migrations_done), so
- * it is not looked for again at every start or page setup. A key names the work and its version ("workspace.legacyForms@1"):
+ * it is not looked for again at every start or page setup. A key names the work and its version ("workspace.dataBlocks@1"):
  * a change to what it does takes a new version, and it runs once more. Work that fails (throws, or says it isn't complete)
  * isn't marked and is tried again the next time. Server only.
  */

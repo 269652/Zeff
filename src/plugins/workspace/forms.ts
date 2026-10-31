@@ -2,15 +2,14 @@ import { getSqlite } from "@/db";
 import { t } from "@/lib/i18n/server";
 import { addRow, createPage, getDatabase, getPage, rawRows, setCell, setPageProps, updateSchema } from "./store";
 import { getPerson } from "@/plugins/people/store";
-import { blockFormDef, coerceAnswers, formCells, formErrors, formFields, formProps, formRowsItems, legacyFormDef, newFormDef, normalizeForm, shownFields, stampNow, tableFormDef, withHiddenDefaults, type Answers, type FormDef } from "./form-spec";
+import { coerceAnswers, formCells, formErrors, formFields, formProps, formRowsItems, newFormDef, normalizeForm, shownFields, stampNow, tableFormDef, withHiddenDefaults, type Answers, type FormDef } from "./form-spec";
 import { newId, newProperty, TITLE, type Property, type PropType } from "./model";
 
 /**
  * Forms as pages of their own (kind "form"): what one asks is kept in the page's `props.form` (form-spec.ts says what it may be), the
  * database it fills is named there (`dbId`). Filled in — on its page, at /form/<id>, as a database's entry form or as a block in a
  * page — the answers are checked here again (required among the fields that show, the conditions worked out, choices among the
- * options, related rows of the right database) and make a row. Databases' forms of the old kind (in their schema) become form pages
- * once (migrateLegacyForms). Server only.
+ * options, related rows of the right database) and make a row. Server only.
  */
 
 /** The database a form fills, as the form needs it: what it can ask (the title first). */
@@ -106,7 +105,6 @@ export function formFromTable(dbId: number): number {
 
 /** The forms that fill a database (for its entry form), by title. */
 export function formsOfDb(dbId: number): { id: number; title: string }[] {
-  if (hasLegacyForm(dbId)) migrateLegacyForms();
   return (getSqlite().prepare("select id, title from ws_pages where kind = 'form' and archived_at is null and template = 0 and json_extract(props, '$.form.dbId') = ? order by title, id").all(dbId) as { id: number; title: string }[]).map((r) => ({ id: r.id, title: r.title || t("Untitled") }));
 }
 
@@ -200,26 +198,6 @@ export function submitForm(formId: number, raw: unknown, context?: Record<string
   return submitDef(form.def, form.db, raw, context && typeof context === "object" && !Array.isArray(context) ? context : {});
 }
 
-/** An old form block (a database and its fields, not yet a form page): drawn as a form of its own — what it would be as a page. */
-export function legacyBlockForm(dbId: number, fields: string[], label: string): FormRun | null {
-  const db = formDb(dbId);
-  return db ? { id: 0, title: "", icon: "", def: normalizeForm(blockFormDef(dbId, fields, label), db.props), db } : null;
-}
-
-/** An old form block sent (in a page that is read, so it couldn't become a form page yet): checked like a form page's. */
-export function submitLegacyBlock(dbId: number, fields: string[], label: string, raw: unknown): FormSent {
-  const form = legacyBlockForm(dbId, fields, label);
-  if (!form?.db) throw new Error(t("No such database."));
-  return submitDef(form.def, form.db, raw);
-}
-
-/** An old form block made a form page (below the page it is in, `pageId`): its id — the block names it from then on. */
-export function convertLegacyBlock(pageId: number, dbId: number, fields: string[], label: string): number {
-  const db = formDb(dbId);
-  if (!db) throw new Error(t("No such database."));
-  return createForm({ parentId: getPage(pageId) ? pageId : null, dbId, def: blockFormDef(dbId, fields, label) });
-}
-
 /** Rows a relation field can point to (the database it relates to), by what their title starts with or contains. */
 export function relationChoices(dbId: number, propId: string, q: string): { id: number; label: string }[] {
   const p = getDatabase(dbId)?.schema.properties.find((x) => x.id === propId);
@@ -244,41 +222,5 @@ export function pickedLabels(dbId: number, propId: string, ids: number[]): Recor
   return out;
 }
 
-/**
- * Databases' forms of the old kind (kept in their schema, switched on or set up) become form pages, once: below the database's
- * parent, titled as the form was (else "<database> – Form"), asking the same. The schema keeps its old form and names the page
- * (`formPage`): done, and old /form/<database id> links go there. The database's "New" stays as it was.
- */
-export function migrateLegacyForms(): number {
-  let made = 0;
-  const rows = getSqlite().prepare("select id from ws_pages where kind = 'database' and archived_at is null and schema like '%\"form\":%'").all() as { id: number }[];
-  for (const { id } of rows) {
-    const d = getDatabase(id);
-    const spec = d?.schema.form;
-    if (!d || !spec || d.schema.formPage || (!spec.enabled && !spec.fields.length)) continue;
-    const formId = createForm({ parentId: d.page.parentId, dbId: id, title: spec.title || `${d.page.title || t("Untitled")} – ${t("Form")}`, def: legacyFormDef(id, spec) });
-    updateSchema(id, { ...d.schema, formPage: formId });
-    made++;
-  }
-  return made;
-}
-
-/**
- * Whether this database still has a form of the old kind to move (what migrateLegacyForms moves) — cheap, for the paths that ask
- * about one database (the move itself ran once at the Workspace's setup; a database back from the trash may still have one).
- */
-function hasLegacyForm(dbId: number): boolean {
-  const d = getDatabase(dbId);
-  const spec = d?.schema.form;
-  return !!d && !d.page.archivedAt && !!spec && !d.schema.formPage && (spec.enabled || spec.fields.length > 0);
-}
-
-/** The form an address /form/<id> means: a form page, or (an old link) the form page a database's old form became. */
-export function formAt(id: number): FormRun | null {
-  const own = getForm(id);
-  if (own) return own;
-  if (!getDatabase(id)) return null;
-  if (hasLegacyForm(id)) migrateLegacyForms();
-  const page = getDatabase(id)?.schema.formPage;
-  return page ? getForm(page) : null;
-}
+/** The form an address /form/<id> means: a form page. */
+export const formAt = (id: number): FormRun | null => getForm(id);

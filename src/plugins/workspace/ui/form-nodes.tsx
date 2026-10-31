@@ -3,9 +3,9 @@
 import { mergeAttributes, Node } from "@tiptap/core";
 import { NodeViewContent, NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import Link from "next/link";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
-import { convertFormBlockAction, createFormAction, databasesAction, formAction, formsAction, legacyFormAction, submitLegacyFormAction } from "../actions";
+import { createFormAction, databasesAction, formAction, formsAction } from "../actions";
 import type { FormRun } from "../forms";
 import { FormDesigner } from "./form-designer";
 import { FormRunner } from "./form-runner";
@@ -18,56 +18,36 @@ import { GripBar, useRowData } from "./app-nodes";
  * "row added" go on from there), a block shown only when a condition on the entry holds, and tabs (each a box of blocks).
  */
 
-const asList = (v: unknown): string[] => {
-  try {
-    const x = JSON.parse(String(v || "[]")) as unknown;
-    return Array.isArray(x) ? x.filter((s): s is string => typeof s === "string") : [];
-  } catch {
-    return [];
-  }
-};
-
 // ---------------------------------------------------------------------------
 // A form
 // ---------------------------------------------------------------------------
 
 /**
  * A form in a page: a form page (`formId`) filled in right here — and, while the page is edited, "Edit form" opens its designer in
- * place. Without one yet: make a new form for a database (below this page) or show one there is. An old block (a database and its
- * fields, no form page) becomes a form page the first time its page is edited; read, it is still filled in as it was.
+ * place. Without one yet: make a new form for a database (below this page) or show one there is.
  */
 function FormBlockView({ node, updateAttributes, editor, extension, getPos, deleteNode }: NodeViewProps) {
   const t = useT();
   const pageId = Number((extension.options as { pageId: number }).pageId) || 0;
   const formId = Number(node.attrs.formId) || 0;
-  const legacyDb = Number(node.attrs.dbId) || 0;
-  const fields = asList(node.attrs.fields);
-  const label = String(node.attrs.label ?? "");
   const editable = editor.isEditable;
   const [form, setForm] = useState<FormRun | null>(null);
   const [error, setError] = useState("");
   const [designing, setDesigning] = useState(false);
   const [run, setRun] = useState(0);
-  const converting = useRef(false);
 
   useEffect(() => {
     let live = true;
     // eslint-disable-next-line react-hooks/set-state-in-effect -- a new form to load: the old one's error goes
     setError("");
     if (formId) void formAction(formId).then((r) => live && (r.ok ? setForm(r.form) : setError(r.error)));
-    else if (legacyDb && editable && !converting.current) {
-      // An old block in a page being edited: it becomes a form page once (below this page), and names it from then on.
-      converting.current = true;
-      void convertFormBlockAction(pageId, legacyDb, fields, label).then((r) => (r.ok ? updateAttributes({ formId: r.id, dbId: null, fields: "[]", label: "" }) : live && setError(r.error)));
-    } else if (legacyDb) void legacyFormAction(legacyDb, fields, label).then((r) => live && (r.ok ? setForm(r.form) : setError(r.error)));
     else setForm(null);
     return () => {
       live = false;
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps -- by what the block names
-  }, [formId, legacyDb, editable]);
+  }, [formId]);
 
-  const legacy = !formId && !!legacyDb;
   return (
     <NodeViewWrapper className="ws-app-block ws-module-block my-2" contentEditable={false} data-app-block="form" data-form-ui="">
       <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={t("Form")} />
@@ -75,15 +55,15 @@ function FormBlockView({ node, updateAttributes, editor, extension, getPos, dele
         <p className="alert-error text-sm" role="alert">
           {error}
         </p>
-      ) : !formId && !legacyDb ? (
+      ) : !formId ? (
         editable ? (
-          <FormChooser pageId={pageId} onPick={(id, design) => (updateAttributes({ formId: id, dbId: null, fields: "[]", label: "" }), setDesigning(design))} />
+          <FormChooser pageId={pageId} onPick={(id, design) => (updateAttributes({ formId: id }), setDesigning(design))} />
         ) : null
       ) : !form ? (
         <p className="text-sm text-zinc-400">…</p>
       ) : (
         <div className="space-y-2 rounded-lg border border-zinc-200 p-4 dark:border-zinc-800">
-          {editable && !legacy && (
+          {editable && (
             <div className="flex flex-wrap items-center gap-2 text-xs">
               <button type="button" className="btn btn-sm" aria-pressed={designing} onClick={() => (setDesigning(!designing), designing && setRun((n) => n + 1))}>
                 ✎ {designing ? t("Done editing") : t("Edit form")}
@@ -93,10 +73,10 @@ function FormBlockView({ node, updateAttributes, editor, extension, getPos, dele
               </Link>
             </div>
           )}
-          {designing && editable && !legacy ? (
+          {designing && editable ? (
             <FormDesigner initial={form} onChange={setForm} />
           ) : (
-            <FormRunner key={run} form={form} headingLevel={2} submit={legacy ? (a) => submitLegacyFormAction(legacyDb, fields, label, a) : undefined} />
+            <FormRunner key={run} form={form} headingLevel={2} />
           )}
         </div>
       )}
@@ -172,8 +152,7 @@ export const ZeffForm = Node.create<{ pageId: number }>({
     return { pageId: 0 };
   },
   addAttributes() {
-    // (dbId, fields, label: an old block's — read until it becomes a form page.)
-    return { formId: { default: null }, dbId: { default: null }, fields: { default: "[]" }, label: { default: "" } };
+    return { formId: { default: null } };
   },
   parseHTML() {
     return [{ tag: "div[data-zeff-form]" }];

@@ -4,24 +4,24 @@ import { setupTempData } from "./helpers";
 
 setupTempData();
 
-test("a database's form of the old kind becomes a form page once: same fields, required ones must be filled, hidden ones are prefilled, a choice by id or name; old links find it", async () => {
+test("a form page fills its database: required fields must be filled, hidden ones are prefilled, a choice by id or name; /form/<id> finds it", async () => {
   (await import("@/plugins/state")).setInstalled("workspace", true);
   const store = await import("@/plugins/workspace/store");
   const { applyOps } = await import("@/plugins/workspace/schema-ops");
-  const { formAt, getForm, migrateLegacyForms, submitForm } = await import("@/plugins/workspace/forms");
+  const { createForm, formAt, getForm, submitForm } = await import("@/plugins/workspace/forms");
+  const { fieldItem, newStep } = await import("@/plugins/workspace/form-spec");
   const folder = store.createPage({ title: "Apps" });
   const id = store.createPage({ kind: "database", title: "Requests", parentId: folder });
   const { schema } = applyOps(store.getDatabase(id)!.schema, [{ op: "add_property", name: "Email", type: "email" }, { op: "add_property", name: "Urgent", type: "checkbox" }, { op: "add_property", name: "Topic", type: "multi_select", options: ["Billing", "Bug"] }], { related: () => null });
   const saved = store.saveSchema(id, schema);
   const p = (n: string) => saved.properties.find((x) => x.name === n)!;
-  store.saveSchema(id, { ...saved, form: { enabled: true, title: "Ask us", intro: "", thanks: "Thanks!", titleLabel: "Subject", titleRequired: true, fields: [{ prop: p("Email").id, required: true }, { prop: p("Topic").id }, { prop: p("Urgent").id }, { prop: p("Status").id, hidden: true, default: "In progress" }, { prop: "nope" }] } });
-  assert.equal(migrateLegacyForms(), 1);
-  assert.equal(migrateLegacyForms(), 0, "once");
-  const formId = store.getDatabase(id)!.schema.formPage!;
+  const items = [fieldItem("title", { label: "Subject", required: true }), fieldItem(p("Email").id, { required: true }), fieldItem(p("Topic").id), fieldItem(p("Urgent").id), fieldItem(p("Status").id, { hidden: true, default: "In progress" }), fieldItem("nope")];
+  const formId = createForm({ parentId: folder, dbId: id, title: "Ask us", def: { dbId: id, title: "Ask us", intro: "", submitLabel: "", thanks: "Thanks!", steps: [{ ...newStep(), items }] } });
   const page = store.getPage(formId)!;
   assert.deepEqual([page.kind, page.title, page.parentId], ["form", "Ask us", folder], "beside the database");
   assert.equal(store.getDatabase(id)!.schema.entryForm, undefined, "the database's New stays as it was");
-  assert.equal(formAt(id)?.id, formId, "an old /form/<database> link goes to the form page");
+  assert.equal(formAt(formId)?.id, formId, "/form/<id> is the form page");
+  assert.equal(formAt(id), null, "a database's id is no form");
   const form = getForm(formId)!;
   assert.deepEqual(form.def.steps[0].items.map((i) => (i.kind === "field" ? i.prop : i.kind)), ["title", p("Email").id, p("Topic").id, p("Urgent").id, p("Status").id], "a field that is not a property is dropped");
   assert.equal(form.def.thanks, "Thanks!");
