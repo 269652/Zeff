@@ -3,7 +3,8 @@ import { isInstalled } from "@/plugins/state";
 import { listBadge, type WidgetConfig, type WidgetItem, type WorkspaceWidget, type WidgetSetting } from "@/plugins/workspace/widget-point";
 import { openCommitments, reviewClaim } from "./graph";
 import { circleLabels, dateKindLabels, type Person } from "./shared";
-import { getPerson, listPeople, namesThem, upcoming } from "./store";
+import { namesPerson } from "./resolve";
+import { getPerson, listPeople, upcoming } from "./store";
 import type { DocNode } from "@/plugins/workspace/doc";
 import { localDay } from "@/lib/dates";
 
@@ -64,16 +65,10 @@ export const personSetting = (): WidgetSetting => ({ key: "person", label: t("Pe
 export const nobody = () => ({ kind: "list" as const, items: [], empty: t("Name a person in its settings — or put it on a person's page.") });
 
 /**
- * A todo names them: their name or an alias, their first name when no one else has it ("Chris anrufen"), or a mention of
- * them ([[person:12|…]]).
+ * A todo names them: their name or an alias, a part of their name no one else has ("Chris anrufen"), or a mention of them
+ * ([[person:12|…]]) — the one index of everyone (people/resolve.ts), each todo's text read once.
  */
-function aboutThem(p: Person, text: string): boolean {
-  if (namesThem(p, text) || text.includes(`[[person:${p.id}|`)) return true;
-  const first = p.name.trim().split(/\s+/)[0] ?? "";
-  if (first.length < 3 || first === p.name.trim()) return false;
-  const shared = listPeople().filter((x) => x.id !== p.id && x.name.trim().split(/\s+/)[0]?.toLowerCase() === first.toLowerCase()).length;
-  return !shared && namesThem({ ...p, name: first, aliases: [] }, text);
-}
+const aboutThem = (p: Person, text: string): boolean => namesPerson(p.id, text);
 
 export const PERSON_WIDGETS: WorkspaceWidget[] = [
   {

@@ -9,6 +9,7 @@ import { appointmentsOf, type PersonAppointments } from "./appointments";
 import { personPulse, type PulseInsight } from "./pulse-insights";
 import { compilePerson } from "./compile";
 import { dateKindLabels, dateText, daysBetween, inDaysText, isDateKind, isoDay, nextOccurrence, parseDayMonth, type DateKind, type PersonSummary } from "./shared";
+import { namesPerson } from "./resolve";
 import { addDate, addRelation, contactsOf, datesOf, deleteDate, deletePerson, deleteRelation, getPerson, listPeople, mergePeople, namesThem, relationsOf, updateDate, updatePerson, type Contact, type PersonRelation } from "./store";
 import { kindIcon } from "@/plugins/workspace/model";
 
@@ -100,7 +101,7 @@ export async function personBundle(personId: number, today = new Date()): Promis
   if (isInstalled("todos")) {
     const { listTodos } = await import("@/lib/boards/store");
     todos = listTodos({ status: "open" })
-      .filter((todo) => namesThem(p, `${todo.text} ${todo.note ?? ""}`))
+      .filter((todo) => namesPerson(p.id, `${todo.text} ${todo.note ?? ""}`))
       .slice(0, 15)
       .map((todo) => ({ id: todo.id, ref: todo.ref, text: todo.text, due: todo.due }));
   }

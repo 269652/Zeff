@@ -6,7 +6,8 @@ import { listTodos } from "@/lib/boards/store";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { isCircle, type Person, type PersonSummary } from "./shared";
-import { contactsOf, datesOf, getPerson, listPeople, namesOf, namesThem, relationsOf, setCircle, setCompiled, setKind } from "./store";
+import { namesPerson } from "./resolve";
+import { contactsOf, datesOf, getPerson, listPeople, namesOf, relationsOf, setCircle, setCompiled, setKind } from "./store";
 
 /**
  * Compile (the People plugin): a summary of each person from everything Zeff has on them — what
@@ -84,7 +85,7 @@ function evidence(p: Person): { lines: string[]; count: number } {
   section(
     "Meine Todos, die sie nennen",
     listTodos({ status: "all" })
-      .filter((t) => namesThem(p, `${t.text} ${t.note ?? ""}`))
+      .filter((t) => namesPerson(p.id, `${t.text} ${t.note ?? ""}`))
       .slice(-10)
       .map((t) => `- ${t.ref}${t.ticket ? ` ${t.ticket}` : ""} (${t.status}): ${clip(t.text, 200)}`),
   );

@@ -7,7 +7,8 @@ import { listFacts } from "@/lib/facts";
 import { isInstalled } from "@/plugins/state";
 import { isChatFolder } from "@/lib/mail/shared";
 import { DATE_KINDS, isDateKind, parseDayMonth, type DateKind, type Person } from "./shared";
-import { addDate, getPerson, listPeople, namesOf, namesThem } from "./store";
+import { namesPerson } from "./resolve";
+import { addDate, getPerson, listPeople, namesOf } from "./store";
 import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 
 /**
@@ -27,7 +28,7 @@ export function datesFromFacts(p: Person): number {
   let n = 0;
   for (const f of listFacts(2000)) {
     const text = `${f.subject}: ${f.text}`;
-    if (!namesThem(p, text)) continue;
+    if (!namesPerson(p.id, text)) continue;
     const date = parseDayMonth(f.text) ?? parseDayMonth(f.subject);
     if (!date) continue;
     const kind = kindOf(text);
@@ -82,7 +83,7 @@ async function evidence(p: Person): Promise<string[]> {
       // the knowledge server doesn't answer: without it
     }
   }
-  for (const f of listFacts(2000)) if (namesThem(p, `${f.subject} ${f.text}`)) out.push(`[Fakt] ${f.subject}: ${f.text}`);
+  for (const f of listFacts(2000)) if (namesPerson(p.id, `${f.subject} ${f.text}`)) out.push(`[Fakt] ${f.subject}: ${f.text}`);
   try {
     // Messages naming them with a date or a word for one in them.
     type R = { folder: string; from_name: string | null; subject: string; preview: string; received_at: string };
@@ -91,7 +92,7 @@ async function evidence(p: Person): Promise<string[]> {
       .all() as R[];
     for (const r of rows) {
       const text = `${r.subject} ${r.preview}`;
-      if (isChatFolder(r.folder) ? namesThem(p, `${r.subject} ${r.from_name ?? ""} ${r.preview}`) : namesThem(p, text)) out.push(`[${r.folder} ${r.received_at.slice(0, 10)}, von ${r.from_name ?? "?"}] ${r.preview.slice(0, 400)}`);
+      if (namesPerson(p.id, isChatFolder(r.folder) ? `${r.subject} ${r.from_name ?? ""} ${r.preview}` : text)) out.push(`[${r.folder} ${r.received_at.slice(0, 10)}, von ${r.from_name ?? "?"}] ${r.preview.slice(0, 400)}`);
       if (out.length > 80) break;
     }
   } catch {

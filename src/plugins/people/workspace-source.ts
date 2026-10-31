@@ -2,7 +2,8 @@ import type { WorkspaceSource } from "@/plugins/workspace/source-point";
 import type { Row } from "@/plugins/workspace/model";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { createPerson, datesOf, getPerson, listPeople, namesThem, relationsOf, updatePerson, upcoming } from "./store";
+import { namesPerson } from "./resolve";
+import { createPerson, datesOf, getPerson, listPeople, relationsOf, updatePerson, upcoming } from "./store";
 import { linksOf, visibleClaims } from "./graph";
 import { circleLabels, dateKindLabels } from "./shared";
 
@@ -30,7 +31,7 @@ export async function peopleRecords() {
   return people.map((p) => {
     const claims = visibleClaims(p.id);
     const tickets = [...new Set(linksOf(p.id).filter((l) => l.targetType === "ticket").map((l) => l.targetRef))];
-    const mine = todos.filter((todo) => namesThem(p, `${todo.text} ${todo.note ?? ""}`)).map((todo) => `${todo.ref} ${todo.text}`);
+    const mine = todos.filter((todo) => namesPerson(p.id, `${todo.text} ${todo.note ?? ""}`)).map((todo) => `${todo.ref} ${todo.text}`);
     const pages = pagesMentioning("person", p.id, 12).map((x) => x.title || "Untitled");
     const rel = relationsOf(p.id).out;
     const dates = datesOf(p.id).filter((d) => d.confirmed);
