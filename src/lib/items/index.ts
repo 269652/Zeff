@@ -20,7 +20,7 @@ export type CollectionFilter = { plugin?: string; briefing?: boolean; knowledge?
  * secret one is in neither the briefing nor the knowledge, whatever its switches say (they stay as they are).
  */
 function bounded(c: Collection): Collection {
-  const sensitivity = c.sensitivity ?? sourceLabel(c.plugin === "notes" ? "keep" : c.plugin);
+  const sensitivity = c.sensitivity ?? sourceLabel(c.id.startsWith("keep:") ? "keep" : c.plugin);
   return sensitivity === "secret" ? { ...c, sensitivity, briefing: false, knowledge: false } : { ...c, sensitivity };
 }
 

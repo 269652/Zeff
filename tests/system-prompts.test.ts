@@ -12,7 +12,7 @@ setupTempData();
  */
 test("system prompts: pages made once, read by the code, protected, reset to the built-in text", async () => {
   const { setInstalled } = await import("@/plugins/state");
-  for (const id of ["workspace", "todos", "kanban", "knowledge", "llm"]) setInstalled(id, true);
+  for (const id of ["workspace", "todos", "knowledge", "llm"]) setInstalled(id, true);
   const w = await import("@/plugins/workspace/store");
   const { markdownToDoc } = await import("@/plugins/workspace/doc");
   const { setStepPrefs } = await import("@/lib/boards/context-prefs");

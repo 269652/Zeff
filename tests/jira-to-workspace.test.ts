@@ -13,7 +13,7 @@ delete process.env.JIRA_URL; // no Jira here: the columns are the status categor
  */
 test("syncJiraBoardDatabases: a Jira board becomes a read-only board database, kept by each sync", async () => {
   const { setInstalled } = await import("@/plugins/state");
-  for (const id of ["kanban", "jira-lage", "workspace"]) setInstalled(id, true);
+  for (const id of ["jira-lage", "workspace"]) setInstalled(id, true);
   const { getDb, schema } = await import("@/db");
   const w = await import("@/plugins/workspace/store");
   const c = await import("@/lib/items");

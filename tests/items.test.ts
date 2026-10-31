@@ -12,7 +12,9 @@ setupTempData();
 
 const install = async (...ids: string[]) => {
   const { setInstalled } = await import("@/plugins/state");
-  for (const id of ["kanban", "keep", "workspace", "keep-write"]) setInstalled(id, ids.includes(id));
+  // (Google Keep is a part of the Workspace: on only with it)
+  setInstalled("workspace", ids.includes("workspace") || ids.includes("keep"));
+  setInstalled("keep", ids.includes("keep"));
 };
 
 test("keep: your boards and Google Keep are collections of notes", async () => {
@@ -29,9 +31,9 @@ test("keep: your boards and Google Keep are collections of notes", async () => {
   const own = cols.find((x) => x.id === `keep:board:${b}`);
   assert.ok(own);
   assert.equal(own.kind, "notes");
-  assert.equal(own.plugin, "notes");
+  assert.equal(own.plugin, "workspace", "your notes are the Workspace's");
   assert.equal(own.color, "sky");
-  assert.equal(own.href, `/keep/${b}`);
+  assert.equal(own.href, "/workspace", "a board not moved (none is left): the Workspace");
   assert.equal(own.briefing, true);
   assert.equal(own.knowledge, false);
   assert.equal(own.items, 1);
@@ -51,9 +53,7 @@ test("keep: your boards and Google Keep are collections of notes", async () => {
   cols = c.listCollections();
   const google = cols.find((x) => x.id === "keep:google");
   assert.ok(google, "Google Keep is a collection once notes are synced");
-  assert.equal(google.readOnly, true, "without Google Keep write it's read-only");
-  await install("keep", "keep-write");
-  assert.equal(c.listCollections().find((x) => x.id === "keep:google")?.readOnly, false);
+  assert.equal(google.readOnly, true, "read-only: nothing changes in Google Keep");
 
   const byRef = c.itemsByRefs(["keep:abc", n.ref, "keep:n999999"]);
   assert.deepEqual([...byRef.keys()].sort(), ["keep:abc", n.ref].sort());
@@ -80,7 +80,7 @@ test("workspace: a database is a collection, its rows items — status, date, la
   w.updatePage(row, { content: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Rund, 60 cm" }] }] } });
   w.createPage({ title: "Nur eine Seite" });
 
-  const cols = c.listCollections({ plugin: "workspace" });
+  const cols = c.listCollections({ plugin: "workspace" }).filter((x) => x.kind === "database");
   assert.deepEqual(cols.map((x) => x.id), [`workspace:${dbId}`], "databases, not plain pages");
   assert.equal(cols[0].kind, "database");
   assert.equal(cols[0].name, "✅ Aufgaben");
@@ -102,16 +102,15 @@ test("workspace: a database is a collection, its rows items — status, date, la
 
   assert.equal(cols[0].readOnly, false);
   w.updatePage(dbId, { locked: true });
-  assert.equal(c.listCollections({ plugin: "workspace" })[0].readOnly, true, "a locked database is read-only");
+  assert.equal(c.listCollections({ plugin: "workspace" }).find((x) => x.id === `workspace:${dbId}`)!.readOnly, true, "a locked database is read-only");
 });
 
 test("an uninstalled plugin's collections aren't there", async () => {
-  await install("kanban", "keep", "workspace");
+  await install("keep", "workspace");
   const c = await import("@/lib/items");
   const plugins = () => new Set(c.listCollections().map((x) => x.plugin));
-  assert.deepEqual([...plugins()].sort(), ["kanban", "keep", "notes", "workspace"]);
-  await install("keep");
-  assert.deepEqual([...plugins()].sort(), ["keep", "notes"]);
+  assert.ok(plugins().has("workspace"));
+  assert.ok(!plugins().has("kanban"), "Kanban went: no collections of its own");
   assert.equal(c.collectionItems("kanban:1"), null);
   assert.equal(c.itemsByRefs(["KB-1"]).size, 0);
 });

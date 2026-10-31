@@ -8,10 +8,11 @@ delete process.env.JIRA_URL;
 /** The Workspace's data sources (Jira, Google Keep): what they bring, which databases they keep, switched on here. */
 test("sourcesOverview: Jira's boards with their switch and database, Google Keep with its database", async () => {
   const { setInstalled } = await import("@/plugins/state");
-  for (const id of ["workspace", "jira-lage", "kanban", "keep"]) setInstalled(id, true);
+  for (const id of ["workspace", "jira-lage", "keep"]) setInstalled(id, true);
   const { getDb, schema } = await import("@/db");
   const g = await import("@/plugins/keep/store");
   const { sourcesOverview } = await import("@/plugins/workspace/sources");
+  (await import("@/plugins/workspace/store")).tree(); // (the Workspace's tables there, as in the app)
   const { syncJiraBoardDatabases } = await import("@/plugins/jira-lage/to-workspace");
   const { syncGoogleKeepDatabase } = await import("@/plugins/keep/google-workspace");
   getDb().insert(schema.jiraBoards).values([{ id: 11, name: "Support", projectKey: "PROJ", enabled: true }, { id: 12, name: "Relaunch", projectKey: "PROJ", enabled: false }]).run();

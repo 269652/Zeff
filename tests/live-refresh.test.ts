@@ -36,5 +36,5 @@ test("the pages follow: every page refreshes on a sync, the live ones on their o
   assert.deepEqual(topicsFor("/settings/mail"), ["sync"]);
   assert.deepEqual(topicsFor("/mail"), ["sync"]);
   assert.deepEqual(topicsFor("/todos"), ["work", "todos", "attention", "sync"]);
-  assert.deepEqual(topicsFor("/kanban"), ["kanban", "todos", "sync"]);
+  assert.deepEqual(topicsFor("/kanban"), ["sync"], "(Kanban went: its old links lead to the Workspace)");
 });

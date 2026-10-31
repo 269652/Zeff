@@ -55,7 +55,7 @@ export const keepCollections: CollectionProvider = {
     const own = listKeepBoards().map(
       (b): Collection => ({
         id: ownId(b.id),
-        plugin: "notes",
+        plugin: "workspace",
         kind: "notes",
         name: b.name,
         description: b.description,

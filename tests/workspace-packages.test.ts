@@ -28,10 +28,11 @@ async function app() {
     ],
   });
   w.addRow(projects, { title: "Relaunch" });
+  const form = (await import("@/plugins/workspace/forms")).createForm({ parentId: root, dbId: tasks, title: "Aufgabe anlegen" });
   const cockpit = w.createPage({
     parentId: root,
     title: "Cockpit",
-    content: { type: "doc", content: [{ type: "zeffForm", attrs: { dbId: tasks, fields: '["status"]', label: "Aufgabe anlegen" } }, { type: "zeffRelated", attrs: { dbId: tasks, prop: "proj" } }, { type: "databaseView", attrs: { dbId: tasks, viewId: "", title: "Alle Aufgaben" } }] },
+    content: { type: "doc", content: [{ type: "zeffForm", attrs: { formId: form } }, { type: "zeffRelated", attrs: { dbId: tasks, prop: "proj" } }, { type: "databaseView", attrs: { dbId: tasks, viewId: "", title: "Alle Aufgaben" } }] },
   });
   const auto = w.createPage({ parentId: root, title: "Aufräumen" });
   r.createRoutine(auto, "automation", {
@@ -47,7 +48,7 @@ test("export: the tree as a package — references by local number, nothing of t
   const { exportPackage } = await import("@/plugins/workspace/packages");
   const pkg = exportPackage(root, { name: "Projektverwaltung", description: "Projekte und ihre Aufgaben" });
   assert.equal(pkg.format, 1);
-  assert.equal(pkg.items.length, 5, "the page, two databases, the cockpit, the routine");
+  assert.equal(pkg.items.length, 6, "the page, two databases, the form, the cockpit, the routine");
   const byTitle = (t: string) => pkg.items.find((i) => i.title === t)!;
   assert.equal(byTitle("Projektverwaltung").parent, undefined);
   assert.equal(byTitle("Projekte").parent, byTitle("Projektverwaltung").id, "parent by local id");
@@ -80,7 +81,10 @@ test("install: new pages with new ids, every reference put right — twice is tw
   const rel = (dbId: number) => w.getDatabase(dbId)!.schema.properties.find((p) => p.id === "proj")!.relationDb;
   assert.equal(rel(a["Aufgaben"]), a["Projekte"], "the first app's tasks point to the first app's projects");
   assert.equal(rel(b["Aufgaben"]), b["Projekte"]);
-  assert.equal(JSON.stringify(w.getPage(kids(first.rootId).find((x) => x.title === "Cockpit")!.id)!.content).match(new RegExp(`"dbId":${a["Aufgaben"]}`, "g"))?.length, 3, "form, related list and linked database follow");
+  assert.equal(JSON.stringify(w.getPage(kids(first.rootId).find((x) => x.title === "Cockpit")!.id)!.content).match(new RegExp(`"dbId":${a["Aufgaben"]}`, "g"))?.length, 2, "related list and linked database follow");
+  const formOf = (root: number) => kids(root).find((x) => x.kind === "form")!.id;
+  assert.match(JSON.stringify(w.getPage(kids(first.rootId).find((x) => x.title === "Cockpit")!.id)!.content), new RegExp(`"formId":${formOf(first.rootId)}\\b`), "the form block names the app's own form page");
+  assert.equal((await import("@/plugins/workspace/forms")).getForm(formOf(first.rootId))!.def.dbId, a["Aufgaben"], "which fills the app's own database");
   const routine = kids(first.rootId).find((x) => x.title === "Aufräumen")!;
   const rt = r.getRoutine(routine.id)!;
   assert.equal(rt.enabled, false, "switched off");
