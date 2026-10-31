@@ -1,5 +1,6 @@
 import { extensionPoint } from "@/lib/plugin-kit/extension-point";
 import type { VNode } from "./card-template";
+import type { BadgePart } from "./badge-shared";
 
 /**
  * Widgets plugins give the Workspace: a block of a page — or of the dashboard — that shows live data you would otherwise open another
@@ -41,7 +42,7 @@ export type WidgetCard = { id: string; nodes: VNode[]; href?: string };
 export type WidgetData =
   | { kind: "stats"; tiles: WidgetTile[] }
   | { kind: "cards"; cards: WidgetCard[]; count?: number; empty?: string; footer?: { text: string; href: string } }
-  | { kind: "list"; items: WidgetItem[]; title?: string; /** A number beside the widget's name (unread, open, running). */ count?: number; empty?: string; footer?: { text: string; href: string } }
+  | { kind: "list"; items: WidgetItem[]; title?: string; /** A number beside the widget's name (unread, open, running). */ count?: number; /** How many of all (not only those shown) are wrong — past their day: what the page's badge counts as important (none: the shown items in tone "bad"). */ urgent?: number; empty?: string; footer?: { text: string; href: string } }
   | { kind: "figure"; value: string; caption: string; detail?: string; href?: string }
   | { kind: "error"; message: string };
 
@@ -62,8 +63,32 @@ export type WorkspaceWidget = {
   /** What else its data depends on, cheap to read (kept data is for the same answer only) — the widgets beside it on its page. */
   cacheKey?: (config: WidgetConfig) => string | Promise<string>;
   data: (config: WidgetConfig) => WidgetData | Promise<WidgetData>;
+  /**
+   * What the page it stands on shows in the Workspace tree (a pill: "2", red when important): made of its data (the same, kept as
+   * long) — open todos about a person, unread mail, a figure gone wrong. Cheap, never an AI. Without it the widget adds nothing.
+   */
+  badge?: (config: WidgetConfig, data: WidgetData) => BadgePart[] | null | Promise<BadgePart[] | null>;
   /** A button of the widget pressed: what the plugin does, and the data after it. Without it the widget has no actions. */
   act?: (action: string, payload: Record<string, string>, config: WidgetConfig) => WidgetData | void | Promise<WidgetData | void>;
 };
 
 export const workspaceWidgets = extensionPoint<WorkspaceWidget[]>("workspace.widgets");
+
+/** The badge of a list widget: its shown items in tone "bad" (or its `urgent`) as important, its `count` as unread — each only with a label for it. */
+export function listBadge(labels: { important?: (n: number) => string; unread?: (n: number) => string; activity?: (n: number) => string }): (config: WidgetConfig, data: WidgetData) => BadgePart[] | null {
+  return (_config, data) => {
+    if (data.kind !== "list") return null;
+    const bad = data.urgent ?? data.items.filter((i) => i.tone === "bad").length;
+    const n = data.count ?? 0;
+    const out: BadgePart[] = [];
+    if (labels.important && bad > 0) out.push({ tone: "important", count: bad, label: labels.important(bad) });
+    if (labels.unread && n > 0) out.push({ tone: "unread", count: n, label: labels.unread(n) });
+    if (labels.activity && n > 0) out.push({ tone: "activity", count: n, label: labels.activity(n) });
+    return out;
+  };
+}
+
+/** The badge of a figures widget: a figure gone wrong (tone "bad") is important — one each. */
+export function statsBadge(label: (tile: string) => string): (config: WidgetConfig, data: WidgetData) => BadgePart[] | null {
+  return (_config, data) => (data.kind === "stats" ? data.tiles.filter((x) => x.tone === "bad").map((x) => ({ tone: "important" as const, count: 1, label: label(x.label) })) : null);
+}

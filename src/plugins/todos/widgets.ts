@@ -1,7 +1,7 @@
 import { getSqlite } from "@/db";
 import { localDay } from "@/lib/dates";
 import { t } from "@/lib/i18n/server";
-import type { WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
+import { listBadge, type WorkspaceWidget, type WidgetSetting } from "@/plugins/workspace/widget-point";
 
 /**
  * The widgets of Todos: a list of your todos (all, of a ticket, by words — ticked off in place); what you got done — this week (from Monday) or in the last days —, the latest first, with how many in
@@ -61,8 +61,11 @@ export const TODOS_WIDGETS: WorkspaceWidget[] = [
         done: x.status !== "open",
         actions: [{ id: "toggle", label: x.status === "open" ? t("Done") : t("Open again"), icon: "✓" }],
       }));
-      return { kind: "list", items, count: all.length || undefined, empty: status === "done" ? t("Nothing done yet.") : t("No open todos.") };
+      const overdue = all.filter((x) => x.status === "open" && x.due && x.due < today).length;
+      return { kind: "list", items, count: all.length || undefined, urgent: overdue, empty: status === "done" ? t("Nothing done yet.") : t("No open todos.") };
     },
+    // The page's badge: the overdue todos (a full list of open ones would always count).
+    badge: listBadge({ important: (n) => (n === 1 ? t("1 overdue todo") : t("{n} overdue todos", { n })) }),
     act: async (action, payload) => {
       // Ticked: done; ticked again: open.
       if (action !== "toggle") throw new Error("unknown action");

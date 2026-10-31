@@ -3,14 +3,16 @@
 import Link from "next/link";
 import { openSearch } from "@/lib/search/shared";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, setTemplateAction, templatesAction } from "../actions";
 import { kindIcon, moveBefore } from "../model";
+import { countLabel, noBadges, shownBadge, sumBadges, type Badge, type PageBadges } from "../badge-shared";
+import { pageBadgesAction } from "../badge-actions";
 import type { TreeItem } from "../store";
 import type { AppNav } from "../app-nav";
-import { ChatPanel } from "./ChatPanel";
+import { ChatPanel, WS_CHANGED } from "./ChatPanel";
 import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
 import { AutomationChooser } from "./AutomationChooser";
 import { TemplateGallery } from "./TemplateGallery";
@@ -48,8 +50,96 @@ function useOpen(): [Set<number>, (id: number, on?: boolean) => void] {
   return [open, toggle];
 }
 
+/** What changes the badges: read again on these (a burst once, at most every 2 s; in a hidden tab when it is shown). */
+const BADGE_TOPICS = new Set(["workspace", "todos", "sync", "attention"]);
+
+/**
+ * The tree's badges, live: the server's (the layout's) at first, read again — only them, not the page — after a change (the assistant's,
+ * an agent's, a sync's: /api/events), after a page was opened (its dot goes) and once more when the first reading was not ready.
+ */
+function useBadges(initial: PageBadges & { stale?: boolean }, current: number | null): PageBadges {
+  const [live, setLive] = useState<PageBadges>(initial);
+  // (A new drawing of the layout — router.refresh — brings newer ones.)
+  // eslint-disable-next-line react-hooks/set-state-in-effect -- the server's newer badges
+  useEffect(() => setLive(initial), [initial]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const stale = useRef(false);
+  const read = useCallback(() => {
+    timer.current = null;
+    if (document.visibilityState === "hidden") return void (stale.current = true);
+    stale.current = false;
+    void pageBadgesAction().then((r) => r.ok && setLive(r.badges));
+  }, []);
+  const soon = useCallback((ms = 2000) => void (timer.current ??= setTimeout(read, ms)), [read]);
+  useEffect(() => {
+    if (initial.stale) soon(1200);
+  }, [initial, soon]);
+  // A page opened: what changed on it is seen.
+  useEffect(() => {
+    if (current) soon(1500);
+  }, [current, soon]);
+  useEffect(() => {
+    const source = new EventSource("/api/events");
+    const onChange = (e: Event) => BADGE_TOPICS.has((e as MessageEvent<string>).data) && soon();
+    const mine = () => soon(800);
+    const shown = () => document.visibilityState === "visible" && stale.current && soon(300);
+    source.addEventListener("change", onChange);
+    window.addEventListener(WS_CHANGED, mine);
+    document.addEventListener("visibilitychange", shown);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+      timer.current = null;
+      source.close();
+      window.removeEventListener(WS_CHANGED, mine);
+      document.removeEventListener("visibilitychange", shown);
+    };
+  }, [soon]);
+  return live;
+}
+
+/** A badge in the tree: a pill on the right — important red, unread indigo, activity a dot; `dim`: what is below it (smaller, paler). */
+function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; dim?: boolean }) {
+  const t = useT();
+  const s = shownBadge(badge);
+  if (!s) return null;
+  const label =
+    s.tone === "important" ? t("{n} important", { n: s.count }) : s.tone === "unread" ? t("{n} unread", { n: s.count }) : t("Changed since you last opened it");
+  const said = dim ? t("Below: {what}", { what: label }) : label;
+  if (s.tone === "activity")
+    return (
+      <span className="ml-auto flex shrink-0 items-center pl-1" data-badge="activity">
+        <span aria-hidden className={`rounded-full ${dim ? "size-1.5 bg-zinc-400 dark:bg-zinc-500" : "size-2 bg-indigo-500 dark:bg-indigo-400"}`} />
+        <span className="sr-only">{said}</span>
+      </span>
+    );
+  const color =
+    s.tone === "important"
+      ? dim
+        ? "text-red-600/80 dark:text-red-400/80"
+        : "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"
+      : dim
+        ? "text-zinc-400 dark:text-zinc-500"
+        : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300";
+  return (
+    <span
+      className={`ml-auto shrink-0 rounded-full tabular-nums ${dim ? "px-1 text-[10px]" : "px-1.5 text-[11px] font-semibold"} leading-4 ${color}`}
+      data-badge={s.tone}
+      {...(s.tone === "unread" && !dim ? { "data-unread": true } : {})}
+    >
+      <span aria-hidden>{countLabel(s.count)}</span>
+      <span className="sr-only">{said}</span>
+    </span>
+  );
+}
+
+/** A row's tooltip: its title, what its badge is made of, and what is below it. */
+function badgeTip(title: string, own: Badge | null | undefined, below: Badge | null | undefined, belowWord: string): string | undefined {
+  const lines = [own?.parts.join(" · "), below?.parts.length ? `${belowWord}: ${below.parts.join(" · ")}` : ""].filter(Boolean);
+  return lines.length ? [title, ...lines].join("\n") : undefined;
+}
+
 /** The page tree, favorites, search and "new" — the left column of the Workspace. */
-export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, extSources = [], builtins = [], templateItems = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** Mail databases' unread rows, by id. */ unread?: Record<number, number>; /** The built-in templates (read only — opened as a preview). */ builtins?: Pick<Meta, "key" | "name" | "icon" | "kind" | "category">[]; /** Your templates' pages (each marked a template, with what is below it). */ templateItems?: TreeItem[] }) {
+export function Sidebar({ appNav = {}, items, favorites, badges = noBadges(), channels, extSources = [], builtins = [], templateItems = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** The pages' badges (badges.ts): their own, their rows', the rows' — read again here after a change. */ badges?: PageBadges & { stale?: boolean }; /** The built-in templates (read only — opened as a preview). */ builtins?: Pick<Meta, "key" | "name" | "icon" | "kind" | "category">[]; /** Your templates' pages (each marked a template, with what is below it). */ templateItems?: TreeItem[] }) {
   const t = useT();
   const router = useRouter();
   const path = usePathname();
@@ -79,6 +169,30 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
     return m;
   }, [items]);
   const byId = useMemo(() => new Map(items.map((i) => [i.id, i])), [items]);
+  const live = useBadges(badges, current);
+  // A page's own badge (the open page's dot is gone: you are looking at it) and what is below it: its rows' and its sub-pages' (theirs and what is below them).
+  const ownBadge = useCallback(
+    (id: number): Badge | null => {
+      const b = live.own[id];
+      if (!b || id !== current || !b.activity) return b ?? null;
+      return sumBadges([{ ...b, activity: 0, parts: b.parts.filter((_, i) => i < b.parts.length - 1) }]);
+    },
+    [live, current],
+  );
+  const below = useMemo(() => {
+    const m = new Map<number, Badge | null>();
+    const walk = (id: number, seen: Set<number>): Badge | null => {
+      if (m.has(id)) return m.get(id)!;
+      if (seen.has(id)) return null;
+      seen.add(id);
+      const kids = byParent.get(id) ?? [];
+      const b = sumBadges([live.inner[id], ...kids.map((k) => ownBadge(k.id)), ...kids.map((k) => walk(k.id, seen))]);
+      m.set(id, b);
+      return b;
+    };
+    for (const i of items) walk(i.id, new Set());
+    return m;
+  }, [items, byParent, live, ownBadge]);
   const tplByParent = useMemo(() => {
     const m = new Map<number | null, TreeItem[]>();
     for (const i of templateItems) m.set(i.parentId, [...(m.get(i.parentId) ?? []), i]);
@@ -175,7 +289,7 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
                 <Link href={e.href ?? `/workspace/${dbId}?nav=${encodeURIComponent(e.id)}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
                   <span className="shrink-0">{e.icon}</span>
                   <span className="truncate">{e.label}</span>
-                  {e.n > 0 && <span className={`ml-auto shrink-0 pl-1 text-xs tabular-nums ${e.id === "inbox" ? "font-semibold text-indigo-600 dark:text-indigo-400" : "text-zinc-400"}`}>{e.n}</span>}
+                  {e.n > 0 ? <span className={`ml-auto shrink-0 pl-1 text-xs tabular-nums ${e.id === "inbox" ? "font-semibold text-indigo-600 dark:text-indigo-400" : "text-zinc-400"}`}>{e.n}</span> : <BadgePill badge={live.rows[Number(/^\/workspace\/(\d+)$/.exec(e.href ?? "")?.[1] ?? 0)]} />}
                 </Link>
                 <span data-hover className="flex shrink-0 items-center">
                   <button type="button" className="icon-btn size-6 text-xs" title={e.hidden ? t("Show again") : t("Hide")} aria-label={e.hidden ? t("Show again") : t("Hide")} onClick={() => void set(e.id, !e.hidden)}>
@@ -201,6 +315,9 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
     const inTpl = tplById.has(item.id);
     const kids = (inTpl ? tplByParent : byParent).get(item.id) ?? [];
     const isOpen = open.has(item.id);
+    // Unfolded, what is below shows its own; folded (or nothing to unfold: a database's rows), its sum beside the page's own.
+    const own = inTpl ? null : ownBadge(item.id);
+    const sub = inTpl || (isOpen && (kids.length > 0 || !!appNav[item.id])) ? null : (below.get(item.id) ?? null);
     return (
       <li key={item.id}>
         <div
@@ -226,15 +343,12 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
           <button type="button" className="icon-btn size-6 shrink-0 text-xs" onClick={() => toggle(item.id)} aria-label={isOpen ? t("Collapse") : t("Expand")} aria-expanded={isOpen} style={{ visibility: kids.length || appNav[item.id] ? "visible" : "hidden" }}>
             {isOpen ? "▾" : "▸"}
           </button>
-          <Link href={`/workspace/${item.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
+          <Link href={`/workspace/${item.id}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5" title={badgeTip(item.title || t("Untitled"), own, sub, t("Below"))}>
             <span className="shrink-0">{item.icon || kindIcon(item.kind)}</span>
             <span className="truncate">{item.title || t("Untitled")}</span>
-            {/* A mail inbox's unread, as a mail client's folders show it. */}
-            {(unread[item.id] ?? 0) > 0 && (
-              <span className="ml-auto shrink-0 pl-1 text-xs font-semibold text-indigo-600 dark:text-indigo-400" title={t("{n} unread", { n: unread[item.id] })} data-unread>
-                {unread[item.id]}
-              </span>
-            )}
+            {/* What waits on it (a mail inbox's unread, as a mail client's folders show it; a person's open todos …), and below it. */}
+            <BadgePill badge={own} />
+            {shownBadge(sub) && <span className={own ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={sub} dim /></span>}
           </Link>
           <span data-hover className="flex shrink-0 items-center">
             <Dropdown label="⋯" title={t("More")} className="icon-btn size-6 text-xs" align="left">
@@ -446,9 +560,11 @@ export function Sidebar({ appNav = {}, items, favorites, unread = {}, channels, 
           <ul>
             {favs.map((f) => (
               <li key={f.id} className={favSort.mark(String(f.id))} {...favSort.handle(String(f.id))} {...favSort.target(String(f.id))}>
-                <Link href={`/workspace/${f.id}`} draggable={false} className="ws-tree-row px-1.5" data-active={f.id === current}>
+                <Link href={`/workspace/${f.id}`} draggable={false} className="ws-tree-row px-1.5" data-active={f.id === current} title={badgeTip(f.title || t("Untitled"), ownBadge(f.id), below.get(f.id), t("Below"))}>
                   <span>{f.icon || kindIcon(f.kind)}</span>
                   <span className="truncate">{f.title || t("Untitled")}</span>
+                  <BadgePill badge={ownBadge(f.id)} />
+                  {shownBadge(below.get(f.id)) && <span className={ownBadge(f.id) ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={below.get(f.id)} dim /></span>}
                 </Link>
               </li>
             ))}

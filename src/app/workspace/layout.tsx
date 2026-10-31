@@ -3,7 +3,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { currentAccountId } from "@/db/accounts";
 import { setupOnce } from "@/lib/setup-once";
 import { installedPlugins, isInstalled } from "@/plugins/state";
-import { favorites, templateTree, tree, unreadCounts } from "@/plugins/workspace/store";
+import { favorites, templateTree, tree } from "@/plugins/workspace/store";
 import { MobileAside } from "@/plugins/workspace/ui/MobileAside";
 import { Sidebar } from "@/plugins/workspace/ui/Sidebar";
 
@@ -57,7 +57,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     <div className="page">
       <div className="page-aside ws-aside">
         <MobileAside>
-          <Sidebar builtins={builtins} templateItems={templateTree()} appNav={await (await import("@/plugins/workspace/app-nav")).appNavs()} items={tree()} favorites={favorites()} unread={unreadCounts()} channels={(await import("@/plugins/workspace/derived")).channelKinds()} extSources={(await (await import("@/plugins/workspace/source-point")).extSources()).filter((x) => !x.relationOnly).map((x) => ({ id: x.id, label: x.label, icon: x.icon }))} />
+          <Sidebar builtins={builtins} templateItems={templateTree()} appNav={await (await import("@/plugins/workspace/app-nav")).appNavs()} items={tree()} favorites={favorites()} badges={await (await import("@/plugins/workspace/badges")).pageBadges({ wait: 300 })} channels={(await import("@/plugins/workspace/derived")).channelKinds()} extSources={(await (await import("@/plugins/workspace/source-point")).extSources()).filter((x) => !x.relationOnly).map((x) => ({ id: x.id, label: x.label, icon: x.icon }))} />
         </MobileAside>
       </div>
       <div className="min-w-0">{children}</div>

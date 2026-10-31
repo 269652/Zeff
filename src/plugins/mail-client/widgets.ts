@@ -75,6 +75,12 @@ export const MAIL_WIDGETS: WorkspaceWidget[] = [
         footer: total > mails.length ? { text: t("{n} more in the inbox", { n: total - mails.length }), href } : undefined,
       };
     },
+    // The page's badge: what is unread (the inboxes' counts added up when it shows them).
+    badge: (_config, data) => {
+      if (data.kind !== "list") return null;
+      const n = data.count ?? data.items.reduce((s, i) => s + (Number(i.meta) || 0), 0);
+      return n > 0 ? [{ tone: "unread", count: n, label: t("{n} unread", { n }) }] : null;
+    },
     act: async (action, payload) => {
       if (action !== "refresh") throw new Error("unknown action");
       const id = Number(payload.id);

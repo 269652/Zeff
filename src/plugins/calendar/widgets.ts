@@ -1,7 +1,7 @@
 import { eventsBetween } from "@/lib/calendar/ir";
 import { formatTime } from "@/lib/format";
 import { t } from "@/lib/i18n/server";
-import type { WidgetItem, WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
+import { listBadge, type WidgetItem, type WorkspaceWidget, type WidgetSetting } from "@/plugins/workspace/widget-point";
 
 const day = (d: Date) => d.toLocaleDateString("sv-SE");
 
@@ -58,5 +58,7 @@ export const CALENDAR_WIDGETS: WorkspaceWidget[] = [
       });
       return { kind: "list", items, count: events.filter((e) => e.start.slice(0, 10) === today).length || undefined, empty: t("Nothing in the calendar."), footer: { text: t("Open the calendar"), href: href(today) } };
     },
+    // The page's badge: a dot while appointments are still to come today.
+    badge: listBadge({ activity: (n) => (n === 1 ? t("1 appointment today") : t("{n} appointments today", { n })) }),
   },
 ];

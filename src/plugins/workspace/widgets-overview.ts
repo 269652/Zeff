@@ -6,7 +6,7 @@ import { filterRows, noLabels, sortRows, type Row } from "./model";
 import { daysBetween, sourceRows, WAITING_DAYS } from "./metrics-overview";
 import { metricStats, namesSetting } from "./widgets-metrics";
 import { getDatabase, labelsFor, rowsOf } from "./store";
-import type { WidgetCard, WidgetData, WidgetItem, WorkspaceWidget, WidgetSetting } from "./widget-point";
+import { listBadge, type WidgetCard, type WidgetData, type WidgetItem, type WorkspaceWidget, type WidgetSetting } from "./widget-point";
 import { deadlines } from "./deadlines";
 
 
@@ -66,7 +66,7 @@ function attention(limit: number): WidgetData {
     add("failed", "bad", { id: `run:${r.Run}`, text: `${r.Run}${r.Ticket ? ` · ${r.Ticket}` : ""}`, detail: t("A worker run failed"), href: "/code" });
   }
   items.sort((a, b) => a.rank - b.rank);
-  return { kind: "list", count: items.length || undefined, items: items.slice(0, limit).map(({ rank: _rank, ...i }) => i), empty: t("Nothing needs you right now. ✓"), footer: items.length > limit ? { text: t("{n} more", { n: items.length - limit }), href: "/todos" } : undefined };
+  return { kind: "list", count: items.length || undefined, urgent: items.filter((i) => i.tone === "bad").length, items: items.slice(0, limit).map(({ rank: _rank, ...i }) => i), empty: t("Nothing needs you right now. ✓"), footer: items.length > limit ? { text: t("{n} more", { n: items.length - limit }), href: "/todos" } : undefined };
 }
 
 /** The database a setting names: a page id, or a title (case does not matter). */
@@ -137,6 +137,8 @@ export const OVERVIEW_WIDGETS: WorkspaceWidget[] = [
     size: "half",
     ttl: 20,
     data: (config) => attention(Number(config.limit)),
+    // The page's badge: what is overdue or failed.
+    badge: listBadge({ important: (n) => (n === 1 ? t("1 thing needs you") : t("{n} things need you", { n })) }),
   },
   {
     id: "workspace.database",

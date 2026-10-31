@@ -2,6 +2,8 @@ import { reviewSources } from "@/lib/review/point";
 import { correlationSeries } from "@/plugins/correlations/series-point";
 import { workspaceSources } from "@/plugins/workspace/source-point";
 import { workspaceWidgets } from "@/plugins/workspace/widget-point";
+import { rowBadgeSources } from "@/plugins/workspace/row-badge-point";
+import { PEOPLE_ROW_BADGES } from "./badges";
 import { PEOPLE_SERIES } from "./pulse-insights";
 import { PEOPLE_REVIEW } from "./review";
 import { PEOPLE_WIDGETS } from "./widgets";
@@ -15,6 +17,8 @@ import "./todo-settle"; // (a promise kept when its todo is done)
 /** What People registers for other plugins (loaded through plugins/contributions): its profiles as a source of the Workspace's pipelines. */
 workspaceSources.contribute("people", [PEOPLE_SOURCE]);
 workspaceWidgets.contribute("people", [...PEOPLE_WIDGETS, ...PERSON_WIDGETS, ...PERSON_DETAIL_WIDGETS]);
+// A person's row in the tree: their open todos, overdue promises and unread messages as its badge (Personen adds them up).
+rowBadgeSources.contribute("people", [PEOPLE_ROW_BADGES]);
 // Its formula functions: Personen(@Freunde), Kreis(@Chris) — and who @Chris or @Familie is for the others' (Schulden(@Freunde)).
 workspaceFormulaFunctions.contribute("people", PEOPLE_FORMULAS);
 /** … and what it has you confirm, for the review queue. */

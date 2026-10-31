@@ -1,5 +1,5 @@
 import { t } from "@/lib/i18n/server";
-import type { WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
+import { listBadge, statsBadge, type WorkspaceWidget, type WidgetSetting } from "@/plugins/workspace/widget-point";
 import { caseHref } from "./database";
 import { metricStats, namesSetting } from "@/plugins/workspace/widgets-metrics";
 import { caseTitle } from "./shared";
@@ -44,6 +44,8 @@ export const CASES_WIDGETS: WorkspaceWidget[] = [
         [{ name: "Offen in Vorgängen" }, { name: "Fällig in 30 Tagen", detail: "Zahlungen in 30 Tagen" }, { name: "Laufende Vorgänge" }, { name: "Überfällige Vorgänge" }],
         t("No metrics yet — Workspace → Metrics."),
       ),
+    // The page's badge: a figure gone wrong.
+    badge: statsBadge((figure) => t("{figure} needs a look", { figure })),
   },
   {
     id: "cases.due",
@@ -77,8 +79,10 @@ export const CASES_WIDGETS: WorkspaceWidget[] = [
           href: await caseHref(c.id),
         })),
       );
-      return { kind: "list", items, count: due.length || undefined, empty: t("Nothing due.") };
+      return { kind: "list", items, count: due.length || undefined, urgent: due.filter((c) => inDays(c.compiled!.nextDue!) < 0).length, empty: t("Nothing due.") };
     },
+    // The page's badge: a payment or deadline past its day.
+    badge: listBadge({ important: (n) => (n === 1 ? t("1 payment or deadline overdue") : t("{n} payments or deadlines overdue", { n })) }),
   },
   {
     id: "cases.open",

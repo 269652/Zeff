@@ -1,5 +1,5 @@
 import { t } from "@/lib/i18n/server";
-import type { WorkspaceWidget, WidgetSetting } from "@/plugins/workspace/widget-point";
+import { statsBadge, type WorkspaceWidget, type WidgetSetting } from "@/plugins/workspace/widget-point";
 import { metricStats, namesSetting } from "@/plugins/workspace/widgets-metrics";
 import { debtPlans, debtsDbId } from "./debts";
 import type { Direction } from "./own";
@@ -68,6 +68,8 @@ export const FINANCES_WIDGETS: WorkspaceWidget[] = [
           : [{ name: "Forderungen", detail: "Offene Forderungen" }, { name: "Rückzahlungen" }, { name: "Alles zurück in", detail: "Forderungen ohne Plan" }],
         t("No metrics yet — Workspace → Metrics."),
       ),
+    // The page's badge: a figure gone wrong.
+    badge: statsBadge((figure) => t("{figure} needs a look", { figure })),
   },
   {
     id: "finances.payments",

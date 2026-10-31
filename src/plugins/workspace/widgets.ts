@@ -11,6 +11,9 @@ const all = (): (WorkspaceWidget & { plugin: string })[] => workspaceWidgets.lis
 
 export const widgetCatalog = (): CatalogWidget[] => all().map((w) => ({ id: w.id, plugin: w.plugin, label: w.label, icon: w.icon, description: w.description, settings: w.settings ?? [], actions: !!w.act, header: w.header !== false }));
 
+/** A widget by its id (none: not there, its plugin not installed). */
+export const widgetById = (id: string): (WorkspaceWidget & { plugin: string }) | undefined => all().find((x) => x.id === id);
+
 const find = (id: string) => {
   const w = all().find((x) => x.id === id);
   if (!w) throw new Error(`There is no such widget “${id}”.`);
