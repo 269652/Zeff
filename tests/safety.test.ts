@@ -48,9 +48,9 @@ const WRITES: Record<string, string[]> = {
   keep_write: [],
   // The MCP tools an agent you started uses to answer review comments (they ask for it in their own words: the todo or you).
   // agent-tools.ts only names them in its permission catalog (merge.write, off by default) — it calls nothing.
-  mr_reply: ["src/mcp/server.ts", "src/plugins/workspace/agent-tools.ts"],
-  mr_resolve: ["src/mcp/server.ts", "src/plugins/workspace/agent-tools.ts"],
-  mr_comment: ["src/mcp/server.ts", "src/plugins/workspace/agent-tools.ts"],
+  mr_reply: ["src/mcp/tools/merge-requests.ts", "src/plugins/workspace/agent-tools.ts"],
+  mr_resolve: ["src/mcp/tools/merge-requests.ts", "src/plugins/workspace/agent-tools.ts"],
+  mr_comment: ["src/mcp/tools/merge-requests.ts", "src/plugins/workspace/agent-tools.ts"],
 };
 
 for (const [tool, allowed] of Object.entries(WRITES))
