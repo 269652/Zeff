@@ -2,7 +2,7 @@ import { getDb, getSqlite, schema } from "@/db";
 import { fillPrompt, promptText } from "@/lib/prompts";
 import { dateOf } from "@/lib/boards/collect";
 import { classifyNoise, contentKeyOf, noiseOf, type Noise, type NoiseRecord } from "@/lib/noise";
-import { memoAll, memoForget, memoGet, memoHash, memoMigrate, memoSet } from "@/lib/ai/memo";
+import { memoAll, memoForget, memoGet, memoHash, memoMigrate, memoPeek, memoSet } from "@/lib/ai/memo";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
@@ -933,6 +933,8 @@ function filterSpec(step: PipelineStep): { spec: string; scope: string } {
 }
 
 type Verdict = { keep: boolean; why: string | null };
+/** The AI filters (by scope) whose verdicts were forgotten and not asked anew yet. */
+const FORGOTTEN = "ai-filter-forgotten";
 
 /**
  * An AI filter step: only the records the AI keeps by its instruction ("important, urgent, or needs me to act"), each with
@@ -968,6 +970,9 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
     }
   }
   const todo = records.filter((r) => !known.has(r.ref));
+  // Its verdicts forgotten (forgetVerdicts): asked anew — not answered from the llm plugin's memory of the same prompt.
+  const fresh = memoPeek(FORGOTTEN, scope) !== null;
+  let failed = false;
   const { isInstalled } = await import("@/plugins/state");
   if (todo.length && isInstalled("llm")) {
     const { runAi } = await import("@/lib/ai");
@@ -978,7 +983,7 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
         const r = await runAi<{ rows?: { n?: number; keep?: boolean; why?: string }[] }>(
           [...(told ? ["Grundsätze:", told, ""] : []), fillPrompt("ai-filter", AI_FILTER, { instruction: step.prompt || "Behalte nur, was wichtig oder dringend ist oder bei dem ich handeln muss." }), "", ...batch.map((b, k) => `## [${k + 1}]\n${recordText(b)}`)].join("\n"),
           SCHEMA,
-          { task: "ai-filter", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 },
+          { task: "ai-filter", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5, fresh },
         );
         noteAi(r);
         const verdicts = new Map((r.output?.rows ?? []).map((x) => [Number(x.n), x]));
@@ -991,9 +996,11 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
           known.set(b.ref, verdict);
         });
       } catch (e) {
+        failed = true;
         console.error("[workspace] the AI filter failed", errorMessage(e));
       }
     }
+    if (fresh && !failed) memoForget(FORGOTTEN, scope);
   }
   return records.flatMap((r) => {
     const v = known.get(r.ref);
@@ -1023,7 +1030,12 @@ export async function syncAfterEdit(rowId: number): Promise<PipelineResult | nul
 export function forgetVerdicts(stepId: string, dbId?: number): void {
   const stepIn = (id: number) => getDatabase(id)?.schema.pipeline?.steps.find((s) => s.id === stepId);
   const step = dbId ? stepIn(dbId) : tree().flatMap((p) => (p.kind === "database" ? [stepIn(p.id)] : [])).find(Boolean);
-  if (step) memoForget(filterSpec(step).scope);
+  if (step) {
+    const { scope } = filterSpec(step);
+    memoForget(scope);
+    // The same rows under the same condition would be answered from the llm plugin's memory (a week): the next run asks anew.
+    memoSet(FORGOTTEN, scope, "", true);
+  }
   const db = getSqlite();
   if (db.prepare("select 1 from sqlite_master where type = 'table' and name = 'ws_ai_filter'").get()) db.prepare("delete from ws_ai_filter where step_id = ?").run(stepId);
 }

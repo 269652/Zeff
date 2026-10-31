@@ -162,10 +162,17 @@ test("refresh: a pipeline with an AI filter goes to the background whole; the fi
   await runPipeline(id, { ai: false });
   assert.ok(!fs.existsSync(promptFile), "judged: not again");
   assert.equal(pipelineRuns(id)[0].judged, 0);
-  forgetVerdicts(step.id);
+  forgetVerdicts(step.id, id);
+  // The AI decides otherwise now: forgotten means asked again, not answered from the llm plugin's 7-day memory.
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ rows: Array.from({ length: 30 }, (_, i) => ({ n: i + 1, keep: true, why: "y" })) });
   await runPipeline(id, { ai: false });
-  // (The same rows and condition to the same model are answered from the llm plugin's memory: no new CLI call, still judged.)
+  assert.ok(fs.existsSync(promptFile), "forgotten: the CLI asked again");
   assert.ok(pipelineRuns(id)[0].judged > 0, "forgotten: all judged again");
+  assert.ok(w.rawRows(id).length && w.rawRows(id).every((r) => r.cells.filterwhy === "y"), "the new verdicts, not the remembered ones");
+  // Asked again once: the run after it is answered from the verdicts kept.
+  fs.rmSync(promptFile);
+  await runPipeline(id, { ai: false });
+  assert.ok(!fs.existsSync(promptFile), "judged again: not a third time");
 });
 
 test("run log: each run of a pipeline kept — what it did, how many the AI judged and kept, its calls and cost, how long, what failed", async () => {
