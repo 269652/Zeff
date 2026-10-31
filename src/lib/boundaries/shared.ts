@@ -36,7 +36,7 @@ export const BOUNDARY_SOURCES: BoundarySource[] = [
   { key: "documents", name: "Documents", default: "open", plugin: "documents" },
   { key: "people", name: "People", default: "open", plugin: "people" },
   { key: "keep", name: "Google Keep", default: "open", plugin: "keep" },
-  { key: "kanban", name: "Kanban", default: "open", plugin: "kanban" },
+  { key: "kanban", name: "Kanban", default: "open", plugin: "workspace" },
   { key: "whatsapp", name: "WhatsApp", default: "personal", plugin: "whatsapp" },
   { key: "signal", name: "Signal", default: "personal", plugin: "signal" },
   { key: "bank", name: "Bank statements", default: "personal", plugin: "finances" },

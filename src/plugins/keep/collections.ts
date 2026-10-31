@@ -2,7 +2,6 @@ import { getSqlite } from "@/db";
 import { getPref } from "@/lib/prefs";
 import type { CollectionProvider } from "@/lib/items/point";
 import type { Collection, Item } from "@/lib/items/shared";
-import { isInstalled } from "@/plugins/state";
 import { listKeepBoards, listOwnNotes, notesByRefs, updateKeepBoard, type NoteView } from "./boards";
 import { allKeepNotes, keepCount, type KeepNote } from "./store";
 import { googleKeepHref } from "./google-workspace";
@@ -78,7 +77,7 @@ export const keepCollections: CollectionProvider = {
       description: "",
       color: null,
       href: googleKeepHref() ?? "/workspace/settings/sources",
-      readOnly: !isInstalled("keep-write"),
+      readOnly: true, // (Keep write went: nothing changes in Google Keep)
       briefing: true,
       knowledge: true,
       items: allKeepNotes().filter((n) => !n.archived).length,

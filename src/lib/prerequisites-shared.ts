@@ -13,7 +13,7 @@ export type PrereqId = "browser" | "git" | "uv" | "claude" | "codex" | "copilot"
 
 /** Zeff's own plugins that need a program (a row is shown when one of them is installed); a mounted integration adds its own (`needs` in its meta). */
 export const PREREQ_PLUGINS: Record<PrereqId, string[]> = {
-  browser: ["outlook-mail", "outlook-calendar", "teams", "gitlab", "gmail", "whatsapp", "keep", "keep-write", "google-calendar"],
+  browser: ["outlook-mail", "outlook-calendar", "teams", "gitlab", "gmail", "whatsapp", "keep", "google-calendar"],
   git: ["work", "gitlab"],
   uv: ["jira"],
   claude: ["claude-cli"],

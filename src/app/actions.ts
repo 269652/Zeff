@@ -1245,7 +1245,6 @@ export async function pickFolderAction(initial?: string): Promise<{ ok: boolean;
 /** Install or uninstall a plugin — its data stays; what it does (menu, pages, syncs) comes or goes. */
 export async function setPluginInstalledAction(id: string, installed: boolean): Promise<ActionState> {
   try {
-    // A retired plugin's id ("kanban") is no plugin to switch: never its successor (the Workspace) in its place.
     const { isPluginId, pluginById } = await import("@/plugins/catalog");
     if (!isPluginId(id)) return { ok: false, error: t("Unknown plugin.") };
     const { dependents, setInstalled } = await import("@/plugins/state");

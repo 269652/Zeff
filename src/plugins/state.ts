@@ -1,8 +1,9 @@
+import { eq } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { accountsInstalled, currentAccountId, setAccountsInstalled } from "@/db/accounts";
 import { emitChange } from "@/lib/events";
 import { stepExtensionOk } from "./extension-state";
-import { PLUGINS, RETIRED_PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfStep, pluginsOfService, resolvePluginId, type PluginId } from "./catalog";
+import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfStep, pluginsOfService, type PluginId } from "./catalog";
 
 /** Each plugin as you set it (the plugins table), else its default — not yet looking at what it builds on. */
 function chosen(): Map<PluginId, boolean> {
@@ -47,12 +48,11 @@ function readInstalled(): Set<PluginId> {
 /** As you set it, whatever it builds on (the Plugins page shows both). */
 export const chosenPlugins = () => new Set([...chosen()].filter(([, v]) => v).map(([k]) => k));
 
-/** Installed (a retired plugin's id answers as its successor: "kanban" as the Workspace). */
-export const isInstalled = (id: PluginId) => installedPlugins().has(resolvePluginId(id));
+/** Installed. */
+export const isInstalled = (id: PluginId) => installedPlugins().has(id);
 
 /** The installed plugins that build on this one, directly or not (they go with it). */
-export function dependents(asked: PluginId): PluginId[] {
-  const id = resolvePluginId(asked);
+export function dependents(id: PluginId): PluginId[] {
   const set = chosen();
   const out: PluginId[] = [];
   const walk = (x: PluginId) => {
@@ -68,14 +68,9 @@ export function dependents(asked: PluginId): PluginId[] {
 
 /**
  * Install or uninstall one — installing also installs what it builds on. Its data stays (mails,
- * messages, todos, pulled entries) — only what it does goes. A retired plugin's id ("kanban", "notes")
- * changes nothing: it is no plugin of its own anymore, and its successor (the Workspace) stays as it is.
+ * messages, todos, pulled entries) — only what it does goes.
  */
 export function setInstalled(id: PluginId, installed: boolean): PluginId[] {
-  if (RETIRED_PLUGINS[id]) {
-    console.warn(`[plugins] setInstalled("${id}", ${installed}) ignored: a retired plugin (now part of "${RETIRED_PLUGINS[id]}")`);
-    return [];
-  }
   const changedAt = new Date().toISOString();
   const ids: PluginId[] = [id];
   if (installed) {
@@ -98,6 +93,30 @@ export function setInstalled(id: PluginId, installed: boolean): PluginId[] {
   forgetInstalled();
   emitChange("attention");
   return ids;
+}
+
+/**
+ * Plugins that went, as you had set them (the plugins table): Kanban and Notes are the Workspace's now — their choice goes to it
+ * where the Workspace has none of its own; Keep write is gone. Their rows go. Once per account (lib/once-done). How many rows went.
+ */
+export const RETIRED_PLUGINS_ONCE = "plugins.retiredIds@1";
+const RETIRED: Record<string, PluginId | null> = { kanban: "workspace", notes: "workspace", "keep-write": null };
+export function rewriteRetiredPlugins(): number {
+  const rows = getDb().select().from(schema.plugins).all();
+  const has = new Set(rows.map((r) => r.id));
+  let n = 0;
+  for (const r of rows) {
+    if (!(r.id in RETIRED)) continue;
+    const to = RETIRED[r.id];
+    if (to && !has.has(to)) {
+      getDb().insert(schema.plugins).values({ id: to, installed: r.installed, changedAt: r.changedAt }).run();
+      has.add(to);
+    }
+    getDb().delete(schema.plugins).where(eq(schema.plugins.id, r.id)).run();
+    n++;
+  }
+  forgetInstalled();
+  return n;
 }
 
 /** A sync step / page / service / AI provider of an installed plugin (or Zeff's own) — usable. */

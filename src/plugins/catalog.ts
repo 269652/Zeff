@@ -31,14 +31,6 @@ export type PluginManifest = Omit<PluginShape<PluginId>, "dependsOn" | "extensio
   features?: PluginId[];
 };
 
-/**
- * Plugins that are gone, folded into another — their id still answers, as that one: isInstalled("kanban") is the
- * Workspace's state (Kanban's boards are its databases now), a link to its Plugins entry the Workspace's.
- */
-export const RETIRED_PLUGINS: Record<string, PluginId> = { kanban: "workspace", notes: "workspace" };
-/** The plugin an id stands for now (a retired one's successor; else itself). */
-export const resolvePluginId = (id: PluginId): PluginId => RETIRED_PLUGINS[id] ?? id;
-
 /** Shown with every experimental plugin: no warranty, no liability. */
 export const EXPERIMENTAL_DISCLAIMER = "No warranty, no liability: Zeff is provided as it is. Automated access can go against the terms of the service or of your employer and can get your account restricted or blocked; it can also read or write wrong data. You use this plugin at your own risk — the author accepts no liability for any damage or consequence of using it.";
 
@@ -57,7 +49,7 @@ export const PLUGINS: PluginManifest[] = [...CORE_PLUGINS.sort(byOrder), ...inte
 export const PLUGIN_IDS = PLUGINS.map((p) => p.id);
 export const isPluginId = (v: unknown): v is PluginId => PLUGIN_IDS.includes(v as PluginId);
 
-export const pluginById = (id: PluginId) => PLUGINS.find((p) => p.id === resolvePluginId(id))!;
+export const pluginById = (id: PluginId) => PLUGINS.find((p) => p.id === id)!;
 /** The plugins the Plugins page lists (a part is under its plugin there). */
 export const listedPlugins = () => PLUGINS.filter((p) => !p.partOf);
 /** A plugin's parts, as the Plugins page lists them under it (the hidden ones are set where they act). */

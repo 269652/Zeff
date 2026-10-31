@@ -71,6 +71,12 @@ export async function register() {
   try {
     const { listAccounts, withAccount } = await import("./db/accounts");
     for (const a of listAccounts()) {
+      // The ids of plugins that went (kanban, notes, keep-write) out of what you set — once.
+      await withAccount(a.id, async () => {
+        const { onceDone } = await import("./lib/once-done");
+        const { RETIRED_PLUGINS_ONCE, rewriteRetiredPlugins } = await import("./plugins/state");
+        await onceDone(RETIRED_PLUGINS_ONCE, rewriteRetiredPlugins);
+      }).catch((e) => console.error("[plugins] rewriting the retired plugin ids failed", e));
       // System → Prompts in the Workspace (a page per prompt; what the settings had goes in once).
       await withAccount(a.id, async () => (await import("./lib/prompts")).ensureSystemPrompts()).catch((e) => console.error("[prompts] the system pages failed", e));
       // My briefing replaced by Meine Lage, a database with a pipeline like any other (where Jira is in use).
