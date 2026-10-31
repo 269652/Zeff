@@ -110,7 +110,7 @@ function Question({ q, name, value, other, onPick, onOther }: { q: AssistQuestio
   );
 }
 
-function EventLine({ e, lang }: { e: AssistEvent; lang: string }) {
+function EventLine({ e, lang, option }: { e: AssistEvent; lang: string; option?: string }) {
   const t = useT();
   const day = (s: string) => new Date(s.length === 10 ? `${s}T00:00` : s).toLocaleDateString(lang, { weekday: "short", day: "numeric", month: "short" });
   const time = (s: string) => (s.length > 10 ? s.slice(11, 16) : "");
@@ -118,6 +118,7 @@ function EventLine({ e, lang }: { e: AssistEvent; lang: string }) {
   const span = e.allDay ? (lastDay && lastDay.getTime() > new Date(`${e.start}T00:00`).getTime() ? `${day(e.start)} – ${lastDay.toLocaleDateString(lang, { weekday: "short", day: "numeric", month: "short" })}` : day(e.start)) : `${day(e.start)} ${time(e.start)}–${time(e.end)}`;
   return (
     <li>
+      {option && <span className="font-medium">{t("Option {letter}", { letter: option })}: </span>}
       <span className="tabular-nums">{span}</span> · {e.title}
       {e.conflicts?.length ? (
         <span className="ml-1 text-amber-700 dark:text-amber-400">
@@ -133,10 +134,13 @@ function Preview({ a, lang }: { a: AssistAction; lang: string }) {
   if (a.kind === "events")
     return (
       <div className="text-xs text-zinc-600 dark:text-zinc-400">
-        📅 {t("Proposed in “{calendar}” (they block nothing — accept or dismiss each in the calendar)", { calendar: a.calendar || t("your Zeff calendar") })}
+        📅{" "}
+        {a.options
+          ? t("Options in “{calendar}” — accepting one in the calendar dismisses the others", { calendar: a.calendar || t("your Zeff calendar") })
+          : t("Proposed in “{calendar}” (they block nothing — accept or dismiss each in the calendar)", { calendar: a.calendar || t("your Zeff calendar") })}
         <ul className="mt-0.5 ml-4 list-disc">
           {a.events.map((e, i) => (
-            <EventLine key={i} e={e} lang={lang} />
+            <EventLine key={i} e={e} lang={lang} option={a.options ? String.fromCharCode(65 + i) : undefined} />
           ))}
         </ul>
       </div>

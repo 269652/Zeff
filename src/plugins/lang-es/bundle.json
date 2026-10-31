@@ -8289,5 +8289,6 @@
   "Proposed: dashed in the calendar until you accept or dismiss it — it blocks no time": "Propuesta: discontinua en el calendario hasta que la aceptes o descartes — no bloquea tiempo",
   "Takes the proposal out of the calendar": "Quita la propuesta del calendario",
   "{n} options proposed — accepting one dismisses the others.": "{n} opciones propuestas — al aceptar una se descartan las demás.",
-  "\"{title}\" proposed.": "«{title}» propuesto."
+  "\"{title}\" proposed.": "«{title}» propuesto.",
+  "Options in “{calendar}” — accepting one in the calendar dismisses the others": "Opciones en «{calendar}» — al aceptar una en el calendario se descartan las demás"
 }

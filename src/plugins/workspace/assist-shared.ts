@@ -12,7 +12,7 @@ export type AssistEvent = { title: string; start: string; end: string; allDay?: 
 
 /** What the AI may propose — a small closed set, each with its executor in assist.ts. */
 export type AssistAction = { id: string; label: string } & (
-  | { kind: "events"; events: AssistEvent[]; /** The calendar they are proposed in (none: your Zeff calendar) — and its name, for the card. */ calendarId?: number; calendar?: string }
+  | { kind: "events"; events: AssistEvent[]; /** The calendar they are proposed in (none: your Zeff calendar) — and its name, for the card. */ calendarId?: number; calendar?: string; /** Alternatives (Option A, B …, one group): accepting one in the calendar dismisses the others. */ options?: boolean }
   | { kind: "todo"; text: string; due?: string }
   | { kind: "widget"; widget: string; config: Record<string, string | number | boolean> }
   | { kind: "text"; markdown: string }

@@ -349,3 +349,42 @@ test("whole days by their last day (inclusive): Fri 8 – Sun 10 is three days; 
   await runAssist(pageId, null, newAssistState("page"), new Date(2026, 9, 29));
   assert.match(fs.readFileSync(promptFile, "utf8"), /lastDay ist der LETZTE Tag selbst/, "the prompt asks for the last day itself");
 });
+
+test("alternatives as options: two candidate weekends are one group (Option A/B) — they may overlap, none dropped; accepting one dismisses the other; one calendar block for two events actions", async () => {
+  const { cleanActions } = await import("@/plugins/workspace/assist");
+  const raw = {
+    kind: "events",
+    label: "Besuch bei Nadine",
+    options: true,
+    events: [
+      { title: "Besuch bei Nadine", start: "2027-01-08", lastDay: "2027-01-10", allDay: true },
+      { title: "Besuch bei Nadine", start: "2027-01-09", lastDay: "2027-01-11", allDay: true },
+      { title: "Besuch bei Nadine", start: "2027-01-15", lastDay: "2027-01-17", allDay: true },
+      { title: "Besuch bei Nadine", start: "2027-01-15", lastDay: "2027-01-17", allDay: true },
+    ],
+  };
+  const [opts] = cleanActions([raw], check()) as Extract<import("@/plugins/workspace/assist-shared").AssistAction, { kind: "events" }>[];
+  assert.equal(opts.options, true);
+  assert.deepEqual(opts.events.map((e) => [e.start, e.end]), [["2027-01-08", "2027-01-11"], ["2027-01-09", "2027-01-12"], ["2027-01-15", "2027-01-18"]], "overlapping alternatives kept, the same one twice once");
+  const [lone] = cleanActions([{ ...raw, events: raw.events.slice(0, 1) }], check()) as typeof opts[];
+  assert.equal(lone.options, undefined, "one option alone: a plain proposal");
+
+  await setup();
+  const w = await import("@/plugins/workspace/store");
+  const pageId = w.createPage({ title: "Nadine" });
+  const { applyAssist } = await import("@/plugins/workspace/assist");
+  const { newAssistState } = await import("@/plugins/workspace/assist-shared");
+  const two = cleanActions([{ ...raw, events: [raw.events[0], raw.events[2]] }, { kind: "events", label: "Zahnarzt", events: [{ title: "Zahnarzt-Erinnerung", start: "2027-01-05T09:00", end: "2027-01-05T09:30" }] }], check());
+  const r = await applyAssist(pageId, { ...newAssistState(), status: "proposing", actions: two }, two.map((a) => a.id));
+  assert.deepEqual(r.nodes.map((n) => n.type), ["calendarEmbed"], "one block for the calendar, not one per action");
+  const ir = await import("@/lib/calendar/ir");
+  const cal = ir.zeffCalendar();
+  const besuch = () => ir.eventsBetween("2027-01-01T00:00", "2027-02-01T00:00", { proposals: true }).filter((e) => e.calendarId === cal.id && e.title === "Besuch bei Nadine");
+  assert.deepEqual(besuch().map((e) => [e.start, e.end, e.proposed, /^opt:[\w-]+:[AB]$/.test(e.key)]), [["2027-01-08", "2027-01-11", true, true], ["2027-01-15", "2027-01-18", true, true]]);
+  const { proposalOfEvent } = await import("@/lib/calendar/proposed");
+  const [a, b] = besuch();
+  assert.deepEqual([proposalOfEvent(a.id)?.payload, proposalOfEvent(b.id)?.payload].map((p) => (p as { option?: string })?.option), ["A", "B"]);
+  const { acceptProposalAction } = await import("@/plugins/calendar/server-actions");
+  assert.equal((await acceptProposalAction(a.id))?.ok, true);
+  assert.deepEqual(besuch().map((e) => [e.start, e.proposed]), [["2027-01-08", false]], "the other option dismissed");
+});

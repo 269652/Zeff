@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import { ValidationError } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
@@ -143,18 +144,23 @@ function cleanAction(raw: unknown, check: AssistCheck): AssistActionBody | null 
   if (kind === "events") {
     if (!check.can.calendar) return null;
     // One appointment per time: one overlapping an earlier one is dropped (the plan's days are moved by drag and drop instead).
+    // Options are alternatives (this weekend or that one): they may overlap — only the same one twice goes.
     const span = (e: AssistEvent) => [new Date(e.start.length === 10 ? `${e.start}T00:00` : e.start).getTime(), new Date(e.end.length === 10 ? `${e.end}T00:00` : e.end).getTime()];
-    const events = (Array.isArray(o.events) ? o.events : [])
-      .slice(0, 31)
+    const asOptions = o.options === true;
+    const cleaned = (Array.isArray(o.events) ? o.events : [])
+      .slice(0, asOptions ? 8 : 31)
       .map((e) => cleanEvent(e, check.busy))
-      .filter((e): e is AssistEvent => !!e)
-      .reduce<AssistEvent[]>((kept, e) => {
-        const [a, b] = span(e);
-        return kept.some((k) => span(k)[0] < b && span(k)[1] > a) ? kept : [...kept, e];
-      }, []);
+      .filter((e): e is AssistEvent => !!e);
+    const events = cleaned.reduce<AssistEvent[]>((kept, e) => {
+      const [a, b] = span(e);
+      if (asOptions) return kept.some((k) => k.start === e.start && k.end === e.end) ? kept : [...kept, e];
+      return kept.some((k) => span(k)[0] < b && span(k)[1] > a) ? kept : [...kept, e];
+    }, []);
     const own = Number(o.calendarId);
     const calendar = check.calendars?.get(own);
-    return events.length ? { kind, label: label || str(o.name, 80) || events[0].title, events, ...(calendar ? { calendarId: own, calendar } : {}) } : null;
+    // (one option alone is no choice: a plain proposal)
+    const options = asOptions && events.length > 1 ? { options: true as const } : {};
+    return events.length ? { kind, label: label || str(o.name, 80) || events[0].title, events, ...(calendar ? { calendarId: own, calendar } : {}), ...options } : null;
   }
   if (kind === "todo") {
     if (!check.can.todos) return null;
@@ -236,6 +242,7 @@ const SCHEMA = {
           kind: { type: "string", enum: ASSIST_ACTION_KINDS },
           label: { type: "string" },
           name: { type: "string" },
+          options: { type: "boolean" },
           events: { type: "array", items: { type: "object", required: ["title", "start"], properties: { title: { type: "string" }, start: { type: "string" }, end: { type: "string" }, lastDay: { type: "string" }, allDay: { type: "boolean" } } } },
           calendarId: { type: "integer" },
           text: { type: "string" },
@@ -310,7 +317,7 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
   const widgets = [...v.check.widgets].map(([id, w]) => `${id} (${w.label}${w.settings.length ? `; config: ${w.settings.join(", ")}` : ""})`).join("; ");
   const kinds = [
     v.check.can.calendar &&
-      `- {"kind":"events","label","calendarId","events":[{"title","start","lastDay" | "end","allDay"}]} — Terminvorschläge in einem Kalender (blockieren nichts; der Nutzer nimmt jeden an oder verwirft ihn). calendarId: einer dieser Kalender (weglassen: der Zeff-Kalender): ${[...(v.check.calendars ?? [])].map(([id, name]) => `${id} "${name}"`).join(", ") || "(keine)"}. Ganze Tage: start und lastDay "YYYY-MM-DD" — lastDay ist der LETZTE Tag selbst (Fr 8. bis So 10. = start "…-08", lastDay "…-10"), allDay true, kein end; sonst start und end "YYYY-MM-DDTHH:MM". Meide die belegten Zeiten. Pro Zeitraum genau ein Vorschlag, nichts überlappt (auch keine Anreise im Besuch) — der Nutzer verschiebt die Tage per Drag & Drop.`,
+      `- {"kind":"events","label","calendarId","options","events":[{"title","start","lastDay" | "end","allDay"}]} — Terminvorschläge in einem Kalender (blockieren nichts; der Nutzer nimmt jeden an oder verwirft ihn). calendarId: einer dieser Kalender (weglassen: der Zeff-Kalender): ${[...(v.check.calendars ?? [])].map(([id, name]) => `${id} "${name}"`).join(", ") || "(keine)"}. Ganze Tage: start und lastDay "YYYY-MM-DD" — lastDay ist der LETZTE Tag selbst (Fr 8. bis So 10. = start "…-08", lastDay "…-10"), allDay true, kein end; sonst start und end "YYYY-MM-DDTHH:MM". Meide die belegten Zeiten. Pro Zeitraum genau ein Vorschlag, nichts überlappt (auch keine Anreise im Besuch) — der Nutzer verschiebt die Tage per Drag & Drop. Alternativen (der Nutzer hat mehrere Termine/Zeiträume gewählt oder genannt, oder der Plan hat Varianten): IMMER eine eigene Aktion mit options true und JEDER Alternative als eigenem Termin (Option A, B …; nimmt er eine an, fallen die anderen weg) — lass keine gewählte Alternative weg, leg sie nie zusammen; feste Termine daneben in einer zweiten events-Aktion ohne options.`,
     v.check.can.todos && `- {"kind":"todo","label","text","due"} — eine Aufgabe; Personen beim Namen; due "YYYY-MM-DD" nur wenn sinnvoll.`,
     `- {"kind":"widget","label","widget","person","config"} — ein Baustein der Seite; person = id einer Person oben. Widgets: ${widgets || "(keine)"}`,
     `- {"kind":"text","label","markdown"} — Text für die Seite (z. B. eine Checkliste "- [ ] …").`,
@@ -393,7 +400,9 @@ export async function runAssist(pageId: number, blockJson: string | null, state:
 
 type Made = { nodes: DocNode[]; created: AssistCreated[] };
 
-type Context = { created: AssistCreated[] };
+/** What the executors know: what the card made before (`created`; its earlier proposals replaced by the first events action
+ * only — `replace`), the calendars whose block is in the page already or goes in now (`shown`). */
+type Context = { created: AssistCreated[]; replace: number[]; shown: Set<number> };
 
 const EXECUTORS: { [K in AssistActionKind]: (a: Extract<AssistAction, { kind: K }>, ctx: Context) => Promise<Made> } = {
   // Proposed appointments (nothing blocked; each accepted or dismissed in the calendar) in the chosen calendar — your Zeff one by
@@ -402,15 +411,19 @@ const EXECUTORS: { [K in AssistActionKind]: (a: Extract<AssistAction, { kind: K 
   events: async (a, ctx) => {
     const ir = await import("@/lib/calendar/ir");
     const cal = (a.calendarId && ir.listCalendars().find((c) => c.id === a.calendarId)) || ir.zeffCalendar();
-    const earlier = ctx.created.filter((c) => c.kind === "event").map((c) => Number(c.id));
-    const shown = earlier.some((id) => ir.eventById(id)?.calendarId === cal.id) || ctx.created.some((c) => c.kind === "calendar" && Number(c.id) === cal.id);
+    const earlier = ctx.replace.splice(0);
+    const shown = ctx.shown.has(cal.id) || earlier.some((id) => ir.eventById(id)?.calendarId === cal.id) || ctx.created.some((c) => c.kind === "calendar" && Number(c.id) === cal.id);
+    // Options: one group (its name made of what they are — the same options asked again are the same ones, one dismissed stays out).
+    const group = a.options && a.events.length > 1 ? createHash("sha1").update(JSON.stringify([cal.id, a.events.map((e) => [e.title, e.start, e.end])])).digest("hex").slice(0, 10) : "";
+    const { optionKey } = await import("@/lib/calendar/ir-shared");
     const made = ir.proposeEvents(
       cal.id,
-      a.events.map((e) => ({ title: e.title, start: e.start, end: e.end, allDay: !!e.allDay })),
+      a.events.map((e, i) => ({ ...(group ? { key: optionKey(group, i) } : {}), title: e.title, start: e.start, end: e.end, allDay: !!e.allDay })),
       earlier,
     );
     const created: AssistCreated[] = made.map((e) => ({ kind: "event", id: e.id, label: e.title, href: `/kalender?v=day&d=${e.start.slice(0, 10)}` }));
     if (shown || !made.length) return { nodes: [], created };
+    ctx.shown.add(cal.id);
     const first = made.map((e) => e.start.slice(0, 10)).sort()[0];
     const last = made.map((e) => e.end.slice(0, 10)).sort().at(-1)!;
     const span = (new Date(`${last}T00:00`).getTime() - new Date(`${first}T00:00`).getTime()) / 86400000;
@@ -434,6 +447,7 @@ export async function applyAssist(pageId: number, state: AssistState, ids: strin
   // (the widget shows them; a checklist beside it would be the same twice).
   let list: DocNode | null = null;
   const widgetShows = todosWidgetOn(store.getPage(pageId)?.content ?? null);
+  const ctx: Context = { created: state.created, replace: state.created.filter((c) => c.kind === "event").map((c) => Number(c.id)), shown: new Set() };
   try {
     for (const a of chosen) {
       if (a.kind === "todo" && widgetShows) {
@@ -443,7 +457,7 @@ export async function applyAssist(pageId: number, state: AssistState, ids: strin
         if (!todo.outcome) out.created.push({ kind: "todo", id: todo.id, label: todo.text, href: `/t/${todo.id}` });
         continue;
       }
-      const made = await (EXECUTORS[a.kind] as (x: typeof a, ctx: Context) => Promise<Made>)(a, { created: state.created });
+      const made = await (EXECUTORS[a.kind] as (x: typeof a, ctx: Context) => Promise<Made>)(a, ctx);
       if (a.kind === "todo") {
         if (!list) {
           list = { type: "taskList", attrs: { listId: newId("t"), title: "", engine: true }, content: [] };
