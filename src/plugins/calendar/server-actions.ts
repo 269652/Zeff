@@ -277,17 +277,25 @@ export async function createShadowCalendarAction(name: string): Promise<{ ok: tr
   }
 }
 
-/** A shadow calendar's appointment accepted: entered in your own calendar (Zeff's), taken out of the shadow calendar. */
-export async function acceptShadowEventAction(id: number): Promise<ActionState> {
+/**
+ * A shadow calendar's appointment accepted: entered in your own calendar (Zeff's), taken out of the shadow calendar — or dismissed:
+ * taken out (and not proposed again). Both are its proposal decided (@/lib/proposals: the review queue's buttons do the same).
+ */
+async function decideShadowEvent(id: number, verdict: "accepted" | "dismissed"): Promise<ActionState> {
   const ir = await import("@/lib/calendar/ir");
   const e = ir.eventById(Number(id));
   if (!e) return { ok: false, error: t("That appointment is gone.") };
   if (!e.calendar.shadow) return { ok: false, error: t("It isn't a suggestion — it is in a real calendar already.") };
-  const target = ir.zeffCalendar();
-  const r = await saveEventAction({ calendarId: target.id, title: e.title, start: e.start, end: e.end, allDay: e.allDay, location: e.location, description: e.description, ...(e.recurrence ? { recurrence: e.recurrence } : {}) });
-  if (!r?.ok) return r;
-  return run(async () => {
-    ir.deleteEvent(e.id);
-    return t("In {calendar} now.", { calendar: target.name });
-  });
+  const { shadowProposalOf } = await import("@/lib/calendar/shadow-proposals");
+  const p = shadowProposalOf(e.id);
+  if (!p) return { ok: false, error: t("That appointment is gone.") };
+  return run(async () => (await (await import("@/lib/proposals")).decide(p.id, verdict)).message ?? "");
+}
+
+export async function acceptShadowEventAction(id: number): Promise<ActionState> {
+  return decideShadowEvent(id, "accepted");
+}
+
+export async function dismissShadowEventAction(id: number): Promise<ActionState> {
+  return decideShadowEvent(id, "dismissed");
 }

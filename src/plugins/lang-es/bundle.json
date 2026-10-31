@@ -8182,5 +8182,10 @@
   "Page added": "Página creada",
   "Page changed": "Página cambiada",
   "Mail sent": "Correo enviado",
-  "Action": "Acción"
+  "Action": "Acción",
+  "Shadow calendars": "Calendarios sombra",
+  "Taken out of the shadow calendar.": "Quitado del calendario sombra.",
+  "This proposal was decided already.": "Esta propuesta ya está decidida.",
+  "This proposal isn't there any more.": "Esta propuesta ya no existe.",
+  "Nothing handles proposals of {source} — is its plugin installed?": "Nada gestiona las propuestas de {source}: ¿está instalado su plugin?"
 }

@@ -2,15 +2,14 @@ import { t } from "@/lib/i18n/server";
 import type { ReviewAction, ReviewSource } from "@/lib/review/point";
 import { dailyBatch } from "@/lib/trust/store";
 import { proposedClaims, proposedLinks, staleClaims } from "./graph";
-import { pendingSuggestions } from "./identity";
 import { dateKindLabels, dateText } from "./shared";
 import { listPeople, proposedDates } from "./store";
-import { linkText, peopleTool, suggestionText, type PeopleTool } from "./tools";
+import { linkText, peopleTool, type PeopleTool } from "./tools";
 import { localDay } from "@/lib/dates";
 import { peopleHome, personHref } from "@/plugins/workspace/people-database";
 
 /**
- * What People has you confirm, for the review queue: the names that may be one person, what the AI read about
+ * What People has you confirm, for the review queue (the names that may be one person are proposals: ./proposals): what the AI read about
  * people (claims, links), confirmed claims whose time is up ("still true?") and the dates found. A button does
  * what the People overview's does — through its tools, so an accepted name is read back like there.
  */
@@ -27,24 +26,6 @@ function decide(action: string, yes: PeopleTool, no: PeopleTool): Promise<{ mess
 const said = async (r: Promise<{ message?: string }>) => (await r).message;
 
 export const PEOPLE_REVIEW: ReviewSource[] = [
-  {
-    id: "people-identity",
-    get label() {
-      return t("Same person?");
-    },
-    list: () => {
-      const names = new Map(listPeople().map((p) => [p.id, p.name]));
-      return pendingSuggestions().map((s) => ({
-        id: String(s.id),
-        title: suggestionText(s, (id) => names.get(id)),
-        detail: s.evidence,
-        confidence: s.confidence,
-        href: s.kind === "person" ? peopleHome() : profile(s.personId),
-        actions: verdict(),
-      }));
-    },
-    act: (id, action) => said(decide(action, { tool: "suggestion", id: Number(id), accept: true }, { tool: "suggestion", id: Number(id), accept: false })),
-  },
   {
     id: "people-claim",
     get label() {

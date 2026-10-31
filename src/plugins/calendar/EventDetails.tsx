@@ -10,7 +10,7 @@ import { describeRecurrence } from "@/lib/calendar/recurrence";
 import type { T } from "@/lib/i18n/shared";
 import { ScopeChoice } from "./EventEditor";
 import { doneBrowserOpAction, removeTodoOpAction } from "@/plugins/todos/server-actions";
-import { acceptProposedEventAction, acceptShadowEventAction, deleteEventAction, respondEventAction, saveEventAction } from "./server-actions";
+import { acceptProposedEventAction, acceptShadowEventAction, deleteEventAction, dismissShadowEventAction, respondEventAction, saveEventAction } from "./server-actions";
 import { whenText, type Item } from "./view-shared";
 import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 import { useDismiss } from "@/components/useDismiss";
@@ -83,7 +83,7 @@ export function EventDetails({ item, anchor, onClose, onEdit, onDone }: { item: 
   const dismiss = () => p && start(async () => onDone(await removeTodoOpAction(p.todoId, p.index)));
   // A shadow calendar's appointment (a suggestion planned in a page): into your own calendar, or away.
   const acceptShadow = () => e && start(async () => onDone(await acceptShadowEventAction(e.id)));
-  const dismissShadow = () => e && start(async () => onDone(await deleteEventAction(e.id)));
+  const dismissShadow = () => e && start(async () => onDone(await dismissShadowEventAction(e.id)));
 
   const remove = (scope?: SeriesScope) =>
     start(async () =>

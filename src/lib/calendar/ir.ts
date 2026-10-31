@@ -17,6 +17,7 @@ import { CALENDAR_COLORS, type CalendarEventView, type CalendarSourceKind, type 
 import { addDays, expand, occurrenceDays, onDay, parseRecurrence, type Recurrence } from "./recurrence";
 import type { GraphEvent } from "./meetings";
 import { localDay, localStamp } from "@/lib/dates";
+import { SHADOW_PREFIX, syncShadowProposals } from "./shadow-proposals";
 
 const { calendars, calendarEvents } = schema;
 
@@ -46,8 +47,8 @@ export type EventInput = {
 };
 
 const now = () => new Date().toISOString();
-/** A shadow calendar's key: one of Zeff's own, marked so (no column of its own — the key says it). */
-export const SHADOW_PREFIX = "zeff:shadow-";
+/** A shadow calendar's key: one of Zeff's own, marked so (no column of its own — the key says it). Its appointments are proposals (./shadow-proposals). */
+export { SHADOW_PREFIX };
 const toView = (c: typeof calendars.$inferSelect): CalendarView => ({ id: c.id, key: c.key, source: c.source, name: c.name, color: c.color, visible: c.visible, busy: c.busy, book: c.book, todos: c.todos, ...(c.key.startsWith(SHADOW_PREFIX) ? { shadow: true } : {}) });
 const eventView = (e: typeof calendarEvents.$inferSelect): CalendarEventView => ({
   id: e.id,
@@ -173,6 +174,7 @@ export function deleteCalendar(id: number): void {
     tx.delete(calendarEvents).where(eq(calendarEvents.calendarId, id)).run();
     tx.delete(calendars).where(eq(calendars.id, id)).run();
   });
+  if (c.key.startsWith(SHADOW_PREFIX)) syncShadowProposals(id);
 }
 
 const row = (calendarId: number, e: EventInput): typeof calendarEvents.$inferInsert => ({
@@ -220,6 +222,7 @@ export function replaceEvents(calendarId: number, events: EventInput[], range?: 
         .run();
     }
   });
+  syncShadowProposals(calendarId);
   return events.length;
 }
 
@@ -266,7 +269,9 @@ export function addEvent(calendarId: number, e: Omit<EventInput, "key">): Calend
   const c = getDb().select().from(calendars).where(eq(calendars.id, calendarId)).get();
   if (!c || c.source !== "zeff") throw new Error(t("Events can only be created in Zeff's own calendars."));
   if (!e.title.trim() || !e.start) throw new Error(t("A title and a start, please."));
-  return eventView(getDb().insert(calendarEvents).values(row(calendarId, { ...e, key: randomUUID() })).returning().get());
+  const made = eventView(getDb().insert(calendarEvents).values(row(calendarId, { ...e, key: randomUUID() })).returning().get());
+  if (c.key.startsWith(SHADOW_PREFIX)) syncShadowProposals(calendarId);
+  return made;
 }
 
 /** An appointment of Zeff's own calendars, changed or deleted. */
@@ -277,7 +282,9 @@ export function updateEvent(id: number, patch: Partial<Omit<EventInput, "key">>)
   if (!e || !c || c.source !== "zeff") throw new Error(t("Only events in Zeff's own calendars can be changed."));
   // A series keeps its left-out occurrences.
   const next = row(e.calendarId, { ...eventView(e), exdates: exdatesOf(e), ...patch, key: e.key, raw: e.raw, todoId: patch.todoId ?? e.todoId });
-  return eventView(db.update(calendarEvents).set(next).where(eq(calendarEvents.id, id)).returning().get());
+  const changed = eventView(db.update(calendarEvents).set(next).where(eq(calendarEvents.id, id)).returning().get());
+  if (c.key.startsWith(SHADOW_PREFIX)) syncShadowProposals(e.calendarId);
+  return changed;
 }
 
 export function deleteEvent(id: number): void {
@@ -290,6 +297,7 @@ export function deleteEvent(id: number): void {
     tx.delete(calendarEvents).where(eq(calendarEvents.seriesId, id)).run();
     tx.delete(calendarEvents).where(eq(calendarEvents.id, id)).run();
   });
+  if (c.key.startsWith(SHADOW_PREFIX)) syncShadowProposals(e.calendarId);
 }
 
 // ---------------------------------------------------------------------------
