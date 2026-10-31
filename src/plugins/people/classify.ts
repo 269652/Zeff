@@ -64,7 +64,7 @@ function evidence(p: Person, d: ReturnType<typeof getSqlite>): string {
   return lines.join("\n");
 }
 
-const realAsk = (): ClassifyDeps["ask"] => async (prompt, schema) => (await runAi<ClassifyAnswer>(prompt, schema, { task: "people-normalize", timeoutMs: 4 * 60000, maxBudgetUsd: 0.3 })).output ?? {};
+const realAsk = (): ClassifyDeps["ask"] => async (prompt, schema) => (await runAi<ClassifyAnswer>(prompt, schema, { task: "people-classify", timeoutMs: 4 * 60000, maxBudgetUsd: 0.3 })).output ?? {};
 
 /**
  * The contacts not placed yet (`force`: all, `ids`: these) — kind and circle by the AI, in batches. Yours stay. How many changed.

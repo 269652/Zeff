@@ -332,7 +332,7 @@ export function acceptFindings(answer: Answer, batch: Item[], allowed: Set<numbe
 export type ExtractResult ={ ok: boolean; items: number; claims: number; links: number; derived: number; error?: string };
 export type ExtractDeps = { ask: (prompt: string, schema: object) => Promise<Answer> };
 
-const realAsk = (): ExtractDeps["ask"] => async (prompt, schema) => (await runAi<Answer>(prompt, schema, { task: "people-normalize", timeoutMs: 6 * 60000, maxBudgetUsd: 0.5 })).output ?? {};
+const realAsk = (): ExtractDeps["ask"] => async (prompt, schema) => (await runAi<Answer>(prompt, schema, { task: "people-extract", timeoutMs: 6 * 60000, maxBudgetUsd: 0.5 })).output ?? {};
 
 /**
  * Read what came in since last time. `derived`: links read off the sources by rule (no AI). With no new

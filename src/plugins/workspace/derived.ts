@@ -46,6 +46,9 @@ function inboxSources(have: PipelineStep[]): PipelineStep[] {
   ];
 }
 
+/** A new mail, chat or bank database's noise filter (newsletters, bots, money only moved, duplicates hidden) — on from the start; an existing one is offered it in its pipeline editor. */
+const noiseFilter = (): PipelineStep => ({ id: newId("s"), kind: "filter", noise: "hide" });
+
 /** A database straight from a source a plugin brings (People's profiles …): its pipeline that one source, shown as a table. */
 /** `label`: the part of the source it follows (a to-do list's key). */
 export async function createExtSourceDatabase(ext: string, title?: string, label?: string): Promise<number> {
@@ -54,7 +57,7 @@ export async function createExtSourceDatabase(ext: string, title?: string, label
   const step: PipelineStep = { id: newId("s"), kind: "source", from: "ext", ext, ...(label ? { label } : {}) };
   const app = appViewsFor(src.dataType)[0];
   const views: View[] = [...(app ? [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }] : []), ...(ext === "page-tasks" ? [newView(t("Todos"), "todo")] : []), newView(t("Table"), "table")];
-  const schema: DbSchema = { titleName: t("Name"), properties: [], views, ...(src.dataType ? { dataType: src.dataType } : {}), pipeline: { steps: [step], everyMinutes: ext === "time" ? 5 : 60 } };
+  const schema: DbSchema = { titleName: t("Name"), properties: [], views, ...(src.dataType ? { dataType: src.dataType } : {}), pipeline: { steps: ext === "recurring" ? [step, noiseFilter()] : [step], everyMinutes: ext === "time" ? 5 : 60 } };
   const id = createPage({ kind: "database", title: title || t(src.label), icon: src.icon, schema });
   updatePage(id, { fullWidth: true });
   return id;
@@ -84,7 +87,7 @@ export function createSourceDatabase(from: Exclude<PipelineSource, "database" | 
     const both = sources.length > 1;
     const app = appViewsFor(both ? "inbox" : sources[0]?.from === "mail" ? "mail" : "message")[0];
     const views: View[] = [...(app ? [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }] : []), newView(t("Table"), "table")];
-    const schema: DbSchema = { titleName: t("Subject"), properties: [], views, ...(both ? { dataType: "inbox" as const } : {}), pipeline: { steps: sources } };
+    const schema: DbSchema = { titleName: t("Subject"), properties: [], views, ...(both ? { dataType: "inbox" as const } : {}), pipeline: { steps: [...sources, noiseFilter()] } };
     const id = createPage({ kind: "database", title: title || t("Inbox"), icon: "📬", schema });
     updatePage(id, { fullWidth: true });
     return id;
@@ -93,7 +96,7 @@ export function createSourceDatabase(from: Exclude<PipelineSource, "database" | 
   const app = appViewsFor(dataType)[0];
   const step: PipelineStep = { id: newId("s"), kind: "source", from, ...(from === "jira" ? { jira: { mine: true, openOnly: true } } : from === "mail" ? { mail: { recentDays: 30 } } : from === "messages" ? { messages: { recentDays: 14 } } : {}) };
   const views: View[] = [...(app ? [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }] : []), from === "jira" || from === "todos" ? newView(t("Board"), "board") : from === "keep" ? newView(t("Notes"), "gallery") : newView(t("Table"), "table")];
-  const schema: DbSchema = { titleName: t("Name"), properties: [], views, ...(dataType ? { dataType } : {}), pipeline: { steps: [step] } };
+  const schema: DbSchema = { titleName: t("Name"), properties: [], views, ...(dataType ? { dataType } : {}), pipeline: { steps: from === "mail" || from === "messages" ? [step, noiseFilter()] : [step] } };
   const id = createPage({ kind: "database", title: title || t(SOURCE_TITLES[from]), schema });
   updatePage(id, { fullWidth: true });
   return id;

@@ -5,7 +5,7 @@
  * report — the document as the todo's source. A document is read again only once its text changes.
  * In batches, each its own prompt; one at a time. Server only.
  */
-import { getSqlite } from "@/db";
+import { memoAll, memoMigrate, memoSetMany } from "@/lib/ai/memo";
 import { promptText } from "@/lib/prompts";
 import { runAi } from "@/lib/ai";
 import { attributed } from "@/lib/boards/activity";
@@ -60,10 +60,11 @@ Lege für jede Aufgabe, die ein Dokument an mich stellt, ein Todo an: ein Satz, 
 
 KEINE Todos für: reine Information und Nachschlagewerke, Berichte über Vergangenes ohne offene Punkte oder Fragen, Werbung, Zugangsdaten, Erledigtes (schon bezahlt, schon abgegeben, laut Dokument abgeschlossen) — und nichts, was ein schon offenes Todo abdeckt. Ein Dokument ohne Aufgabe ergibt kein Todo; gibt es insgesamt nichts zu tun, ist die Liste leer.`;
 
-function db() {
-  const d = getSqlite();
-  d.exec("create table if not exists doc_reviewed (id integer primary key, version text not null, reviewed_at text not null)");
-  return d;
+/** Which document was read at which version: in the AI memo (lib/ai/memo; the old table doc_reviewed moved in once). */
+const SCOPE = "doc-reviewed";
+function readAt(): Map<string, { hash: string }> {
+  memoMigrate(SCOPE, "doc_reviewed", "select 'doc-reviewed' as scope, cast(id as text) as ref, version as hash, 'true' as value, reviewed_at as at from doc_reviewed");
+  return memoAll<boolean>(SCOPE);
 }
 
 export type DocTodosResult = { ok: boolean; reviewed: number; added: number; /** New todos that repeated an open one and were merged into it. */ merged?: number; batches: number; error?: string };
@@ -76,8 +77,8 @@ export function excerpt(text: string): string {
 
 /** The documents to read now: not read at this version of their text. */
 function unread(): ReadableDoc[] {
-  const seen = new Map((db().prepare("select id, version from doc_reviewed").all() as { id: number; version: string }[]).map((r) => [r.id, r.version]));
-  return readableDocuments().filter((d) => seen.get(d.id) !== d.version);
+  const seen = readAt();
+  return readableDocuments().filter((d) => seen.get(String(d.id))?.hash !== d.version);
 }
 
 const line = (d: ReadableDoc) =>
@@ -91,12 +92,7 @@ export function reviewDocumentsForTodos(runId: number | null = null): Promise<Do
   if (running) return running;
   const run = (async (): Promise<DocTodosResult> => {
     const docs = unread();
-    const mark = (list: ReadableDoc[]) => {
-      const d = db();
-      const put = d.prepare("insert into doc_reviewed (id, version, reviewed_at) values (?, ?, ?) on conflict(id) do update set version = excluded.version, reviewed_at = excluded.reviewed_at");
-      const now = new Date().toISOString();
-      d.transaction(() => list.forEach((x) => put.run(x.id, x.version, now)))();
-    };
+    const mark = (list: ReadableDoc[]) => memoSetMany(SCOPE, list.map((x) => ({ ref: String(x.id), hash: x.version, value: true })));
     // Those a todo already has as its source: gone through (a document you attached to a todo by hand is that todo's context).
     const cited = new Set(listTodos({ status: "all" }).flatMap((x) => x.refs.filter((r) => r.startsWith("doc:"))));
     const theirs = docs.filter((d) => cited.has(d.ref));

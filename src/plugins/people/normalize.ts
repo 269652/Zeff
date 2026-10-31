@@ -9,6 +9,7 @@ import { and, desc, gte, isNotNull, ne } from "drizzle-orm";
 import { promptText } from "@/lib/prompts";
 import { getDb, getSqlite, schema } from "@/db";
 import { runAi } from "@/lib/ai";
+import { NOT_A_CONTACT } from "@/lib/noise";
 import { listTodos } from "@/lib/boards/store";
 import { plain } from "@/lib/boards/collect";
 import { errorMessage } from "@/lib/errors";
@@ -190,7 +191,7 @@ async function matchNames(): Promise<NormalizeResult> {
       .orderBy(desc(emails.receivedAt))
       .limit(400)
       .all()
-      .filter((s) => s.name && s.name !== "Ich" && /\s/.test(s.name) && !/no-?reply|newsletter|notification|mailer|support|info@|service/i.test(s.email ?? ""))
+      .filter((s) => s.name && s.name !== "Ich" && /\s/.test(s.name) && !NOT_A_CONTACT.test(s.email ?? ""))
       .slice(0, 120);
     // The last words of a chat: how they're addressed there tells who "Mama" is.
     const sample = (chat: string) => {

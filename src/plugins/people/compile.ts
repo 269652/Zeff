@@ -101,7 +101,7 @@ function evidence(p: Person): { lines: string[]; count: number } {
 }
 
 const realDeps = (): CompileDeps => ({
-  ask: async (prompt) => (await runAi<CompileAnswer>(prompt, SCHEMA, { task: "people-normalize", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 })).output,
+  ask: async (prompt) => (await runAi<CompileAnswer>(prompt, SCHEMA, { task: "people-compile", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 })).output,
 });
 
 /**

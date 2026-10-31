@@ -1,12 +1,15 @@
 import { getDb, getSqlite, schema } from "@/db";
-import { fillPrompt } from "@/lib/prompts";
+import { fillPrompt, promptText } from "@/lib/prompts";
 import { dateOf } from "@/lib/boards/collect";
+import { classifyNoise, contentKeyOf, noiseOf, type Noise, type NoiseRecord } from "@/lib/noise";
+import { memoAll, memoForget, memoGet, memoHash, memoMigrate, memoSet } from "@/lib/ai/memo";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
 import { APP_VIEWS, appViewsFor } from "./app-views";
 import { quietly, viaSource } from "./events";
 import { peopleDatabase } from "./people-database";
+import { instructionText } from "./instructions";
 import { meter, newMeter, noteAi, noteJudged } from "./meter";
 import { docToMarkdown, markdownToDoc } from "./doc";
 import { cellText, COLORS, dateRange, newId, newView, type DataType, type DbSchema, type Option, type PipelineStep, type Property, type Row } from "./model";
@@ -35,6 +38,10 @@ export type SourceRecord = {
   typed?: TypedField[];
   /** What the record is (a mail, a message): the database's type when all its records are. */
   dataType?: DataType;
+  /** Noise (lib/noise): a newsletter, a bot, money only moved, the same thing again from another source — a noise filter hides it. */
+  noise?: Noise;
+  /** What makes it the same thing in another source (a mail's Message-ID or sender, subject, minute; an appointment's title, start, organizer). */
+  contentKey?: string;
 };
 /** A record's field with its type; a person: People profile ids (as a person property keeps them); a number may say how it's shown. */
 export type TypedField = { id: string; name: string; type: "text" | "date" | "checkbox" | "select" | "url" | "number" | "person"; value: string | number | boolean | number[] | null; format?: "number" | "euro" };
@@ -342,7 +349,55 @@ async function knowledgeRecords(c: NonNullable<PipelineStep["knowledge"]>, self:
   return [...out.values()];
 }
 
+/** A typed field's value of a record by its id (a mail's, a message's, an appointment's — before or after they are unified). */
+const typedOf = (r: SourceRecord, ...ids: string[]) => (r.typed ?? []).find((f) => ids.includes(f.id))?.value ?? null;
+
+/** What noise is read from in a record: a mail's sender, subject and text; a message's sender; an appointment's key. Null: nothing to read. */
+function noiseInput(r: SourceRecord): NoiseRecord | null {
+  if (r.dataType === "mail") {
+    const from = String(typedOf(r, "mailfrom") ?? "");
+    const email = from.match(/<([^>]+)>\s*$/)?.[1] ?? (from.includes("@") ? from.trim() : "");
+    const at = typedOf(r, "mailreceived");
+    return { type: "mail", from: from.replace(/\s*<[^>]*>\s*$/, ""), fromEmail: email, subject: r.title, text: r.text, contentKey: contentKeyOf({ type: "mail", from, fromEmail: email, subject: r.title, text: r.text, at: typeof at === "string" ? at : null }) };
+  }
+  if (r.dataType === "message") return { type: "message", from: String(typedOf(r, "msgsender") ?? ""), mine: typedOf(r, "msgmine") === true };
+  if (r.dataType === "calendar") {
+    const start = typedOf(r, "calstart");
+    return { type: "calendar", contentKey: contentKeyOf({ type: "calendar", title: r.title, start: typeof start === "string" ? start : null, organizer: String(typedOf(r, "calorganizer") ?? "") }) };
+  }
+  return null;
+}
+
+/** The records of a source with their noise (newsletter, bot …) and the key a duplicate in another source is found by. */
+function withNoise(records: SourceRecord[]): SourceRecord[] {
+  return records.map((r) => {
+    const input = noiseInput(r);
+    if (!input) return r;
+    const noise = noiseOf(classifyNoise({ ...input, contentKey: null }));
+    return { ...r, ...(noise ? { noise } : {}), ...(input.contentKey ? { contentKey: input.contentKey } : {}) };
+  });
+}
+
+/** What a source gave added to the records so far (a record already there by its ref: not again); the same thing twice from two sources: the second one is noise "duplicate". */
+function addSource(records: SourceRecord[], got: SourceRecord[]): SourceRecord[] {
+  const refs = new Set(records.map((r) => r.ref));
+  const seen = new Map<string, string>();
+  return [...records, ...got.filter((r) => !refs.has(r.ref))].map((r) => {
+    if (!r.contentKey || (r.noise && r.noise.kind !== "duplicate")) {
+      if (r.contentKey && !seen.has(r.contentKey)) seen.set(r.contentKey, r.ref);
+      return r;
+    }
+    const v = classifyNoise({ contentKey: r.contentKey }, { seen, ref: r.ref });
+    if (v.kind === "duplicate") return { ...r, noise: { kind: "duplicate" as const, why: v.why } };
+    return r.noise ? { ...r, noise: undefined } : r;
+  });
+}
+
 async function read(step: PipelineStep, self: number): Promise<SourceRecord[]> {
+  return withNoise(await readRaw(step, self));
+}
+
+async function readRaw(step: PipelineStep, self: number): Promise<SourceRecord[]> {
   if (step.from === "knowledge") return knowledgeRecords(step.knowledge ?? { terms: [] }, self);
   if (step.from === "ext") {
     // A plugin's source that isn't there (not loaded yet in this process, uninstalled) is no empty source: its rows stay.
@@ -366,6 +421,8 @@ function valueOf(r: SourceRecord, field: string): string | boolean | number | nu
   if (["title", "subject", "name", "titel", "betreff"].includes(name)) return r.title;
   if (name === "key") return r.key ?? null;
   if (name === "status") return r.status?.name ?? null;
+  // Its noise (newsletter, bot, own-transfer, pocket, duplicate) — a rule can ask for one kind.
+  if (name === "noise" || name === "rauschen") return r.noise?.kind ?? null;
   const typed = (r.typed ?? []).find((x) => x.name.toLowerCase() === name);
   // A person field: its profile ids, as a filter compares them (a list in words).
   if (typed) return Array.isArray(typed.value) ? typed.value.join(", ") : typed.value;
@@ -454,8 +511,7 @@ export async function previewJoin(dbId: number, steps: PipelineStep[], stepId: s
   let records: SourceRecord[] = [];
   for (const s of steps.slice(0, steps.indexOf(step))) {
     if (s.kind === "source") {
-      const seen = new Set(records.map((r) => r.ref));
-      records = [...records, ...(await read(s, dbId)).filter((r) => !seen.has(r.ref))];
+      records = addSource(records, await read(s, dbId));
     } else if (s.kind === "filter") records = filtered(records, s);
     else if (s.kind === "set") records = applySet(records, s);
     else if (s.kind === "join") records = applyJoin(records, s).records;
@@ -472,8 +528,7 @@ export async function previewRecords(dbId: number, steps: PipelineStep[], stepId
   let records: SourceRecord[] = [];
   for (const s of steps.slice(0, steps.indexOf(step))) {
     if (s.kind === "source") {
-      const seen = new Set(records.map((r) => r.ref));
-      records = [...records, ...(await read(s, dbId)).filter((r) => !seen.has(r.ref))];
+      records = addSource(records, await read(s, dbId));
     } else if (s.kind === "filter") records = filtered(records, s);
     else if (s.kind === "set") records = applySet(records, s);
     else if (s.kind === "join") records = applyJoin(records, s).records;
@@ -489,9 +544,7 @@ export async function previewSet(dbId: number, steps: PipelineStep[], stepId: st
   let records: SourceRecord[] = [];
   for (const s of steps.slice(0, steps.indexOf(step))) {
     if (s.kind === "source") {
-      const seen = new Set(records.map((r) => r.ref));
-      const got = await read(s, dbId);
-      records = [...records, ...got.filter((r) => !seen.has(r.ref))];
+      records = addSource(records, await read(s, dbId));
     } else if (s.kind === "filter") records = filtered(records, s);
     else if (s.kind === "set") records = applySet(records, s);
     else if (s.kind === "join") records = applyJoin(records, s).records;
@@ -499,6 +552,9 @@ export async function previewSet(dbId: number, steps: PipelineStep[], stepId: st
   if (new Set(records.map((r) => r.dataType).filter(Boolean)).size > 1) records = records.map(unifyComm);
   return records.filter((r) => matches(r, step)).map((r) => ({ title: r.title }));
 }
+
+/** A pipeline with a noise filter (newsletters, bots, money only moved, duplicates hidden). */
+export const hidesNoise = (steps: PipelineStep[]): boolean => steps.some((s) => s.kind === "filter" && s.noise === "hide");
 
 function filtered(records: SourceRecord[], f: PipelineStep): SourceRecord[] {
   const text = f.text?.toLowerCase();
@@ -509,6 +565,7 @@ function filtered(records: SourceRecord[], f: PipelineStep): SourceRecord[] {
       (!rules.length || (f.match === "any" ? rules.some((x) => holds(r, x)) : rules.every((x) => holds(r, x)))) &&
       (!text || [r.title, r.key ?? "", ...Object.values(r.fields), ...(r.typed ?? []).map((x) => String(x.value ?? ""))].join(" ").toLowerCase().includes(text)) &&
       (!f.openOnly || r.status?.group !== "done") &&
+      (f.noise !== "hide" || !r.noise) &&
       (!from || r.status?.group === "doing" || at(r.updatedAt) >= from),
   );
   return f.limit ? out.slice(0, f.limit) : out;
@@ -635,17 +692,18 @@ async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boole
     }
     // Sources and filters, in order (a filter narrows what the sources before it gave).
     let records: SourceRecord[] = [];
+    // A noise filter anywhere: noise is gone before any AI filter sees the records (never sent to the model).
+    const hideNoise = hidesNoise(steps);
     // Mail and messages together (a combined inbox): their shared fields, from the first step on (so a rule says "Channel", "From").
     const mixed = steps.some((s) => s.kind === "source" && s.from === "mail") && steps.some((s) => s.kind === "source" && s.from === "messages");
     for (const s of steps) {
       if (s.kind === "source") {
-        const seen = new Set(records.map((r) => r.ref));
         const got = await read(s, dbId);
-        records = [...records, ...(mixed ? got.map(unifyComm) : got).filter((r) => !seen.has(r.ref))];
+        records = addSource(records, mixed ? got.map(unifyComm) : got);
       } else if (s.kind === "filter") records = filtered(records, s);
       else if (s.kind === "set") records = applySet(records, s);
       else if (s.kind === "join") records = applyJoin(records, s).records;
-      else if (s.kind === "ai" && s.output === "filter") records = await aiFiltered(s, records);
+      else if (s.kind === "ai" && s.output === "filter") records = await aiFiltered(s, hideNoise ? records.filter((r) => !r.noise) : records);
       else if (s.kind === "rules" && s.dbId) records = (await import("./rules")).applyRules(records, s.dbId, s.to);
     }
     // Whatever mixes mails and messages (also from other databases): the shared fields.
@@ -861,10 +919,20 @@ export function runDuePipelines(opts: { ai: boolean }): number {
 export const recordText = (r: SourceRecord): string =>
   [r.title, ...(r.typed ?? []).filter((f) => f.value !== null && f.value !== "" && !/conv$/.test(f.id)).map((f) => `${f.name}: ${f.value}`), ...Object.entries(r.fields).map(([k, v]) => `${k}: ${v}`), (r.text ?? "").slice(0, 1500)].filter(Boolean).join("\n");
 
-function filterDb() {
-  getSqlite().exec("create table if not exists ws_ai_filter (step_id text not null, ref text not null, hash text not null, keep integer not null, why text, primary key (step_id, ref))");
-  return getSqlite();
+/** The verdicts an AI filter gave before the memo (by step, at a hash of condition and record) — read, no longer written. */
+function legacyVerdicts(stepId: string): Map<string, { hash: string; keep: number; why: string | null }> {
+  const db = getSqlite();
+  if (!db.prepare("select 1 from sqlite_master where type = 'table' and name = 'ws_ai_filter'").get()) return new Map();
+  return new Map((db.prepare("select ref, hash, keep, why from ws_ai_filter where step_id = ?").all(stepId) as { ref: string; hash: string; keep: number; why: string | null }[]).map((x) => [x.ref, x]));
 }
+
+/** What an AI filter's verdicts are kept under (lib/ai/memo): its condition — the instruction, the instructions picked, the frame — not the step. */
+function filterSpec(step: PipelineStep): { spec: string; scope: string } {
+  const spec = `${step.prompt ?? ""}\n${instructionText(step.instructions)}\n${promptText("ai-filter", AI_FILTER)}`;
+  return { spec, scope: `ai-filter:${memoHash(spec)}` };
+}
+
+type Verdict = { keep: boolean; why: string | null };
 
 /**
  * An AI filter step: only the records the AI keeps by its instruction ("important, urgent, or needs me to act"), each with
@@ -877,17 +945,32 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
   const told = instructionText(step.instructions);
   // No condition (no instruction, no prompt picked): everything through.
   if (!step.prompt?.trim() && !told.trim()) return records;
-  // What decides a verdict: the condition, the instructions, the frame (a change to any — the rows are judged again).
-  const { fillPrompt, promptText } = await import("@/lib/prompts");
-  const spec = `${step.prompt ?? ""}\n${told}\n${promptText("ai-filter", AI_FILTER)}`;
-  const hashOf = (r: SourceRecord) => createHash("sha1").update(`${spec}\n${recordText(r)}`).digest("hex");
-  const db = filterDb();
-  const known = new Map((db.prepare("select ref, hash, keep, why from ws_ai_filter where step_id = ?").all(step.id) as { ref: string; hash: string; keep: number; why: string | null }[]).map((x) => [x.ref, x]));
-  const todo = records.filter((r) => known.get(r.ref)?.hash !== hashOf(r));
+  // What decides a verdict: the condition, the instructions, the frame (a change to any — the rows are judged again) — kept by
+  // a hash of it (two filters of the same condition share their verdicts), each record's at a hash of its text.
+  const { fillPrompt } = await import("@/lib/prompts");
+  const { spec, scope } = filterSpec(step);
+  const hashOf = (r: SourceRecord) => memoHash(recordText(r));
+  const kept = memoAll<Verdict>(scope);
+  const legacy = legacyVerdicts(step.id);
+  const known = new Map<string, Verdict>();
+  for (const r of records) {
+    const hash = hashOf(r);
+    const m = kept.get(r.ref);
+    if (m?.hash === hash) known.set(r.ref, m.value);
+    else {
+      // Judged before the memo (by step): still good when neither changed — moved into the memo.
+      const old = legacy.get(r.ref);
+      if (old && old.hash === createHash("sha1").update(`${spec}\n${recordText(r)}`).digest("hex")) {
+        const v = { keep: !!old.keep, why: old.why };
+        known.set(r.ref, v);
+        memoSet(scope, r.ref, hash, v);
+      }
+    }
+  }
+  const todo = records.filter((r) => !known.has(r.ref));
   const { isInstalled } = await import("@/plugins/state");
   if (todo.length && isInstalled("llm")) {
     const { runAi } = await import("@/lib/ai");
-    const save = db.prepare("insert into ws_ai_filter (step_id, ref, hash, keep, why) values (?, ?, ?, ?, ?) on conflict(step_id, ref) do update set hash = excluded.hash, keep = excluded.keep, why = excluded.why");
     const SCHEMA = { type: "object", required: ["rows"], properties: { rows: { type: "array", items: { type: "object", required: ["n", "keep"], properties: { n: { type: "integer" }, keep: { type: "boolean" }, why: { type: "string" } } } } } };
     for (let i = 0; i < todo.length; i += 30) {
       const batch = todo.slice(i, i + 30);
@@ -895,7 +978,7 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
         const r = await runAi<{ rows?: { n?: number; keep?: boolean; why?: string }[] }>(
           [...(told ? ["Grundsätze:", told, ""] : []), fillPrompt("ai-filter", AI_FILTER, { instruction: step.prompt || "Behalte nur, was wichtig oder dringend ist oder bei dem ich handeln muss." }), "", ...batch.map((b, k) => `## [${k + 1}]\n${recordText(b)}`)].join("\n"),
           SCHEMA,
-          { task: "general", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 },
+          { task: "ai-filter", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 },
         );
         noteAi(r);
         const verdicts = new Map((r.output?.rows ?? []).map((x) => [Number(x.n), x]));
@@ -903,8 +986,9 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
         batch.forEach((b, k) => {
           const v = verdicts.get(k + 1);
           if (!v) return;
-          save.run(step.id, b.ref, hashOf(b), v.keep ? 1 : 0, String(v.why ?? "").slice(0, 300) || null);
-          known.set(b.ref, { ref: b.ref, hash: hashOf(b), keep: v.keep ? 1 : 0, why: v.why ?? null });
+          const verdict = { keep: !!v.keep, why: String(v.why ?? "").slice(0, 300) || null };
+          memoSet(scope, b.ref, hashOf(b), verdict);
+          known.set(b.ref, verdict);
         });
       } catch (e) {
         console.error("[workspace] the AI filter failed", errorMessage(e));
@@ -913,7 +997,7 @@ async function aiFiltered(step: PipelineStep, records: SourceRecord[]): Promise<
   }
   return records.flatMap((r) => {
     const v = known.get(r.ref);
-    if (!v || v.hash !== hashOf(r) || !v.keep) return [];
+    if (!v?.keep) return [];
     return [{ ...r, typed: [...(r.typed ?? []), { id: "filterwhy", name: "Why", type: "text" as const, value: v.why ?? "" }] }];
   });
 }
@@ -935,9 +1019,13 @@ export async function syncAfterEdit(rowId: number): Promise<PipelineResult | nul
   return startPipeline(page.dbId, { ai: false }).done;
 }
 
-/** An AI filter's verdicts dropped: its rows judged all again at the next run. */
-export function forgetVerdicts(stepId: string): void {
-  filterDb().prepare("delete from ws_ai_filter where step_id = ?").run(stepId);
+/** An AI filter's verdicts dropped (those of its condition, and the ones from before the memo): its rows judged all again at the next run. */
+export function forgetVerdicts(stepId: string, dbId?: number): void {
+  const stepIn = (id: number) => getDatabase(id)?.schema.pipeline?.steps.find((s) => s.id === stepId);
+  const step = dbId ? stepIn(dbId) : tree().flatMap((p) => (p.kind === "database" ? [stepIn(p.id)] : [])).find(Boolean);
+  if (step) memoForget(filterSpec(step).scope);
+  const db = getSqlite();
+  if (db.prepare("select 1 from sqlite_master where type = 'table' and name = 'ws_ai_filter'").get()) db.prepare("delete from ws_ai_filter where step_id = ?").run(stepId);
 }
 
 /** The suggested actions' frame ({{instruction}}: the step's) — a page of System → Prompts. */
@@ -966,14 +1054,14 @@ async function suggestActions(dbId: number, step: PipelineStep, force?: boolean)
   const told = instructionText(step.instructions);
   const frame = `${step.prompt ?? ""}\n${told}\n${promptText("row-actions", ROW_ACTIONS)}\n${[...runnable].join(",")}`;
   const text = (r: Row) => [`## [${r.id}] ${r.title}`, ...props.map((p) => `${p.name}: ${cellText(p, r.cells[p.id])}`).filter((l) => !/: $/.test(l)), docToMarkdown(getPage(r.id)?.content).slice(0, 1500)].join("\n");
-  const db = getSqlite();
-  db.exec("create table if not exists ws_row_actions (step_id text not null, row_id integer not null, hash text not null, primary key (step_id, row_id))");
-  const known = new Map((db.prepare("select row_id, hash from ws_row_actions where step_id = ?").all(step.id) as { row_id: number; hash: string }[]).map((x) => [x.row_id, x.hash]));
+  // Which row was asked at which input: in the AI memo (lib/ai/memo; the old table ws_row_actions moved in once).
+  const scope = `row-actions:${step.id}`;
+  memoMigrate("row-actions", "ws_row_actions", "select 'row-actions:' || step_id as scope, cast(row_id as text) as ref, hash, 'true' as value, datetime('now') as at from ws_row_actions");
+  const known = memoAll<boolean>(scope);
   const hashOf = (r: Row) => createHash("sha1").update(`${frame}\n${text(r)}`).digest("hex");
-  const todo = rawRows(dbId).filter((r) => force || known.get(r.id) !== hashOf(r));
+  const todo = rawRows(dbId).filter((r) => force || known.get(String(r.id))?.hash !== hashOf(r));
   if (!todo.length) return;
   const { runAi } = await import("@/lib/ai");
-  const save = db.prepare("insert into ws_row_actions (step_id, row_id, hash) values (?, ?, ?) on conflict(step_id, row_id) do update set hash = excluded.hash");
   const SCHEMA = { type: "object", required: ["rows"], properties: { rows: { type: "array", items: { type: "object", required: ["id", "ops"], properties: { id: { type: "integer" }, ops: { type: "array", items: { type: "object" } }, why: { type: "string" } } } } } };
   const today = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   for (let i = 0; i < todo.length; i += 15) {
@@ -991,7 +1079,7 @@ async function suggestActions(dbId: number, step: PipelineStep, force?: boolean)
       const ops = cleanActions(v.ops ?? [], { ticket: rowKey(row) ?? "" }).filter((o) => runnable.has(o.type));
       const titles = ops.map((o) => actionOf(o.type).title(o as never, t));
       setCell(row.id, ROW_ACTIONS_PROP, ops.length ? JSON.stringify({ ops, titles, why: String(v.why ?? "").slice(0, 300) }) : null);
-      save.run(step.id, row.id, hashOf(row));
+      memoSet(scope, String(row.id), hashOf(row), true);
     }
   }
 }
@@ -1011,10 +1099,10 @@ export async function previewAiFilter(dbId: number, steps: PipelineStep[], stepI
   let records: SourceRecord[] = [];
   for (const s of steps.slice(0, steps.indexOf(step))) {
     if (s.kind === "source") {
-      const seen = new Set(records.map((r) => r.ref));
-      records = [...records, ...(await read(s, dbId)).filter((r) => !seen.has(r.ref))];
+      records = addSource(records, await read(s, dbId));
     } else if (s.kind === "filter") records = filtered(records, s);
   }
+  if (hidesNoise(steps)) records = records.filter((r) => !r.noise);
   const sample = records.slice(0, Math.min(30, Math.max(1, size)));
   if (!sample.length) return [];
   const { instructionText } = await import("./instructions");
@@ -1025,7 +1113,7 @@ export async function previewAiFilter(dbId: number, steps: PipelineStep[], stepI
   const r = await runAi<{ rows?: { n?: number; keep?: boolean; why?: string }[] }>(
     [...(told ? ["Grundsätze:", told, ""] : []), fillPrompt("ai-filter", AI_FILTER, { instruction: step.prompt || "" }), "", ...sample.map((b, k) => `## [${k + 1}]\n${recordText(b)}`)].join("\n"),
     SCHEMA,
-    { task: "general", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 },
+    { task: "ai-filter", timeoutMs: 5 * 60000, maxBudgetUsd: 0.5 },
   );
   const verdicts = new Map((r.output?.rows ?? []).map((x) => [Number(x.n), x]));
   return sample.map((b, k) => ({ title: b.title, keep: !!verdicts.get(k + 1)?.keep, why: String(verdicts.get(k + 1)?.why ?? "").slice(0, 300) }));
@@ -1132,20 +1220,23 @@ async function runAiSteps(dbId: number, out: PipelineResult, force?: boolean): P
   const today = new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" });
   const { createHash } = await import("node:crypto");
   for (const s of summaries) {
-    // The rows as they were at its last run: not written again.
+    // The rows as they were at its last run: not written again (the memo knows; a summary from before it, its step's hash).
     const told = instructionText(s.instructions);
     const hash = createHash("sha1").update(`${s.prompt ?? ""}\n${told}\n${lines}`).digest("hex");
-    if (!force && s.result?.hash === hash) continue;
+    const ref = `${dbId}:${s.id}`;
+    if (!force && (memoGet("pipeline-summary", ref, hash) !== undefined || s.result?.hash === hash)) continue;
     const r = await runAi<{ text?: string }>(
       [...(told ? ["Grundsätze:", told, ""] : []), fillPrompt("pipeline-summary", PIPELINE_SUMMARY, { instruction: s.prompt || "Fasse die Lage über alle Zeilen zusammen.", today }), "", lines].join("\n"),
       { type: "object", required: ["text"], properties: { text: { type: "string" } } },
-      { task: "general", timeoutMs: 4 * 60000, maxBudgetUsd: 0.5 },
+      { task: "pipeline-summary", timeoutMs: 4 * 60000, maxBudgetUsd: 0.5 },
     );
     noteAi(r);
     const text = String(r.output?.text ?? "").trim().slice(0, 8000);
     const cur = getDatabase(dbId)!.schema;
     const pipeline = cur.pipeline ?? { steps: [] };
-    updateSchema(dbId, { ...cur, pipeline: { ...pipeline, steps: pipeline.steps.map((x) => (x.id === s.id ? { ...x, result: { text, at: new Date().toISOString(), hash } } : x)) } });
+    const at = new Date().toISOString();
+    updateSchema(dbId, { ...cur, pipeline: { ...pipeline, steps: pipeline.steps.map((x) => (x.id === s.id ? { ...x, result: { text, at } } : x)) } });
+    memoSet("pipeline-summary", ref, hash, true, at);
     out.summaries++;
   }
 }

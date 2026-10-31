@@ -6,6 +6,7 @@ import { markedAccounts } from "./accounts";
 import { movedOnly } from "./insights";
 import { detectRecurring, STRICT, type Rhythm } from "./recurring";
 import { addDays, localDay } from "@/lib/dates";
+import { classifyNoise } from "@/lib/noise";
 
 /**
  * The recurring payments as records of the Workspace (the Finances plugin's source "recurring"): each running contract or
@@ -28,7 +29,6 @@ export async function recurringRecords(today = localDay()): Promise<SourceRecord
   // moves by their words ("… einzustecken", round-ups), and money to a person you know (by the booking's person — its account or
   // its name, people/resolve.ts; an organisation among your contacts can be a contract).
   const moved = movedOnly(all);
-  const POCKET = /einzustecken|pocket|spartopf|ersparnis|round[- ]?up|aufrund|sparen|savings|vault/i;
   const persons = new Set<number>();
   let who: import("@/plugins/people/resolve").PersonResolver | null = null;
   try {
@@ -43,13 +43,13 @@ export async function recurringRecords(today = localDay()): Promise<SourceRecord
     const id = b.person_id ?? who?.byIban(b.iban) ?? null;
     return id !== null && persons.has(id);
   };
-  const rows = all.filter((b) => b.amount < 0 && !POCKET.test(`${b.text} ${b.counterparty}`) && !toPerson(b));
+  const rows = all.filter((b) => b.amount < 0 && classifyNoise({ type: "bank", text: b.text, counterparty: b.counterparty }).kind !== "pocket" && !toPerson(b));
   const label: Record<Rhythm, string> = { monthly: t("Monthly"), quarterly: t("Quarterly"), yearly: t("Yearly") };
   // An account you marked as yours (your own, a credit account) is no contract.
-  const marked = markedAccounts();
+  const own = new Set([...Object.keys(markedAccounts()), ...moved]);
   // (The strict reading, as the Finances overview's: a few payments of a rhythm, not two of something.)
   return detectRecurring(rows, today, STRICT)
-    .filter((r) => r.active && !marked[r.key] && !moved.has(r.key))
+    .filter((r) => r.active && !classifyNoise({ type: "bank", key: r.key }, { own }).kind)
     .map((r) => ({
       ref: `recurring:${r.key}`,
       title: r.name,

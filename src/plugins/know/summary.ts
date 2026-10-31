@@ -6,7 +6,7 @@
  * hooked into the People matching step; a switch turns it off) and when you ask on a panel. Your verdict on one goes to the
  * learning ledger. The brief is already cut to what may be seen; the LLM layer leaves secret lines out of every prompt. Server only.
  */
-import { getSqlite } from "@/db";
+import { memoMigrate, memoPeek, memoSet } from "@/lib/ai/memo";
 import { recordFeedback } from "@/lib/learning/ledger";
 import { getPref, setPref } from "@/lib/prefs";
 import { fillPrompt } from "@/lib/prompts";
@@ -38,11 +38,9 @@ export const setAutoSummary = (on: boolean): void => setPref(AUTO, on);
 const AHEAD_MINUTES = 180;
 const PER_RUN = 6;
 
-function db() {
-  const d = getSqlite();
-  d.exec("create table if not exists know_summaries (key text primary key, hash text not null, points text not null default '[]', at text not null)");
-  return d;
-}
+/** The summaries made: in the AI memo (lib/ai/memo; the old table know_summaries moved in once) — by key, at the brief's hash. */
+const SCOPE = "know-summary";
+const migrate = () => memoMigrate(SCOPE, "know_summaries", "select 'know-summary' as scope, key as ref, hash, points as value, at from know_summaries");
 
 const day = (iso: string) => iso.slice(0, 16).replace("T", " ");
 const euro = (n: number) => `${n.toFixed(2).replace(".", ",")} €`;
@@ -67,18 +65,12 @@ export function summaryLines(b: Brief): { text: string; link: BriefLink }[] {
   return out;
 }
 
-type Row = { key: string; hash: string; points: string; at: string };
-
 /** The summary kept for `key` — `current` when it was made from this hash (null hash: any). null: none made yet. */
 export function cachedSummary(key: string, hash: string | null): BriefSummary | null {
-  const r = db().prepare("select * from know_summaries where key = ?").get(key) as Row | undefined;
+  migrate();
+  const r = memoPeek<BriefSummary["points"]>(SCOPE, key);
   if (!r) return null;
-  let points: BriefSummary["points"] = [];
-  try {
-    points = JSON.parse(r.points) as BriefSummary["points"];
-  } catch {
-    points = [];
-  }
+  const points = Array.isArray(r.value) ? r.value : [];
   return { points, hash: r.hash, at: r.at, current: hash == null || r.hash === hash };
 }
 
@@ -107,7 +99,7 @@ export async function summarizeBrief(key: string, b: Brief, opts: { ai?: Summary
   });
   if (!points.length) return had;
   const at = new Date().toISOString();
-  db().prepare("insert into know_summaries (key, hash, points, at) values (?, ?, ?, ?) on conflict(key) do update set hash = excluded.hash, points = excluded.points, at = excluded.at").run(key, b.hash, JSON.stringify(points), at);
+  memoSet(SCOPE, key, b.hash, points, at);
   return { points, hash: b.hash, at, current: true };
 }
 

@@ -1,6 +1,7 @@
 import { and, asc, desc, gte, inArray, isNull, sql } from "drizzle-orm";
 import { promptText } from "@/lib/prompts";
 import { throwIfAborted } from "@/lib/abort";
+import { SYSTEM_SENDER } from "@/lib/noise";
 import { getDb, schema } from "@/db";
 import { runAi } from "@/lib/ai";
 import { COPILOT_MAX_PROMPT } from "@/plugins/copilot-cli/cli";
@@ -350,7 +351,7 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
     const recentFrom = new Date(Date.now() - 30 * 864e5).toISOString();
     const current = dormant.length
       ? [...lastOf.values()]
-          .filter((x) => x.receivedAt >= recentFrom && !/no-?reply|newsletter|notification|mailer-daemon|news@|marketing/i.test(x.fromEmail ?? ""))
+          .filter((x) => x.receivedAt >= recentFrom && !SYSTEM_SENDER.test(x.fromEmail ?? ""))
           .sort((a, b) => b.receivedAt.localeCompare(a.receivedAt))
           .slice(0, 80)
       : [];

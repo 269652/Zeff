@@ -320,6 +320,8 @@ export type PipelineStep = {
   recentDays?: number;
   limit?: number;
   output?: "field" | "summary" | "filter" | "actions";
+  /** Filter: "hide" leaves out the noise (lib/noise: newsletters, bots, money only moved, duplicates) — before any AI filter. */
+  noise?: "hide";
   /** Filter: rules as Outlook's (a field by its name, a condition, a value) — all of them, or any. */
   rules?: FilterRule[];
   match?: "all" | "any";
@@ -399,7 +401,7 @@ export function normalizePipeline(raw: unknown): Pipeline {
         if (!field || !(FILTER_OPS as readonly unknown[]).includes(r.op)) return [];
         return [defined<FilterRule>({ field, op: r.op as FilterRule["op"], value: typeof r.value === "string" ? r.value : undefined })];
       });
-      steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit), rules: rules.length ? rules : undefined, match: rules.length && s.match === "any" ? "any" : undefined }));
+      steps.push(defined<PipelineStep>({ id, kind: "filter", text: str(s.text), openOnly: s.openOnly === true, recentDays: posInt(s.recentDays), limit: posInt(s.limit), rules: rules.length ? rules : undefined, match: rules.length && s.match === "any" ? "any" : undefined, noise: s.noise === "hide" ? "hide" : undefined }));
     } else if (s.kind === "rules") {
       // Rules read from a rules database (`dbId`); a rule that hands a record to an agent makes its job in `to`.
       if (posInt(s.dbId)) steps.push(defined<PipelineStep>({ id, kind: "rules", dbId: posInt(s.dbId), to: posInt(s.to) }));

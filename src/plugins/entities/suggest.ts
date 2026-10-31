@@ -13,6 +13,7 @@ import { getSqlite } from "@/db";
 import { isDone, markDone } from "@/lib/once-done";
 import { adoptProposals, decide, expireProposals, openProposals, propose as putProposal, type Proposal, type ProposalStatus } from "@/lib/proposals";
 import { emitChange } from "@/lib/events";
+import { SYSTEM_LABELS } from "@/lib/noise";
 import { createProject, getProjectByTitle } from "@/lib/projects";
 import { addLink } from "@/plugins/people/graph";
 import { listPeople } from "@/plugins/people/store";
@@ -120,9 +121,6 @@ function all<T>(sql: string, ...args: unknown[]): T[] {
     return [];
   }
 }
-
-/** Domains that are a mail system's, not an organisation's ("teams.mail.microsoft", "send.example.com" read as its label). */
-const SYSTEM_LABELS = new Set(["mail", "email", "e", "send", "news", "newsletter", "info", "noreply", "no-reply", "notifications", "notification", "bounce", "mailer", "smtp", "mx", "m", "em", "t"]);
 
 const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
 

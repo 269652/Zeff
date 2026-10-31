@@ -9,6 +9,7 @@ import { cellText, type Property, type Row } from "./model";
 import { noteAi } from "./meter";
 import { getDatabase, getPage, rawRows, setCell, tree } from "./store";
 import { batchByChars } from "@/lib/ai/batch-job";
+import { memoAll, memoMigrate, memoSet } from "@/lib/ai/memo";
 
 /**
  * The AI review of a database: its AI properties (each with its instruction — and its choices, if it has them) filled by
@@ -20,9 +21,11 @@ import { batchByChars } from "@/lib/ai/batch-job";
 
 const BATCH_CHARS = 14000;
 
-function db() {
-  getSqlite().exec("create table if not exists ws_review (row_id integer primary key, hash text not null, reviewed_at text not null)");
-  return getSqlite();
+/** Which row was read at which input: in the AI memo (lib/ai/memo; the old table ws_review moved in once). */
+const SCOPE = "ws-review";
+function reviewed(): Map<string, { hash: string }> {
+  memoMigrate(SCOPE, "ws_review", "select 'ws-review' as scope, cast(row_id as text) as ref, hash, 'true' as value, reviewed_at as at from ws_review");
+  return memoAll<boolean>(SCOPE);
 }
 
 export type ReviewResult = { dbId: number; ok: boolean; rows: number; reviewed: number; unchanged: number; failed: number; error?: string };
@@ -69,7 +72,7 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
   const ai = d.schema.properties.filter((p) => p.type === "ai");
   const rows = rawRows(dbId);
   if (!ai.length || !rows.length) return { ...base, rows: rows.length };
-  const known = new Map((db().prepare("select row_id, hash from ws_review").all() as { row_id: number; hash: string }[]).map((r) => [r.row_id, r.hash]));
+  const known = reviewed();
   const grounds = await told(ai);
   const spec = `${ai.map((p) => `${p.id}:${p.aiPrompt ?? ""}:${(p.aiChoices ?? []).join("|")}`).join(";")}\n${grounds}`;
   const todo: { row: Row; text: string; hash: string }[] = [];
@@ -86,7 +89,7 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
     if (skipped(row)) continue;
     const text = rowBlock(row, d.schema.properties, ai);
     const hash = createHash("sha1").update(`${spec}\n${text}`).digest("hex");
-    if (!opts.force && known.get(row.id) === hash) continue;
+    if (!opts.force && known.get(String(row.id))?.hash === hash) continue;
     todo.push({ row, text, hash });
   }
   const result: ReviewResult = { ...base, rows: rows.length, unchanged: rows.length - todo.length - rows.filter(skipped).length };
@@ -97,10 +100,9 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
   for (const p of ai) values[p.id] = p.aiChoices?.length ? { type: "string", enum: p.aiChoices } : { type: "string" };
   const SCHEMA = { type: "object", required: ["rows"], properties: { rows: { type: "array", items: { type: "object", required: ["id", "values"], properties: { id: { type: "integer" }, values: { type: "object", properties: values } } } } } };
   const { runAi } = await import("@/lib/ai");
-  const save = db().prepare("insert into ws_review (row_id, hash, reviewed_at) values (?, ?, ?) on conflict(row_id) do update set hash = excluded.hash, reviewed_at = excluded.reviewed_at");
   for (const batch of batches) {
     try {
-      const r = await runAi<{ rows?: { id?: number; values?: Record<string, unknown> }[] }>(`${instructions(ai, grounds)}\n\n${batch.map((b) => b.text).join("\n\n")}`, SCHEMA, { task: "general", timeoutMs: 6 * 60000, maxBudgetUsd: 1 });
+      const r = await runAi<{ rows?: { id?: number; values?: Record<string, unknown> }[] }>(`${instructions(ai, grounds)}\n\n${batch.map((b) => b.text).join("\n\n")}`, SCHEMA, { task: "ai-field", timeoutMs: 6 * 60000, maxBudgetUsd: 1 });
       noteAi(r);
       const byId = new Map((r.output?.rows ?? []).map((x) => [Number(x.id), x.values ?? {}]));
       for (const b of batch) {
@@ -111,7 +113,7 @@ export async function reviewDatabase(dbId: number, opts: { force?: boolean } = {
           const ok = raw && (!p.aiChoices?.length || p.aiChoices.includes(raw));
           setCell(b.row.id, p.id, ok ? raw : null);
         }
-        save.run(b.row.id, b.hash, new Date().toISOString());
+        memoSet(SCOPE, String(b.row.id), b.hash, true);
         result.reviewed++;
       }
     } catch (e) {

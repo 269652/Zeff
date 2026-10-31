@@ -42,7 +42,7 @@ export async function askNews(question: string, deps: { ask?: (prompt: string) =
     deps.ask ??
     (async (prompt: string) => {
       const { runAi } = await import("@/lib/ai");
-      return (await runAi<Raw>(prompt, SCHEMA, { task: "news-digest", timeoutMs: 4 * 60000, maxBudgetUsd: 0.3 })).output;
+      return (await runAi<Raw>(prompt, SCHEMA, { task: "news-ask", timeoutMs: 4 * 60000, maxBudgetUsd: 0.3 })).output;
     });
   const textOf = (it: NewsItem) => (it.hasContent ? (getContent(it.id)?.content ?? "").slice(0, 900) : it.summary);
   const sources = items.map((it, i) => ({ n: i + 1, item: it, source: it.sourceName, title: it.title, text: textOf(it) }));

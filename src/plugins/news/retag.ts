@@ -84,7 +84,7 @@ export async function aiTagBatch(deps: { ask?: (prompt: string) => Promise<Taggi
     deps.ask ??
     (async (prompt: string) => {
       const { runAi } = await import("@/lib/ai");
-      return (await runAi<Tagging>(prompt, SCHEMA, { task: "news-digest", timeoutMs: 4 * 60000, maxBudgetUsd: 0.25 })).output;
+      return (await runAi<Tagging>(prompt, SCHEMA, { task: "news-retag", timeoutMs: 4 * 60000, maxBudgetUsd: 0.25 })).output;
     });
   const numbered = items.map((it, i) => ({ n: i + 1, title: it.title, summary: it.summary }));
   const answer = await ask(taggingPrompt(numbered));

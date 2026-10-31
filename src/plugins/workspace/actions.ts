@@ -524,7 +524,7 @@ export async function rejudgeAction(dbId: number, stepId: string) {
   return run(async () => {
     if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
     const p = await import("./pipeline");
-    p.forgetVerdicts(String(stepId));
+    p.forgetVerdicts(String(stepId), Number(dbId));
     return { started: p.startPipeline(Number(dbId), { ai: true }).started };
   });
 }
@@ -1083,7 +1083,7 @@ export async function aiTextAction(v: { mode: AiMode; text: string; instruction?
     ]
       .filter(Boolean)
       .join("\n");
-    const ask = async (p: string, schema: object) => ((await runAi<{ text?: string }>(p, schema, { task: "general", timeoutMs: 3 * 60000, maxBudgetUsd: 0.3 })).output ?? {}) as { text?: string };
+    const ask = async (p: string, schema: object) => ((await runAi<{ text?: string }>(p, schema, { task: "editor-ai", timeoutMs: 3 * 60000, maxBudgetUsd: 0.3 })).output ?? {}) as { text?: string };
     let out: string;
     if (v.mode === "custom") {
       // "Write with AI": it has what Zeff knows - what the words of the instruction find in the mails, tickets, messages, notes, knowledge
@@ -1125,7 +1125,7 @@ export async function aiTodosFromPageAction(pageId: number) {
         body,
       ].join("\n"),
       { type: "object", required: ["todos"], properties: { todos: { type: "array", items: { type: "object", required: ["text"], properties: { text: { type: "string" }, ticket: { type: "string" } } } } } },
-      { task: "general", timeoutMs: 3 * 60000, maxBudgetUsd: 0.3 },
+      { task: "page-todos", timeoutMs: 3 * 60000, maxBudgetUsd: 0.3 },
     );
     return { todos: (r.output?.todos ?? []).filter((x) => (x.text ?? "").trim()).slice(0, 20).map((x) => ({ text: String(x.text).trim().slice(0, 300), ticket: /^[A-Za-z][A-Za-z0-9]+-\d+$/.test(x.ticket ?? "") ? String(x.ticket).toUpperCase() : "" })) };
   });
@@ -1206,7 +1206,7 @@ export async function askWorkspaceAction(question: string) {
     const r = await runAi<{ answer?: string; pages?: number[] }>(
       [promptText("workspace-ask", WORKSPACE_ASK), "", `Frage: ${q}`, "", material].join("\n"),
       { type: "object", required: ["answer", "pages"], properties: { answer: { type: "string" }, pages: { type: "array", items: { type: "integer" } } } },
-      { task: "general", timeoutMs: 3 * 60000, maxBudgetUsd: 0.3 },
+      { task: "workspace-ask", timeoutMs: 3 * 60000, maxBudgetUsd: 0.3 },
     );
     const used = (r.output?.pages ?? []).map(Number).filter((id) => hits.some((h) => h.id === id));
     return { answer: String(r.output?.answer ?? "").trim(), pages: used.map((id) => ({ id, title: hits.find((h) => h.id === id)?.title || "Untitled" })) };
@@ -1227,7 +1227,7 @@ export async function aiFillCellAction(rowId: number, propId: string) {
     const r = await runAi<{ text?: string }>(
       [fillPrompt("ai-field", AI_FIELD, { field: p.name, instruction: p.aiPrompt || "Fasse die Zeile in einem Satz zusammen." }), "", `Titel: ${row.title}`, ...cells, "", "Inhalt der Seite:", docText(row.content).slice(0, 6000)].join("\n"),
       { type: "object", required: ["text"], properties: { text: { type: "string" } } },
-      { task: "general", timeoutMs: 2 * 60000, maxBudgetUsd: 0.2 },
+      { task: "ai-field", timeoutMs: 2 * 60000, maxBudgetUsd: 0.2 },
     );
     const value = String(r.output?.text ?? "").trim().slice(0, 2000);
     store.setCell(row.id, p.id, value);

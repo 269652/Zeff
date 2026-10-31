@@ -1,4 +1,4 @@
-import { getSqlite } from "@/db";
+import { memoAll, memoMigrate, memoSetMany } from "@/lib/ai/memo";
 import { promptText } from "@/lib/prompts";
 import { runAi } from "@/lib/ai";
 import { attributed } from "@/lib/boards/activity";
@@ -86,10 +86,11 @@ export function noteReviewPrompt(v: { instructions: string; ticketLines: string[
 export const noteRefsOf = (refs: unknown, known: Set<string>): string[] =>
   (Array.isArray(refs) ? refs : []).map((r) => String(r).trim().replace(/^\[|\]$/g, "")).map((r) => (known.has(r) ? r : `keep:${r}`)).filter((r) => known.has(r));
 
-function db() {
-  const d = getSqlite();
-  d.exec("create table if not exists keep_reviewed (ref text primary key, version text not null, reviewed_at text not null)");
-  return d;
+/** Which note was read at which version: in the AI memo (lib/ai/memo; the old table keep_reviewed moved in once). */
+const SCOPE = "keep-reviewed";
+function readAt(): Map<string, { hash: string }> {
+  memoMigrate(SCOPE, "keep_reviewed", "select 'keep-reviewed' as scope, ref, version as hash, 'true' as value, reviewed_at as at from keep_reviewed");
+  return memoAll<boolean>(SCOPE);
 }
 
 /** A note's version: when it was last edited (a later edit: read again). */
@@ -103,10 +104,10 @@ export type NoteTodosResult = { ok: boolean; reviewed: number; added: number; /*
 /** The notes to read now: edited lately, not read at this version, not empty. */
 function unread(): Note[] {
   const since = new Date(Date.now() - DAYS * 864e5).toISOString();
-  const seen = new Map((db().prepare("select ref, version from keep_reviewed").all() as { ref: string; version: string }[]).map((r) => [r.ref, r.version]));
+  const seen = readAt();
   return briefingNotes()
     .map(({ item, collection }): Note => ({ ...item, where: collection.name }))
-    .filter((n) => (n.title || n.text.trim()) && versionOf(n) >= since && seen.get(n.ref) !== versionOf(n));
+    .filter((n) => (n.title || n.text.trim()) && versionOf(n) >= since && seen.get(n.ref)?.hash !== versionOf(n));
 }
 
 export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTodosResult> {
@@ -114,12 +115,7 @@ export function reviewNotesForTodos(runId: number | null = null): Promise<NoteTo
   if (running) return running;
   const run = (async (): Promise<NoteTodosResult> => {
     const notes = unread();
-    const mark = (list: Note[]) => {
-      const d = db();
-      const put = d.prepare("insert into keep_reviewed (ref, version, reviewed_at) values (?, ?, ?) on conflict(ref) do update set version = excluded.version, reviewed_at = excluded.reviewed_at");
-      const now = new Date().toISOString();
-      d.transaction(() => list.forEach((n) => put.run(n.ref, versionOf(n), now)))();
-    };
+    const mark = (list: Note[]) => memoSetMany(SCOPE, list.map((n) => ({ ref: n.ref, hash: versionOf(n), value: true })));
     // Those a todo already has as its source: gone through.
     const cited = new Set(listTodos({ status: "all" }).flatMap((t) => t.refs));
     const theirs = notes.filter((n) => cited.has(n.ref));
