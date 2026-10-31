@@ -582,7 +582,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffActivity: ["limit"],
   zeffBelongs: [],
   zeffTimeline: ["ref", "limit"],
-  calendarEmbed: ["calendarId", "view", "day", "also"],
+  calendarEmbed: ["calendarId", "view", "day", "also", "proposals"],
   zeffTabs: ["active"],
   zeffTab: ["title"],
   zeffRef: ["kind", "ref", "label", "href"],
