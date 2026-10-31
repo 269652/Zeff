@@ -40,9 +40,7 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     await (await import("@/lib/prompts")).ensureSystemPrompts().catch((e) => console.error("[workspace] the system prompts failed", e));
     // My briefing replaced by Meine Lage (once — also before the next Jira sync or start).
     if (isInstalled("jira-lage")) {
-      const j = await import("@/plugins/jira-lage/to-workspace");
-      await j.replaceBriefingOnce().catch((e) => console.error("[jira] Meine Lage as a pipeline database failed", e));
-      j.sortBriefingOnce();
+      await (await import("@/plugins/jira-lage/to-workspace")).replaceBriefingOnce().catch((e) => console.error("[jira] Meine Lage as a pipeline database failed", e));
     }
   }).catch((e) => console.error("[workspace] setting up failed", e));
   // What the sidebar shows beside the tree, gathered at once. The Templates in the tree: the built-in ones (yours are pages: their tree).

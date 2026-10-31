@@ -3,7 +3,7 @@ import { getDb, getSqlite, schema } from "@/db";
 import { setCollection } from "@/lib/items";
 import { KEY_PROP, setDatabaseSource } from "@/plugins/workspace/collections";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property } from "@/plugins/workspace/model";
-import { addRow, archivePage, createPage, getDatabase, getPage, placeRow, rawRows, setCell, updatePage, updateSchema } from "@/plugins/workspace/store";
+import { addRow, archivePage, createPage, getDatabase, placeRow, rawRows, setCell, updatePage, updateSchema } from "@/plugins/workspace/store";
 import { t } from "@/lib/i18n/server";
 import { getPref, setPref } from "@/lib/prefs";
 import { lageBoard, lageBoards } from "./board";
@@ -153,17 +153,12 @@ export function briefingDatabase(): number | null {
 }
 
 /**
- * My briefing goes for good — once: the board the Jira sync kept (its rows from the Ticket-Lage, its Lage written onto
- * it) and the page "Meine Lage" over it into the trash. In their place a database like any other, "Meine Lage": a
- * pipeline (Jira: on you or followed, open, done in the last days), its AI steps the Lage — attention, a sentence per
+ * "Meine Lage", once (where Jira is in use): a database like any other (it replaced My briefing, the board the Jira sync kept
+ * — gone in both accounts since 2026-10): a pipeline (Jira: on you or followed, open, done in the last days), its AI steps the Lage — attention, a sentence per
  * ticket — and one overall summary; its own AI review reads every row. Its rows come at once (what Zeff has from Jira).
  */
 export async function replaceBriefingOnce(): Promise<number | null> {
   if (getPref<boolean>(REPLACED, false)) return null;
-  const legacy = [jiraBoardDatabase("jira-lage"), getPref<number | null>("workspace.briefingPipeline", null), getPref<number | null>("workspace.myBriefingPage", null)];
-  for (const id of new Set(legacy)) if (id && getPage(id) && !getPage(id)!.archivedAt) archivePage(id);
-  db().prepare("delete from jira_board_dbs where board_id = 'jira-lage'").run();
-
   const { lageFieldDefs, LAGE_FIELDS } = await import("@/plugins/workspace/lage-fields");
   const def = (id: string) => lageFieldDefs().find((f) => f.id === id)!;
   // The Lage's rules, as an instruction its AI steps choose (to change in KI-Anweisungen → Lage).
@@ -183,16 +178,6 @@ export async function replaceBriefingOnce(): Promise<number | null> {
   setPref(REPLACED, true);
   await (await import("@/plugins/workspace/pipeline")).runPipeline(id, { ai: false });
   return id;
-}
-
-/** Meine Lage made before it had its sort: the most pressing first (by Attention) — once. */
-export function sortBriefingOnce(): void {
-  const id = briefingDatabase();
-  if (!id || getPref<boolean>("workspace.briefingSorted", false)) return;
-  const d = getDatabase(id)!;
-  const steps = d.schema.pipeline?.steps ?? [];
-  if (!steps.some((s) => s.kind === "sort")) updateSchema(id, { ...d.schema, pipeline: { ...(d.schema.pipeline ?? { steps: [] }), steps: [...steps, { id: newId("s"), kind: "sort", by: "Attention" }] } });
-  setPref("workspace.briefingSorted", true);
 }
 
 /** Where an old link to a Jira board (/kanban/jira-…) leads now: its database — My briefing: Meine Lage; null: not kept yet. */
