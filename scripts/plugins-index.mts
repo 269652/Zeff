@@ -7,7 +7,13 @@ import { pluginsDir, renderActions, renderLlmTasks, renderManifests, renderServe
  * server.generated.ts (one per <id>/server.ts, for what a plugin registers on the server) and
  * actions.generated.ts (every `export const <NAME>_ACTIONS` list in a plugin's files). A plugin is
  * added by creating its folder and running this (`npm run plugins:index`); tests/plugin-index.test.ts
- * fails while they are stale. `--check` only compares.
+ * fails while they are stale. `--check` only compares. A file is written only when it differs.
+ *
+ * Generated files, one policy: these (src/plugins/*.generated.ts) are COMMITTED — they follow only from the repo's own
+ * folders, the same in every checkout, so tsc, the editor and a fresh clone work without a script run first. The
+ * integrations' (src/lib/integrations/mounted-*.ts, scripts/integrations.mjs) are IGNORED — they follow from what is
+ * mounted under integrations/ on this machine. Both are written again before dev, build, test and typecheck (the pre*
+ * scripts), and `npm run check:generated` fails when either is out of date.
  */
 if (process.argv[1]?.endsWith("plugins-index.mts")) {
   const dir = pluginsDir();
@@ -26,9 +32,12 @@ if (process.argv[1]?.endsWith("plugins-index.mts")) {
         stale = true;
       }
     } else {
+      const cur = fs.existsSync(file) ? fs.readFileSync(file, "utf8").replace(/\r\n/g, "\n") : null;
+      if (cur === next) continue;
       fs.writeFileSync(file, next);
       console.log("wrote", path.relative(process.cwd(), file));
     }
   }
   if (stale) process.exit(1);
+  if (process.argv.includes("--check")) console.log("plugins: the generated indexes are up to date");
 }

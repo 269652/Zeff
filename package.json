@@ -4,10 +4,10 @@
   "private": true,
   "scripts": {
     "integrations": "node scripts/integrations.mjs",
-    "predev": "node scripts/integrations.mjs",
-    "prebuild": "node scripts/integrations.mjs",
-    "pretest": "node scripts/integrations.mjs",
-    "pretypecheck": "node scripts/integrations.mjs",
+    "predev": "node scripts/integrations.mjs && tsx scripts/plugins-index.mts",
+    "prebuild": "node scripts/integrations.mjs && tsx scripts/plugins-index.mts",
+    "pretest": "node scripts/integrations.mjs && tsx scripts/plugins-index.mts",
+    "pretypecheck": "node scripts/integrations.mjs && tsx scripts/plugins-index.mts",
     "dev": "next dev -H 127.0.0.1",
     "build": "next build",
     "start": "next start -H 127.0.0.1",
@@ -41,6 +41,7 @@
     "release": "node scripts/dist.mjs --release",
     "plugin:check": "tsx scripts/plugin-check.mts",
     "plugins:index": "tsx scripts/plugins-index.mts",
+    "check:generated": "tsx scripts/plugins-index.mts --check && node scripts/integrations.mjs --check",
     "plugin:schema": "tsx scripts/plugin-schema.mts",
     "release:check": "node scripts/smoke-release.mjs",
     "launcher:start": "npm --prefix launcher start"
