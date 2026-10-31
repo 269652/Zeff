@@ -22,9 +22,10 @@ export function eventLabeller(): (e: Labelled) => Label {
   };
   return (e) => {
     // A mail: Outlook's or Gmail's (the mail table holds both) — the timeline's own source says only "mail".
-    let label = e.source === "mail" ? of(refSourceKey(`mail:${e.sourceRef}`) ?? "mail") : e.source === "workspace" ? "open" : of(e.source);
+    // (a page's edit: the page's own label; an action you clicked: the todos')
+    let label = e.source === "mail" ? of(refSourceKey(`mail:${e.sourceRef}`) ?? "mail") : e.source === "workspace" || e.source === "pages" ? "open" : of(e.source === "actions" ? "todos" : e.source);
     const row = /^\/workspace\/(\d+)/.exec(e.url ?? "");
-    if (row && (e.source === "workspace" || e.source === "bank")) label = maxLabel(label, pages.page(Number(row[1])));
+    if (row && (e.source === "workspace" || e.source === "pages" || e.source === "bank")) label = maxLabel(label, pages.page(Number(row[1])));
     return label;
   };
 }

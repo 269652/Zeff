@@ -9,6 +9,10 @@ import { isTicketKey } from "@/lib/ticket-keys";
 import { buildPeopleIndex } from "@/plugins/people/mentions";
 import { makePersonResolver, type PersonResolver } from "@/plugins/people/resolve";
 import { namesOf } from "@/plugins/people/store";
+import * as normalize from "@/plugins/entities/normalize";
+import { projectOf } from "@/plugins/entities/resolve";
+import { listEntities } from "@/plugins/entities/store";
+import { isInstalled } from "@/plugins/state";
 import { normRef } from "./store";
 import { peopleHome } from "@/plugins/workspace/people-database";
 
@@ -31,7 +35,65 @@ const safeAll = <T>(sql: string, ...args: unknown[]): T[] => {
 export type Resolver = PersonResolver & {
   /** The ticket keys in a text. */
   tickets: (text: string | null | undefined) => string[];
+  /** The organisations, places and projects (the Entities plugin's — none without it) an event's parts are. */
+  entities: EntityRefs;
 };
+
+export type EntityRefs = {
+  /** A mail address's organisation (by its domain — never a freemail one). */
+  ofAddress: (email: string | null | undefined) => string[];
+  /** A location's place (by its name, another name or its address). */
+  ofPlace: (location: string | null | undefined) => string[];
+  /** A ticket's project. */
+  ofTicket: (key: string) => string[];
+};
+
+/** The entities' refs, read once when first asked (organisations by domain, places by address, a ticket's project kept). */
+function entityRefs(): EntityRefs {
+  let built: { orgs: Map<string, string[]>; places: Map<string, string[]>; tickets: Map<string, string[]> } | null = null;
+  let mod: { n: typeof normalize; r: { projectOf: typeof projectOf } } | null = null;
+  const on = () => {
+    if (built) return built;
+    built = { orgs: new Map(), places: new Map(), tickets: new Map() };
+    try {
+      if (!isInstalled("entities")) return built;
+      mod = { n: normalize, r: { projectOf } };
+      const add = (m: Map<string, string[]>, k: string, ref: string) => k && m.set(k, [...new Set([...(m.get(k) ?? []), ref])]);
+      for (const o of listEntities("org")) for (const d of o.domains) add(built.orgs, d.toLowerCase(), o.ref);
+      for (const p of listEntities("place")) for (const a of [p.name, ...p.aliases, p.address].filter(Boolean)) add(built.places, mod.n.normalizeAddress(a), p.ref);
+    } catch {
+      // the entities can't be read: none
+    }
+    return built;
+  };
+  return {
+    ofAddress: (email) => {
+      const b = on();
+      if (!mod || !email || !email.includes("@")) return [];
+      const d = mod.n.registrableDomain(mod.n.domainOf(email.toLowerCase()));
+      return d && !mod.n.isFreemail(d) ? (b.orgs.get(d) ?? []) : [];
+    },
+    ofPlace: (location) => {
+      const b = on();
+      if (!mod || !location?.trim() || mod.n.isOnlineLocation(location)) return [];
+      return b.places.get(mod.n.normalizeAddress(location)) ?? [];
+    },
+    ofTicket: (key) => {
+      const b = on();
+      if (!mod) return [];
+      if (!b.tickets.has(key)) {
+        let p: string | null = null;
+        try {
+          p = mod.r.projectOf(`ticket:${key}`);
+        } catch {
+          p = null;
+        }
+        b.tickets.set(key, p ? [p] : []);
+      }
+      return b.tickets.get(key)!;
+    },
+  };
+}
 
 export function makeResolver(): Resolver {
   const projects = new Set<string>();
@@ -49,7 +111,7 @@ export function makeResolver(): Resolver {
     }
     return [...out];
   };
-  return { ...makePersonResolver(), tickets };
+  return { ...makePersonResolver(), tickets, entities: entityRefs() };
 }
 
 /** The refs a ref names, as kinds the timeline knows. */
@@ -161,6 +223,8 @@ export function refsOfRow(rowId: number): string[] {
     if (p?.person_id) out.add(`person:${p.person_id}`);
   }
   if (/^jira:/.test(src)) out.add(`ticket:${src.slice(5).toUpperCase()}`);
+  // A contract's row (the Finances plugin's recurring payments): its payments.
+  if (/^recurring:./.test(src)) out.add(src);
   const key = String(props.key ?? props.ticket ?? "");
   if (isTicketKey(key)) out.add(`ticket:${key.toUpperCase()}`);
   for (const k of row.title.match(KEY) ?? []) if (isTicketKey(k)) out.add(`ticket:${k.toUpperCase()}`);

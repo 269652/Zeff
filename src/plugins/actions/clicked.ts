@@ -4,7 +4,7 @@
  * learning when they proposed it — and a mail that answers or asks is the todo itself: done with it. Server only.
  */
 import { eq } from "drizzle-orm";
-import { getDb, schema } from "@/db";
+import { getDb, getSqlite, schema } from "@/db";
 import type { TodoOp, TodoView } from "@/lib/boards/shared";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
@@ -22,8 +22,24 @@ export async function clickedOp<T extends TodoOp["type"]>(todoId: number, index:
   return { todo, op: op as Extract<TodoOp, { type: T }> };
 }
 
+/**
+ * What your clicks ran, one line each (the todo, the action, what it did) — what the timeline reads as your actions. Kept in a table
+ * of its own (made on first use), the last 2000.
+ */
+function logClick(todo: TodoView, op: TodoOp, what: string): void {
+  try {
+    const d = getSqlite();
+    d.exec("create table if not exists action_clicks (id integer primary key autoincrement, at text not null, todo_id integer not null, type text not null, what text not null default '', op text not null default '{}')");
+    d.prepare("insert into action_clicks (at, todo_id, type, what, op) values (?, ?, ?, ?, ?)").run(new Date().toISOString(), todo.id, op.type, what.slice(0, 500), JSON.stringify(op).slice(0, 4000));
+    d.prepare("delete from action_clicks where id <= (select max(id) - 2000 from action_clicks)").run();
+  } catch {
+    // the log never stops an action
+  }
+}
+
 /** What ran, off the todo and noted on it; done with it when it was the todo (a reply, a question …). Whether it was. */
 export async function settleClickedOp(todo: TodoView, op: TodoOp, what: string): Promise<boolean> {
+  logClick(todo, op, what);
   const store = await import("@/lib/boards/store");
   const now = store.getTodo(todo.id);
   const ops = now?.ops ?? [];

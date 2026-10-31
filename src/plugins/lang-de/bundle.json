@@ -8178,5 +8178,9 @@
   "{n} changes since you last opened it": "{n} Änderungen seit du es zuletzt geöffnet hast",
   "Changed since you last opened it": "Geändert seit du es zuletzt geöffnet hast",
   "Below: {what}": "Darunter: {what}",
-  "Below": "Darunter"
+  "Below": "Darunter",
+  "Page added": "Seite angelegt",
+  "Page changed": "Seite geändert",
+  "Mail sent": "Mail gesendet",
+  "Action": "Aktion"
 }

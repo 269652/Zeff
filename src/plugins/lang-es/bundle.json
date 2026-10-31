@@ -8178,5 +8178,9 @@
   "{n} changes since you last opened it": "{n} cambios desde que lo abriste por última vez",
   "Changed since you last opened it": "Cambiado desde que lo abriste por última vez",
   "Below: {what}": "Debajo: {what}",
-  "Below": "Debajo"
+  "Below": "Debajo",
+  "Page added": "Página creada",
+  "Page changed": "Página cambiada",
+  "Mail sent": "Correo enviado",
+  "Action": "Acción"
 }

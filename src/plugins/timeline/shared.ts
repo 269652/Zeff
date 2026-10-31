@@ -7,8 +7,11 @@ import { localDay as dayOf } from "@/lib/dates";
  */
 
 /** The kinds as the filters offer them (a prefix: "todo" is every todo event). */
-export const KIND_GROUPS = ["mail", "message", "ticket", "comment", "mr", "meeting", "time", "todo", "row", "payment", "document"] as const;
-export const SOURCES = ["mail", "whatsapp", "signal", "teams", "jira", "gitlab", "calendar", "time", "todos", "workspace", "bank", "documents"] as const;
+export const KIND_GROUPS = ["mail", "message", "ticket", "comment", "mr", "meeting", "time", "todo", "row", "page", "note", "action", "payment", "document"] as const;
+export const SOURCES = ["mail", "whatsapp", "signal", "teams", "jira", "gitlab", "calendar", "time", "todos", "workspace", "pages", "keep", "actions", "bank", "documents"] as const;
+
+/** The actor of what you did yourself (a mail you sent, a page you edited, an action you clicked). */
+export const ME_REF = "me:you";
 
 const ICON: Record<string, string> = {
   mail: "✉️",
@@ -30,6 +33,11 @@ const ICON: Record<string, string> = {
   "todo.merged": "🔗",
   "row.added": "➕",
   "row.changed": "✏️",
+  "page.added": "📄",
+  "page.changed": "📝",
+  "mail.sent": "📤",
+  note: "🗒️",
+  action: "▶️",
   payment: "💶",
   document: "📄",
 };
@@ -59,6 +67,11 @@ export function kindLabel(t: T, kind: string): string {
     "todo.merged": t("Todo merged"),
     "row.added": t("Row added"),
     "row.changed": t("Row changed"),
+    "page.added": t("Page added"),
+    "page.changed": t("Page changed"),
+    "mail.sent": t("Mail sent"),
+    note: t("Note"),
+    action: t("Action"),
     payment: t("Payment"),
     document: t("Document"),
   };
@@ -67,13 +80,13 @@ export function kindLabel(t: T, kind: string): string {
 
 /** A kind group's name for the filters. */
 export function kindGroupLabel(t: T, group: string): string {
-  const names: Record<string, string> = { mail: t("Mails"), message: t("Messages"), ticket: t("Tickets"), comment: t("Comments"), mr: t("Merge requests"), meeting: t("Appointments"), time: t("Time"), todo: t("Todos"), row: t("Workspace rows"), payment: t("Payments"), document: t("Documents") };
+  const names: Record<string, string> = { mail: t("Mails"), message: t("Messages"), ticket: t("Tickets"), comment: t("Comments"), mr: t("Merge requests"), meeting: t("Appointments"), time: t("Time"), todo: t("Todos"), row: t("Workspace rows"), page: t("Pages"), note: t("Notes"), action: t("Actions"), payment: t("Payments"), document: t("Documents") };
   return names[group] ?? group;
 }
 
 /** A source's name for the filters. */
 export function sourceLabel(t: T, source: string): string {
-  const names: Record<string, string> = { mail: t("Mail"), whatsapp: "WhatsApp", signal: "Signal", teams: "Teams", jira: "Jira", gitlab: "GitLab", calendar: t("Calendar"), time: t("Time entries"), todos: t("Todos"), workspace: t("Workspace"), bank: t("Bank"), documents: t("Documents") };
+  const names: Record<string, string> = { mail: t("Mail"), whatsapp: "WhatsApp", signal: "Signal", teams: "Teams", jira: "Jira", gitlab: "GitLab", calendar: t("Calendar"), time: t("Time entries"), todos: t("Todos"), workspace: t("Workspace"), pages: t("Pages"), keep: "Keep", actions: t("Actions"), bank: t("Bank"), documents: t("Documents") };
   return names[source] ?? source;
 }
 
