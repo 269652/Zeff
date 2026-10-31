@@ -18,8 +18,8 @@ import { Dropdown, MenuItem, Modal } from "./kit";
  * database), filters, AI steps (a field on each row, a summary over all) — edited, saved, run.
  */
 
-const ICON: Record<string, string> = { write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", knowledge: "📚", rules: "📏", filter: "⏷", sort: "⇅", set: "🏷", join: "🔗", field: "✨", summary: "🧭" };
-const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output === "filter" ? "aifilter" : (s.output ?? "")) : s.kind);
+const ICON: Record<string, string> = { noise: "🔇", write: "📤", aifilter: "🔎", actions: "⚡", jira: "🎫", keep: "🗒", todos: "☑", database: "🗃", mail: "✉", messages: "💬", knowledge: "📚", rules: "📏", filter: "⏷", sort: "⇅", set: "🏷", join: "🔗", field: "✨", summary: "🧭" };
+const kindOf = (s: PipelineStep) => (s.kind === "source" ? (s.from ?? "") : s.kind === "ai" ? (s.output === "filter" ? "aifilter" : (s.output ?? "")) : s.kind === "filter" && s.noise === "hide" && !s.rules?.length && !s.text ? "noise" : s.kind);
 const iconOf = (s: PipelineStep) => ICON[kindOf(s)];
 
 /** The example "My briefing": your Jira tickets of the last 14 days, commented, open — their Lage, one overall picture (its prompts in the UI language). */
@@ -50,6 +50,12 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
     return next;
   });
   const add = (s: Omit<PipelineStep, "id">) => setSteps((ss) => [...ss, { id: newId("s"), ...s }]);
+  // A mail, chat or bank database without a noise filter: offered one (right after its sources — before any AI filter).
+  const noiseOffered = !synced && !steps.some((s) => s.kind === "filter" && s.noise === "hide") && (dataType === "mail" || dataType === "message" || dataType === "inbox" || steps.some((s) => s.kind === "source" && (s.from === "mail" || s.from === "messages" || (s.from === "ext" && s.ext === "recurring"))));
+  const addNoise = () => setSteps((ss) => {
+    const at = ss.reduce((last, s, i) => (s.kind === "source" ? i : last), -1) + 1;
+    return [...ss.slice(0, at), { id: newId("s"), kind: "filter", noise: "hide" }, ...ss.slice(at)];
+  });
   const source = (from: PipelineSource) => add({ kind: "source", from, ...(from === "jira" ? { jira: { mine: true, recentDays: 14, openOnly: true } } : from === "mail" ? { mail: { recentDays: 30 } } : from === "messages" ? { messages: { recentDays: 14 } } : {}) });
   const save = async (run?: { ai: boolean }) => {
     setBusy(true);
@@ -62,7 +68,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
       setBusy(false);
     }
   };
-  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), knowledge: t("Knowledge: addresses (test, prod …)"), rules: t("Rules (a database of when / then)"), filter: t("Filter"), set: t("Set a field where …"), join: t("Bring fields from another database"), aifilter: t("AI: keep only what …"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
+  const labels: Record<string, string> = { jira: t("Jira tickets"), keep: t("Google Keep notes"), todos: t("Todos"), database: t("Another database"), mail: t("Mails (Outlook, Gmail)"), messages: t("Messages (Teams, WhatsApp, Signal)"), knowledge: t("Knowledge: addresses (test, prod …)"), rules: t("Rules (a database of when / then)"), filter: t("Filter"), set: t("Set a field where …"), join: t("Bring fields from another database"), aifilter: t("AI: keep only what …"), noise: t("Hide noise (newsletters, bots, own transfers, duplicates)"), actions: t("AI: suggest actions for each row"), sort: t("Sort"), write: t("Write the rows into another database"), field: t("AI: a field on each row"), summary: t("AI: one summary over all rows") };
   return (
     <Modal title={t("Sources & steps …")} onClose={onClose} wide>
       <p className="text-sm text-zinc-500">{t("Where this database's rows come from and what's done with them, top to bottom. A run keeps the result as its rows (yours stay: AI fields, pages); the AI steps go with the briefing.")}</p>
@@ -114,6 +120,7 @@ export function PipelineEditor({ dbId, pipeline, synced, dataType, fields, check
         </Dropdown>
         )}
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "filter", openOnly: true })}>+ {t("Filter")}</button>}
+        {noiseOffered && <button type="button" className="btn btn-sm" onClick={addNoise} title={t("Newsletters, system senders, money only moved between your accounts and the same thing twice from two sources stay out — and never reach the AI.")}>+ 🔇 {t("Hide noise")}</button>}
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "set", name: "", setValue: "" })}>+ 🏷 {t("Set a field")}</button>}
         {!synced && <button type="button" className="btn btn-sm" onClick={() => add({ kind: "join", on: fields[0] ?? "", bring: [] })}>+ 🔗 {t("Join")}</button>}
         <button type="button" className="btn btn-sm" onClick={() => add({ kind: "sort", by: steps.find((x) => x.kind === "ai" && x.output === "field" && x.choices?.length)?.name ?? fields[0] ?? "" })}>+ ⇅ {t("Sort")}</button>
@@ -621,6 +628,7 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
           <input className="input w-40 text-sm" value={s.text ?? ""} onChange={(e) => set({ text: e.target.value || undefined })} />
         </label>
         <Check label={t("Open only")} on={s.openOnly} set={(v) => set({ openOnly: v })} />
+        <Check label={t("Hide noise")} on={s.noise === "hide"} set={(v) => set({ noise: v ? "hide" : undefined })} />
         <Days label={t("Changed within days")} value={s.recentDays} set={(v) => set({ recentDays: v })} />
         <Days label={t("At most")} value={s.limit} set={(v) => set({ limit: v })} />
       </div>

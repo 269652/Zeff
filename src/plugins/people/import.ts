@@ -3,6 +3,7 @@ import { promptText } from "@/lib/prompts";
 import { desc, gte } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { runAi } from "@/lib/ai";
+import { SYSTEMISH } from "@/lib/noise";
 import { jiraUsers } from "./accounts";
 import { addAccount, addAliases, createPerson, listPeople, updatePerson } from "./store";
 import type { Person } from "./shared";
@@ -47,7 +48,6 @@ Unten stehen die Kontakte (Absender, Chats, Beteiligte), einige Texte und meine 
 
 Keine Personen sind: Systeme, Benachrichtigungen, Newsletter, Firmen, Teams, Gruppen, Rollen, Dienste, Bots — und ich selbst. Wer schon in meinen Profilen steht, nennst du nur, wenn du etwas Neues über sie weißt (eine Adresse, einen Alias, ein Jira-Konto). Im Zweifel weglassen.`;
 
-const SYSTEMISH = /no-?reply|do-?not-?reply|notification|benachrichtigung|mailer|newsletter|noreply|bounce|^jira\b|gitlab|support@|info@|service@|^system/i;
 const isPersonName = (name: string, me: Set<string>) => {
   const n = name.trim();
   return n.length >= 3 && /\p{L}{2}/u.test(n) && !SYSTEMISH.test(n) && !me.has(n.toLowerCase()) && !/^(ich|me|team|admin)$/i.test(n);

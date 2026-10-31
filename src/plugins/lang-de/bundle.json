@@ -8178,5 +8178,8 @@
   "{n} changes since you last opened it": "{n} Änderungen seit du es zuletzt geöffnet hast",
   "Changed since you last opened it": "Geändert seit du es zuletzt geöffnet hast",
   "Below: {what}": "Darunter: {what}",
-  "Below": "Darunter"
+  "Below": "Darunter",
+  "Hide noise": "Rauschen ausblenden",
+  "Hide noise (newsletters, bots, own transfers, duplicates)": "Rauschen ausblenden (Newsletter, Bots, eigene Umbuchungen, Doppelte)",
+  "Newsletters, system senders, money only moved between your accounts and the same thing twice from two sources stay out — and never reach the AI.": "Newsletter, Systemabsender, Geld, das nur zwischen deinen Konten bewegt wurde, und dasselbe doppelt aus zwei Quellen bleiben draußen — und erreichen die KI nie."
 }

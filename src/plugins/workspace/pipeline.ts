@@ -1,6 +1,7 @@
 import { getDb, getSqlite, schema } from "@/db";
 import { fillPrompt } from "@/lib/prompts";
 import { dateOf } from "@/lib/boards/collect";
+import { classifyNoise, contentKeyOf, noiseOf, type Noise, type NoiseRecord } from "@/lib/noise";
 import { errorMessage } from "@/lib/errors";
 import { emitChange } from "@/lib/events";
 import { databaseSource, KEY_PROP, NOTE_PROP, rowKey } from "./collections";
@@ -35,6 +36,10 @@ export type SourceRecord = {
   typed?: TypedField[];
   /** What the record is (a mail, a message): the database's type when all its records are. */
   dataType?: DataType;
+  /** Noise (lib/noise): a newsletter, a bot, money only moved, the same thing again from another source — a noise filter hides it. */
+  noise?: Noise;
+  /** What makes it the same thing in another source (a mail's Message-ID or sender, subject, minute; an appointment's title, start, organizer). */
+  contentKey?: string;
 };
 /** A record's field with its type; a person: People profile ids (as a person property keeps them); a number may say how it's shown. */
 export type TypedField = { id: string; name: string; type: "text" | "date" | "checkbox" | "select" | "url" | "number" | "person"; value: string | number | boolean | number[] | null; format?: "number" | "euro" };
@@ -320,7 +325,55 @@ async function knowledgeRecords(c: NonNullable<PipelineStep["knowledge"]>, self:
   return [...out.values()];
 }
 
+/** A typed field's value of a record by its id (a mail's, a message's, an appointment's — before or after they are unified). */
+const typedOf = (r: SourceRecord, ...ids: string[]) => (r.typed ?? []).find((f) => ids.includes(f.id))?.value ?? null;
+
+/** What noise is read from in a record: a mail's sender, subject and text; a message's sender; an appointment's key. Null: nothing to read. */
+function noiseInput(r: SourceRecord): NoiseRecord | null {
+  if (r.dataType === "mail") {
+    const from = String(typedOf(r, "mailfrom") ?? "");
+    const email = from.match(/<([^>]+)>\s*$/)?.[1] ?? (from.includes("@") ? from.trim() : "");
+    const at = typedOf(r, "mailreceived");
+    return { type: "mail", from: from.replace(/\s*<[^>]*>\s*$/, ""), fromEmail: email, subject: r.title, text: r.text, contentKey: contentKeyOf({ type: "mail", from, fromEmail: email, subject: r.title, text: r.text, at: typeof at === "string" ? at : null }) };
+  }
+  if (r.dataType === "message") return { type: "message", from: String(typedOf(r, "msgsender") ?? ""), mine: typedOf(r, "msgmine") === true };
+  if (r.dataType === "calendar") {
+    const start = typedOf(r, "calstart");
+    return { type: "calendar", contentKey: contentKeyOf({ type: "calendar", title: r.title, start: typeof start === "string" ? start : null, organizer: String(typedOf(r, "calorganizer") ?? "") }) };
+  }
+  return null;
+}
+
+/** The records of a source with their noise (newsletter, bot …) and the key a duplicate in another source is found by. */
+function withNoise(records: SourceRecord[]): SourceRecord[] {
+  return records.map((r) => {
+    const input = noiseInput(r);
+    if (!input) return r;
+    const noise = noiseOf(classifyNoise({ ...input, contentKey: null }));
+    return { ...r, ...(noise ? { noise } : {}), ...(input.contentKey ? { contentKey: input.contentKey } : {}) };
+  });
+}
+
+/** What a source gave added to the records so far (a record already there by its ref: not again); the same thing twice from two sources: the second one is noise "duplicate". */
+function addSource(records: SourceRecord[], got: SourceRecord[]): SourceRecord[] {
+  const refs = new Set(records.map((r) => r.ref));
+  const seen = new Map<string, string>();
+  return [...records, ...got.filter((r) => !refs.has(r.ref))].map((r) => {
+    if (!r.contentKey || (r.noise && r.noise.kind !== "duplicate")) {
+      if (r.contentKey && !seen.has(r.contentKey)) seen.set(r.contentKey, r.ref);
+      return r;
+    }
+    const v = classifyNoise({ contentKey: r.contentKey }, { seen, ref: r.ref });
+    if (v.kind === "duplicate") return { ...r, noise: { kind: "duplicate" as const, why: v.why } };
+    return r.noise ? { ...r, noise: undefined } : r;
+  });
+}
+
 async function read(step: PipelineStep, self: number): Promise<SourceRecord[]> {
+  return withNoise(await readRaw(step, self));
+}
+
+async function readRaw(step: PipelineStep, self: number): Promise<SourceRecord[]> {
   if (step.from === "knowledge") return knowledgeRecords(step.knowledge ?? { terms: [] }, self);
   if (step.from === "ext") {
     // A plugin's source that isn't there (not loaded yet in this process, uninstalled) is no empty source: its rows stay.
@@ -344,6 +397,8 @@ function valueOf(r: SourceRecord, field: string): string | boolean | number | nu
   if (["title", "subject", "name", "titel", "betreff"].includes(name)) return r.title;
   if (name === "key") return r.key ?? null;
   if (name === "status") return r.status?.name ?? null;
+  // Its noise (newsletter, bot, own-transfer, pocket, duplicate) — a rule can ask for one kind.
+  if (name === "noise" || name === "rauschen") return r.noise?.kind ?? null;
   const typed = (r.typed ?? []).find((x) => x.name.toLowerCase() === name);
   // A person field: its profile ids, as a filter compares them (a list in words).
   if (typed) return Array.isArray(typed.value) ? typed.value.join(", ") : typed.value;
@@ -432,8 +487,7 @@ export async function previewJoin(dbId: number, steps: PipelineStep[], stepId: s
   let records: SourceRecord[] = [];
   for (const s of steps.slice(0, steps.indexOf(step))) {
     if (s.kind === "source") {
-      const seen = new Set(records.map((r) => r.ref));
-      records = [...records, ...(await read(s, dbId)).filter((r) => !seen.has(r.ref))];
+      records = addSource(records, await read(s, dbId));
     } else if (s.kind === "filter") records = filtered(records, s);
     else if (s.kind === "set") records = applySet(records, s);
     else if (s.kind === "join") records = applyJoin(records, s).records;
@@ -450,8 +504,7 @@ export async function previewRecords(dbId: number, steps: PipelineStep[], stepId
   let records: SourceRecord[] = [];
   for (const s of steps.slice(0, steps.indexOf(step))) {
     if (s.kind === "source") {
-      const seen = new Set(records.map((r) => r.ref));
-      records = [...records, ...(await read(s, dbId)).filter((r) => !seen.has(r.ref))];
+      records = addSource(records, await read(s, dbId));
     } else if (s.kind === "filter") records = filtered(records, s);
     else if (s.kind === "set") records = applySet(records, s);
     else if (s.kind === "join") records = applyJoin(records, s).records;
@@ -467,9 +520,7 @@ export async function previewSet(dbId: number, steps: PipelineStep[], stepId: st
   let records: SourceRecord[] = [];
   for (const s of steps.slice(0, steps.indexOf(step))) {
     if (s.kind === "source") {
-      const seen = new Set(records.map((r) => r.ref));
-      const got = await read(s, dbId);
-      records = [...records, ...got.filter((r) => !seen.has(r.ref))];
+      records = addSource(records, await read(s, dbId));
     } else if (s.kind === "filter") records = filtered(records, s);
     else if (s.kind === "set") records = applySet(records, s);
     else if (s.kind === "join") records = applyJoin(records, s).records;
@@ -477,6 +528,9 @@ export async function previewSet(dbId: number, steps: PipelineStep[], stepId: st
   if (new Set(records.map((r) => r.dataType).filter(Boolean)).size > 1) records = records.map(unifyComm);
   return records.filter((r) => matches(r, step)).map((r) => ({ title: r.title }));
 }
+
+/** A pipeline with a noise filter (newsletters, bots, money only moved, duplicates hidden). */
+export const hidesNoise = (steps: PipelineStep[]): boolean => steps.some((s) => s.kind === "filter" && s.noise === "hide");
 
 function filtered(records: SourceRecord[], f: PipelineStep): SourceRecord[] {
   const text = f.text?.toLowerCase();
@@ -487,6 +541,7 @@ function filtered(records: SourceRecord[], f: PipelineStep): SourceRecord[] {
       (!rules.length || (f.match === "any" ? rules.some((x) => holds(r, x)) : rules.every((x) => holds(r, x)))) &&
       (!text || [r.title, r.key ?? "", ...Object.values(r.fields), ...(r.typed ?? []).map((x) => String(x.value ?? ""))].join(" ").toLowerCase().includes(text)) &&
       (!f.openOnly || r.status?.group !== "done") &&
+      (f.noise !== "hide" || !r.noise) &&
       (!from || r.status?.group === "doing" || at(r.updatedAt) >= from),
   );
   return f.limit ? out.slice(0, f.limit) : out;
@@ -613,17 +668,18 @@ async function runPipelineOnce(dbId: number, opts: { ai?: boolean; force?: boole
     }
     // Sources and filters, in order (a filter narrows what the sources before it gave).
     let records: SourceRecord[] = [];
+    // A noise filter anywhere: noise is gone before any AI filter sees the records (never sent to the model).
+    const hideNoise = hidesNoise(steps);
     // Mail and messages together (a combined inbox): their shared fields, from the first step on (so a rule says "Channel", "From").
     const mixed = steps.some((s) => s.kind === "source" && s.from === "mail") && steps.some((s) => s.kind === "source" && s.from === "messages");
     for (const s of steps) {
       if (s.kind === "source") {
-        const seen = new Set(records.map((r) => r.ref));
         const got = await read(s, dbId);
-        records = [...records, ...(mixed ? got.map(unifyComm) : got).filter((r) => !seen.has(r.ref))];
+        records = addSource(records, mixed ? got.map(unifyComm) : got);
       } else if (s.kind === "filter") records = filtered(records, s);
       else if (s.kind === "set") records = applySet(records, s);
       else if (s.kind === "join") records = applyJoin(records, s).records;
-      else if (s.kind === "ai" && s.output === "filter") records = await aiFiltered(s, records);
+      else if (s.kind === "ai" && s.output === "filter") records = await aiFiltered(s, hideNoise ? records.filter((r) => !r.noise) : records);
       else if (s.kind === "rules" && s.dbId) records = (await import("./rules")).applyRules(records, s.dbId, s.to);
     }
     // Whatever mixes mails and messages (also from other databases): the shared fields.
@@ -989,10 +1045,10 @@ export async function previewAiFilter(dbId: number, steps: PipelineStep[], stepI
   let records: SourceRecord[] = [];
   for (const s of steps.slice(0, steps.indexOf(step))) {
     if (s.kind === "source") {
-      const seen = new Set(records.map((r) => r.ref));
-      records = [...records, ...(await read(s, dbId)).filter((r) => !seen.has(r.ref))];
+      records = addSource(records, await read(s, dbId));
     } else if (s.kind === "filter") records = filtered(records, s);
   }
+  if (hidesNoise(steps)) records = records.filter((r) => !r.noise);
   const sample = records.slice(0, Math.min(30, Math.max(1, size)));
   if (!sample.length) return [];
   const { instructionText } = await import("./instructions");

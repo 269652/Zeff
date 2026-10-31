@@ -7,6 +7,7 @@
  * queue until you accept it; a rejected one is remembered and not made again. Server only.
  */
 import { getSqlite } from "@/db";
+import { NOT_A_PERSON } from "@/lib/noise";
 import { recordFeedback } from "@/lib/learning/ledger";
 import { identityFeedback } from "@/lib/learning/sources";
 import { emitChange } from "@/lib/events";
@@ -79,9 +80,6 @@ function propose(s: Omit<Suggestion, "id" | "createdAt"> & { key: string }): boo
 
 /** replied: the mail conversations with them I wrote in. */
 type Seen = { name: string; sources: Set<string>; count: number; emails: Set<string>; users: Set<string>; replied: number };
-
-/** Bots and mailboxes: no one's profile. */
-const NOT_A_PERSON = /no-?reply|newsletter|notification|mailer|support|service|team|bot\b|admin|jira|gitlab|microsoft|google|system|\d{3,}/i;
 
 /** Every name the synced sources write, with where, how often, and the addresses and usernames that came with it. */
 export function observedNames(): Seen[] {
