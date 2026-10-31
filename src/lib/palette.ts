@@ -1,7 +1,8 @@
 /** The search's scoring and its keys (lib/search, components/Search): what a typed text finds among entries, and in which order. */
 export type PaletteItem = { id: string; label: string; hint?: string; href: string; group: string; /** Extra words that find it (the old name, a ticket key). */ keywords?: string };
 
-const norm = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "");
+/** Text as the palette compares it: lower case, without accents. */
+export const norm = (s: string) => s.toLowerCase().normalize("NFKD").replace(/[̀-ͯ]/g, "");
 
 /** 0 = no match; higher is better: the label starts with the text > a word starts with it > the label contains it > the hint/keywords do. Every word of the query must match. */
 export function scoreItem(item: PaletteItem, query: string): number {

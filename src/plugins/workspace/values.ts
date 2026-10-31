@@ -201,6 +201,14 @@ export function namedValue(keyOrLabel: string): NamedValue | null {
 
 /** Every type, read now. */
 export const listNamedValues = (): NamedValue[] => Object.keys(stored()).map((k) => namedValue(k)!).filter(Boolean);
+/** Every type's key and name, none read (cheap). */
+export function namedValueNames(): { key: string; label: string }[] {
+  const types = stored();
+  return Object.keys(types).flatMap((k) => {
+    const key = valueKey(k);
+    return types[key] ? [{ key, label: types[key].label }] : [];
+  });
+}
 
 /** The names to pick from: the types Zeff reads, then the ones made — each with whether it has sources yet. */
 export function valueNameSuggestions(): { key: string; label: string; what: string; taken: boolean }[] {
