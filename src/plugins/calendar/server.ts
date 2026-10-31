@@ -1,4 +1,6 @@
 import { correlationSeries } from "@/plugins/correlations/series-point";
+import { proposalSources } from "@/lib/proposals/point";
+import { CALENDAR_PROPOSALS } from "./proposals";
 import { workspaceSources } from "@/plugins/workspace/source-point";
 import { SLEEP_SERIES } from "./sleep-series";
 import { workspaceWidgets } from "@/plugins/workspace/widget-point";
@@ -10,3 +12,5 @@ workspaceSources.contribute("calendar", [CALENDAR_SOURCE]);
 workspaceWidgets.contribute("calendar", CALENDAR_WIDGETS);
 // Sleep (a sleep tracker's calendar) as daily series for the Correlations.
 correlationSeries.contribute("calendar", [SLEEP_SERIES]);
+// The shadow calendars' appointments (the day plan's blocks among them) as proposals: the review queue lists them, decide() does them.
+proposalSources.contribute("calendar", CALENDAR_PROPOSALS);
