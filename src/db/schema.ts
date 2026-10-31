@@ -1404,6 +1404,8 @@ export const calendarEvents = sqliteTable(
     exdates: text("exdates").notNull().default("[]"),
     /** An occurrence changed on its own: the series it came from. */
     seriesId: integer("series_id"),
+    /** A proposal (an assistant's plan, the day plan's block): dashed until accepted (false) or dismissed (deleted) — blocks no time, never written to its source. */
+    proposed: integer("proposed", { mode: "boolean" }).notNull().default(false),
     updatedAt: text("updated_at").notNull(),
   },
   (t) => [uniqueIndex("calendar_events_key").on(t.calendarId, t.key), index("calendar_events_start").on(t.start)],
