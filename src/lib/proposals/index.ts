@@ -9,7 +9,8 @@ import { proposalSources, type Proposal, type ProposalOutcome, type ProposalSour
 /**
  * The proposals store (server only): one table for everything Zeff proposes and you accept or dismiss. `propose()` puts one in
  * — once per source and input hash: one still open gets the evidence of now, one dismissed is never made again; `decide()`
- * runs the source's handler (./point) and writes the learning ledger, every time. Each place keeps what it knows of its own
+ * runs the source's handler (./point) and writes the learning ledger, every time. Putting in and expiring tell no page (the
+ * proposing place does, once per run); a decision does. Each place keeps what it knows of its own
  * (people, entities, the calendar) — only the proposal, its state and the decision are here.
  */
 
@@ -89,14 +90,10 @@ export function propose<P = Record<string, unknown>>(p: ProposalInput<P>): { id:
   const r = d
     .prepare("insert or ignore into proposals (source, kind, subject_ref, payload, why, confidence, evidence_refs, status, input_hash, created_at, updated_at) values (?, ?, ?, ?, ?, ?, ?, 'open', ?, ?, ?)")
     .run(p.source, ...fields, p.inputHash, at, at);
-  if (r.changes) {
-    emitChange("todos");
-    return { id: Number(r.lastInsertRowid), created: true, status: "open" };
-  }
+  if (r.changes) return { id: Number(r.lastInsertRowid), created: true, status: "open" };
   const old = d.prepare("select id, status from proposals where source = ? and input_hash = ?").get(p.source, p.inputHash) as { id: number; status: ProposalStatus };
   if (old.status === "open" || (old.status === "expired" && p.reopen)) {
     d.prepare("update proposals set kind = ?, subject_ref = ?, payload = ?, why = ?, confidence = ?, evidence_refs = ?, status = 'open', decided_at = null, updated_at = ? where id = ?").run(...fields, at, old.id);
-    if (old.status === "expired") emitChange("todos");
     return { id: old.id, created: false, status: "open" };
   }
   return { id: old.id, created: false, status: old.status };
@@ -161,7 +158,6 @@ export function expireProposals(ids: number[]): number {
   d.transaction(() => {
     for (const id of ids) n += st.run(at, at, id).changes;
   })();
-  if (n) emitChange("todos");
   return n;
 }
 
