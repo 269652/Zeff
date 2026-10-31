@@ -388,3 +388,84 @@ test("alternatives as options: two candidate weekends are one group (Option A/B)
   assert.equal((await acceptProposalAction(a.id))?.ok, true);
   assert.deepEqual(besuch().map((e) => [e.start, e.proposed]), [["2027-01-08", false]], "the other option dismissed");
 });
+
+test("Regenerate: thought again without new questions, all of it set up at once — twice the same answer makes nothing twice; accepted appointments and ticked todos stay", async () => {
+  const { nadine } = await setup();
+  const w = await import("@/plugins/workspace/store");
+  const block = { type: "paragraph", content: [{ type: "text", text: "Besuch bei " }, { type: "zeffRef", attrs: { kind: "person", ref: String(nadine), label: "Nadine" } }, { type: "text", text: " im Januar" }] };
+  const card = { type: "assistCard", attrs: { id: "c1", state: "{}" } };
+  const doc0 = { type: "doc", content: [block, card] } as import("@/plugins/workspace/doc").DocNode;
+  const pageId = w.createPage({ title: "Nadine", content: doc0 });
+  const { regenerateAssist } = await import("@/plugins/workspace/assist");
+  const { newAssistState } = await import("@/plugins/workspace/assist-shared");
+  const ir = await import("@/lib/calendar/ir");
+  const cal = ir.zeffCalendar();
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({
+    intent: "Besuch bei Nadine",
+    summary: "Drei Tage Hamburg, eines von zwei Wochenenden",
+    questions: [{ id: "x", text: "Noch eine Frage?", kind: "text" }],
+    actions: [
+      { kind: "events", label: "Wochenende", options: true, events: [{ title: "Wochenende Hamburg", start: "2027-01-08", lastDay: "2027-01-10", allDay: true }, { title: "Wochenende Hamburg", start: "2027-01-15", lastDay: "2027-01-17", allDay: true }] },
+      { kind: "todo", label: "Zug", text: "Zug buchen" },
+      { kind: "todo", label: "Geschenk", text: "Geschenk besorgen" },
+      { kind: "widget", label: "Mit Nadine", widget: "people.coming", person: nadine },
+      { kind: "text", label: "Notiz", markdown: "Nadine wohnt in Hamburg-Altona." },
+    ],
+  });
+  const asked = { ...newAssistState(), status: "proposing" as const, round: 1, intent: "Besuch", history: [{ q: "Welche Wochenenden passen?", a: "8.–10.1., 15.–17.1." }] };
+  const r1 = await regenerateAssist(pageId, JSON.stringify(block), asked, doc0, new Date(2026, 9, 29));
+  const prompt = fs.readFileSync(promptFile, "utf8");
+  assert.match(prompt, /questions: \[\] — keine Fragen mehr/, "no new questions");
+  assert.match(prompt, /Welche Wochenenden passen\?.*15\.–17\.1\./, "with what it was told");
+  assert.equal(r1.state.status, "applied", "shown as applied");
+  assert.equal(r1.state.round, 1);
+  assert.deepEqual(r1.nodes.map((n) => n.type), ["calendarEmbed", "taskList", "zeffWidget", "paragraph"]);
+  const besuch = () => ir.eventsBetween("2027-01-01T00:00", "2027-02-01T00:00", { proposals: true }).filter((e) => e.calendarId === cal.id && e.title === "Wochenende Hamburg");
+  assert.deepEqual(besuch().map((e) => [e.start, e.end, e.proposed]), [["2027-01-08", "2027-01-11", true], ["2027-01-15", "2027-01-18", true]], "both weekends, three days each, as options");
+
+  // The editor puts the blocks after the card (as the card does).
+  const put = (doc: import("@/plugins/workspace/doc").DocNode, nodes: import("@/plugins/workspace/doc").DocNode[]) => {
+    const content = [...(doc.content ?? [])];
+    for (const n of nodes) {
+      const i = content.findIndex((x) => n.type === "taskList" && x.type === "taskList" && x.attrs?.listId === n.attrs?.listId);
+      if (i >= 0) content[i] = n;
+      else content.splice(content.findIndex((x) => x.type === "assistCard") + 1, 0, n);
+    }
+    return { ...doc, content };
+  };
+  const doc1 = put(doc0, r1.nodes);
+  const r2 = await regenerateAssist(pageId, JSON.stringify(block), r1.state, doc1, new Date(2026, 9, 29));
+  assert.deepEqual(r2.nodes.map((n) => n.type), ["taskList"], "no second calendar block, widget or text — only its checklist anew");
+  assert.equal(r2.nodes[0].attrs?.listId, r1.nodes[1].attrs?.listId, "the same checklist (in place of the old one)");
+  const items = (d: import("@/plugins/workspace/doc").DocNode) => (d.content ?? []).map((i) => [i.content?.[0]?.content?.[0]?.text, i.attrs?.checked, i.attrs?.itemId]);
+  assert.deepEqual(items(r2.nodes[0]), items(r1.nodes[1]), "the same items (their ids too), none twice");
+  assert.equal(besuch().length, 2, "its proposals replaced, not doubled");
+  assert.deepEqual(r2.state.created.map((c) => c.kind).sort(), ["calendar", "event", "event", "list"]);
+
+  // What you did meanwhile stays: an option accepted (the other dismissed with it), a todo ticked.
+  const { acceptProposalAction } = await import("@/plugins/calendar/server-actions");
+  assert.equal((await acceptProposalAction(besuch()[0].id))?.ok, true);
+  const doc2 = put(doc1, r2.nodes);
+  const list = doc2.content!.find((n) => n.type === "taskList")!;
+  list.content![0] = { ...list.content![0], attrs: { ...list.content![0].attrs, checked: true } };
+  const r3 = await regenerateAssist(pageId, JSON.stringify(block), r2.state, doc2, new Date(2026, 9, 29));
+  assert.deepEqual(besuch().map((e) => [e.start, e.proposed]), [["2027-01-08", false]], "the accepted one kept, the dismissed one not proposed again");
+  assert.deepEqual(items(r3.nodes[0]).map((x) => [x[0], x[1]]), [["Zug buchen", true], ["Geschenk besorgen", false]], "the ticked todo kept, not added again");
+  assert.ok(r3.state.created.some((c) => c.kind === "event" && ir.eventById(Number(c.id))?.proposed === false), "the accepted appointment is still the card's");
+});
+
+test("Regenerate on a page with a todos widget: Zeff's todos by their text — the same one, not a second", async () => {
+  await setup();
+  const w = await import("@/plugins/workspace/store");
+  const doc = { type: "doc", content: [{ type: "zeffWidget", attrs: { widget: "people.todos", config: "{}", title: "", header: "" } }, { type: "paragraph", content: [{ type: "text", text: "Umzug" }] }] } as import("@/plugins/workspace/doc").DocNode;
+  const pageId = w.createPage({ title: "Umzug", content: doc });
+  const { regenerateAssist } = await import("@/plugins/workspace/assist");
+  const { newAssistState } = await import("@/plugins/workspace/assist-shared");
+  process.env.FAKE_CLAUDE_OUTPUT = JSON.stringify({ intent: "Umzug", summary: "Umzug", questions: [], actions: [{ kind: "todo", label: "Kartons", text: "Umzugskartons besorgen" }] });
+  const r1 = await regenerateAssist(pageId, null, newAssistState("page"), doc, new Date(2026, 9, 29));
+  const r2 = await regenerateAssist(pageId, null, r1.state, doc, new Date(2026, 9, 29));
+  const { listTodos } = await import("@/lib/todos/store");
+  assert.equal(listTodos({ status: "open" }).filter((x) => x.text === "Umzugskartons besorgen").length, 1);
+  assert.deepEqual([r1.nodes, r2.nodes], [[], []]);
+  assert.deepEqual(r2.state.created.map((c) => c.id), r1.state.created.map((c) => c.id), "still the card's own todo");
+});

@@ -358,6 +358,13 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
 
 /** One step of the card: the AI asked about the block (`blockJson`, a node) or the whole page (null), with the answers so far. */
 export async function runAssist(pageId: number, blockJson: string | null, state: AssistState, today = new Date()): Promise<AssistState> {
+  const next = await think(pageId, blockJson, state, today);
+  if (next.status === "proposing" && !next.actions.length) throw new ValidationError(t("The AI found nothing to ask or set up here."));
+  return next;
+}
+
+/** The AI asked once — `final`: no more questions, a proposal now (Regenerate); `doc`: the page as the editor has it. */
+async function think(pageId: number, blockJson: string | null, state: AssistState, today: Date, opts: { final?: boolean; doc?: DocNode | null } = {}): Promise<AssistState> {
   const page = store.getPage(pageId);
   if (!page) throw new ValidationError(t("This page is gone."));
   let node: unknown = null;
@@ -384,14 +391,13 @@ export async function runAssist(pageId: number, blockJson: string | null, state:
   const period = periodOf([state.wish ?? "", block, state.summary, ...history.map((h) => h.a)].join("\n"), today);
   const busy = isInstalled("calendar") ? (await import("@/lib/calendar/ir")).busyBetween(period.from, period.to).slice(0, 60) : [];
   const firstPerson = /^- \[\[person:(\d+)\|([^\]]*)\]\]/.exec(people[0] ?? "");
-  const check = await assistCheck(busy, { created: state.created, page: page.content, ...(firstPerson ? { defaultPerson: { id: Number(firstPerson[1]), name: firstPerson[2] } } : {}) });
+  const check = await assistCheck(busy, { created: state.created, page: opts.doc ?? page.content, ...(firstPerson ? { defaultPerson: { id: Number(firstPerson[1]), name: firstPerson[2] } } : {}) });
   const before = await madeBefore(state.created);
-  const prompt = assistPrompt({ title: page.title, block, page: pageText, people, today, period, busy, state, history, check, before });
+  const asked = opts.final ? { ...state, round: MAX_ASSIST_ROUNDS } : state;
+  const prompt = assistPrompt({ title: page.title, block, page: pageText, people, today, period, busy, state: asked, history, check, before });
   const { runAi } = await import("@/lib/ai");
   const r = await runAi<unknown>(prompt, SCHEMA, { task: "page-assist", timeoutMs: 3 * 60000, maxBudgetUsd: 0.4 });
-  const next = { ...readAssistAnswer(r.output, state, check), history };
-  if (next.status === "proposing" && !next.actions.length) throw new ValidationError(t("The AI found nothing to ask or set up here."));
-  return next;
+  return { ...readAssistAnswer(r.output, asked, check), history, ...(opts.final ? { round: state.round } : {}) };
 }
 
 // ---------------------------------------------------------------------------
@@ -436,31 +442,74 @@ const EXECUTORS: { [K in AssistActionKind]: (a: Extract<AssistAction, { kind: K 
   text: async (a) => ({ nodes: markdownToDoc(a.markdown).content ?? [], created: [] }),
 };
 
-/** The chosen actions of a proposal run (checked again — the card's state comes from the page): the blocks to insert after the card, what was made elsewhere. */
-export async function applyAssist(pageId: number, state: AssistState, ids: string[]): Promise<Made & { summary: string }> {
-  if (!store.getPage(pageId)) throw new ValidationError(t("This page is gone."));
-  const check = await assistCheck([], { created: state.created });
+/** The text of a page's to-do item, compared as words (case and spacing aside). */
+const flat = (s: string) => s.replace(/\s+/g, " ").trim().toLowerCase();
+const itemKey = (n: DocNode) => flat(docText({ type: "doc", content: (n.content ?? []).filter((c) => c.type !== "taskList") }));
+
+/** A page's blocks of a kind, anywhere in it. */
+function nodesOf(doc: DocNode | null, type: string): DocNode[] {
+  const out: DocNode[] = [];
+  const walk = (n: DocNode) => {
+    if (n.type === type) out.push(n);
+    (n.content ?? []).forEach(walk);
+  };
+  if (doc) walk(doc);
+  return out;
+}
+
+/**
+ * The chosen actions of a proposal run (checked again — the card's state comes from the page): the blocks to insert after the
+ * card, what was made elsewhere. `again` (Regenerate): the page as the editor has it (`doc`) — what is in it already isn't put
+ * in twice (a widget, the calendar's block, a text, a todo), the card's checklist is given back with its id (the editor puts it
+ * in place of the old one: its ticked items kept, the open ones those of now), Zeff's todos reused by their text (the card's
+ * earlier ones no longer proposed dismissed); `created` is then all the card made, what is gone left out.
+ */
+export async function applyAssist(pageId: number, state: AssistState, ids: string[], again?: { doc: DocNode | null }): Promise<Made & { summary: string }> {
+  const page = store.getPage(pageId);
+  if (!page) throw new ValidationError(t("This page is gone."));
+  const doc = again ? (again.doc ?? page.content) : null;
+  const check = await assistCheck([], { created: state.created, ...(doc ? { page: doc } : {}) });
   const chosen = state.actions.filter((a) => ids.includes(a.id)).map((a) => cleanAction(a, check)).filter((a): a is AssistActionBody => !!a);
-  if (!chosen.length) throw new ValidationError(t("Choose at least one thing to set up."));
+  if (!chosen.length && !again) throw new ValidationError(t("Choose at least one thing to set up."));
   const out: Made = { nodes: [], created: [] };
   // The todos: one checklist, where the first of them stands — or, the page showing todos in a widget, Zeff's todos only
   // (the widget shows them; a checklist beside it would be the same twice).
   let list: DocNode | null = null;
-  const widgetShows = todosWidgetOn(store.getPage(pageId)?.content ?? null);
-  const ctx: Context = { created: state.created, replace: state.created.filter((c) => c.kind === "event").map((c) => Number(c.id)), shown: new Set() };
+  const widgetShows = todosWidgetOn(doc ?? page.content);
+  const ctx: Context = {
+    created: state.created,
+    replace: state.created.filter((c) => c.kind === "event").map((c) => Number(c.id)),
+    shown: new Set(nodesOf(doc, "calendarEmbed").map((n) => Number(n.attrs?.calendarId))),
+  };
+  // Regenerate: the card's checklist in the page (by its id), the page's other to-do items and its text — not put in twice.
+  const oldRef = state.created.find((c) => c.kind === "list" && c.ref)?.ref;
+  const oldList = oldRef ? (nodesOf(doc, "taskList").find((n) => String(n.attrs?.listId) === oldRef) ?? null) : null;
+  const elsewhere = new Set(nodesOf(doc, "taskList").filter((n) => n !== oldList).flatMap((n) => (n.content ?? []).map(itemKey)));
+  const pageText = doc ? flat(docText(doc)) : "";
+  const earlierTodos = new Set(state.created.filter((c) => c.kind === "todo").map((c) => Number(c.id)));
+  const reused = new Set<number>();
+  let done = 0;
   try {
     for (const a of chosen) {
       if (a.kind === "todo" && widgetShows) {
         const { addManualTodo, setTodoDue } = await import("@/lib/todos/store");
-        const todo = addManualTodo({ ticket: "", text: a.text });
+        const todo = addManualTodo({ ticket: "", text: a.text }); // (the same open text: that one, not a second)
         if (a.due && !todo.outcome) setTodoDue(todo.id, a.due);
         if (!todo.outcome) out.created.push({ kind: "todo", id: todo.id, label: todo.text, href: `/t/${todo.id}` });
+        else if (earlierTodos.has(todo.id)) reused.add(todo.id); // the card's own of before: still its own
+        done++;
         continue;
       }
+      if (doc && a.kind === "text") {
+        const words = flat(docText(markdownToDoc(a.markdown)));
+        if (words && pageText.includes(words)) continue;
+      }
+      if (a.kind === "todo" && elsewhere.has(flat(a.text))) continue;
       const made = await (EXECUTORS[a.kind] as (x: typeof a, ctx: Context) => Promise<Made>)(a, ctx);
+      done++;
       if (a.kind === "todo") {
         if (!list) {
-          list = { type: "taskList", attrs: { listId: newId("t"), title: "", engine: true }, content: [] };
+          list = { type: "taskList", attrs: { listId: oldList ? oldRef! : newId("t"), title: String(oldList?.attrs?.title ?? ""), engine: true }, content: [] };
           out.nodes.push(list);
         }
         list.content!.push(...made.nodes);
@@ -469,12 +518,67 @@ export async function applyAssist(pageId: number, state: AssistState, ids: strin
       out.nodes.push(...made.nodes);
       out.created.push(...made.created);
     }
+    if (list && oldList) {
+      // The card's checklist anew: what was ticked stays (and isn't added again); an open item of the same text is the same item.
+      const old = oldList.content ?? [];
+      const ticked = old.filter((i) => i.attrs?.checked === true);
+      const have = new Set(ticked.map(itemKey));
+      const fresh: DocNode[] = [];
+      for (const n of list.content ?? []) {
+        const k = itemKey(n);
+        if (have.has(k)) continue;
+        have.add(k);
+        const same = old.find((i) => i.attrs?.checked !== true && itemKey(i) === k);
+        fresh.push(same ? { ...same, attrs: { ...same.attrs, ...(n.attrs?.due ? { due: n.attrs.due } : {}) } } : n);
+      }
+      list.content = [...ticked, ...fresh];
+    }
     if (list) out.created.push({ kind: "list", id: 0, label: (list.content ?? []).map((i) => i.content?.[0]?.content?.[0]?.text ?? "").join(" · ").slice(0, 300), ref: String(list.attrs!.listId) });
   } catch (e) {
     await undoAssist(out.created); // half done: nothing left behind
     throw e;
   }
-  return { ...out, summary: `${state.intent || state.summary} · ${t("{n} set up", { n: chosen.length })}` };
+  if (again) out.created = await stillMade(state.created, out.created, reused, widgetShows && chosen.some((a) => a.kind === "todo"));
+  return { ...out, summary: `${state.intent || state.summary} · ${t("{n} set up", { n: done })}` };
+}
+
+/**
+ * Regenerated: all the card made — what it made before and is still there (a calendar, an accepted appointment, its checklist
+ * unless given anew, a todo reused or no longer open) and what it made now. Its todos of before that weren't proposed again
+ * (`replaceTodos`) and are still open are dismissed: replaced, as its proposals are.
+ */
+async function stillMade(before: AssistCreated[], now: AssistCreated[], reused: Set<number>, replaceTodos: boolean): Promise<AssistCreated[]> {
+  const ir = isInstalled("calendar") ? await import("@/lib/calendar/ir") : null;
+  const todos = isInstalled("todos") ? await import("@/lib/todos/store") : null;
+  const kept: AssistCreated[] = [];
+  for (const c of before) {
+    if (now.some((x) => x.kind === c.kind && (c.kind === "list" || x.id === c.id))) continue;
+    if (c.kind === "event" && !ir?.eventById(Number(c.id))) continue; // replaced (or dismissed)
+    if (c.kind === "todo" && todos && replaceTodos && !reused.has(Number(c.id))) {
+      const todo = todos.getTodo(Number(c.id));
+      if (todo?.status === "open" && todo.source === "From you") {
+        todos.setTodoStatus(todo.id, "dismissed");
+        continue;
+      }
+    }
+    kept.push(c);
+  }
+  return [...kept, ...now];
+}
+
+/**
+ * "Regenerate" on a card: the AI asked again with what it was told — no new questions — and everything it proposes set up at
+ * once, as Apply does when asked again (its earlier proposals replaced, nothing doubled, nothing of yours lost: accepted
+ * appointments and ticked todos stay). The card's next state (applied, with all it made) and the blocks for the page (a
+ * checklist with the id of one in it: in place of that one).
+ */
+export async function regenerateAssist(pageId: number, blockJson: string | null, state: AssistState, doc: DocNode | null, today = new Date()): Promise<{ state: AssistState; nodes: DocNode[] }> {
+  const page = doc ? sanitizeDoc(doc) : null;
+  // (pressed while it asked: those answers count too)
+  const next = await think(pageId, blockJson, state, today, { final: true, doc: page });
+  if (!next.actions.length) throw new ValidationError(t("The AI found nothing to ask or set up here."));
+  const r = await applyAssist(pageId, next, next.actions.map((a) => a.id), { doc: page });
+  return { state: { ...next, status: "applied", summary: r.summary, created: r.created }, nodes: r.nodes };
 }
 
 /** What a card made outside the page taken back: its proposed appointments (those still proposed) taken out, its todos dismissed — never a calendar. */

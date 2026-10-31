@@ -6,7 +6,7 @@ import { mergeAttributes, Node, NodeViewWrapper, ReactNodeViewRenderer, type Edi
 import { useEffect, useRef, useState } from "react";
 import { useLang, useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { applyAssistAction, assistAction, undoAssistAction } from "../actions";
+import { applyAssistAction, assistAction, regenerateAssistAction, undoAssistAction } from "../actions";
 import { newAssistState, readAssistState, type AssistAction, type AssistEvent, type AssistQuestion, type AssistState } from "../assist-shared";
 
 /**
@@ -250,6 +250,49 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
     setLive(t("Set up: {summary}. Ctrl+Z takes back what went into the page.", { summary: r.summary }));
   };
 
+  // Regenerate: thought again with what it was told (no new questions), all of it set up at once — nothing doubled (the server
+  // knows the page as it is here); its checklist comes back with its id: in place of the old one (ticked items kept).
+  const regenerate = async () => {
+    const at = typeof getPos === "function" ? getPos() : undefined;
+    const before = at !== undefined && s.scope === "block" ? editor.state.doc.resolve(at).nodeBefore : null;
+    setBusy(true);
+    setError("");
+    setLive(t("Regenerating …"));
+    const r = await regenerateAssistAction(pageId, before ? JSON.stringify(before.toJSON()) : null, JSON.stringify(s), editor.getJSON());
+    setBusy(false);
+    if (!r.ok) {
+      setError(r.error);
+      setLive(r.error);
+      return;
+    }
+    const c = findCard(editor, id);
+    if (!c) return;
+    const { state, view } = editor;
+    let nodes: PmNode[] = [];
+    try {
+      nodes = r.nodes.map((n) => state.schema.nodeFromJSON(n));
+    } catch {
+      toast(t("Some of it couldn't be put into the page."), { tone: "error" });
+    }
+    const tr = state.tr.setNodeMarkup(c.pos, undefined, { ...c.node.attrs, state: JSON.stringify(r.state) });
+    const fresh: PmNode[] = [];
+    for (const n of nodes) {
+      let at: { pos: number; size: number } | null = null;
+      if (n.type.name === "taskList" && n.attrs.listId)
+        tr.doc.descendants((x, pos) => {
+          if (!at && x.type.name === "taskList" && x.attrs.listId === n.attrs.listId) at = { pos, size: x.nodeSize };
+          return !at;
+        });
+      const found = at as { pos: number; size: number } | null;
+      if (found) tr.replaceWith(found.pos, found.pos + found.size, n);
+      else fresh.push(n);
+    }
+    const after = tr.mapping.map(c.pos) + c.node.nodeSize;
+    if (fresh.length) tr.insert(after, Fragment.from(fresh));
+    view.dispatch(tr);
+    setLive(t("Set up: {summary}. Ctrl+Z takes back what went into the page.", { summary: r.state.summary }));
+  };
+
   // What it made outside the page taken back, and its blocks in the page with it.
   const undoCreated = async () => {
     const r = await undoAssistAction(s.created);
@@ -291,6 +334,11 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
           </span>
           <div className="min-w-0 flex-1">
             <p className="font-medium">{head}</p>
+            {error && (
+              <p role="alert" className="text-xs text-red-700 dark:text-red-400">
+                {error}
+              </p>
+            )}
             {s.created.some((c) => c.href) && (
               <ul className="mt-1 space-y-0.5 text-xs">
                 {s.created.map((c) =>
@@ -306,6 +354,11 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
             )}
           </div>
           <div className="flex shrink-0 items-center gap-1">
+            {editable && (
+              <button type="button" className="btn btn-sm" disabled={busy} title={t("Thinks it through again with your answers (no new questions) and sets all of it up at once — its earlier proposals replaced, nothing doubled")} onClick={() => void regenerate()}>
+                {busy ? t("Regenerating …") : t("Regenerate")}
+              </button>
+            )}
             {editable && s.created.length > 0 && (
               <button type="button" className="btn btn-sm" title={t("Deletes the plan calendars and dismisses the todos it made (Ctrl+Z only takes back what went into the page)")} onClick={() => void undoCreated()}>
                 {t("Undo")}
@@ -394,6 +447,9 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
               <div className="flex flex-wrap items-center gap-2">
                 <button type="button" className="btn btn-sm btn-primary" disabled={busy || off.size >= s.actions.length} title={t("Puts the chosen ones into the page (Ctrl+Z takes them back); calendars and todos are made at once")} onClick={() => void apply()}>
                   {t("Apply")}
+                </button>
+                <button type="button" className="btn btn-sm" disabled={busy} title={t("Thinks it through again with your answers (no new questions) and sets all of it up at once — its earlier proposals replaced, nothing doubled")} onClick={() => void regenerate()}>
+                  {t("Regenerate")}
                 </button>
                 <button type="button" className="btn btn-sm" disabled={busy} onClick={dismiss}>
                   {t("Dismiss")}

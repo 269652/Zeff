@@ -118,6 +118,17 @@ export async function applyAssistAction(pageId: number, state: string, ids: stri
   });
 }
 
+/** "✨ Think along": Regenerate — the card thought again with what it was told (no new questions) and all of it set up at once, nothing doubled; `doc`: the page as the editor has it. */
+export async function regenerateAssistAction(pageId: number, block: string | null, state: string, doc: unknown) {
+  return run(async () => {
+    if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    const { readAssistState } = await import("../assist-shared");
+    const { regenerateAssist } = await import("../assist");
+    const page = doc && typeof doc === "object" && !Array.isArray(doc) ? (doc as import("../doc").DocNode) : null;
+    return await regenerateAssist(Number(pageId), typeof block === "string" ? block.slice(0, 40000) : null, readAssistState(state), page);
+  });
+}
+
 /** "✨ Think along": what a card made outside the page taken back (its plan calendars, its todos). */
 export async function undoAssistAction(created: import("../assist-shared").AssistCreated[]) {
   return run(async () => ({ undone: await (await import("../assist")).undoAssist(Array.isArray(created) ? created.slice(0, 50) : []) }));

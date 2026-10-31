@@ -244,6 +244,8 @@ export function proposeEvents(calendarId: number, events: (Omit<EventInput, "key
       const key = e.key || proposedKeyOf(e);
       if (seen.has(key)) return [];
       seen.add(key);
+      // Kept already (accepted — an appointment now): never made a proposal again (nor dropped with it by the sync).
+      if (tx.select({ id: calendarEvents.id }).from(calendarEvents).where(and(eq(calendarEvents.calendarId, calendarId), eq(calendarEvents.key, key), eq(calendarEvents.proposed, false))).get()) return [];
       const r = row(calendarId, { ...e, key, proposed: true });
       return [eventView(tx.insert(calendarEvents).values(r).onConflictDoUpdate({ target: [calendarEvents.calendarId, calendarEvents.key], set: r }).returning().get())];
     });
