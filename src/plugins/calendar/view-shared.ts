@@ -3,6 +3,9 @@
  * appointment of a calendar, a todo's proposed one), side-by-side lanes for overlaps, dates and
  * times as they're written, snapping. Client-safe.
  */
+
+/** A window event: appointments changed from outside a calendar view (a Think along card set up or took back proposals) — the views on the page read again. */
+export const CALENDAR_CHANGED = "zeff:calendar-changed";
 import { pad2 as two } from "@/lib/text";
 import { optionOf, type CalendarEventView, type CalendarView, type ProposedEvent } from "@/lib/calendar/ir-shared";
 import { addDays, weekdayOf } from "@/lib/calendar/recurrence";

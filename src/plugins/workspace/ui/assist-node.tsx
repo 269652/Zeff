@@ -7,6 +7,7 @@ import { useEffect, useRef, useState } from "react";
 import { useLang, useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { applyAssistAction, assistAction, regenerateAssistAction, undoAssistAction } from "../actions";
+import { CALENDAR_CHANGED } from "@/plugins/calendar/view-shared";
 import { newAssistState, readAssistState, type AssistAction, type AssistEvent, type AssistQuestion, type AssistState } from "../assist-shared";
 
 /**
@@ -244,6 +245,7 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
     const end = c.pos + c.node.nodeSize + Fragment.from(nodes).size;
     tr.setSelection(TextSelection.near(tr.doc.resolve(Math.min(end, tr.doc.content.size)), 1));
     view.dispatch(tr);
+    window.dispatchEvent(new Event(CALENDAR_CHANGED));
     // Into the editor, so the browser's caret goes there too: left where it was (the editor didn't have the focus — Apply had),
     // a click back on that same spot changes nothing the editor sees, and it keeps thinking the caret is after the new blocks.
     view.focus();
@@ -290,6 +292,7 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
     const after = tr.mapping.map(c.pos) + c.node.nodeSize;
     if (fresh.length) tr.insert(after, Fragment.from(fresh));
     view.dispatch(tr);
+    window.dispatchEvent(new Event(CALENDAR_CHANGED));
     setLive(t("Set up: {summary}. Ctrl+Z takes back what went into the page.", { summary: r.state.summary }));
   };
 
@@ -297,6 +300,7 @@ function AssistCardView({ node, editor, getPos, extension, deleteNode, updateAtt
   const undoCreated = async () => {
     const r = await undoAssistAction(s.created);
     if (!r.ok) return toast(r.error, { tone: "error" });
+    window.dispatchEvent(new Event(CALENDAR_CHANGED));
     const cals = new Set(s.created.filter((c) => c.kind === "calendar").map((c) => c.id));
     const todos = new Set(s.created.filter((c) => c.kind === "todo").map((c) => String(c.id)));
     const lists = new Set(s.created.filter((c) => c.kind === "list" && c.ref).map((c) => String(c.ref)));

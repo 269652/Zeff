@@ -10,7 +10,7 @@ import { Dropdown } from "@/plugins/workspace/ui/kit";
 import { useCalendarBody } from "../CalendarBody";
 import { calendarDataAction } from "../server-actions";
 import type { CalendarData } from "../view-data";
-import { stepDay, viewLabels, viewTitle, type ViewKind } from "../view-shared";
+import { CALENDAR_CHANGED, stepDay, viewLabels, viewTitle, type ViewKind } from "../view-shared";
 
 /**
  * A calendar as a block of a page: a day, a week or a month of a calendar — its main one (where what is made here goes) and
@@ -43,6 +43,11 @@ function CalendarEmbedView(p: NodeViewProps) {
     void calendarDataAction(view, day, [calendarId, ...idsOf(alsoKey, 0)]).then((r) => (r.ok ? (setData(r.data), setError("")) : setError(r.error)));
   }, [view, day, calendarId, alsoKey]);
   useEffect(load, [load]);
+  // Read again when appointments change from outside (a Think along card's proposals set up, regenerated or taken back).
+  useEffect(() => {
+    window.addEventListener(CALENDAR_CHANGED, load);
+    return () => window.removeEventListener(CALENDAR_CHANGED, load);
+  }, [load]);
   const calendars = data?.calendars ?? NONE;
   const calendar = calendars.find((c) => c.id === calendarId);
   const also = new Set(idsOf(alsoKey, 0));
