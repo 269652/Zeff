@@ -130,10 +130,10 @@ function EventLine({ e, lang }: { e: AssistEvent; lang: string }) {
 
 function Preview({ a, lang }: { a: AssistAction; lang: string }) {
   const t = useT();
-  if (a.kind === "shadowCalendar")
+  if (a.kind === "events")
     return (
       <div className="text-xs text-zinc-600 dark:text-zinc-400">
-        📅 {t("Plan calendar “{name}” (suggestions — it blocks nothing)", { name: a.name })}
+        📅 {t("Proposed in “{calendar}” (they block nothing — accept or dismiss each in the calendar)", { calendar: a.calendar || t("your Zeff calendar") })}
         <ul className="mt-0.5 ml-4 list-disc">
           {a.events.map((e, i) => (
             <EventLine key={i} e={e} lang={lang} />

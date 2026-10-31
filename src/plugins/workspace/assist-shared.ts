@@ -12,7 +12,7 @@ export type AssistEvent = { title: string; start: string; end: string; allDay?: 
 
 /** What the AI may propose — a small closed set, each with its executor in assist.ts. */
 export type AssistAction = { id: string; label: string } & (
-  | { kind: "shadowCalendar"; name: string; events: AssistEvent[]; /** The plan calendar this card made before: its days replaced (asked again). */ calendarId?: number }
+  | { kind: "events"; events: AssistEvent[]; /** The calendar they are proposed in (none: your Zeff calendar) — and its name, for the card. */ calendarId?: number; calendar?: string }
   | { kind: "todo"; text: string; due?: string }
   | { kind: "widget"; widget: string; config: Record<string, string | number | boolean> }
   | { kind: "text"; markdown: string }
@@ -20,10 +20,13 @@ export type AssistAction = { id: string; label: string } & (
 export type AssistActionKind = AssistAction["kind"];
 /** An action before it has its id (each kind on its own). */
 export type AssistActionBody = AssistAction extends infer A ? (A extends AssistAction ? Omit<A, "id"> : never) : never;
-export const ASSIST_ACTION_KINDS: readonly AssistActionKind[] = ["shadowCalendar", "todo", "widget", "text"];
+export const ASSIST_ACTION_KINDS: readonly AssistActionKind[] = ["events", "todo", "widget", "text"];
 
 /** What applying made outside the page (Ctrl+Z can't take those back — the card's "Undo" can). */
-export type AssistCreated = { kind: "calendar" | "todo" | "list"; id: number; label: string; href?: string; /** A checklist: its list id in the page (Undo takes it out — its todos go with it). */ ref?: string };
+export type AssistCreated = {
+  /** "event": a proposed appointment (asked again: replaced; Undo takes it out while it is still proposed); "calendar": the calendar its block shows (never deleted). */
+  kind: "event" | "calendar" | "todo" | "list";
+  id: number; label: string; href?: string; /** A checklist: its list id in the page (Undo takes it out — its todos go with it). */ ref?: string };
 
 export type AssistStatus = "thinking" | "asking" | "proposing" | "applied" | "dismissed";
 

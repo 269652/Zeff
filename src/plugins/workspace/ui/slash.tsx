@@ -187,10 +187,10 @@ export const slashItems = (t: T): SlashItem[] => [
   {
     key: "calendar",
     title: t("Calendar (day, week, month)"),
-    hint: t("A calendar in the page — a shadow calendar's appointments are suggestions in your main calendar"),
+    hint: t("A calendar in the page — a day, a week or a month of one calendar, its proposals among them"),
     icon: "📅",
     group: t("App blocks"),
-    keywords: ["calendar", "kalender", "schattenkalender", "shadow", "day", "week", "month", "tag", "woche", "monat", "plan"],
+    keywords: ["calendar", "kalender", "vorschlag", "proposal", "day", "week", "month", "tag", "woche", "monat", "plan"],
     run: ({ editor, range }) => chain(editor, range).insertContent({ type: "calendarEmbed", attrs: { calendarId: 0, view: "week", day: "" } }).run(),
   },
   picker("widget", { title: t("Widget …"), hint: t("What a plugin shows live — unread, dates coming up, workers, news — with its buttons"), icon: "🧩", group: t("App blocks"), keywords: ["dashboard", "live", "plugin"] }),

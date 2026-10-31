@@ -21,8 +21,8 @@ export type AssistCheck = {
   widgets: Map<string, { label: string; settings: string[] }>;
   busy: Busy[];
   can: { calendar: boolean; todos: boolean };
-  /** The plan calendars this card made (asked again: those it may update — never another). */
-  calendars?: Set<number>;
+  /** The calendars proposals may go in: id → name. */
+  calendars?: Map<number, string>;
   /** The widgets on the page already, "widget:personId" — not added twice. */
   onPage?: Set<string>;
   /** The person the text is about (the first it names): a person widget without one takes them. */
@@ -136,7 +136,7 @@ function cleanAction(raw: unknown, check: AssistCheck): AssistActionBody | null 
   const kind = o.kind as AssistActionKind;
   if (!ASSIST_ACTION_KINDS.includes(kind)) return null;
   const label = str(o.label, 120);
-  if (kind === "shadowCalendar") {
+  if (kind === "events") {
     if (!check.can.calendar) return null;
     // One appointment per time: one overlapping an earlier one is dropped (the plan's days are moved by drag and drop instead).
     const span = (e: AssistEvent) => [new Date(e.start.length === 10 ? `${e.start}T00:00` : e.start).getTime(), new Date(e.end.length === 10 ? `${e.end}T00:00` : e.end).getTime()];
@@ -148,9 +148,9 @@ function cleanAction(raw: unknown, check: AssistCheck): AssistActionBody | null 
         const [a, b] = span(e);
         return kept.some((k) => span(k)[0] < b && span(k)[1] > a) ? kept : [...kept, e];
       }, []);
-    const name = str(o.name, 80) || label;
     const own = Number(o.calendarId);
-    return events.length && name ? { kind, label: label || name, name, events, ...(check.calendars?.has(own) ? { calendarId: own } : {}) } : null;
+    const calendar = check.calendars?.get(own);
+    return events.length ? { kind, label: label || str(o.name, 80) || events[0].title, events, ...(calendar ? { calendarId: own, calendar } : {}) } : null;
   }
   if (kind === "todo") {
     if (!check.can.todos) return null;
@@ -255,7 +255,7 @@ async function assistCheck(busy: Busy[], ctx: { created?: AssistCreated[]; page?
     widgets: new Map(widgetCatalog().map((w) => [w.id, { label: w.label, settings: w.settings.map((s) => s.key) }])),
     busy,
     can: { calendar: isInstalled("calendar"), todos: isInstalled("todos") },
-    calendars: new Set((ctx.created ?? []).filter((c) => c.kind === "calendar").map((c) => Number(c.id))),
+    calendars: isInstalled("calendar") ? new Map((await import("@/lib/calendar/ir")).listCalendars().map((c) => [c.id, c.name])) : new Map(),
     onPage: widgetsOn(ctx.page ?? null),
     ...(ctx.defaultPerson ? { defaultPerson: ctx.defaultPerson } : {}),
   };
@@ -286,14 +286,14 @@ export const todosWidgetOn = (doc: DocNode | null): boolean => {
   return !!doc && walk(doc);
 };
 
-/** What this card set up before (asked again): its plan calendars with their days, its todos — to update, not to make twice. */
+/** What this card set up before (asked again): its proposed appointments (still open), its todos — to update, not to make twice. */
 async function madeBefore(created: AssistCreated[]): Promise<string[]> {
   const out: string[] = [];
+  const ir = isInstalled("calendar") ? await import("@/lib/calendar/ir") : null;
   for (const c of created) {
-    if (c.kind === "calendar" && isInstalled("calendar")) {
-      const ir = await import("@/lib/calendar/ir");
-      const days = ir.eventsBetween("1970-01-01T00:00", "2999-01-01T00:00").filter((e) => e.calendarId === Number(c.id)).map((e) => `${e.title} ${e.start}–${e.end}`);
-      out.push(`- Planungskalender calendarId ${c.id} "${c.label}": ${days.join("; ") || "(leer)"}`);
+    if (c.kind === "event" && ir) {
+      const e = ir.eventById(Number(c.id));
+      if (e?.proposed) out.push(`- Terminvorschlag in calendarId ${e.calendarId} "${e.calendar.name}": ${e.title} ${e.start}–${e.end}`);
     } else if (c.kind === "todo" || c.kind === "list") out.push(`- Todo${c.kind === "list" ? "s (Checkliste der Seite)" : ""}: ${c.label}`);
   }
   return out;
@@ -305,7 +305,8 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
   const lastRound = v.state.round >= MAX_ASSIST_ROUNDS;
   const widgets = [...v.check.widgets].map(([id, w]) => `${id} (${w.label}${w.settings.length ? `; config: ${w.settings.join(", ")}` : ""})`).join("; ");
   const kinds = [
-    v.check.can.calendar && `- {"kind":"shadowCalendar","label","name","events":[{"title","start","end","allDay"}]} — ein Planungskalender (nur Vorschläge, blockiert nichts). Ganze Tage "YYYY-MM-DD" (end = Tag nach dem letzten, allDay true), sonst "YYYY-MM-DDTHH:MM". Meide die belegten Zeiten. Pro Zeitraum genau ein Vorschlag, nichts überlappt (auch keine Anreise im Besuch) — der Nutzer verschiebt die Tage per Drag & Drop.`,
+    v.check.can.calendar &&
+      `- {"kind":"events","label","calendarId","events":[{"title","start","end","allDay"}]} — Terminvorschläge in einem Kalender (blockieren nichts; der Nutzer nimmt jeden an oder verwirft ihn). calendarId: einer dieser Kalender (weglassen: der Zeff-Kalender): ${[...(v.check.calendars ?? [])].map(([id, name]) => `${id} "${name}"`).join(", ") || "(keine)"}. Ganze Tage "YYYY-MM-DD" (end = Tag nach dem letzten, allDay true), sonst "YYYY-MM-DDTHH:MM". Meide die belegten Zeiten. Pro Zeitraum genau ein Vorschlag, nichts überlappt (auch keine Anreise im Besuch) — der Nutzer verschiebt die Tage per Drag & Drop.`,
     v.check.can.todos && `- {"kind":"todo","label","text","due"} — eine Aufgabe; Personen beim Namen; due "YYYY-MM-DD" nur wenn sinnvoll.`,
     `- {"kind":"widget","label","widget","person","config"} — ein Baustein der Seite; person = id einer Person oben. Widgets: ${widgets || "(keine)"}`,
     `- {"kind":"text","label","markdown"} — Text für die Seite (z. B. eine Checkliste "- [ ] …").`,
@@ -329,7 +330,7 @@ function assistPrompt(v: { title: string; block: string; page: string; people: s
     ...(v.history.length ? ["", "# Deine Fragen und die Antworten", ...v.history.map((h) => `- ${h.q} → ${h.a}`)] : []),
     ...(v.state.summary ? ["", `Bisher verstanden: ${v.state.summary}`] : []),
     ...(v.before?.length
-      ? ["", "# Schon angelegt (du wirst erneut gefragt: aktualisiere, statt doppelt anzulegen)", ...v.before, "Einen dieser Planungskalender änderst du mit shadowCalendar + seiner calendarId (seine Tage werden ersetzt). Was passt, lässt du weg."]
+      ? ["", "# Schon angelegt (du wirst erneut gefragt: aktualisiere, statt doppelt anzulegen)", ...v.before, "Neue Terminvorschläge (events) ersetzen die früheren dieser Karte — gib alle an, die gelten sollen. Was passt, lässt du weg."]
       : []),
     "",
     "# Antwort (JSON)",
@@ -388,24 +389,28 @@ export async function runAssist(pageId: number, blockJson: string | null, state:
 
 type Made = { nodes: DocNode[]; created: AssistCreated[] };
 
-const EXECUTORS: { [K in AssistActionKind]: (a: Extract<AssistAction, { kind: K }>) => Promise<Made> } = {
-  // A plan calendar (a shadow one: suggestions, nothing blocked) with its appointments, shown in the page — or, asked again, the
-  // one it made before with its days replaced (its block is in the page already).
-  shadowCalendar: async (a) => {
+type Context = { created: AssistCreated[] };
+
+const EXECUTORS: { [K in AssistActionKind]: (a: Extract<AssistAction, { kind: K }>, ctx: Context) => Promise<Made> } = {
+  // Proposed appointments (nothing blocked; each accepted or dismissed in the calendar) in the chosen calendar — your Zeff one by
+  // default — and that calendar in the page at the first of them. Asked again: this card's earlier proposals (still open)
+  // replaced; the calendar's block is in the page already then.
+  events: async (a, ctx) => {
     const ir = await import("@/lib/calendar/ir");
-    if (a.calendarId && ir.listCalendars().some((c) => c.id === a.calendarId && c.shadow)) {
-      ir.replaceEvents(
-        a.calendarId,
-        a.events.map((e, i) => ({ key: `assist-${Date.now().toString(36)}-${i}`, title: e.title, start: e.start, end: e.end, allDay: !!e.allDay })),
-      );
-      return { nodes: [], created: [] };
-    }
-    const cal = ir.createShadowCalendar(a.name);
-    for (const e of a.events) ir.addEvent(cal.id, { title: e.title, start: e.start, end: e.end, allDay: !!e.allDay });
-    const first = a.events.map((e) => e.start.slice(0, 10)).sort()[0];
-    const last = a.events.map((e) => e.end.slice(0, 10)).sort().at(-1)!;
+    const cal = (a.calendarId && ir.listCalendars().find((c) => c.id === a.calendarId)) || ir.zeffCalendar();
+    const earlier = ctx.created.filter((c) => c.kind === "event").map((c) => Number(c.id));
+    const shown = earlier.some((id) => ir.eventById(id)?.calendarId === cal.id) || ctx.created.some((c) => c.kind === "calendar" && Number(c.id) === cal.id);
+    const made = ir.proposeEvents(
+      cal.id,
+      a.events.map((e) => ({ title: e.title, start: e.start, end: e.end, allDay: !!e.allDay })),
+      earlier,
+    );
+    const created: AssistCreated[] = made.map((e) => ({ kind: "event", id: e.id, label: e.title, href: `/kalender?v=day&d=${e.start.slice(0, 10)}` }));
+    if (shown || !made.length) return { nodes: [], created };
+    const first = made.map((e) => e.start.slice(0, 10)).sort()[0];
+    const last = made.map((e) => e.end.slice(0, 10)).sort().at(-1)!;
     const span = (new Date(`${last}T00:00`).getTime() - new Date(`${first}T00:00`).getTime()) / 86400000;
-    return { nodes: [{ type: "calendarEmbed", attrs: { calendarId: cal.id, view: span > 7 ? "month" : "week", day: first, also: "" } }], created: [{ kind: "calendar", id: cal.id, label: cal.name }] };
+    return { nodes: [{ type: "calendarEmbed", attrs: { calendarId: cal.id, view: span > 7 ? "month" : "week", day: first, also: "" } }], created: [{ kind: "calendar", id: cal.id, label: cal.name }, ...created] };
   },
   // A todo: an item of the page's checklist that feeds the Todo engine (applyAssist gathers them into one list) — ticked there,
   // the todo is done; the list taken out of the page, its todos go.
@@ -434,7 +439,7 @@ export async function applyAssist(pageId: number, state: AssistState, ids: strin
         if (!todo.outcome) out.created.push({ kind: "todo", id: todo.id, label: todo.text, href: `/t/${todo.id}` });
         continue;
       }
-      const made = await (EXECUTORS[a.kind] as (x: typeof a) => Promise<Made>)(a);
+      const made = await (EXECUTORS[a.kind] as (x: typeof a, ctx: Context) => Promise<Made>)(a, { created: state.created });
       if (a.kind === "todo") {
         if (!list) {
           list = { type: "taskList", attrs: { listId: newId("t"), title: "", engine: true }, content: [] };
@@ -454,15 +459,15 @@ export async function applyAssist(pageId: number, state: AssistState, ids: strin
   return { ...out, summary: `${state.intent || state.summary} · ${t("{n} set up", { n: chosen.length })}` };
 }
 
-/** What a card made outside the page taken back: its plan calendars deleted, its todos dismissed — only those (never another calendar). */
+/** What a card made outside the page taken back: its proposed appointments (those still proposed) taken out, its todos dismissed — never a calendar. */
 export async function undoAssist(created: AssistCreated[]): Promise<number> {
   let n = 0;
   for (const c of created) {
     const id = Number(c.id);
-    if (c.kind === "calendar" && isInstalled("calendar")) {
+    if (c.kind === "event" && isInstalled("calendar")) {
       const ir = await import("@/lib/calendar/ir");
-      if (!ir.listCalendars().some((x) => x.id === id && x.shadow)) continue;
-      ir.deleteCalendar(id);
+      if (!ir.eventById(id)?.proposed) continue; // accepted meanwhile (or gone): it stays
+      ir.deleteEvent(id);
       n++;
     } else if (c.kind === "todo" && isInstalled("todos")) {
       const b = await import("@/lib/todos/store");
