@@ -646,8 +646,14 @@ export function setFavoriteOrder(ids: number[]): void {
 }
 
 /** The last pages you opened or edited. */
-export const recent = (limit = 12): PageRef[] =>
-  (db().prepare("select id, title, icon, kind, updated_at, db_id from ws_pages where archived_at is null and template = 0 order by max(coalesce(opened_at, ''), updated_at) desc limit ?").all(limit) as never[]).map(refOf);
+export const recent = (limit = 12): PageRef[] => {
+  // (A day list's log is written every day by itself — it is its list's History tab, not a page you were on.)
+  const logs = dayLogIds();
+  return (db().prepare("select id, title, icon, kind, updated_at, db_id from ws_pages where archived_at is null and template = 0 order by max(coalesce(opened_at, ''), updated_at) desc limit ?").all(limit + logs.size) as never[])
+    .map(refOf)
+    .filter((p) => !logs.has(p.id))
+    .slice(0, limit);
+};
 
 export type Hit = PageRef & { snippet: string; path: string };
 

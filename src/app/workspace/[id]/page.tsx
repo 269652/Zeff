@@ -63,7 +63,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
         crumbs: breadcrumbs(page.id),
         backlinks: backlinks(page.id).map((b) => ({ id: b.id, title: b.title, icon: b.icon })),
         children: (ofTemplates ? templateTree() : tree())
-          .filter((x) => x.parentId === page.id)
+          // (A day list's log is its History tab, not a sub-page.)
+          .filter((x) => x.parentId === page.id && !x.dayLogOf)
           .map((x) => ({ id: x.id, title: x.title, icon: x.icon, kind: x.kind })),
       }}
       row={row?.ok ? { initial: row.data, dbId: page.dbId! } : null}
