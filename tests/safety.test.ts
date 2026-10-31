@@ -59,8 +59,8 @@ for (const [tool, allowed] of Object.entries(WRITES))
   });
 
 test("a todo's actions are run only from a click (or a worker you started)", () => {
-  // workspace/actions.ts: runJobDeliveryAction, the job card's "run the delivery" button.
-  assert.deepEqual(using("runTodoOpsNow("), ["src/lib/ops.ts", "src/plugins/todos/server-actions.ts", "src/plugins/workspace/actions.ts"]);
+  // workspace/actions/pages.ts: runJobDeliveryAction, the job card's "run the delivery" button.
+  assert.deepEqual(using("runTodoOpsNow("), ["src/lib/ops.ts", "src/plugins/todos/server-actions.ts", "src/plugins/workspace/actions/pages.ts"]);
   assert.deepEqual(using("runTodoOps("), ["src/lib/ops.ts", "src/lib/work/runner.ts"]);
   assert.deepEqual(using("RUNNERS"), ["src/lib/ops.ts", "src/plugins/actions/run.ts"]);
 });
