@@ -7,7 +7,7 @@ import type { TodoView } from "@/lib/todos/shared";
 import { dayOf, stampOf } from "@/lib/calendar/ir-shared";
 import { isInstalled } from "@/plugins/state";
 
-export type TodayAppointment = { id: number; title: string; start: string; end: string; allDay: boolean; location: string; tomorrow: boolean; online: boolean; people: { id: number; name: string }[]; href: string };
+export type TodayAppointment = { id: number; title: string; start: string; end: string; allDay: boolean; location: string; tomorrow: boolean; online: boolean; people: { id: number; name: string }[]; href: string; /** A proposal (the day plan's block …): shown dashed, nothing planned with it. */ proposed?: boolean };
 export type TodayPromise = { id: number; personId: number; personName: string; text: string; due: string; mine: boolean; overdue: boolean };
 export type TodayLearned = { id: number; personId: number; personName: string; text: string };
 export type TodayNews = { count: number; top: { id: number; title: string; url: string; source: string }[] };
@@ -17,13 +17,13 @@ export type TodayData = { appointments: TodayAppointment[]; due: TodoView[]; pro
 /** Tomorrow's appointments until this time count as "tomorrow morning". */
 const MORNING_END = "12:00";
 
-/** Today's appointments still to come (or running) and tomorrow morning's, of the calendars shown — not suggestions, not cancelled. */
+/** Today's appointments still to come (or running) and tomorrow morning's, of the calendars shown — the proposed ones marked, not cancelled. */
 async function appointments(now: Date): Promise<TodayAppointment[]> {
   if (!isInstalled("calendar")) return [];
   const { eventsBetween } = await import("@/lib/calendar/ir");
   const today = dayOf(now);
   const tomorrow = dayOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1));
-  const events = eventsBetween(stampOf(now), `${tomorrow}T${MORNING_END}`, { visible: true }).filter((e) => !e.cancelled && !e.calendar.shadow && !(e.allDay && e.start < today));
+  const events = eventsBetween(stampOf(now), `${tomorrow}T${MORNING_END}`, { visible: true, proposals: true }).filter((e) => !e.cancelled && !(e.allDay && e.start < today));
   const people = isInstalled("people") ? (await import("@/plugins/people/store")).listPeople() : [];
   const { withThem } = await import("@/plugins/people/appointments");
   return events.map((e) => ({
@@ -37,6 +37,7 @@ async function appointments(now: Date): Promise<TodayAppointment[]> {
     tomorrow: e.start.slice(0, 10) > today,
     people: people.filter((p) => withThem(p, e)).map((p) => ({ id: p.id, name: p.name })),
     href: `/kalender?v=day&d=${e.start.slice(0, 10)}`,
+    ...(e.proposed ? { proposed: true } : {}),
   }));
 }
 

@@ -35,7 +35,7 @@ export const CALENDAR_WIDGETS: WorkspaceWidget[] = [
       // Only some (an old appointments block's words or calendar): by words in the title, the place or who comes; by the calendar's name.
       const q = String(config.q ?? "").trim().toLowerCase();
       const cal = String(config.calendar ?? "").trim().toLowerCase();
-      const events = eventsBetween(`${today}T00:00`, `${day(end)}T00:00`, { visible: true })
+      const events = eventsBetween(`${today}T00:00`, `${day(end)}T00:00`, { visible: true, proposals: true })
         .filter((e) => !e.cancelled && (e.allDay ? e.end > today : new Date(e.end) > now))
         .filter((e) => (!q || `${e.title} ${e.location} ${e.attendees.join(" ")}`.toLowerCase().includes(q)) && (!cal || e.calendar.name.toLowerCase() === cal))
         .sort((a, b) => (a.allDay === b.allDay ? a.start.localeCompare(b.start) : a.allDay ? -1 : 1) || a.start.localeCompare(b.start));
@@ -48,15 +48,32 @@ export const CALENDAR_WIDGETS: WorkspaceWidget[] = [
         const running = !e.allDay && new Date(e.start) <= now;
         return {
           id: `${e.id}:${e.occurrence ?? ""}`,
-          icon: e.allDay ? "🗓️" : e.online ? "💻" : "🕑",
-          text: e.title || t("(no title)"),
+          // A proposed one (the day plan's block, an assistant's plan): said so, accepted or dismissed from its row.
+          icon: e.proposed ? "◌" : e.allDay ? "🗓️" : e.online ? "💻" : "🕑",
+          text: e.proposed ? t("Proposed: {title}", { title: e.title || t("(no title)") }) : e.title || t("(no title)"),
+          ...(e.proposed
+            ? {
+                actions: [
+                  { id: "accept", label: t("Accept"), icon: "✓" },
+                  { id: "dismiss", label: t("Dismiss"), icon: "✕" },
+                ],
+              }
+            : {}),
           detail: [when(d), e.allDay ? t("all day") : `${formatTime(e.start)}–${formatTime(e.end)}`, e.location].filter(Boolean).join(" · "),
           meta: running ? t("now") : e.allDay ? undefined : formatTime(e.start),
           tone: running ? "good" : undefined,
           href: href(d),
         };
       });
-      return { kind: "list", items, count: events.filter((e) => e.start.slice(0, 10) === today).length || undefined, empty: t("Nothing in the calendar."), footer: { text: t("Open the calendar"), href: href(today) } };
+      return { kind: "list", items, count: events.filter((e) => !e.proposed && e.start.slice(0, 10) === today).length || undefined, empty: t("Nothing in the calendar."), footer: { text: t("Open the calendar"), href: href(today) } };
+    },
+    // A proposed appointment's buttons: decided through its proposal (as the calendar's own buttons).
+    act: async (action, payload) => {
+      if (action !== "accept" && action !== "dismiss") throw new Error("unknown action");
+      const id = Number(String(payload.id ?? "").split(":")[0]);
+      const p = (await import("@/lib/calendar/proposed")).proposalOfEvent(id);
+      if (!p) throw new Error(t("That appointment is gone."));
+      await (await import("@/lib/proposals")).decide(p.id, action === "accept" ? "accepted" : "dismissed");
     },
     // The page's badge: a dot while appointments are still to come today.
     badge: listBadge({ activity: (n) => (n === 1 ? t("1 appointment today") : t("{n} appointments today", { n })) }),

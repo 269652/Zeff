@@ -63,7 +63,7 @@ async function heuteData() {
       // Today's meetings for the timeline: the Calendar's (Outlook's synced into it), else Outlook's calendar inbox.
       let meetings: { subject: string; start: string; end: string; online: boolean }[] = [];
       if (isInstalled("calendar")) {
-        meetings = day.appointments.filter((a) => !a.tomorrow && !a.allDay).map((a) => ({ subject: a.title || t("(no title)"), start: a.start, end: a.end, online: a.online }));
+        meetings = day.appointments.filter((a) => !a.tomorrow && !a.allDay && !a.proposed).map((a) => ({ subject: a.title || t("(no title)"), start: a.start, end: a.end, online: a.online }));
       } else if (isInstalled("outlook-calendar")) {
         const { readInbox } = await import("@/lib/calendar/inbox");
         meetings = readInbox()
@@ -303,8 +303,8 @@ export default async function HeutePage({ searchParams }: { searchParams: Promis
         <li key={`${a.id}:${a.start}`} className="text-sm">
           <div className="flex items-baseline gap-2">
             <span className="w-24 shrink-0 font-mono text-xs text-zinc-500 tabular-nums">{when(a)}</span>
-            <Link href={a.href} className="min-w-0 flex-1 hover:underline">
-              {a.title || t("(no title)")}
+            <Link href={a.href} className={`min-w-0 flex-1 hover:underline ${a.proposed ? "rounded border border-dashed border-zinc-400 px-1 text-zinc-600 dark:text-zinc-300" : ""}`}>
+              {a.proposed ? t("Proposed: {title}", { title: a.title || t("(no title)") }) : a.title || t("(no title)")}
               {a.location && <span className="ml-1.5 text-xs text-zinc-500">· {a.location}</span>}
             </Link>
           </div>
