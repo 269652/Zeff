@@ -8218,5 +8218,6 @@
   "Writes or rewrites text in a page at your request (Workspace).": "Escribe o reescribe texto en una página a petición tuya (Workspace).",
   "Finds the todos a page asks of you (Workspace).": "Encuentra las tareas que una página te pide (Workspace).",
   "Questions to the workspace": "Preguntas al Workspace",
-  "Answers a question from the pages that fit, naming them (Workspace).": "Responde una pregunta a partir de las páginas que encajan y las nombra (Workspace)."
+  "Answers a question from the pages that fit, naming them (Workspace).": "Responde una pregunta a partir de las páginas que encajan y las nombra (Workspace).",
+  "{n} waiting, {late} of them late": "{n} pendientes, {late} atrasados"
 }

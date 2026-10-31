@@ -43,9 +43,10 @@ export function sumBadges(list: (Badge | null | undefined)[], maxParts = 6): Bad
 }
 
 /** What the pill shows: important wins over unread over activity (activity: a dot, no number). */
-export function shownBadge(b: Badge | null | undefined): { tone: BadgeTone; count: number } | null {
+export function shownBadge(b: Badge | null | undefined): { tone: BadgeTone; count: number; late?: number } | null {
   if (!b) return null;
-  if (b.important > 0) return { tone: "important", count: b.important };
+  // All that waits as the number; important (late, gone wrong) only marks it (a red dot) — never a number of its own.
+  if (b.important > 0) return { tone: "important", count: b.important + b.unread, late: b.important };
   if (b.unread > 0) return { tone: "unread", count: b.unread };
   if (b.activity > 0) return { tone: "activity", count: 0 };
   return null;

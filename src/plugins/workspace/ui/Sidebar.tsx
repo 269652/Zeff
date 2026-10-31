@@ -103,7 +103,7 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
   const s = shownBadge(badge);
   if (!s) return null;
   const label =
-    s.tone === "important" ? t("{n} important", { n: s.count }) : s.tone === "unread" ? t("{n} unread", { n: s.count }) : t("Changed since you last opened it");
+    s.tone === "important" ? t("{n} waiting, {late} of them late", { n: s.count, late: s.late ?? 0 }) : s.tone === "unread" ? t("{n} unread", { n: s.count }) : t("Changed since you last opened it");
   const said = dim ? t("Below: {what}", { what: label }) : label;
   if (s.tone === "activity")
     return (
@@ -112,20 +112,15 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
         <span className="sr-only">{said}</span>
       </span>
     );
-  const color =
-    s.tone === "important"
-      ? dim
-        ? "text-red-600/80 dark:text-red-400/80"
-        : "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300"
-      : dim
-        ? "text-zinc-400 dark:text-zinc-500"
-        : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300";
+  // One look for every pill (a page's own and what is below it — that one only paler); something late: a red dot in it.
+  const color = dim ? "bg-indigo-50 text-indigo-500 dark:bg-indigo-950/30 dark:text-indigo-400" : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300";
   return (
     <span
-      className={`ml-auto shrink-0 rounded-full tabular-nums ${dim ? "px-1 text-[10px]" : "px-1.5 text-[11px] font-semibold"} leading-4 ${color}`}
+      className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-4 ${color}`}
       data-badge={s.tone}
-      {...(s.tone === "unread" && !dim ? { "data-unread": true } : {})}
+      {...(s.tone !== "activity" && !dim ? { "data-unread": true } : {})}
     >
+      {s.tone === "important" && <span aria-hidden className="size-1.5 rounded-full bg-red-500" />}
       <span aria-hidden>{countLabel(s.count)}</span>
       <span className="sr-only">{said}</span>
     </span>
