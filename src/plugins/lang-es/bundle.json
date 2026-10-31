@@ -8218,5 +8218,10 @@
   "Writes or rewrites text in a page at your request (Workspace).": "Escribe o reescribe texto en una página a petición tuya (Workspace).",
   "Finds the todos a page asks of you (Workspace).": "Encuentra las tareas que una página te pide (Workspace).",
   "Questions to the workspace": "Preguntas al Workspace",
-  "Answers a question from the pages that fit, naming them (Workspace).": "Responde una pregunta a partir de las páginas que encajan y las nombra (Workspace)."
+  "Answers a question from the pages that fit, naming them (Workspace).": "Responde una pregunta a partir de las páginas que encajan y las nombra (Workspace).",
+  "Does what you ask in the Workspace's sidebar with the workspace's tools — rows, views, pages, columns (Workspace).": "Hace en la barra lateral del Workspace lo que le pides con las herramientas del Workspace: filas, vistas, páginas, columnas (Workspace).",
+  "AI blocks (pages)": "Bloques de IA (páginas)",
+  "Writes an AI block's section of a page by its instruction, from the page and the databases it shows (Workspace).": "Escribe la sección de un bloque de IA según su instrucción, a partir de la página y de las bases de datos que muestra (Workspace).",
+  "View templates": "Plantillas de vista",
+  "Writes or fixes a database's view template at your request, checked until it renders without errors (Workspace).": "Escribe o corrige a petición tuya la plantilla de vista de una base de datos, comprobada hasta que se muestra sin errores (Workspace)."
 }

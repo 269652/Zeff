@@ -10,4 +10,7 @@ export const WORKSPACE_LLM_TASKS = (t: T) =>
     { plugin: "workspace", id: "page-todos", label: t("Todos from a page"), what: t("Finds the todos a page asks of you (Workspace).") },
     { plugin: "workspace", id: "workspace-ask", label: t("Questions to the workspace"), what: t("Answers a question from the pages that fit, naming them (Workspace).") },
     { plugin: "workspace", id: "page-assist", label: t("Think along (pages)"), what: t("“✨ Think along” on a page: understands what a block is about, asks what is missing and proposes what to set up (a plan calendar, todos, widgets, text).") },
+    { plugin: "workspace", id: "workspace-chat", label: t("Workspace assistant"), what: t("Does what you ask in the Workspace's sidebar with the workspace's tools — rows, views, pages, columns (Workspace).") },
+    { plugin: "workspace", id: "ai-block", label: t("AI blocks (pages)"), what: t("Writes an AI block's section of a page by its instruction, from the page and the databases it shows (Workspace).") },
+    { plugin: "workspace", id: "view-template", label: t("View templates"), what: t("Writes or fixes a database's view template at your request, checked until it renders without errors (Workspace).") },
   ] as const;

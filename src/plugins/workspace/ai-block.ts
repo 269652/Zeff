@@ -55,7 +55,7 @@ export async function writeAiBlock(pageId: number, prompt: string): Promise<stri
   const r = await runAi<{ text?: string }>(
     [fillPrompt("ai-block", AI_BLOCK, { instruction: prompt || "Fasse die Seite zusammen.", today }), "", await pageContext(pageId)].join("\n"),
     { type: "object", required: ["text"], properties: { text: { type: "string" } } },
-    { task: "general", timeoutMs: 4 * 60000, maxBudgetUsd: 0.5 },
+    { task: "ai-block", timeoutMs: 4 * 60000, maxBudgetUsd: 0.5 },
   );
   return String(r.output?.text ?? "").trim().slice(0, 8000);
 }

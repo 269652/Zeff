@@ -104,7 +104,7 @@ function pageContext(pageId?: number): string {
 
 /** One chat turn: the user's newest message in the context of the talk so far; the AI works in steps until it answers. */
 type Answer = { calls?: { tool?: string; args?: unknown }[]; reply?: string };
-const askAi = async (prompt: string): Promise<Answer> => (await runAi<Answer>(prompt, SCHEMA, { task: "general", timeoutMs: 4 * 60000, maxBudgetUsd: 0.6 })).output ?? {};
+const askAi = async (prompt: string): Promise<Answer> => (await runAi<Answer>(prompt, SCHEMA, { task: "workspace-chat", timeoutMs: 4 * 60000, maxBudgetUsd: 0.6 })).output ?? {};
 
 export async function workspaceChat(messages: ChatMessage[], pageId?: number, ask: (prompt: string) => Promise<Answer> = askAi): Promise<ChatResult> {
   const tools = collectTools();

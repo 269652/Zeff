@@ -78,10 +78,10 @@ export async function viewTemplateAiAction(v: { dbId: number; app: string; curre
     const { runAi } = await import("@/lib/ai");
     const check = (template: string) =>
       renderView(template, { rows, props: schema.properties, titleName: schema.titleName, state: {}, app: {}, db: { id: db.page.id, title: db.page.title }, current }, { parts: meta.parts, actions: meta.actions }).errors;
-    let r = (await runAi<{ template: string; note: string }>(prompt(), SCHEMA, { task: "general" })).output;
+    let r = (await runAi<{ template: string; note: string }>(prompt(), SCHEMA, { task: "view-template" })).output;
     let errors = check(r.template ?? "");
     if (errors.length) {
-      const again = (await runAi<{ template: string; note: string }>(prompt(`\nDEINE LETZTE VORLAGE HATTE FEHLER — behebe sie:\n${errors.map((e) => `Zeile ${e.line}: ${e.message}`).join("\n")}\n\n${r.template}`), SCHEMA, { task: "general" })).output;
+      const again = (await runAi<{ template: string; note: string }>(prompt(`\nDEINE LETZTE VORLAGE HATTE FEHLER — behebe sie:\n${errors.map((e) => `Zeile ${e.line}: ${e.message}`).join("\n")}\n\n${r.template}`), SCHEMA, { task: "view-template" })).output;
       const errs = check(again.template ?? "");
       if (errs.length <= errors.length) {
         r = again;
