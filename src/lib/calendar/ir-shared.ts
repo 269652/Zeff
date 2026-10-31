@@ -26,7 +26,7 @@ export type CalendarView = {
   todos: boolean;
   /** A Google calendar Zeff may write to (you own it or may write; Google holds Calendar's write access) — set by the calendar app's data. */
   writable?: boolean;
-  /** A shadow calendar (one of Zeff's own, embedded in a page): its appointments are suggestions in the main calendar — accepted into a real one, or dismissed. */
+  /** @deprecated Shadow calendars are gone (any calendar holds proposed appointments: CalendarEventView.proposed) — never set. */
   shadow?: boolean;
 };
 
@@ -56,6 +56,8 @@ export type CalendarEventView = {
   occurrence: string | null;
   /** An occurrence changed on its own: its series. */
   seriesId: number | null;
+  /** A proposal (an assistant's plan, the day plan's block): dashed, "Proposed" — accepted it is an appointment, dismissed it is gone. Blocks no time. */
+  proposed: boolean;
 };
 
 /** Which occurrences a change to a series means. */

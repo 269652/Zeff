@@ -34,18 +34,19 @@ export type Item = {
   event?: CalendarEventView;
   calendar?: CalendarView;
   proposed?: ProposedEvent;
-  /** An appointment of a shadow calendar, shown in the main calendar as a suggestion (accept / dismiss). */
-  shadow?: boolean;
   /** A Done item that matches this meeting, merged into it (see mergeDone). */
   merged?: Item;
 };
+
+/** A proposal (dashed, "Proposed"): a calendar's proposed appointment (accept / dismiss), or one a todo proposes. */
+export const isProposal = (it: Pick<Item, "proposed" | "event">): boolean => !!it.proposed || !!it.event?.proposed;
 
 /** The actions that are an appointment and can be moved by dragging (their start and length are in the action). */
 const MOVABLE_PROPOSALS = new Set(["calendar-event", "gcal-event", "calendar-entry"]);
 
 /**
  * What a view shows: the appointments of the calendars switched on (not cancelled), in their calendar's colour — Zeff's own
- * changeable — and, when wanted, those todos propose. `moved`: dragged here, shown where they went until the server has them.
+ * changeable, a proposed one (dashed) wherever it is — and, when wanted, those todos propose. `moved`: dragged here, shown where they went until the server has them.
  */
 export function calendarItems(
   events: CalendarEventView[],
@@ -54,18 +55,15 @@ export function calendarItems(
   shown: (c: CalendarView) => boolean,
   showProposed: boolean,
   moved: Record<string, { start: string; end: string }> = {},
-  /** A shadow calendar's appointments as suggestions (the main calendar), or as they are (the block it is embedded in). */
-  shadowAsProposal = true,
 ): Item[] {
   const byId = new Map(calendars.map((c) => [c.id, c]));
-  const suggestion = (calendarId: number) => shadowAsProposal && !!byId.get(calendarId)?.shadow;
   return [
     ...events
-      .filter((e) => !e.cancelled && byId.has(e.calendarId) && shown(byId.get(e.calendarId)!) && (showProposed || !suggestion(e.calendarId)))
+      .filter((e) => !e.cancelled && byId.has(e.calendarId) && shown(byId.get(e.calendarId)!))
       .map((e): Item => {
         const id = e.occurrence ? `e${e.id}@${e.occurrence}` : `e${e.id}`;
         const cal = byId.get(e.calendarId);
-        return { id, title: e.title, start: moved[id]?.start ?? e.start, end: moved[id]?.end ?? e.end, allDay: e.allDay, color: cal?.color ?? "#7A869A", editable: cal?.source === "zeff" || (!!cal?.writable && (!e.response || e.response === "organizer")), event: e, calendar: cal, ...(suggestion(e.calendarId) ? { shadow: true } : {}) };
+        return { id, title: e.title, start: moved[id]?.start ?? e.start, end: moved[id]?.end ?? e.end, allDay: e.allDay, color: cal?.color ?? "#7A869A", editable: cal?.source === "zeff" || e.proposed || (!!cal?.writable && (!e.response || e.response === "organizer")), event: e, calendar: cal };
       }),
     // An appointment a todo proposes can be dragged like one of Zeff's own: its action gets the new time.
     ...(showProposed ? proposed.map((p, i): Item => ({ id: `p${i}`, title: p.title, start: moved[`p${i}`]?.start ?? p.start, end: moved[`p${i}`]?.end ?? p.end, allDay: false, color: "#6366F1", editable: MOVABLE_PROPOSALS.has(p.type), proposed: p })) : []),
@@ -213,5 +211,5 @@ export function mergeDone<T extends Pick<Item, "start" | "end" | "calendar" | "p
 
 /** What a screen reader says for an appointment's block: title, when, calendar (not the title alone). */
 export function itemLabel(it: Item, t: T): string {
-  return [it.proposed ? t("Proposed: {title}", { title: it.title }) : it.title, whenText(it, t), it.calendar?.name].filter(Boolean).join(", ");
+  return [isProposal(it) ? t("Proposed: {title}", { title: it.title }) : it.title, whenText(it, t), it.calendar?.name].filter(Boolean).join(", ");
 }

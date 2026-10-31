@@ -6,7 +6,7 @@ import { addDays } from "@/lib/calendar/recurrence";
 import { LANGUAGES } from "@/lib/i18n/shared";
 import { textOn } from "@/lib/contrast";
 import { nudged, nudgeOf } from "./nudge";
-import { isoWeek, itemLabel, itemOn, local, mergeDone, minutesBetween, timeText, weekdayHeads, type Item } from "./view-shared";
+import { isProposal, isoWeek, itemLabel, itemOn, local, mergeDone, minutesBetween, timeText, weekdayHeads, type Item } from "./view-shared";
 
 const MAX = 3;
 
@@ -146,8 +146,8 @@ export function MonthGrid({
                       onClick={(e) => e.detail === 0 && onOpen(it, e.currentTarget.getBoundingClientRect())}
                       onKeyDown={(e) => onItemKey(e, it)}
                       aria-label={itemLabel(it, t)}
-                      className={`flex min-w-0 shrink-0 items-center gap-1 truncate rounded px-1 text-left text-xs leading-5 ${from ? "-ml-[5px] rounded-l-none border-l-0 pl-[9px]" : ""} ${on ? "-mr-[5px] rounded-r-none border-r-0" : ""} ${from && on ? "w-[calc(100%+10px)]" : from || on ? "w-[calc(100%+5px)]" : "w-full"} ${it.allDay ? "font-medium" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"} ${it.editable ? "cursor-grab" : "cursor-pointer"} ${drag?.moved && drag.item.id === it.id ? "opacity-60" : ""} ${it.proposed || it.shadow ? "border border-dashed" : ""}`}
-                      style={it.allDay && !it.shadow ? { background: it.color, color: textOn(it.color) } : it.proposed || it.shadow ? { borderColor: it.color } : undefined}
+                      className={`flex min-w-0 shrink-0 items-center gap-1 truncate rounded px-1 text-left text-xs leading-5 ${from ? "-ml-[5px] rounded-l-none border-l-0 pl-[9px]" : ""} ${on ? "-mr-[5px] rounded-r-none border-r-0" : ""} ${from && on ? "w-[calc(100%+10px)]" : from || on ? "w-[calc(100%+5px)]" : "w-full"} ${it.allDay ? "font-medium" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"} ${it.editable ? "cursor-grab" : "cursor-pointer"} ${drag?.moved && drag.item.id === it.id ? "opacity-60" : ""} ${isProposal(it) ? "border border-dashed" : ""}`}
+                      style={it.allDay && !isProposal(it) ? { background: it.color, color: textOn(it.color) } : isProposal(it) ? { borderColor: it.color } : undefined}
                       title={`${it.allDay ? "" : `${timeText(it.start)} `}${it.title}${it.merged ? ` ✓ ${it.merged.title}` : ""}`}
                     >
                       {!it.allDay && <span className="size-1.5 shrink-0 rounded-full" style={{ background: it.color }} />}

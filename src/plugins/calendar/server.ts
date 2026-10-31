@@ -12,5 +12,5 @@ workspaceSources.contribute("calendar", [CALENDAR_SOURCE]);
 workspaceWidgets.contribute("calendar", CALENDAR_WIDGETS);
 // Sleep (a sleep tracker's calendar) as daily series for the Correlations.
 correlationSeries.contribute("calendar", [SLEEP_SERIES]);
-// The shadow calendars' appointments (the day plan's blocks among them) as proposals: the review queue lists them, decide() does them.
+// The proposed appointments of any calendar (the day plan's blocks among them) as proposals: the review queue lists them, decide() does them.
 proposalSources.contribute("calendar", CALENDAR_PROPOSALS);

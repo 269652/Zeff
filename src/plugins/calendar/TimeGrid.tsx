@@ -6,7 +6,7 @@ import { addDays, weekdayOf } from "@/lib/calendar/recurrence";
 import { textOn } from "@/lib/contrast";
 import { LANGUAGES } from "@/lib/i18n/shared";
 import { nudged, nudgeOf } from "./nudge";
-import { durationText, isoWeek, itemLabel, itemOn, lanes, local, mergeDone, minutesBetween, minutesOf, plus, snap, stampAt, timeText, type Item } from "./view-shared";
+import { durationText, isProposal, isoWeek, itemLabel, itemOn, lanes, local, mergeDone, minutesBetween, minutesOf, plus, snap, stampAt, timeText, type Item } from "./view-shared";
 
 const HOUR = 48;
 const STEP = 15;
@@ -268,12 +268,12 @@ export function TimeGrid({
                       onClick={(e) => onItemClick(e, it)}
                       onKeyDown={(e) => onItemKey(e, it, true)}
                       aria-label={itemLabel(it, t)}
-                      className={`block w-full truncate rounded px-1.5 py-0.5 text-left text-xs font-medium ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${dragging === it.id ? "opacity-70 shadow-lg ring-2 ring-white/70" : ""}`}
-                      style={{ background: it.color, color: textOn(it.color) }}
-                      title={it.title}
+                      className={`block w-full truncate rounded px-1.5 py-0.5 text-left text-xs font-medium ${isProposal(it) ? "border-2 border-dashed" : ""} ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${dragging === it.id ? "opacity-70 shadow-lg ring-2 ring-white/70" : ""}`}
+                      style={isProposal(it) ? { borderColor: it.color } : { background: it.color, color: textOn(it.color) }}
+                      title={isProposal(it) ? t("Proposed: {title}", { title: it.title }) : it.title}
                     >
                       {it.start < d ? "↳ " : ""}
-                      {it.title}
+                      {isProposal(it) ? t("Proposed: {title}", { title: it.title }) : it.title}
                     </button>
                   ))}
               </div>
@@ -342,7 +342,7 @@ export function TimeGrid({
                       onClick={(e) => onItemClick(e, it)}
                       onKeyDown={(e) => onItemKey(e, it, false)}
                       aria-label={itemLabel(it, t)}
-                      className={`group absolute overflow-hidden rounded-md px-1.5 py-0.5 text-left text-xs leading-tight transition-shadow ${it.proposed || it.shadow ? "border-2 border-dashed" : "border-l-[3px]"} ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragged ? "z-30 shadow-xl ring-2 ring-indigo-400/60" : "hover:z-10 hover:shadow-md"} ${faint ? "opacity-50" : past && !isDragged ? "opacity-75" : ""}`}
+                      className={`group absolute overflow-hidden rounded-md px-1.5 py-0.5 text-left text-xs leading-tight transition-shadow ${isProposal(it) ? "border-2 border-dashed" : "border-l-[3px]"} ${it.editable ? "cursor-grab active:cursor-grabbing" : "cursor-pointer"} ${isDragged ? "z-30 shadow-xl ring-2 ring-indigo-400/60" : "hover:z-10 hover:shadow-md"} ${faint ? "opacity-50" : past && !isDragged ? "opacity-75" : ""}`}
                       style={{
                         top: (from / 60) * HOUR + 1,
                         height: Math.max(18, h - 2),
@@ -367,7 +367,7 @@ export function TimeGrid({
                           <>
                             <span className="block truncate font-semibold">
                               {it.event?.recurrence ? "↻ " : ""}
-                              {it.proposed || it.shadow ? t("Proposed: {title}", { title: it.title }) : it.title}
+                              {isProposal(it) ? t("Proposed: {title}", { title: it.title }) : it.title}
                             </span>
                             <span className="block truncate text-zinc-600 dark:text-zinc-400">
                               {timeText(it.start)} – {timeText(it.end)}

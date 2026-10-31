@@ -3,7 +3,7 @@ import type { Feedback } from "@/lib/learning/ledger";
 
 /**
  * Proposals (client-free types and the extension point): one shape for everything Zeff proposes and you accept or dismiss — a
- * name that may be someone's, an organisation behind a mail domain, a block of the day plan, a shadow calendar's appointment.
+ * name that may be someone's, an organisation behind a mail domain, a block of the day plan, a proposed appointment.
  * The proposing place calls `propose()` (@/lib/proposals); what an accept or a dismiss DOES is its source's, contributed here
  * from the plugin's `server.ts`. Every decision goes through `decide()`, which runs that handler and writes the learning
  * ledger. The review queue lists the open ones, grouped by source. Server only.
@@ -14,11 +14,11 @@ export type ProposalVerdict = "accepted" | "dismissed";
 
 export type Proposal<P = Record<string, unknown>> = {
   id: number;
-  /** Which source made it ("people-identity", "entities", "calendar-shadow") — its handler's id. */
+  /** Which source made it ("people-identity", "entities", "calendar") — its handler's id. */
   source: string;
   /** The source's own kind ("merge", "alias", "day-plan-block" …). */
   kind: string;
-  /** What it is about ("person:12", "org:3", "shadow:7:plan:0") — "" when it is about something not there yet. */
+  /** What it is about ("person:12", "org:3", "event:7:plan:…") — "" when it is about something not there yet. */
   subjectRef: string;
   /** What accepting it does, as the source needs it. */
   payload: P;

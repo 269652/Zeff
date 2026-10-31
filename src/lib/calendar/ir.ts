@@ -7,7 +7,7 @@
  */
 import { pad2 as two } from "@/lib/text";
 import { randomUUID } from "node:crypto";
-import { and, asc, eq, gt, gte, isNotNull, isNull, lt, or } from "drizzle-orm";
+import { and, asc, eq, gt, gte, inArray, isNotNull, isNull, lt, or } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
 import { t } from "@/lib/i18n/server";
@@ -17,7 +17,7 @@ import { CALENDAR_COLORS, type CalendarEventView, type CalendarSourceKind, type 
 import { addDays, expand, occurrenceDays, onDay, parseRecurrence, type Recurrence } from "./recurrence";
 import type { GraphEvent } from "./meetings";
 import { localDay, localStamp } from "@/lib/dates";
-import { SHADOW_PREFIX, syncShadowProposals } from "./shadow-proposals";
+import { proposedKey, syncProposals } from "./proposed";
 
 const { calendars, calendarEvents } = schema;
 
@@ -44,12 +44,13 @@ export type EventInput = {
   recurrence?: Recurrence | null;
   exdates?: string[];
   seriesId?: number | null;
+  /** A proposal (dashed until accepted or dismissed): blocks no time, never written to its source. */
+  proposed?: boolean;
 };
 
 const now = () => new Date().toISOString();
-/** A shadow calendar's key: one of Zeff's own, marked so (no column of its own — the key says it). Its appointments are proposals (./shadow-proposals). */
-export { SHADOW_PREFIX };
-const toView = (c: typeof calendars.$inferSelect): CalendarView => ({ id: c.id, key: c.key, source: c.source, name: c.name, color: c.color, visible: c.visible, busy: c.busy, book: c.book, todos: c.todos, ...(c.key.startsWith(SHADOW_PREFIX) ? { shadow: true } : {}) });
+const proposedKeyOf = (e: { title: string; start: string; end: string; allDay?: boolean }) => proposedKey("proposed:", e);
+const toView = (c: typeof calendars.$inferSelect): CalendarView => ({ id: c.id, key: c.key, source: c.source, name: c.name, color: c.color, visible: c.visible, busy: c.busy, book: c.book, todos: c.todos });
 const eventView = (e: typeof calendarEvents.$inferSelect): CalendarEventView => ({
   id: e.id,
   calendarId: e.calendarId,
@@ -78,6 +79,7 @@ const eventView = (e: typeof calendarEvents.$inferSelect): CalendarEventView => 
   recurrence: parseRecurrence(e.recurrence),
   occurrence: null,
   seriesId: e.seriesId,
+  proposed: e.proposed,
 });
 const exdatesOf = (e: typeof calendarEvents.$inferSelect): string[] => {
   try {
@@ -153,17 +155,6 @@ export function createCalendar(name: string, color?: string): CalendarView {
   return ensureCalendar(`zeff:${randomUUID()}`, { source: "zeff", name: n, color });
 }
 
-/**
- * A shadow calendar: one of Zeff's own whose appointments are suggestions — embedded in a page (a day, a week, a month planned
- * there), shown dashed in the main calendar until accepted into a real one. It blocks no time, isn't offered for booking and
- * makes no todos.
- */
-export function createShadowCalendar(name: string, color?: string): CalendarView {
-  const n = name.trim().slice(0, 80);
-  if (!n) throw new Error(t("A name, please."));
-  return ensureCalendar(`${SHADOW_PREFIX}${randomUUID()}`, { source: "zeff", name: n, color, busy: false, book: false, todos: false });
-}
-
 /** One of Zeff's own calendars, with its appointments (a source's comes back with its next sync). */
 export function deleteCalendar(id: number): void {
   const db = getDb();
@@ -174,7 +165,7 @@ export function deleteCalendar(id: number): void {
     tx.delete(calendarEvents).where(eq(calendarEvents.calendarId, id)).run();
     tx.delete(calendars).where(eq(calendars.id, id)).run();
   });
-  if (c.key.startsWith(SHADOW_PREFIX)) syncShadowProposals(id);
+  syncProposals(id);
 }
 
 const row = (calendarId: number, e: EventInput): typeof calendarEvents.$inferInsert => ({
@@ -199,18 +190,23 @@ const row = (calendarId: number, e: EventInput): typeof calendarEvents.$inferIns
   recurrence: e.recurrence ? JSON.stringify(e.recurrence) : null,
   exdates: JSON.stringify([...new Set(e.exdates ?? [])].sort()),
   seriesId: e.seriesId ?? null,
+  proposed: !!e.proposed,
   updatedAt: now(),
 });
 
 /**
  * A source's appointments, as it now has them: those of the range read (all, without one) replaced —
- * so what was moved or deleted there goes here too. How many.
+ * so what was moved or deleted there goes here too (the proposed ones stay: they aren't the source's). How many.
  */
 export function replaceEvents(calendarId: number, events: EventInput[], range?: { from: string; to: string }): number {
   const db = getDb();
   db.transaction((tx) => {
     tx.delete(calendarEvents)
-      .where(range ? and(eq(calendarEvents.calendarId, calendarId), gte(calendarEvents.start, range.from), lt(calendarEvents.start, range.to)) : eq(calendarEvents.calendarId, calendarId))
+      .where(
+        range
+          ? and(eq(calendarEvents.calendarId, calendarId), eq(calendarEvents.proposed, false), gte(calendarEvents.start, range.from), lt(calendarEvents.start, range.to))
+          : and(eq(calendarEvents.calendarId, calendarId), eq(calendarEvents.proposed, false)),
+      )
       .run();
     const seen = new Set<string>();
     for (const e of events) {
@@ -222,8 +218,40 @@ export function replaceEvents(calendarId: number, events: EventInput[], range?: 
         .run();
     }
   });
-  syncShadowProposals(calendarId);
+  syncProposals(calendarId);
   return events.length;
+}
+
+/**
+ * Proposed appointments put in a calendar (any: they stay Zeff's, never written to its source) — those of `replace` (proposed
+ * ones, an earlier answer's) taken out first. Keys made of what they are, unless given: asked again with the same, it is the
+ * same proposal (one dismissed stays out). Those in now.
+ */
+export function proposeEvents(calendarId: number, events: (Omit<EventInput, "key" | "proposed"> & { key?: string })[], replace: number[] = []): CalendarEventView[] {
+  const db = getDb();
+  if (!db.select({ id: calendars.id }).from(calendars).where(eq(calendars.id, calendarId)).get()) throw new Error(t("Unknown calendar."));
+  const touched = new Set([calendarId]);
+  const made = db.transaction((tx) => {
+    const ids = replace.filter((n) => Number.isInteger(n) && n > 0);
+    const gone = ids.length ? tx.select({ id: calendarEvents.id, calendarId: calendarEvents.calendarId }).from(calendarEvents).where(and(inArray(calendarEvents.id, ids), eq(calendarEvents.proposed, true))).all() : [];
+    for (const g of gone) {
+      touched.add(g.calendarId);
+      tx.delete(calendarEvents).where(or(eq(calendarEvents.id, g.id), eq(calendarEvents.seriesId, g.id))).run();
+    }
+    const seen = new Set<string>();
+    return events.flatMap((e) => {
+      if (!e.title.trim() || !e.start) return [];
+      const key = e.key || proposedKeyOf(e);
+      if (seen.has(key)) return [];
+      seen.add(key);
+      const r = row(calendarId, { ...e, key, proposed: true });
+      return [eventView(tx.insert(calendarEvents).values(r).onConflictDoUpdate({ target: [calendarEvents.calendarId, calendarEvents.key], set: r }).returning().get())];
+    });
+  });
+  for (const id of touched) syncProposals(id);
+  // (one dismissed before, asked again unchanged: taken out by the sync)
+  const left = new Set(db.select({ id: calendarEvents.id }).from(calendarEvents).where(and(eq(calendarEvents.calendarId, calendarId), eq(calendarEvents.proposed, true))).all().map((r) => r.id));
+  return made.filter((e) => left.has(e.id));
 }
 
 /**
@@ -231,7 +259,11 @@ export function replaceEvents(calendarId: number, events: EventInput[], range?: 
  * busy, for booking) — each with its calendar; a series' occurrences each on their own (its id,
  * their day as `occurrence`).
  */
-export function eventsBetween(from: string, to: string, only: { visible?: boolean; busy?: boolean; book?: boolean } = {}): (CalendarEventView & { calendar: CalendarView })[] {
+export function eventsBetween(
+  from: string,
+  to: string,
+  only: { visible?: boolean; busy?: boolean; book?: boolean; /** The proposed ones too (left out otherwise: nothing is planned with them yet). */ proposals?: boolean } = {},
+): (CalendarEventView & { calendar: CalendarView })[] {
   const cals = new Map(listCalendars().map((c) => [c.id, c]));
   return getDb()
     .select()
@@ -242,7 +274,7 @@ export function eventsBetween(from: string, to: string, only: { visible?: boolea
     .all()
     .flatMap((e) => {
       const c = cals.get(e.calendarId);
-      if (!c || (only.visible && !c.visible) || (only.busy && !c.busy) || (only.book && !c.book)) return [];
+      if (!c || (only.visible && !c.visible) || (only.busy && !c.busy) || (only.book && !c.book) || (e.proposed && !only.proposals)) return [];
       const view = eventView(e);
       if (!view.recurrence) return [{ ...view, calendar: c }];
       return expand(view, view.recurrence, exdatesOf(e), from, to).map((o) => ({ ...view, start: o.start, end: o.end, occurrence: o.occurrence, key: `${e.key}#${o.occurrence}`, calendar: c }));
@@ -261,7 +293,7 @@ export function eventById(id: number, occurrence?: string): (CalendarEventView &
   const next = new Date(`${day}T12:00:00`);
   next.setDate(next.getDate() + 1);
   const to = localDay(next);
-  return eventsBetween(day, to).find((x) => x.id === id && x.occurrence === occurrence) ?? null;
+  return eventsBetween(day, to, { proposals: true }).find((x) => x.id === id && x.occurrence === occurrence) ?? null;
 }
 
 /** An appointment in one of Zeff's own calendars. */
@@ -270,7 +302,7 @@ export function addEvent(calendarId: number, e: Omit<EventInput, "key">): Calend
   if (!c || c.source !== "zeff") throw new Error(t("Events can only be created in Zeff's own calendars."));
   if (!e.title.trim() || !e.start) throw new Error(t("A title and a start, please."));
   const made = eventView(getDb().insert(calendarEvents).values(row(calendarId, { ...e, key: randomUUID() })).returning().get());
-  if (c.key.startsWith(SHADOW_PREFIX)) syncShadowProposals(calendarId);
+  if (made.proposed) syncProposals(calendarId);
   return made;
 }
 
@@ -279,11 +311,12 @@ export function updateEvent(id: number, patch: Partial<Omit<EventInput, "key">>)
   const db = getDb();
   const e = db.select().from(calendarEvents).where(eq(calendarEvents.id, id)).get();
   const c = e && db.select().from(calendars).where(eq(calendars.id, e.calendarId)).get();
-  if (!e || !c || c.source !== "zeff") throw new Error(t("Only events in Zeff's own calendars can be changed."));
+  // (a proposed one: of any calendar — Zeff's alone, never its source's)
+  if (!e || !c || (c.source !== "zeff" && !e.proposed)) throw new Error(t("Only events in Zeff's own calendars can be changed."));
   // A series keeps its left-out occurrences.
   const next = row(e.calendarId, { ...eventView(e), exdates: exdatesOf(e), ...patch, key: e.key, raw: e.raw, todoId: patch.todoId ?? e.todoId });
   const changed = eventView(db.update(calendarEvents).set(next).where(eq(calendarEvents.id, id)).returning().get());
-  if (c.key.startsWith(SHADOW_PREFIX)) syncShadowProposals(e.calendarId);
+  if (e.proposed) syncProposals(e.calendarId);
   return changed;
 }
 
@@ -291,13 +324,13 @@ export function deleteEvent(id: number): void {
   const db = getDb();
   const e = db.select().from(calendarEvents).where(eq(calendarEvents.id, id)).get();
   const c = e && db.select().from(calendars).where(eq(calendars.id, e.calendarId)).get();
-  if (!e || !c || c.source !== "zeff") throw new Error(t("Only events in Zeff's own calendars can be deleted."));
+  if (!e || !c || (c.source !== "zeff" && !e.proposed)) throw new Error(t("Only events in Zeff's own calendars can be deleted."));
   db.transaction((tx) => {
     // A series: with the occurrences changed on their own.
     tx.delete(calendarEvents).where(eq(calendarEvents.seriesId, id)).run();
     tx.delete(calendarEvents).where(eq(calendarEvents.id, id)).run();
   });
-  if (c.key.startsWith(SHADOW_PREFIX)) syncShadowProposals(e.calendarId);
+  if (e.proposed) syncProposals(e.calendarId);
 }
 
 // ---------------------------------------------------------------------------
@@ -389,8 +422,7 @@ export function deleteOccurrence(id: number, occurrence: string, scope: SeriesSc
 
 /** Zeff's own calendar by name (else the first of them — made when there is none). */
 export function zeffCalendar(name = ""): CalendarView {
-  // (a shadow calendar's appointments are suggestions: never where something is entered for real)
-  const own = listCalendars().filter((c) => c.source === "zeff" && !c.shadow);
+  const own = listCalendars().filter((c) => c.source === "zeff");
   return own.find((c) => c.name.toLowerCase() === name.trim().toLowerCase()) ?? own[0] ?? createCalendar("Mein Kalender");
 }
 
@@ -465,11 +497,11 @@ export function bookableGraphEvents(): GraphEvent[] {
     .from(calendarEvents)
     .orderBy(asc(calendarEvents.start))
     .all()
-    .filter((e) => cals.get(e.calendarId)?.book)
+    .filter((e) => !e.proposed && cals.get(e.calendarId)?.book)
     .map((e) => toGraph({ ...eventView(e), raw: e.raw }));
 }
 
-/** The busy times between two moments: timed appointments of busy calendars, not cancelled, not "free". */
+/** The busy times between two moments: timed appointments of busy calendars, not cancelled, not "free", not proposed. */
 export function busyBetween(from: Date, to: Date): { start: Date; end: Date; title: string }[] {
   return eventsBetween(localStamp(from), localStamp(to), { busy: true })
     .filter((e) => !e.allDay && !e.cancelled && e.showAs !== "free" && e.response !== "declined")

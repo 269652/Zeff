@@ -34,7 +34,7 @@ export const STEPS = {
   todoDone: "todo-done",
   openLoops: "open-loops",
   entities: "entities",
-  shadowCalendar: "shadow-calendar",
+  calendarProposal: "calendar-proposal",
   dayPlan: "day-plan",
 } as const;
 

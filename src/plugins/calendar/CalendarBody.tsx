@@ -40,7 +40,6 @@ export function useCalendarBody({
   showProposed,
   go,
   onChanged,
-  shadowAsProposal = true,
   defaultCalendarId,
 }: {
   view: ViewKind;
@@ -53,7 +52,7 @@ export function useCalendarBody({
   showProposed: boolean;
   go: (view: ViewKind, day: string) => void;
   onChanged?: () => void;
-  /** A shadow calendar's appointments as suggestions (the main calendar) — false in the block it is embedded in. */
+  /** @deprecated Shadow calendars are gone: a proposed appointment is one wherever it shows — ignored. */
   shadowAsProposal?: boolean;
   /** Where a new appointment goes (the embedded calendar's) — else the first of Zeff's own. */
   defaultCalendarId?: number;
@@ -84,7 +83,7 @@ export function useCalendarBody({
     return () => clearInterval(timer);
   }, []);
 
-  const items: Item[] = useMemo(() => calendarItems(events, proposed, calendars, shown, showProposed, moved, shadowAsProposal), [events, proposed, calendars, shown, showProposed, moved, shadowAsProposal]);
+  const items: Item[] = useMemo(() => calendarItems(events, proposed, calendars, shown, showProposed, moved), [events, proposed, calendars, shown, showProposed, moved]);
 
   const done = useCallback(
     (r: Result, undo?: () => unknown) => {
@@ -99,7 +98,7 @@ export function useCalendarBody({
   const create = useCallback(
     (v: { start: string; end: string; allDay: boolean }) => {
       setPicked(null);
-      setEditor({ calendarId: defaultCalendarId ?? own.find((c) => c.source === "zeff" && !c.shadow)?.id ?? own.find((c) => c.source === "zeff")?.id ?? 0, title: "", start: v.start, end: v.end, allDay: v.allDay, location: "", description: "", recurrence: null });
+      setEditor({ calendarId: defaultCalendarId ?? own.find((c) => c.source === "zeff")?.id ?? 0, title: "", start: v.start, end: v.end, allDay: v.allDay, location: "", description: "", recurrence: null });
     },
     [own, defaultCalendarId],
   );
