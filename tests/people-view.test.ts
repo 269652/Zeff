@@ -127,7 +127,7 @@ test("New (the toolbar's) opens the form (a part); the other tab: appointments, 
   // Write in the chat; later.
   assert.ok(find(r.nodes, "button").some((b) => b.a.action === "url" && b.a.href === "/mail?q=Anna%20Berg"));
   assert.deepEqual(parts(r.nodes, "people.tool").filter((p) => p.a.tool === "snooze").map((p) => p.a.person), ["1"]);
-  assert.ok(find(r.nodes, "button").some((b) => b.a.action === "url" && b.a.href === "/review"));
+  assert.ok(find(r.nodes, "button").some((b) => b.a.action === "url" && b.a.href === "/heute#review"), "the review queue: on Today");
 });
 
 test("an appointment folds its brief: since you last met, what is open, the cases", () => {

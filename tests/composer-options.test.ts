@@ -24,6 +24,8 @@ test("each live backend has its own choices; ChatGPT workers need the plugin and
   setInstalled("codex-cli", true);
   setInstalled("claude-cli", true);
   updateClaudeSessionSettings({ live: true });
+  // The page never waits for the CLI's catalog (codexModelsNow: what is cached, refreshed behind it): fetched once first.
+  await (await import("../src/plugins/codex-cli/cli")).codexModels();
   let o = await composerOptions();
   assert.ok(o.providers.some((p) => p.id === "codex" && p.live), "ChatGPT offered as a live backend");
   const codex = o.choices.codex;
