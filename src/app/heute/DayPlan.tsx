@@ -8,7 +8,7 @@ import { applyDayPlanAction, planDayAction } from "@/plugins/todos/server-action
 
 /**
  * Today's "✨ Plan my day": the AI proposes time blocks for today's todos around the appointments (one call, on the click only) —
- * shown as a proposal; Apply puts them as suggestions into the day's "Tagesplan" calendar (asked again: replaced).
+ * shown as a proposal; Apply puts them as proposed appointments into your Zeff calendar (asked again: the day's replaced).
  */
 export function DayPlan() {
   const t = useT();

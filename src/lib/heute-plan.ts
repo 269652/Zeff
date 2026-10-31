@@ -1,10 +1,13 @@
 /**
  * "Plan my day" (the Today page): one AI call (day-plan) orders today's todos — yours, due today or before, or marked important —
  * into time blocks around the appointments, in the free time of the working day. Only a proposal: applied, its blocks become
- * suggestions in one shadow calendar "Tagesplan <day>" (replaced when planned again). A block over an appointment, over another
- * block or outside the day never gets in. Server only.
+ * proposed appointments in your Zeff calendar — one set per day, replaced when planned again; one you dismissed is not proposed
+ * again (its proposal's hash). A block over an appointment, over another block or outside the day never gets in. Server only.
  */
-import { busyBetween, createShadowCalendar, listCalendars, replaceEvents } from "@/lib/calendar/ir";
+import { and, eq, like } from "drizzle-orm";
+import { getDb, schema } from "@/db";
+import { busyBetween, proposeEvents, zeffCalendar } from "@/lib/calendar/ir";
+import { DAY_PLAN_KEY, proposedKey } from "@/lib/calendar/proposed";
 import { dayOf, stampOf } from "@/lib/calendar/ir-shared";
 
 export const INSTRUCTIONS = `Du planst meinen heutigen Tag: Ordne meine Todos in Zeitblöcke, um meine Termine herum, in der freien Zeit des Arbeitstags.
@@ -34,7 +37,8 @@ export type DayPlan = { day: string; blocks: PlanBlock[]; note: string };
 /** The working day the plan fills. */
 const WORK = { from: "08:00", to: "18:00" };
 
-export const planCalendarName = (day: string) => `Tagesplan ${day}`;
+/** The keys of a day's plan blocks start so (in the Zeff calendar, among its other appointments). */
+export const planKeyPrefix = (day: string) => `${DAY_PLAN_KEY}${day}:`;
 
 /** The blocks that fit: inside [from, to), not ending before they start, over no busy time and no block kept before — by start. */
 export function fitBlocks(blocks: PlanBlock[], busy: { start: string; end: string }[], from: string, to: string): PlanBlock[] {
@@ -48,7 +52,7 @@ export function fitBlocks(blocks: PlanBlock[], busy: { start: string; end: strin
   return kept;
 }
 
-/** The busy appointments of a day, as local stamps (a shadow calendar blocks nothing: never the plan itself). */
+/** The busy appointments of a day, as local stamps (a proposed one blocks nothing: never the plan itself). */
 const busyOf = (day: string) => busyBetween(new Date(`${day}T00:00`), new Date(`${day}T23:59`)).map((b) => ({ start: stampOf(b.start), end: stampOf(b.end), title: b.title }));
 
 /** The next quarter hour from `now` (a plan starts no earlier). */
@@ -89,14 +93,24 @@ export async function planDay(now: Date = new Date()): Promise<DayPlan> {
   return { day, blocks: fitBlocks(blocks, busy, from, to), note: (answer?.note ?? "").trim().slice(0, 500) };
 }
 
-/** A plan applied: its blocks (those that fit the day as it is now) the suggestions of the day's "Tagesplan" calendar — what was there before replaced. */
+/**
+ * A plan applied: its blocks (those that fit the day as it is now) proposed appointments in the Zeff calendar — the day's blocks
+ * proposed before (still open) replaced. How many are in (one dismissed before comes back no more).
+ */
 export function applyDayPlan(day: string, blocks: PlanBlock[]): { calendarId: number; count: number } {
-  const name = planCalendarName(day);
-  const calendar = listCalendars().find((c) => c.shadow && c.name === name) ?? createShadowCalendar(name);
+  const calendar = zeffCalendar();
   const fit = fitBlocks(blocks, busyOf(day), `${day}T00:00`, `${day}T23:59`);
-  replaceEvents(
+  const { calendarEvents } = schema;
+  const before = getDb()
+    .select({ id: calendarEvents.id })
+    .from(calendarEvents)
+    .where(and(eq(calendarEvents.proposed, true), like(calendarEvents.key, `${planKeyPrefix(day)}%`)))
+    .all()
+    .map((r) => r.id);
+  const made = proposeEvents(
     calendar.id,
-    fit.map((b, i) => ({ key: `plan:${i}`, title: b.title, start: b.start, end: b.end, todoId: b.todoId })),
+    fit.map((b) => ({ key: proposedKey(planKeyPrefix(day), b), title: b.title, start: b.start, end: b.end, todoId: b.todoId })),
+    before,
   );
-  return { calendarId: calendar.id, count: fit.length };
+  return { calendarId: calendar.id, count: made.length };
 }

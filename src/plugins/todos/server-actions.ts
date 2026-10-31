@@ -644,7 +644,7 @@ export async function planDayAction(): Promise<{ ok: true; plan: import("@/lib/h
   }
 }
 
-/** Today → the day's plan applied: its blocks the suggestions of the day's "Tagesplan" shadow calendar (replaced when applied again). */
+/** Today → the day's plan applied: its blocks proposed appointments in the Zeff calendar (the day's replaced when applied again). */
 export async function applyDayPlanAction(day: string, blocks: import("@/lib/heute-plan").PlanBlock[]): Promise<ActionState & { calendarId?: number }> {
   try {
     if (!/^\d{4}-\d{2}-\d{2}$/.test(day) || !Array.isArray(blocks)) return { ok: false, error: t("Nothing to apply.") };
