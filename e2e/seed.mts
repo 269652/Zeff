@@ -76,9 +76,9 @@ if (!seed.assistPage) {
   const paragraph = (text: string) => ({ type: "paragraph", content: [{ type: "text", text }] });
   const assistText = "Besuch in Hamburg im März 2027 planen.";
   const assistPage = createPage({ title: "E2E Mitdenken", content: { type: "doc", content: [paragraph(assistText), paragraph("Ende")] } });
-  // A plan calendar with an all-day event, shown in a page (its week).
+  // A calendar with an all-day event, shown in a page (its week).
   const ir = await import("@/lib/calendar/ir");
-  const cal = ir.createShadowCalendar("E2E Plan");
+  const cal = ir.createCalendar("E2E Plan");
   const calEvent = "E2E Ausflug";
   ir.addEvent(cal.id, { title: calEvent, start: "2027-03-03", end: "2027-03-04", allDay: true });
   const calendarPage = createPage({

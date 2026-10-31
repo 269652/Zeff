@@ -24,7 +24,7 @@ test("today: appointments of today and tomorrow morning with whom to prepare, du
   ir.addEvent(own.id, { title: "Jour fixe mit Erika", start: `${today}T10:00`, end: `${today}T11:00` });
   ir.addEvent(own.id, { title: "Zahnarzt", start: `${tomorrow}T09:00`, end: `${tomorrow}T10:00` });
   ir.addEvent(own.id, { title: "Kino", start: `${tomorrow}T19:00`, end: `${tomorrow}T21:00` });
-  ir.addEvent(ir.createShadowCalendar("Tagesplan").id, { title: "Block", start: `${today}T12:00`, end: `${today}T13:00` });
+  ir.proposeEvents(own.id, [{ title: "Block", start: `${today}T12:00`, end: `${today}T13:00` }]);
 
   const people = await import("@/plugins/people/store");
   const graph = await import("@/plugins/people/graph");
@@ -56,7 +56,11 @@ test("today: appointments of today and tomorrow morning with whom to prepare, du
   const { todayData } = await import("@/lib/heute-today");
   const d = await todayData(now);
 
-  assert.deepEqual(d.appointments.map((a) => `${a.title}${a.tomorrow ? " (tomorrow)" : ""}`), ["Jour fixe mit Erika", "Zahnarzt (tomorrow)"], "not over, not tomorrow afternoon, no suggestions");
+  assert.deepEqual(
+    d.appointments.map((a) => `${a.title}${a.tomorrow ? " (tomorrow)" : ""}${a.proposed ? " (proposed)" : ""}`),
+    ["Jour fixe mit Erika", "Block (proposed)", "Zahnarzt (tomorrow)"],
+    "not over, not tomorrow afternoon; a proposal marked",
+  );
   assert.deepEqual(d.appointments[0].people.map((p) => p.name), ["Erika Mustermann"], "whom to prepare for");
   assert.deepEqual(d.appointments[1].people, []);
 

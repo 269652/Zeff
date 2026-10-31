@@ -2,21 +2,20 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SEED, dbAll, editor, fakeAnswer, open, rx, waitSaved, withPage } from "./helpers.mjs";
 
-/** The fake model's answers: a round of questions, then a proposal (a plan calendar and a todo). */
+/** The fake model's answers: a round of questions, then a proposal (proposed appointments and a todo). */
 const ASK = {
   intent: "Hamburg-Reise",
   summary: "Ein Besuch in Hamburg im März 2027.",
   questions: [{ id: "q1", text: "Wie lange bleibst du?", kind: "choice", options: ["Zwei Tage", "Fünf Tage"] }],
   actions: [],
 };
-const CAL_NAME = "E2E Hamburg-Plan";
 const TODO = "E2E Zug nach Hamburg buchen";
 const PROPOSE = {
   intent: "Hamburg-Reise",
   summary: "Zwei Tage Hamburg im März 2027.",
   questions: [],
   actions: [
-    { kind: "shadowCalendar", label: "Plan für Hamburg", name: CAL_NAME, events: [{ title: "Hamburg", start: "2027-03-12", end: "2027-03-14", allDay: true }] },
+    { kind: "events", label: "Plan für Hamburg", events: [{ title: "Hamburg", start: "2027-03-12", end: "2027-03-14", allDay: true }] },
     { kind: "todo", label: "Zug buchen", text: TODO },
   ],
 };
@@ -34,7 +33,7 @@ async function thinkAlong(page) {
   await composer.waitFor({ state: "detached" });
 }
 
-test("think along: a question, then a proposal; Apply puts a calendar and a checklist in; ✨ again re-thinks the same card, no second calendar", (t) =>
+test("think along: a question, then a proposal; Apply proposes appointments (the calendar in the page) and a checklist; ✨ again re-thinks the same card, its proposals replaced", (t) =>
   withPage(t, async (page) => {
     fakeAnswer(ASK);
     await open(page, `/workspace/${SEED.assistPage}`);
@@ -65,11 +64,11 @@ test("think along: a question, then a proposal; Apply puts a calendar and a chec
       throw new Error(`Apply put no checklist with "${TODO}" into the page.`);
     });
     await waitSaved(page);
-    const [cal] = dbAll("SELECT id FROM calendars WHERE name = ?", CAL_NAME);
-    assert.ok(cal, `no plan calendar "${CAL_NAME}" in the database after Apply`);
+    const proposed = () => dbAll("SELECT start FROM calendar_events WHERE proposed = 1 AND title = 'Hamburg'").map((e) => e.start);
+    assert.deepEqual(proposed(), ["2027-03-12"], "Apply proposed the appointment");
 
-    // ✨ again on the same block: the card that is there thinks again (it knows the calendar it made: the model updates it).
-    fakeAnswer({ ...PROPOSE, actions: [{ kind: "shadowCalendar", label: "Plan für Hamburg", name: CAL_NAME, calendarId: cal.id, events: [{ title: "Hamburg", start: "2027-03-19", end: "2027-03-21", allDay: true }] }] });
+    // ✨ again on the same block: the card that is there thinks again (its earlier proposals are replaced).
+    fakeAnswer({ ...PROPOSE, actions: [{ kind: "events", label: "Plan für Hamburg", events: [{ title: "Hamburg", start: "2027-03-19", end: "2027-03-21", allDay: true }] }] });
     await thinkAlong(page);
     await apply.waitFor({ timeout: 60_000 }).catch(async () => {
       throw new Error(`✨ again didn't bring a new proposal into the card (cards: ${await cards.count()}, the first shows: "${(await card.innerText()).slice(0, 300)}").`);
@@ -78,10 +77,9 @@ test("think along: a question, then a proposal; Apply puts a calendar and a chec
     await apply.click();
     await editor(page).locator(".ws-assist-done").waitFor({ timeout: 30_000 });
     await waitSaved(page);
-    assert.equal(await calendars.count(), 1, "applying again updates the plan calendar — no second calendar block");
-    assert.equal(dbAll("SELECT id FROM calendars WHERE name = ?", CAL_NAME).length, 1, "no second plan calendar in the database");
-    const days = dbAll("SELECT start FROM calendar_events WHERE calendar_id = ?", cal.id).map((e) => e.start);
-    assert.deepEqual(days, ["2027-03-19"], `the plan calendar's days were replaced (it has: ${days.join(", ")})`);
+    assert.equal(await calendars.count(), 1, "applying again replaces the proposals — no second calendar block");
+    const days = proposed();
+    assert.deepEqual(days, ["2027-03-19"], `the earlier proposals were replaced (proposed: ${days.join(", ")})`);
 
     // Reloaded: still one card, one calendar, one checklist.
     await open(page, `/workspace/${SEED.assistPage}`);

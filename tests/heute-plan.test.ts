@@ -5,8 +5,8 @@ import test from "node:test";
 import { ROOT, setupTempData } from "./helpers";
 
 // "Plan my day": the AI (a fake Claude CLI answers: tests/fake-claude-json.mjs) orders today's todos into time blocks around the
-// appointments; a block over an appointment (or another block) or outside the day is dropped. Applied, the blocks are suggestions
-// in one shadow calendar "Tagesplan <day>" — replaced when planned again.
+// appointments; a block over an appointment (or another block) or outside the day is dropped. Applied, the blocks are proposed
+// appointments in the Zeff calendar — the day's replaced when planned again, a dismissed one not proposed again.
 const dir = setupTempData();
 process.env.CLAUDE_CLI = path.join(ROOT, "tests", "fake-claude-json.mjs");
 const promptFile = path.join(dir, "prompt.txt");
@@ -22,7 +22,7 @@ test("fitBlocks: drops what overlaps an appointment or an earlier block, lies ou
   assert.deepEqual(kept.map((x) => x.title), ["A", "C"]);
 });
 
-test("plan my day: one AI call with today's todos and appointments; applied into one shadow calendar per day, replaced when planned again", async () => {
+test("plan my day: one AI call with today's todos and appointments; applied as proposals in the Zeff calendar, replaced when planned again", async () => {
   const { setInstalled } = await import("@/plugins/state");
   for (const id of ["llm", "claude-cli", "todos", "calendar"]) setInstalled(id, true);
   const { updateAppSettings } = await import("@/lib/ai");
@@ -45,7 +45,7 @@ test("plan my day: one AI call with today's todos and appointments; applied into
       { todo: "", title: "Pause", start: "nonsense", end: "12:00" },
     ],
   });
-  const { planDay, applyDayPlan, planCalendarName } = await import("@/lib/heute-plan");
+  const { planDay, applyDayPlan } = await import("@/lib/heute-plan");
   const plan = await planDay(new Date(`${DAY}T08:05:00`));
   const prompt = fs.readFileSync(promptFile, "utf8");
   assert.match(prompt, /Bericht schreiben/);
@@ -60,17 +60,27 @@ test("plan my day: one AI call with today's todos and appointments; applied into
     "not over the appointment, nothing malformed",
   );
 
+  const calendars = ir.listCalendars().length;
   const first = applyDayPlan(DAY, plan.blocks);
   assert.equal(first.count, 2);
-  const shadow = ir.listCalendars().filter((c) => c.name === planCalendarName(DAY));
-  assert.equal(shadow.length, 1);
-  assert.equal(shadow[0].shadow, true);
+  assert.equal(first.calendarId, ir.zeffCalendar().id, "in the Zeff calendar");
+  assert.equal(ir.listCalendars().length, calendars, "no calendar made");
+  const proposedOf = () =>
+    ir.eventsBetween(`${DAY}T00:00`, `${DAY}T23:59`, { proposals: true }).filter((e) => e.proposed).map((e) => `${e.start.slice(11)} ${e.title}`);
+  assert.deepEqual(proposedOf(), ["08:30 Bericht schreiben", "11:00 Anna anrufen"]);
+  const { openProposals, decide } = await import("@/lib/proposals");
+  const open = () => openProposals("calendar").map((p) => [p.kind, (p.payload as { title: string }).title]);
+  assert.deepEqual(open(), [["event", "Bericht schreiben"], ["event", "Anna anrufen"]], "each block a proposal (the review lists them)");
+  // One dismissed: gone, and not proposed again when the day is planned once more.
+  const anna = openProposals("calendar").find((p) => (p.payload as { title: string }).title === "Anna anrufen")!;
+  await decide(anna.id, "dismissed");
+  assert.deepEqual(proposedOf(), ["08:30 Bericht schreiben"]);
+  const again = applyDayPlan(DAY, plan.blocks);
+  assert.equal(again.count, 1, "the dismissed block stays out");
+  assert.deepEqual(proposedOf(), ["08:30 Bericht schreiben"]);
   const second = applyDayPlan(DAY, [{ title: "Nur noch das", start: `${DAY}T14:00`, end: `${DAY}T15:00`, todoId: report.id }, { title: "Über dem Jour fixe", start: `${DAY}T10:15`, end: `${DAY}T10:45`, todoId: null }]);
-  assert.equal(second.calendarId, first.calendarId, "the same calendar for the day");
-  assert.deepEqual(
-    ir.eventsBetween(`${DAY}T00:00`, `${DAY}T23:59`).filter((e) => e.calendarId === first.calendarId).map((e) => `${e.start.slice(11)} ${e.title}`),
-    ["14:00 Nur noch das"],
-    "replaced, and never over an appointment",
-  );
+  assert.equal(second.calendarId, first.calendarId, "the same calendar");
+  assert.deepEqual(proposedOf(), ["14:00 Nur noch das"], "replaced, and never over an appointment");
+  assert.deepEqual(open(), [["event", "Nur noch das"]], "the replaced ones' proposals expired");
   assert.deepEqual(ir.busyBetween(new Date(`${DAY}T00:00`), new Date(`${DAY}T23:59`)).map((b) => b.title), ["Jour fixe"], "the plan blocks no time");
 });

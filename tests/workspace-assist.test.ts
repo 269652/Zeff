@@ -97,8 +97,8 @@ test("a proposal checked: unknown widgets, bad dates and people that don't exist
   const busy = [{ start: new Date(2027, 0, 16, 14, 0), end: new Date(2027, 0, 16, 15, 0), title: "Zahnarzt" }];
   const actions = cleanActions(
     [
-      { kind: "shadowCalendar", label: "Hamburg-Reise", name: "Hamburg-Reise", events: [{ title: "Hamburg", start: "2027-01-15", end: "2027-01-18", allDay: true }, { title: "Zug", start: "2027-01-32T10:00", end: "x" }, { title: "Abfahrt", start: "2027-01-20T09:00", end: "2027-01-20T08:00" }] },
-      { kind: "shadowCalendar", name: "Leer", events: [{ title: "", start: "2027-01-01" }] },
+      { kind: "events", label: "Hamburg-Reise", events: [{ title: "Hamburg", start: "2027-01-15", end: "2027-01-18", allDay: true }, { title: "Zug", start: "2027-01-32T10:00", end: "x" }, { title: "Abfahrt", start: "2027-01-20T09:00", end: "2027-01-20T08:00" }] },
+      { kind: "events", name: "Leer", events: [{ title: "", start: "2027-01-01" }] },
       { kind: "todo", text: "[[person:15|Karla]] fragen, ob sie mitkommt", due: "2026-12-01" },
       { kind: "todo", text: "Zug buchen", due: "bald" },
       { kind: "widget", widget: "people.coming", person: 12, config: { limit: 4, evil: "x" } },
@@ -109,8 +109,8 @@ test("a proposal checked: unknown widgets, bad dates and people that don't exist
     ],
     check({ busy }),
   );
-  assert.deepEqual(actions.map((a) => a.kind), ["shadowCalendar", "todo", "todo", "widget", "widget"]);
-  const cal = actions[0] as Extract<(typeof actions)[number], { kind: "shadowCalendar" }>;
+  assert.deepEqual(actions.map((a) => a.kind), ["events", "todo", "todo", "widget", "widget"]);
+  const cal = actions[0] as Extract<(typeof actions)[number], { kind: "events" }>;
   assert.deepEqual(cal.events, [{ title: "Hamburg", start: "2027-01-15", end: "2027-01-18", allDay: true, conflicts: ["Zahnarzt"] }], "only the valid appointment, flagged");
   assert.deepEqual(actions.map((a) => a.id), ["a1", "a2", "a3", "a4", "a5"]);
   const [, karla, train, nadine, nobody] = actions as Extract<(typeof actions)[number], { kind: "todo" | "widget" }>[];
@@ -151,7 +151,7 @@ test("runAssist: one call with the block, the people it names, today and your bu
   await assert.rejects(runAssist(pageId, null, newAssistState("page"), new Date(2026, 9, 29)), /nothing/i, "nothing to ask, nothing to propose: says so");
 });
 
-test("applying: only the chosen actions — a plan calendar with its days (embedded), a todo (linked), a widget, text", async () => {
+test("applying: only the chosen actions — proposed appointments (their calendar embedded), a todo (linked), a widget, text", async () => {
   await setup();
   const w = await import("@/plugins/workspace/store");
   const pageId = w.createPage({ title: "Plan" });
@@ -161,7 +161,7 @@ test("applying: only the chosen actions — a plan calendar with its days (embed
     ...newAssistState(),
     status: "proposing" as const,
     actions: [
-      { id: "a1", kind: "shadowCalendar", label: "Hamburg-Reise", name: "Hamburg-Reise", events: [{ title: "Hamburg", start: "2027-01-15", end: "2027-01-18", allDay: true }, { title: "Zug", start: "2027-01-18T08:00", end: "2027-01-18T11:30" }] },
+      { id: "a1", kind: "events", label: "Hamburg-Reise", events: [{ title: "Hamburg", start: "2027-01-15", end: "2027-01-18", allDay: true }, { title: "Zug", start: "2027-01-18T08:00", end: "2027-01-18T11:30" }] },
       { id: "a2", kind: "todo", label: "Karla fragen", text: "Karla fragen, ob sie mitkommt", due: "2026-12-01" },
       { id: "a3", kind: "widget", label: "Mit Nadine", widget: "people.coming", config: {} },
       { id: "a4", kind: "text", label: "Packliste", markdown: "## Packliste\n\n- [ ] Zahnbürste" },
@@ -173,10 +173,14 @@ test("applying: only the chosen actions — a plan calendar with its days (embed
 
   const ir = await import("@/lib/calendar/ir");
   const embed = r.nodes[0].attrs!;
-  const cal = ir.listCalendars().find((c) => c.id === embed.calendarId)!;
-  assert.deepEqual([cal.name, cal.shadow], ["Hamburg-Reise", true], "a shadow calendar: suggestions, nothing blocked");
+  const cal = ir.zeffCalendar();
+  assert.equal(embed.calendarId, cal.id, "no calendar given: proposed in your Zeff calendar");
   assert.deepEqual([embed.view, embed.day, embed.also], ["week", "2027-01-15", ""]);
-  assert.deepEqual(ir.eventsBetween("2027-01-15T00:00", "2027-01-19T00:00").filter((e) => e.calendarId === cal.id).map((e) => e.title).sort(), ["Hamburg", "Zug"]);
+  const props = ir.eventsBetween("2027-01-15T00:00", "2027-01-19T00:00", { proposals: true }).filter((e) => e.calendarId === cal.id && e.proposed);
+  assert.deepEqual(props.map((e) => `${e.title}${e.proposed ? " (proposed)" : ""}`).sort(), ["Hamburg (proposed)", "Zug (proposed)"]);
+  const mine = (x: { title: string }) => x.title === "Hamburg" || x.title === "Zug";
+  assert.deepEqual(ir.eventsBetween("2027-01-15T00:00", "2027-01-19T00:00").filter(mine), [], "left out where nothing is planned with them");
+  assert.deepEqual(ir.busyBetween(new Date("2027-01-15T00:00"), new Date("2027-01-19T00:00")).filter(mine), [], "they block no time");
 
   // Its todos: one checklist of the page that feeds the Todo engine (ticked there, the todo is done) — not chips of their own.
   const list = r.nodes[1];
@@ -185,14 +189,17 @@ test("applying: only the chosen actions — a plan calendar with its days (embed
   const item = list.content![0];
   assert.deepEqual([item.type, item.attrs!.checked, item.attrs!.due, item.content![0].content![0].text], ["taskItem", false, "2026-12-01", "Karla fragen, ob sie mitkommt"]);
   assert.deepEqual(r.nodes[2].attrs, { widget: "people.coming", config: "{}", title: "", header: "" });
-  assert.deepEqual(r.created.map((c) => c.kind), ["calendar", "list"]);
-  assert.equal(r.created[1].ref, list.attrs!.listId, "the list is known by its id (Undo takes it out of the page)");
+  assert.deepEqual(r.created.map((c) => c.kind), ["calendar", "event", "event", "list"]);
+  assert.equal(r.created[3].ref, list.attrs!.listId, "the list is known by its id (Undo takes it out of the page)");
   assert.match(r.summary, /4/, "how many were set up");
 
   // Undo on the card: what it made outside the page goes again (the list's todos go with the list leaving the page).
-  assert.equal(await undoAssist(r.created), 1);
-  assert.equal(ir.listCalendars().some((c) => c.id === cal.id), false);
-  assert.equal(await undoAssist([{ kind: "calendar", id: ir.zeffCalendar().id, label: "x" }]), 0, "never a calendar that isn't a shadow one");
+  const { acceptProposalAction } = await import("@/plugins/calendar/server-actions");
+  const zug = props.find((e) => e.title === "Zug")!;
+  assert.equal((await acceptProposalAction(zug.id))?.ok, true, "the train accepted: an appointment now");
+  assert.equal(await undoAssist(r.created), 1, "only the one still proposed goes");
+  assert.deepEqual(ir.eventsBetween("2027-01-15T00:00", "2027-01-19T00:00", { proposals: true }).filter((e) => e.calendarId === cal.id && ["Hamburg", "Zug"].includes(e.title)).map((e) => [e.title, e.proposed]), [["Zug", false]]);
+  assert.equal(ir.listCalendars().some((c) => c.id === cal.id), true, "never a calendar");
 });
 
 test("the card's server actions: a step (its state back), apply (the blocks), undo — each says what came of it", async () => {
@@ -213,25 +220,24 @@ test("the card's server actions: a step (its state back), apply (the blocks), un
   assert.deepEqual(undone, { ok: true, undone: 0 });
 });
 
-test("asked again: the plan calendar it made is updated (its days replaced, no second calendar or block), widgets already on the page aren't added twice, a widget without a person takes the one the text names", async () => {
+test("asked again: its earlier proposals are replaced (no second block), a calendar given is the one, widgets already on the page aren't added twice, a widget without a person takes the one the text names", async () => {
   const { cleanActions, applyAssist } = await import("@/plugins/workspace/assist");
   const ir = await import("@/lib/calendar/ir");
-  const made = ir.createShadowCalendar("Hamburg-Reise");
-  ir.addEvent(made.id, { title: "Option A", start: "2027-01-02", end: "2027-01-04", allDay: true });
-  const other = ir.createShadowCalendar("Fremd");
-  const c = check({ calendars: new Set([made.id]), onPage: new Set(["people.coming:12"]), defaultPerson: { id: 12, name: "Nadine" } });
+  const made = ir.createCalendar("Reisen");
+  const [earlier] = ir.proposeEvents(made.id, [{ title: "Option A", start: "2027-01-02", end: "2027-01-04", allDay: true }]);
+  const c = check({ calendars: new Map([[made.id, "Reisen"]]), onPage: new Set(["people.coming:12"]), defaultPerson: { id: 12, name: "Nadine" } });
   const actions = cleanActions(
     [
-      { kind: "shadowCalendar", name: "Hamburg-Reise", calendarId: made.id, events: [{ title: "Hamburg", start: "2027-01-09", end: "2027-01-11", allDay: true }] },
-      { kind: "shadowCalendar", name: "Fremd", calendarId: other.id, events: [{ title: "x", start: "2027-01-09", end: "2027-01-10", allDay: true }] },
+      { kind: "events", calendarId: made.id, events: [{ title: "Hamburg", start: "2027-01-09", end: "2027-01-11", allDay: true }] },
+      { kind: "events", calendarId: 9999, events: [{ title: "x", start: "2027-01-09", end: "2027-01-10", allDay: true }] },
       { kind: "widget", widget: "people.coming", person: 12 },
       { kind: "widget", widget: "people.coming" },
     ],
     c,
   );
-  const [update, fresh] = actions as Extract<(typeof actions)[number], { kind: "shadowCalendar" }>[];
-  assert.equal(update.calendarId, made.id, "its own plan calendar: updated");
-  assert.equal(fresh.calendarId, undefined, "a calendar it didn't make: never touched (a new one instead)");
+  const [update, fresh] = actions as Extract<(typeof actions)[number], { kind: "events" }>[];
+  assert.deepEqual([update.calendarId, update.calendar], [made.id, "Reisen"], "the calendar given");
+  assert.equal(fresh.calendarId, undefined, "a calendar that isn't there: your Zeff calendar instead");
   assert.equal(actions.filter((a) => a.kind === "widget").length, 0, "Nadine's widget is on the page already (also the one without a person: it takes Nadine)");
   const lone = cleanActions([{ kind: "widget", widget: "people.coming" }], check({ defaultPerson: { id: 12, name: "Nadine" } }))[0];
   assert.deepEqual(lone.kind === "widget" && lone.config, { person: "Nadine", personId: 12 }, "no person given: the one the text names");
@@ -239,21 +245,21 @@ test("asked again: the plan calendar it made is updated (its days replaced, no s
   const w = await import("@/plugins/workspace/store");
   const { newAssistState } = await import("@/plugins/workspace/assist-shared");
   const pageId = w.createPage({ title: "Plan" });
-  const state = { ...newAssistState(), status: "proposing" as const, created: [{ kind: "calendar" as const, id: made.id, label: "Hamburg-Reise" }], actions: [{ ...update, id: "a1" }] };
+  const state = { ...newAssistState(), status: "proposing" as const, created: [{ kind: "event" as const, id: earlier.id, label: "Option A" }], actions: [{ ...update, id: "a1" }] };
   const r = await applyAssist(pageId, state, ["a1"]);
   assert.deepEqual(r.nodes, [], "its block is on the page already");
-  assert.deepEqual(r.created, [], "nothing new made");
-  assert.equal(ir.listCalendars().filter((x) => x.name === "Hamburg-Reise").length, 1);
-  assert.deepEqual(ir.eventsBetween("2027-01-01T00:00", "2027-01-31T00:00").filter((e) => e.calendarId === made.id).map((e) => [e.title, e.start]), [["Hamburg", "2027-01-09"]], "its days replaced");
+  assert.deepEqual(r.created.map((x) => [x.kind, x.label]), [["event", "Hamburg"]], "the new proposal");
+  const count = ir.listCalendars().length;
+  assert.deepEqual(ir.eventsBetween("2027-01-01T00:00", "2027-01-31T00:00", { proposals: true }).filter((e) => e.calendarId === made.id).map((e) => [e.title, e.start]), [["Hamburg", "2027-01-09"]], "its earlier proposal replaced");
+  assert.equal(ir.listCalendars().length, count, "no calendar made");
 });
 
-test("a plan calendar proposes one appointment per time: those overlapping an earlier one are dropped (moved by drag and drop instead)", async () => {
+test("proposed appointments: one per time — those overlapping an earlier one are dropped (moved by drag and drop instead)", async () => {
   const { cleanActions } = await import("@/plugins/workspace/assist");
   const [cal] = cleanActions(
     [
       {
-        kind: "shadowCalendar",
-        name: "Hamburg",
+        kind: "events",
         events: [
           { title: "Option A", start: "2027-01-15", end: "2027-01-18", allDay: true },
           { title: "Option B", start: "2027-01-16", end: "2027-01-19", allDay: true },
@@ -263,7 +269,7 @@ test("a plan calendar proposes one appointment per time: those overlapping an ea
       },
     ],
     check(),
-  ) as Extract<import("@/plugins/workspace/assist-shared").AssistAction, { kind: "shadowCalendar" }>[];
+  ) as Extract<import("@/plugins/workspace/assist-shared").AssistAction, { kind: "events" }>[];
   assert.deepEqual(cal.events.map((e) => e.title), ["Option A", "Option C"], "B overlaps A, the train lies inside A: one per time");
 });
 

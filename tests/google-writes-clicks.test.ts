@@ -285,7 +285,7 @@ test("in the calendar views: your events of a writable Google calendar can be ch
     { ...base, id: 1, key: "google:me@example.com", source: "google" as const, name: "Moritz", writable: true },
     { ...base, id: 2, key: "google:ro@group.calendar.google.com", source: "google" as const, name: "Feiertage" },
   ];
-  const ev = (id: number, calendarId: number, response: string | null) => ({ id, calendarId, key: `k${id}`, title: `e${id}`, start: "2026-11-05T10:00", end: "2026-11-05T11:00", allDay: false, location: "", description: "", showAs: "busy", cancelled: false, response, private: false, online: false, organizer: "", attendees: [], url: "", todoId: null, recurrence: null, occurrence: null, seriesId: null });
+  const ev = (id: number, calendarId: number, response: string | null) => ({ id, calendarId, key: `k${id}`, title: `e${id}`, start: "2026-11-05T10:00", end: "2026-11-05T11:00", allDay: false, location: "", description: "", showAs: "busy", cancelled: false, response, private: false, online: false, organizer: "", attendees: [], url: "", todoId: null, recurrence: null, occurrence: null, seriesId: null, proposed: false });
   const items = calendarItems([ev(1, 1, null), ev(2, 1, "organizer"), ev(3, 1, "notResponded"), ev(4, 2, null)], [], cals, () => true, false);
   assert.deepEqual(items.map((i) => [i.title, i.editable]), [["e1", true], ["e2", true], ["e3", false], ["e4", false]]);
 });
