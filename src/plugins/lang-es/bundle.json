@@ -8298,5 +8298,6 @@
   "1 unseen change": "1 cambio sin ver",
   "{n} unseen changes": "{n} cambios sin ver",
   "{n} open, {late} late": "{n} abiertos, {late} atrasados",
-  "Show what waits": "Mostrar lo pendiente"
+  "Show what waits": "Mostrar lo pendiente",
+  "No match": "Sin coincidencias"
 }

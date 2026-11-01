@@ -354,6 +354,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
       }
       case "select": {
         const opts = json<[string, string, string?][]>(a.options, []);
+        if (a.search === "true") return <SearchSelect key={key} options={opts} value={a.current ?? ""} label={a.label} onPick={(v) => setState(a.bind, v)} />;
         return (
           <label key={key} className="inline-flex items-center gap-1.5 text-sm print:hidden">
             {a.label && <span className="text-xs text-zinc-500">{a.label}</span>}
@@ -643,6 +644,59 @@ function MiniChart({ kind = "bar", data }: { kind?: string; data: { label: strin
         </li>
       ))}
     </ul>
+  );
+}
+
+/** A <select search=true>: typed to find — the matching options under it (arrows, Enter, Esc); the first option with no value is its placeholder. */
+function SearchSelect({ options, value, label, onPick }: { options: [string, string, string?][]; value: string; label?: string; onPick: (v: string) => void }) {
+  const t = useT();
+  const [query, setQuery] = useState<string | null>(null);
+  const [hi, setHi] = useState(0);
+  const blank = options.find(([v]) => v === "");
+  const real = options.filter(([v]) => v !== "");
+  const current = real.find(([v]) => v === value);
+  const q = (query ?? "").trim().toLowerCase();
+  const found = query === null ? [] : real.filter(([, l]) => l.toLowerCase().includes(q)).slice(0, 8);
+  const pick = (v: string) => {
+    onPick(v);
+    setQuery(null);
+  };
+  return (
+    <div className="relative min-w-0 flex-1 print:hidden">
+      <input
+        className="input w-full py-1 text-sm"
+        role="combobox"
+        aria-expanded={found.length > 0}
+        aria-autocomplete="list"
+        aria-label={label ?? blank?.[1] ?? t("Search …")}
+        placeholder={blank?.[1] ?? t("Search …")}
+        value={query ?? current?.[1] ?? ""}
+        onFocus={(e) => (setQuery(""), setHi(0), e.currentTarget.select())}
+        onBlur={() => setTimeout(() => setQuery(null), 150)}
+        onChange={(e) => (setQuery(e.target.value), setHi(0))}
+        onKeyDown={(e) => {
+          if (e.key === "ArrowDown") (e.preventDefault(), setHi((h) => Math.min(h + 1, found.length - 1)));
+          else if (e.key === "ArrowUp") (e.preventDefault(), setHi((h) => Math.max(h - 1, 0)));
+          else if (e.key === "Enter" && found[hi]) (e.preventDefault(), pick(found[hi][0]), e.currentTarget.blur());
+          else if (e.key === "Escape") (setQuery(null), e.currentTarget.blur());
+        }}
+      />
+      {query !== null && (
+        <ul role="listbox" className="absolute top-full right-0 left-0 z-20 mt-1 max-h-64 overflow-auto rounded-md border border-zinc-200 bg-white py-1 text-sm shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+          {found.length ? (
+            found.map(([v, l], i) => (
+              <li key={v} role="option" aria-selected={i === hi}>
+                <button type="button" className={`block w-full truncate px-3 py-1 text-left ${i === hi ? "bg-indigo-50 dark:bg-indigo-950/50" : ""}`} onMouseDown={(e) => (e.preventDefault(), pick(v))} onMouseEnter={() => setHi(i)}>
+                  {l}
+                </button>
+              </li>
+            ))
+          ) : (
+            <li className="px-3 py-1 text-zinc-500">{t("No match")}</li>
+          )}
+        </ul>
+      )}
+    </div>
   );
 }
 

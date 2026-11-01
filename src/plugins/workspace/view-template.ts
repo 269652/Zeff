@@ -103,7 +103,7 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   selected: T({ empty: "text" }),
   button: T({ action: "text", label: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text" }, true),
   search: T({ bind: "text", placeholder: "text" }, true),
-  select: T({ bind: "text", options: "text", label: "text" }, true),
+  select: T({ bind: "text", options: "text", label: "text", /** Typed to find (an autocomplete), as wide as there is room. */ search: { oneOf: ["true", "false"] } }, true),
   toggle: T({ bind: "text", label: "text" }, true),
   field: T({ name: "text" }, true),
   part: T(ANY),

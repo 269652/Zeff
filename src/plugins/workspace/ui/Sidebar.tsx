@@ -171,35 +171,53 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
 /** Badges shown at all (a pill or a dot). */
 const showsBadge = (b: Badge | null | undefined) => !!b && (!!shownBadge(b) || shownMessages(b) > 0 || shownTodos(b).n > 0);
 
-/** A row's badges folded behind a small blue dot and a chevron (People and its persons: what waits with them) — a click unfolds them. */
+/** How many pills a badge shows, and the sum of what they count. */
+function pillsOf(b: Badge | null | undefined): { pills: number; sum: number } {
+  const s = shownBadge(b);
+  const m = shownMessages(b);
+  const td = shownTodos(b).n;
+  return { pills: (s ? 1 : 0) + (m > 0 ? 1 : 0) + (td > 0 ? 1 : 0), sum: (s?.count ?? 0) + m + td };
+}
+
+/** A row's badges (People and its persons): more than two pills fold behind a chevron, a small blue dot and their sum — a click unfolds them. */
 function FoldedBadge({ badge, below }: { badge: Badge | null | undefined; /** What is below it (shown paler). */ below?: Badge | null }) {
   const t = useT();
   const [unfolded, setUnfolded] = useState(false);
   if (!showsBadge(badge) && !showsBadge(below)) return null;
+  const own = pillsOf(badge);
+  const sub = pillsOf(below);
+  const pills = (
+    <>
+      {showsBadge(badge) && <BadgePill badge={badge} />}
+      {showsBadge(below) && <span className={showsBadge(badge) ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={below} dim /></span>}
+    </>
+  );
+  if (own.pills + sub.pills <= 2) return pills;
   const toggle = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setUnfolded((x) => !x);
   };
+  const sum = own.sum + sub.sum;
   return (
     <span className="ml-auto flex shrink-0 items-center gap-1">
-      {unfolded && (
-        <>
-          {showsBadge(badge) && <BadgePill badge={badge} />}
-          {showsBadge(below) && <span className="shrink-0"><BadgePill badge={below} dim /></span>}
-        </>
-      )}
       <button
         type="button"
-        className="flex h-4 shrink-0 items-center gap-0.5 rounded px-0.5 text-[10px] text-zinc-500 hover:bg-zinc-200/70 dark:text-zinc-400 dark:hover:bg-zinc-700/60"
+        className="flex h-4 shrink-0 items-center gap-1 rounded px-0.5 text-[11px] font-semibold text-zinc-500 tabular-nums hover:bg-zinc-200/70 dark:text-zinc-400 dark:hover:bg-zinc-700/60"
         onClick={toggle}
         title={unfolded ? t("Fold") : t("Show what waits")}
         aria-label={unfolded ? t("Fold") : t("Show what waits")}
         aria-expanded={unfolded}
       >
-        {!unfolded && <span aria-hidden className="size-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />}
-        <span aria-hidden>{unfolded ? "▾" : "▸"}</span>
+        <span aria-hidden className="text-[10px]">{unfolded ? "▸" : "◂"}</span>
+        {!unfolded && (
+          <>
+            <span aria-hidden className="size-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />
+            {sum > 0 && <span className="text-sky-700 dark:text-sky-300">{countLabel(sum)}</span>}
+          </>
+        )}
       </button>
+      {unfolded && pills}
     </span>
   );
 }
@@ -432,7 +450,7 @@ export function Sidebar({ appNav = {}, items: treeItems, favorites, badges = noB
               </span>
             )}
             {/* What waits on it (a mail inbox's unread, as a mail client's folders show it; a person's open todos …), and below it. */}
-            {appNav[item.id]?.app === "people" ? (
+            {item.people || appNav[item.id]?.app === "people" || (item.parentId !== null && items.find((x) => x.id === item.parentId)?.people) ? (
               <FoldedBadge badge={own} below={sub} />
             ) : (
               <>

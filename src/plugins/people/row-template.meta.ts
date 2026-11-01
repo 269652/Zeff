@@ -117,8 +117,8 @@ const template = (t: T) => `<state name="keep" value=""/>
         <col gap=1>
           <muted>${t("Same person as …")}</muted>
           <row gap=2 wrap=false>
-            <select bind="keep" options="{{ app.mergeOptions }}"/>
-            <button action="person.merge" value="{{ state.keep }}" label="${t("Merge into it")}" disabled="{{ state.keep ? 'false' : 'true' }}"/>
+            <select bind="keep" options="{{ app.mergeOptions }}" search=true/>
+            <button action="person.merge" value="{{ state.keep }}" label="${t("Merge")}" disabled="{{ state.keep ? 'false' : 'true' }}"/>
           </row>
           <muted>${t("“{name}” becomes an alias of the chosen profile; its chat, addresses, notes and dates come along; this profile is removed.", { name: "{{ app.name }}" })}</muted>
         </col>
