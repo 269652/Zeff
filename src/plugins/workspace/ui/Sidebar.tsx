@@ -179,7 +179,7 @@ function pillsOf(b: Badge | null | undefined): { pills: number; sum: number } {
   return { pills: (s ? 1 : 0) + (m > 0 ? 1 : 0) + (td > 0 ? 1 : 0), sum: (s?.count ?? 0) + m + td };
 }
 
-/** A row's badges (People and its persons): more than two pills fold behind a chevron, a small blue dot and their sum — a click unfolds them. */
+/** A row's badges (People and its persons): more than two pills fold behind a chevron and their sum — with the "changed since you last opened it" dot when something is new; a click unfolds them. */
 function FoldedBadge({ badge, below }: { badge: Badge | null | undefined; /** What is below it (shown paler). */ below?: Badge | null }) {
   const t = useT();
   const [unfolded, setUnfolded] = useState(false);
@@ -199,21 +199,23 @@ function FoldedBadge({ badge, below }: { badge: Badge | null | undefined; /** Wh
     setUnfolded((x) => !x);
   };
   const sum = own.sum + sub.sum;
+  const fresh = (badge?.activity ?? 0) > 0 || (below?.activity ?? 0) > 0;
+  const tip = unfolded ? t("Fold") : fresh ? `${t("Show what waits")} · ${t("Changed since you last opened it")}` : t("Show what waits");
   return (
     <span className="ml-auto flex shrink-0 items-center gap-1">
       <button
         type="button"
         className="flex h-4 shrink-0 items-center gap-1 rounded px-0.5 text-[11px] font-semibold text-zinc-500 tabular-nums hover:bg-zinc-200/70 dark:text-zinc-400 dark:hover:bg-zinc-700/60"
         onClick={toggle}
-        title={unfolded ? t("Fold") : t("Show what waits")}
-        aria-label={unfolded ? t("Fold") : t("Show what waits")}
+        title={tip}
+        aria-label={tip}
         aria-expanded={unfolded}
       >
         <span aria-hidden className="text-[10px]">{unfolded ? "▸" : "◂"}</span>
         {!unfolded && (
           <>
-            <span aria-hidden className="size-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />
-            {sum > 0 && <span className="text-sky-700 dark:text-sky-300">{countLabel(sum)}</span>}
+            {fresh && <span aria-hidden className="size-2 rounded-full bg-indigo-500 dark:bg-indigo-400" />}
+            {sum > 0 && <span className={fresh ? "text-indigo-700 dark:text-indigo-300" : ""}>{countLabel(sum)}</span>}
           </>
         )}
       </button>
