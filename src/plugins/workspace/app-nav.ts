@@ -14,7 +14,7 @@ import { navOf, renderView, viewDefaults } from "./view-template";
  * view's template; one can be hidden and shown again (`navHidden`), never deleted.
  */
 export type AppNavEntry = NavEntry & { hidden: boolean; /** Where it leads (a row's page, an address); none: the view, with the entry picked (?nav=). */ href?: string };
-export type AppNav = { viewId: string; entries: AppNavEntry[] };
+export type AppNav = { viewId: string; /** The view's app (people …). */ app?: string; entries: AppNavEntry[] };
 
 const loaded = async () => void (await import("@/plugins/contributions"));
 const providerOf = (app: string | undefined) => (app ? appNavProviders.list().flatMap((c) => c.impl).find((p) => p.app === app) : undefined);
@@ -51,7 +51,7 @@ export async function appNavs(): Promise<Record<number, AppNav>> {
     const entries: AppNavEntry[] = provider ? provider.entries(rowsOf(id)?.rows ?? []).map((e) => ({ ...e, hidden: false })) : await templateNav(id, view).catch(() => []);
     if (!provider && !entries.length && !/<nav[\s>]/.test(templateOf(view))) continue;
     const hidden = new Set(view.navHidden ?? []);
-    out[id] = { viewId: view.id, entries: entries.map((e) => ({ ...e, hidden: hidden.has(e.id) })) };
+    out[id] = { viewId: view.id, ...(view.app ? { app: view.app } : {}), entries: entries.map((e) => ({ ...e, hidden: hidden.has(e.id) })) };
   }
   // The entries closed (close-row.ts): under their database too, the newest ten — those its own navigation shows already not twice.
   const closed = getSqlite()

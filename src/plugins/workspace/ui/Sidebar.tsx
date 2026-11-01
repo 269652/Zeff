@@ -108,6 +108,7 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
     <span
       className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-4 ${dim ? "bg-indigo-50 text-indigo-500 dark:bg-indigo-950/30 dark:text-indigo-400" : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"}`}
       data-badge="todos"
+      title={todos.late ? t("{n} open, {late} late", { n: todos.n, late: todos.late }) : t("{n} open todos", { n: todos.n })}
     >
       <span aria-hidden className={todos.late ? "text-red-600 dark:text-red-400" : ""}>☐</span>
       <span aria-hidden>{countLabel(todos.n)}</span>
@@ -128,6 +129,7 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
     <span
       className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-4 ${dim ? "bg-teal-50 text-teal-600 dark:bg-teal-950/30 dark:text-teal-400" : "bg-teal-100 text-teal-800 dark:bg-teal-950/60 dark:text-teal-300"} ${s ? "" : "ml-auto"}`}
       data-badge="messages"
+      title={t("{n} unread messages", { n: msgs })}
     >
       <span aria-hidden>✉ {countLabel(msgs)}</span>
       <span className="sr-only">{t("{n} unread messages", { n: msgs })}</span>
@@ -145,7 +147,7 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
   const said = dim ? t("Below: {what}", { what: label }) : label;
   if (s.tone === "activity")
     return (
-      <span className="ml-auto flex shrink-0 items-center pl-1" data-badge="activity">
+      <span className="ml-auto flex shrink-0 items-center pl-1" data-badge="activity" title={said}>
         <span aria-hidden className={`rounded-full ${dim ? "size-1.5 bg-zinc-400 dark:bg-zinc-500" : "size-2 bg-indigo-500 dark:bg-indigo-400"}`} />
         <span className="sr-only">{said}</span>
       </span>
@@ -156,6 +158,7 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
     <span
       className={`ml-auto inline-flex shrink-0 items-center gap-1 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-4 ${color}`}
       data-badge={s.tone}
+      title={said}
       {...(!dim ? { "data-unread": true } : {})}
     >
       {s.tone === "important" && <span aria-hidden className="size-1.5 rounded-full bg-red-500" />}
@@ -165,26 +168,39 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
   );
 }
 
-/** A row's badges folded into a small blue dot (a person under People: what waits with them) — a click on it unfolds them. */
-function FoldedBadge({ badge }: { badge: Badge | null | undefined }) {
+/** Badges shown at all (a pill or a dot). */
+const showsBadge = (b: Badge | null | undefined) => !!b && (!!shownBadge(b) || shownMessages(b) > 0 || shownTodos(b).n > 0);
+
+/** A row's badges folded behind a small blue dot and a chevron (People and its persons: what waits with them) — a click unfolds them. */
+function FoldedBadge({ badge, below }: { badge: Badge | null | undefined; /** What is below it (shown paler). */ below?: Badge | null }) {
   const t = useT();
   const [unfolded, setUnfolded] = useState(false);
-  if (!badge || !(shownBadge(badge) || shownMessages(badge) > 0 || shownTodos(badge).n > 0)) return null;
+  if (!showsBadge(badge) && !showsBadge(below)) return null;
   const toggle = (e: React.MouseEvent) => {
     e.preventDefault();
     e.stopPropagation();
     setUnfolded((x) => !x);
   };
-  if (unfolded)
-    return (
-      <span className="ml-auto flex shrink-0 cursor-pointer items-center" onClick={toggle} title={t("Fold")}>
-        <BadgePill badge={badge} />
-      </span>
-    );
   return (
-    <button type="button" className="ml-auto flex size-4 shrink-0 items-center justify-center" onClick={toggle} title={badge.parts.join(" · ") || t("Show what waits")} aria-label={t("Show what waits")} aria-expanded={false}>
-      <span aria-hidden className="size-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />
-    </button>
+    <span className="ml-auto flex shrink-0 items-center gap-1">
+      {unfolded && (
+        <>
+          {showsBadge(badge) && <BadgePill badge={badge} />}
+          {showsBadge(below) && <span className="shrink-0"><BadgePill badge={below} dim /></span>}
+        </>
+      )}
+      <button
+        type="button"
+        className="flex h-4 shrink-0 items-center gap-0.5 rounded px-0.5 text-[10px] text-zinc-500 hover:bg-zinc-200/70 dark:text-zinc-400 dark:hover:bg-zinc-700/60"
+        onClick={toggle}
+        title={unfolded ? t("Fold") : t("Show what waits")}
+        aria-label={unfolded ? t("Fold") : t("Show what waits")}
+        aria-expanded={unfolded}
+      >
+        {!unfolded && <span aria-hidden className="size-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />}
+        <span aria-hidden>{unfolded ? "▾" : "▸"}</span>
+      </button>
+    </span>
   );
 }
 
@@ -416,8 +432,14 @@ export function Sidebar({ appNav = {}, items: treeItems, favorites, badges = noB
               </span>
             )}
             {/* What waits on it (a mail inbox's unread, as a mail client's folders show it; a person's open todos …), and below it. */}
-            <BadgePill badge={own} />
-            {(shownBadge(sub) || shownMessages(sub) > 0 || shownTodos(sub).n > 0) && <span className={own ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={sub} dim /></span>}
+            {appNav[item.id]?.app === "people" ? (
+              <FoldedBadge badge={own} below={sub} />
+            ) : (
+              <>
+                <BadgePill badge={own} />
+                {showsBadge(sub) && <span className={own ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={sub} dim /></span>}
+              </>
+            )}
           </Link>
           <span data-hover className="flex shrink-0 items-center">
             <Dropdown label="⋯" title={t("More")} className="icon-btn size-6 text-xs" align="left">
