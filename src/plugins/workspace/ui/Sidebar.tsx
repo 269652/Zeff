@@ -214,8 +214,8 @@ function FoldedBadge({ badge, below }: { badge: Badge | null | undefined; /** Wh
         <span aria-hidden className="text-[10px]">{unfolded ? "▸" : "◂"}</span>
         {!unfolded && (
           <>
-            {fresh && <span aria-hidden className="size-2 rounded-full bg-indigo-500 dark:bg-indigo-400" />}
-            {sum > 0 && <span className={fresh ? "text-indigo-700 dark:text-indigo-300" : ""}>{countLabel(sum)}</span>}
+            {fresh && <span aria-hidden className="size-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />}
+            {sum > 0 && <span className={fresh ? "text-sky-700 dark:text-sky-300" : ""}>{countLabel(sum)}</span>}
           </>
         )}
       </button>
