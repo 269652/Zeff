@@ -9,10 +9,10 @@
 export type BadgeTone = "important" | "unread" | "activity" | "messages";
 
 /** One source's part: how many, its tone, what it counts in words. */
-export type BadgePart = { count: number; tone: BadgeTone; label: string };
+export type BadgePart = { count: number; tone: BadgeTone; label: string; /** Todos: counted in their own pill (☐ n — red when some are late). */ todo?: boolean };
 
 /** A page's badge: the counts by tone and what they are made of. */
-export type Badge = { important: number; unread: number; activity: number; messages: number; parts: string[] };
+export type Badge = { important: number; unread: number; activity: number; messages: number; /** Open todos, and how many of them are late. */ todos: number; todosLate: number; parts: string[] };
 
 /** The tree's badges: a page's own (its widgets, a mail database's unread, its activity), what its rows add up to (a database), and the rows that have one (for the entries under a database). */
 export type PageBadges = { own: Record<number, Badge>; inner: Record<number, Badge>; rows: Record<number, Badge> };
@@ -21,13 +21,24 @@ export const noBadges = (): PageBadges => ({ own: {}, inner: {}, rows: {} });
 
 /** Parts as a badge (none: null). */
 export function badgeOf(parts: BadgePart[]): Badge | null {
-  const b: Badge = { important: 0, unread: 0, activity: 0, messages: 0, parts: [] };
+  const b: Badge = { important: 0, unread: 0, activity: 0, messages: 0, todos: 0, todosLate: 0, parts: [] };
   for (const p of parts) {
     if (!(p.count > 0)) continue;
+    if (p.todo) {
+      b.todos += p.count;
+      if (p.tone === "important") b.todosLate += p.count;
+      b.parts.push(p.label);
+      continue;
+    }
     b[p.tone] += p.count;
     b.parts.push(p.label);
   }
   return b.parts.length ? b : null;
+}
+
+/** The open todos a badge carries, and how many are late (their own pill). */
+export function shownTodos(b: Badge | null | undefined): { n: number; late: number } {
+  return { n: b?.todos ?? 0, late: b?.todosLate ?? 0 };
 }
 
 /** The unread messages a badge carries (their own pill). */
@@ -37,16 +48,18 @@ export function shownMessages(b: Badge | null | undefined): number {
 
 /** Badges added up (none: null) — a parent's of its children; `parts` keep at most a few lines. */
 export function sumBadges(list: (Badge | null | undefined)[], maxParts = 6): Badge | null {
-  const b: Badge = { important: 0, unread: 0, activity: 0, messages: 0, parts: [] };
+  const b: Badge = { important: 0, unread: 0, activity: 0, messages: 0, todos: 0, todosLate: 0, parts: [] };
   for (const x of list) {
     if (!x) continue;
+    b.todos += x.todos ?? 0;
+    b.todosLate += x.todosLate ?? 0;
     b.important += x.important;
     b.unread += x.unread;
     b.activity += x.activity;
     b.messages += x.messages ?? 0;
     for (const p of x.parts) if (b.parts.length < maxParts && !b.parts.includes(p)) b.parts.push(p);
   }
-  return b.important || b.unread || b.activity || b.messages ? b : null;
+  return b.important || b.unread || b.activity || b.messages || b.todos ? b : null;
 }
 
 /** What the pill shows: important wins over unread over activity (activity: a dot, no number). */

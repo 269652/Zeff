@@ -54,7 +54,21 @@ const pill = (active: boolean) =>
  * `activityIds`: the recent todo events that are news — Boards shows how many you haven't seen.
  * `account`: the account you're in and the others (Accounts plugin installed).
  */
+/** The Todos tab's open todos: a pill with a box (red when some are late) beside its activity. */
+function OpenTodosPill({ open, late, className = "" }: { open: number; late: number; className?: string }) {
+  const t = useT();
+  if (!(open > 0)) return null;
+  return (
+    <span className={`inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 text-[11px] font-semibold leading-4 tabular-nums text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 ${className}`}>
+      <span aria-hidden className={late ? "text-red-600 dark:text-red-400" : ""}>☐</span>
+      <span aria-hidden>{open > 999 ? "999+" : open}</span>
+      <span className="sr-only">{late ? t("{n} open todos, {late} of them late", { n: open, late }) : t("{n} open todos", { n: open })}</span>
+    </span>
+  );
+}
+
 export function SiteHeader({
+  openTodos,
   activityIds = [],
   waiting = [],
   apps = [],
@@ -67,6 +81,8 @@ export function SiteHeader({
   account,
   bare = false,
 }: {
+  /** Your open todos (and how many are late) — the Todos tab's count. */
+  openTodos?: { open: number; late: number };
   activityIds?: number[];
   /** What waits for you on a tab (a Work session's question or turn): a yellow dot on it. */
   waiting?: { href: string; title: string }[];
@@ -368,6 +384,7 @@ export function SiteHeader({
                     <>
                       <span className="sm:hidden">{tab.short}</span>
                       <span className="hidden sm:inline">{tab.label}</span>
+                      {tab.href === "/todos" && openTodos && <OpenTodosPill {...openTodos} className="ml-1 align-[1px]" />}
                       {tab.href === "/todos" && <UnseenActivityBadge ids={activityIds} className="ml-1 align-[1px]" />}
                       {waiting.some((w) => w.href.startsWith(tab.href)) && (
                         <span
@@ -428,6 +445,7 @@ export function SiteHeader({
               <Link key={tab.href} href={tab.href} aria-current={current ? "page" : undefined} className={`relative flex min-w-0 flex-1 flex-col items-center justify-center px-1 py-2.5 text-xs font-medium ${current ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-500 dark:text-zinc-400"}`}>
                 {current && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-indigo-600 dark:bg-indigo-400" aria-hidden />}
                 <span className="max-w-full truncate">{tab.label}</span>
+                {tab.href === "/todos" && openTodos && <OpenTodosPill {...openTodos} className="absolute top-1.5 left-[calc(50%+1.25rem)]" />}
                 {tab.href === "/todos" && <UnseenActivityBadge ids={activityIds} className="absolute top-1.5 right-[calc(50%-1.75rem)]" />}
               </Link>
             );

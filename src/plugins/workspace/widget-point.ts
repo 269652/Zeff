@@ -75,16 +75,17 @@ export type WorkspaceWidget = {
 export const workspaceWidgets = extensionPoint<WorkspaceWidget[]>("workspace.widgets");
 
 /** The badge of a list widget: its shown items in tone "bad" (or its `urgent`) as important, its `count` as unread — each only with a label for it. */
-export function listBadge(labels: { important?: (n: number) => string; unread?: (n: number) => string; activity?: (n: number) => string }): (config: WidgetConfig, data: WidgetData) => BadgePart[] | null {
+export function listBadge(labels: { important?: (n: number) => string; unread?: (n: number) => string; activity?: (n: number) => string; /** Its rows are todos: counted in the todo pill. */ todo?: boolean }): (config: WidgetConfig, data: WidgetData) => BadgePart[] | null {
   return (_config, data) => {
     if (data.kind !== "list") return null;
     const bad = data.urgent ?? data.items.filter((i) => i.tone === "bad").length;
     const n = data.count ?? 0;
     const out: BadgePart[] = [];
-    if (labels.important && bad > 0) out.push({ tone: "important", count: bad, label: labels.important(bad) });
+    const todo = labels.todo ? { todo: true } : {};
+    if (labels.important && bad > 0) out.push({ tone: "important", count: bad, label: labels.important(bad), ...todo });
     // (The important ones are among the count: counted once — the pill shows all that waits, the red dot how much is late.)
     const rest = labels.important ? Math.max(0, n - bad) : n;
-    if (labels.unread && rest > 0) out.push({ tone: "unread", count: rest, label: labels.unread(n) });
+    if (labels.unread && rest > 0) out.push({ tone: "unread", count: rest, label: labels.unread(n), ...todo });
     if (labels.activity && n > 0) out.push({ tone: "activity", count: n, label: labels.activity(n) });
     return out;
   };

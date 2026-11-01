@@ -112,7 +112,7 @@ export const PERSON_WIDGETS: WorkspaceWidget[] = [
       return { kind: "list", title: p.name, items, count: all.length || undefined, urgent: overdue, empty: t("No open todos with {name}.", { name: p.name }) };
     },
     // The page's badge: the open todos about them, the overdue ones as important.
-    badge: listBadge({ unread: (n) => (n === 1 ? t("1 open todo") : t("{n} open todos", { n })), important: (n) => (n === 1 ? t("1 overdue todo") : t("{n} overdue todos", { n })) }),
+    badge: listBadge({ unread: (n) => (n === 1 ? t("1 open todo") : t("{n} open todos", { n })), important: (n) => (n === 1 ? t("1 overdue todo") : t("{n} overdue todos", { n })), todo: true }),
     act: async (action, payload) => {
       // Ticked: done; ✕: dismissed (not to be done) — either way off the list.
       if (action !== "toggle" && action !== "dismiss") throw new Error("unknown action");

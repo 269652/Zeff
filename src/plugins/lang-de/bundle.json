@@ -8293,5 +8293,6 @@
   "Options in “{calendar}” — accepting one in the calendar dismisses the others": "Optionen in „{calendar}“ — wird eine im Kalender angenommen, fallen die anderen weg",
   "Regenerate": "Neu generieren",
   "Regenerating …": "Wird neu generiert …",
-  "Thinks it through again with your answers (no new questions) and sets all of it up at once — its earlier proposals replaced, nothing doubled": "Denkt mit deinen Antworten noch einmal nach (ohne neue Fragen) und richtet alles auf einmal ein — die früheren Vorschläge werden ersetzt, nichts doppelt"
+  "Thinks it through again with your answers (no new questions) and sets all of it up at once — its earlier proposals replaced, nothing doubled": "Denkt mit deinen Antworten noch einmal nach (ohne neue Fragen) und richtet alles auf einmal ein — die früheren Vorschläge werden ersetzt, nichts doppelt",
+  "{n} open todos, {late} of them late": "{n} offene Todos, davon {late} überfällig"
 }

@@ -79,8 +79,8 @@ export const PEOPLE_ROW_BADGES: RowBadgeSource = {
           if (x.overdue) overdue++;
         }
         // (The overdue ones are among the open ones: counted once, as important.)
-        add(p.id, { tone: "unread", count: open - overdue, label: open === 1 ? t("1 open todo") : t("{n} open todos", { n: open }) });
-        add(p.id, { tone: "important", count: overdue, label: overdue === 1 ? t("1 overdue todo") : t("{n} overdue todos", { n: overdue }) });
+        add(p.id, { tone: "unread", count: open - overdue, label: open === 1 ? t("1 open todo") : t("{n} open todos", { n: open }), todo: true });
+        add(p.id, { tone: "important", count: overdue, label: overdue === 1 ? t("1 overdue todo") : t("{n} overdue todos", { n: overdue }), todo: true });
       }
     }
 

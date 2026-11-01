@@ -65,7 +65,7 @@ export const TODOS_WIDGETS: WorkspaceWidget[] = [
       return { kind: "list", items, count: all.length || undefined, urgent: overdue, empty: status === "done" ? t("Nothing done yet.") : t("No open todos.") };
     },
     // The page's badge: the overdue todos (a full list of open ones would always count).
-    badge: listBadge({ important: (n) => (n === 1 ? t("1 overdue todo") : t("{n} overdue todos", { n })) }),
+    badge: listBadge({ unread: (n) => (n === 1 ? t("1 open todo") : t("{n} open todos", { n })), important: (n) => (n === 1 ? t("1 overdue todo") : t("{n} overdue todos", { n })), todo: true }),
     act: async (action, payload) => {
       // Ticked: done; ticked again: open.
       if (action !== "toggle") throw new Error("unknown action");

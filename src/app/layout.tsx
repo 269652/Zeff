@@ -4,6 +4,21 @@ import { HashHighlight } from "@/components/HashHighlight";
 import { AttentionBar } from "@/components/AttentionBar";
 import { listAttention } from "@/lib/attention";
 import { activityNewsIds } from "@/lib/todos/activity";
+import { listTodos } from "@/lib/todos/store";
+import { localDay } from "@/lib/dates";
+import { isInstalled } from "@/plugins/state";
+
+/** Your open todos (not those waiting on someone else) and how many are past their day — the Todos tab's count. */
+function openTodoCounts(): { open: number; late: number } | undefined {
+  if (!isInstalled("todos")) return undefined;
+  try {
+    const today = localDay();
+    const mine = listTodos({ status: "open" }).filter((x) => x.owner !== "other");
+    return { open: mine.length, late: mine.filter((x) => !!x.due && x.due < today).length };
+  } catch {
+    return undefined;
+  }
+}
 import { getWorkSettings } from "@/lib/work/store";
 import type { Metadata } from "next";
 import { connection } from "next/server";
@@ -114,6 +129,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             {t("Skip to the content")}
           </a>
           <SiteHeader
+            openTodos={openTodoCounts()}
             activityIds={activityNewsIds()}
             waiting={attention.flatMap((a) => (a.kind === "question" && a.href?.startsWith("/work") ? [{ href: "/work", title: a.title }] : []))}
             apps={allApps().map((a) => ({ href: a.href, label: a.label, hint: a.hint, place: a.place }))}

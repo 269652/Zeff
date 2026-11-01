@@ -8293,5 +8293,6 @@
   "Options in “{calendar}” — accepting one in the calendar dismisses the others": "Opciones en «{calendar}» — al aceptar una en el calendario se descartan las demás",
   "Regenerate": "Regenerar",
   "Regenerating …": "Regenerando …",
-  "Thinks it through again with your answers (no new questions) and sets all of it up at once — its earlier proposals replaced, nothing doubled": "Lo vuelve a pensar con tus respuestas (sin preguntas nuevas) y lo prepara todo de una vez — sus propuestas anteriores se sustituyen, nada se duplica"
+  "Thinks it through again with your answers (no new questions) and sets all of it up at once — its earlier proposals replaced, nothing doubled": "Lo vuelve a pensar con tus respuestas (sin preguntas nuevas) y lo prepara todo de una vez — sus propuestas anteriores se sustituyen, nada se duplica",
+  "{n} open todos, {late} of them late": "{n} tareas abiertas, {late} atrasadas"
 }

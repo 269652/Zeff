@@ -8,7 +8,7 @@ import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { createDayListAction, setNavHiddenAction, favoriteOrderAction, archivePageAction, restorePageAction, createPageAction, createSourceDatabaseAction, duplicatePageAction, movePageAction, saveAsTemplateAction, savePageAction, installPackageAction, setTemplateAction, templatesAction } from "../actions";
 import { kindIcon, moveBefore } from "../model";
-import { countLabel, noBadges, shownBadge, shownMessages, sumBadges, type Badge, type PageBadges } from "../badge-shared";
+import { countLabel, noBadges, shownBadge, shownMessages, shownTodos, sumBadges, type Badge, type PageBadges } from "../badge-shared";
 import { pageBadgesAction } from "../badge-actions";
 import type { TreeItem } from "../store";
 import type { AppNav } from "../app-nav";
@@ -102,6 +102,27 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
   const t = useT();
   const s = shownBadge(badge);
   const msgs = shownMessages(badge);
+  const todos = shownTodos(badge);
+  // Open todos: a pill of their own with a box (red when some are late) — first, beside what else waits.
+  const todo = todos.n > 0 && (
+    <span
+      className={`inline-flex shrink-0 items-center gap-0.5 rounded-full px-1.5 text-[11px] font-semibold tabular-nums leading-4 ${dim ? "bg-indigo-50 text-indigo-500 dark:bg-indigo-950/30 dark:text-indigo-400" : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"}`}
+      data-badge="todos"
+    >
+      <span aria-hidden className={todos.late ? "text-red-600 dark:text-red-400" : ""}>☐</span>
+      <span aria-hidden>{countLabel(todos.n)}</span>
+      <span className="sr-only">{todos.late ? t("{n} open todos, {late} of them late", { n: todos.n, late: todos.late }) : t("{n} open todos", { n: todos.n })}</span>
+    </span>
+  );
+  if (todo) {
+    const rest = { ...badge!, todos: 0, todosLate: 0 };
+    return (
+      <span className="ml-auto flex shrink-0 items-center gap-1">
+        {todo}
+        {(shownBadge(rest) || shownMessages(rest) > 0) && <BadgePill badge={rest} dim={dim} />}
+      </span>
+    );
+  }
   // Unread messages from someone: a pill of their own (✉), beside what waits — not mixed into the todos.
   const mail = msgs > 0 && (
     <span
@@ -145,7 +166,7 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
 }
 
 /** Two badges saying the same (their counts by tone). */
-const sameBadge = (a: Badge, b: Badge) => a.important === b.important && a.unread === b.unread && (a.messages ?? 0) === (b.messages ?? 0);
+const sameBadge = (a: Badge, b: Badge) => a.important === b.important && a.unread === b.unread && (a.messages ?? 0) === (b.messages ?? 0) && (a.todos ?? 0) === (b.todos ?? 0);
 
 /** A row's tooltip: its title, what its badge is made of, and what is below it. */
 function badgeTip(title: string, own: Badge | null | undefined, below: Badge | null | undefined, belowWord: string): string | undefined {
@@ -373,7 +394,7 @@ export function Sidebar({ appNav = {}, items: treeItems, favorites, badges = noB
             )}
             {/* What waits on it (a mail inbox's unread, as a mail client's folders show it; a person's open todos …), and below it. */}
             <BadgePill badge={own} />
-            {(shownBadge(sub) || shownMessages(sub) > 0) && <span className={own ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={sub} dim /></span>}
+            {(shownBadge(sub) || shownMessages(sub) > 0 || shownTodos(sub).n > 0) && <span className={own ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={sub} dim /></span>}
           </Link>
           <span data-hover className="flex shrink-0 items-center">
             <Dropdown label="⋯" title={t("More")} className="icon-btn size-6 text-xs" align="left">
@@ -612,7 +633,7 @@ export function Sidebar({ appNav = {}, items: treeItems, favorites, badges = noB
                   <span>{f.icon || kindIcon(f.kind)}</span>
                   <span className="truncate">{f.title || t("Untitled")}</span>
                   <BadgePill badge={ownBadge(f.id)} />
-                  {(shownBadge(below.get(f.id)) || shownMessages(below.get(f.id)) > 0) && <span className={ownBadge(f.id) ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={below.get(f.id)} dim /></span>}
+                  {(shownBadge(below.get(f.id)) || shownMessages(below.get(f.id)) > 0 || shownTodos(below.get(f.id)).n > 0) && <span className={ownBadge(f.id) ? "shrink-0" : "ml-auto shrink-0"}><BadgePill badge={below.get(f.id)} dim /></span>}
                 </Link>
               </li>
             ))}
