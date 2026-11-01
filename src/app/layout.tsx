@@ -4,7 +4,8 @@ import { HashHighlight } from "@/components/HashHighlight";
 import { AttentionBar } from "@/components/AttentionBar";
 import { listAttention } from "@/lib/attention";
 import { activityNewsIds } from "@/lib/todos/activity";
-import { listTodos } from "@/lib/todos/store";
+import { boardTodos } from "@/lib/todos/store";
+import { lastGoodRun, latestRun } from "@/lib/runs/store";
 import { localDay } from "@/lib/dates";
 import { isInstalled } from "@/plugins/state";
 
@@ -13,7 +14,10 @@ function openTodoCounts(): { open: number; late: number } | undefined {
   if (!isInstalled("todos")) return undefined;
   try {
     const today = localDay();
-    const mine = listTodos({ status: "open" }).filter((x) => x.owner !== "other");
+    // As the Todos tab counts "Your todos": on the briefing's tickets (or on none), not the workers' nor merged ones.
+    const last = latestRun();
+    const run = last?.status === "ok" ? last : lastGoodRun();
+    const mine = boardTodos([...(run?.tickets.map((x) => x.key) ?? []), ""]).filter((x) => x.status === "open" && x.owner === "me");
     return { open: mine.length, late: mine.filter((x) => !!x.due && x.due < today).length };
   } catch {
     return undefined;

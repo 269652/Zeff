@@ -6,7 +6,7 @@ import { usePathname, useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { saveMenuAction } from "@/app/actions";
 import { inOrder, type Placement } from "@/lib/layout-shared";
-import { UnseenActivityBadge } from "./boards/ActivitySeen";
+import { useUnseenActivity } from "./boards/ActivitySeen";
 import { SyncMenu } from "./SyncMenu";
 import { Search } from "./Search";
 import { openSearch } from "@/lib/search/shared";
@@ -54,15 +54,27 @@ const pill = (active: boolean) =>
  * `activityIds`: the recent todo events that are news — Boards shows how many you haven't seen.
  * `account`: the account you're in and the others (Accounts plugin installed).
  */
-/** The Todos tab's open todos: a pill with a box (red when some are late) beside its activity. */
-function OpenTodosPill({ open, late, className = "" }: { open: number; late: number; className?: string }) {
+/** The Todos tab's badge: one split pill — your open todos (red when some are late) | the changes you haven't seen. */
+function TodosTabBadge({ open, late, ids, className = "" }: { open: number; late: number; ids: number[]; className?: string }) {
   const t = useT();
-  if (!(open > 0)) return null;
+  const unseen = useUnseenActivity(ids);
+  if (!(open > 0) && !unseen) return null;
+  const cap = (n: number) => (n > 999 ? "999+" : String(n));
   return (
-    <span className={`inline-flex items-center gap-0.5 rounded-full bg-indigo-100 px-1.5 text-[11px] font-semibold leading-4 tabular-nums text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 ${className}`}>
-      <span aria-hidden className={late ? "text-red-600 dark:text-red-400" : ""}>☐</span>
-      <span aria-hidden>{open > 999 ? "999+" : open}</span>
-      <span className="sr-only">{late ? t("{n} open todos, {late} of them late", { n: open, late }) : t("{n} open todos", { n: open })}</span>
+    <span className={`inline-flex overflow-hidden rounded-full text-[11px] font-semibold leading-4 tabular-nums normal-case ${className}`}>
+      {open > 0 && (
+        <span
+          className={`px-1.5 ${late ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300" : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"}`}
+          title={late ? t("{n} open, {late} late", { n: open, late }) : t("{n} open todos", { n: open })}
+        >
+          {cap(open)}
+        </span>
+      )}
+      {!!unseen && (
+        <span className="bg-red-500 px-1.5 text-white" title={unseen === 1 ? t("1 unseen change") : t("{n} unseen changes", { n: unseen })}>
+          {cap(unseen)}
+        </span>
+      )}
     </span>
   );
 }
@@ -384,8 +396,7 @@ export function SiteHeader({
                     <>
                       <span className="sm:hidden">{tab.short}</span>
                       <span className="hidden sm:inline">{tab.label}</span>
-                      {tab.href === "/todos" && openTodos && <OpenTodosPill {...openTodos} className="ml-1 align-[1px]" />}
-                      {tab.href === "/todos" && <UnseenActivityBadge ids={activityIds} className="ml-1 align-[1px]" />}
+                      {tab.href === "/todos" && <TodosTabBadge open={openTodos?.open ?? 0} late={openTodos?.late ?? 0} ids={activityIds} className="ml-1 align-[1px]" />}
                       {waiting.some((w) => w.href.startsWith(tab.href)) && (
                         <span
                           className="ml-1 inline-block size-2 rounded-full bg-amber-500 align-[1px]"
@@ -445,8 +456,7 @@ export function SiteHeader({
               <Link key={tab.href} href={tab.href} aria-current={current ? "page" : undefined} className={`relative flex min-w-0 flex-1 flex-col items-center justify-center px-1 py-2.5 text-xs font-medium ${current ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-500 dark:text-zinc-400"}`}>
                 {current && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-indigo-600 dark:bg-indigo-400" aria-hidden />}
                 <span className="max-w-full truncate">{tab.label}</span>
-                {tab.href === "/todos" && openTodos && <OpenTodosPill {...openTodos} className="absolute top-1.5 left-[calc(50%+1.25rem)]" />}
-                {tab.href === "/todos" && <UnseenActivityBadge ids={activityIds} className="absolute top-1.5 right-[calc(50%-1.75rem)]" />}
+                {tab.href === "/todos" && <TodosTabBadge open={openTodos?.open ?? 0} late={openTodos?.late ?? 0} ids={activityIds} className="absolute top-1.5 left-[calc(50%+1.25rem)]" />}
               </Link>
             );
           })}

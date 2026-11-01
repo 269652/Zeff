@@ -165,6 +165,29 @@ function BadgePill({ badge, dim = false }: { badge: Badge | null | undefined; di
   );
 }
 
+/** A row's badges folded into a small blue dot (a person under People: what waits with them) — a click on it unfolds them. */
+function FoldedBadge({ badge }: { badge: Badge | null | undefined }) {
+  const t = useT();
+  const [unfolded, setUnfolded] = useState(false);
+  if (!badge || !(shownBadge(badge) || shownMessages(badge) > 0 || shownTodos(badge).n > 0)) return null;
+  const toggle = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setUnfolded((x) => !x);
+  };
+  if (unfolded)
+    return (
+      <span className="ml-auto flex shrink-0 cursor-pointer items-center" onClick={toggle} title={t("Fold")}>
+        <BadgePill badge={badge} />
+      </span>
+    );
+  return (
+    <button type="button" className="ml-auto flex size-4 shrink-0 items-center justify-center" onClick={toggle} title={badge.parts.join(" · ") || t("Show what waits")} aria-label={t("Show what waits")} aria-expanded={false}>
+      <span aria-hidden className="size-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />
+    </button>
+  );
+}
+
 /** Two badges saying the same (their counts by tone). */
 const sameBadge = (a: Badge, b: Badge) => a.important === b.important && a.unread === b.unread && (a.messages ?? 0) === (b.messages ?? 0) && (a.todos ?? 0) === (b.todos ?? 0);
 
@@ -327,7 +350,7 @@ export function Sidebar({ appNav = {}, items: treeItems, favorites, badges = noB
                 <Link href={e.href ?? `/workspace/${dbId}?nav=${encodeURIComponent(e.id)}`} className="flex min-w-0 flex-1 items-center gap-1.5 py-0.5">
                   <span className="shrink-0">{e.icon}</span>
                   <span className="truncate">{e.label}</span>
-                  {e.n > 0 ? <span className={`ml-auto shrink-0 pl-1 text-xs tabular-nums ${e.id === "inbox" ? "font-semibold text-indigo-600 dark:text-indigo-400" : "text-zinc-400"}`}>{e.n}</span> : <BadgePill badge={live.rows[Number(/^\/workspace\/(\d+)$/.exec(e.href ?? "")?.[1] ?? 0)]} />}
+                  {e.n > 0 ? <span className={`ml-auto shrink-0 pl-1 text-xs tabular-nums ${e.id === "inbox" ? "font-semibold text-indigo-600 dark:text-indigo-400" : "text-zinc-400"}`}>{e.n}</span> : <FoldedBadge badge={live.rows[Number(/^\/workspace\/(\d+)$/.exec(e.href ?? "")?.[1] ?? 0)]} />}
                 </Link>
                 <span data-hover className="flex shrink-0 items-center">
                   <button type="button" className="icon-btn size-6 text-xs" title={e.hidden ? t("Show again") : t("Hide")} aria-label={e.hidden ? t("Show again") : t("Hide")} onClick={() => void set(e.id, !e.hidden)}>

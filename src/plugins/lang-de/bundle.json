@@ -8294,5 +8294,9 @@
   "Regenerate": "Neu generieren",
   "Regenerating …": "Wird neu generiert …",
   "Thinks it through again with your answers (no new questions) and sets all of it up at once — its earlier proposals replaced, nothing doubled": "Denkt mit deinen Antworten noch einmal nach (ohne neue Fragen) und richtet alles auf einmal ein — die früheren Vorschläge werden ersetzt, nichts doppelt",
-  "{n} open todos, {late} of them late": "{n} offene Todos, davon {late} überfällig"
+  "{n} open todos, {late} of them late": "{n} offene Todos, davon {late} überfällig",
+  "1 unseen change": "1 ungesehene Änderung",
+  "{n} unseen changes": "{n} ungesehene Änderungen",
+  "{n} open, {late} late": "{n} offen, {late} überfällig",
+  "Show what waits": "Zeigen, was wartet"
 }
