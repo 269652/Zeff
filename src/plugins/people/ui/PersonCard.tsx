@@ -26,8 +26,8 @@ const CIRCLE_TONE: Record<Circle, string> = {
   services: "text-zinc-600 dark:text-zinc-300",
 };
 
-const chip = "rounded px-1.5 py-0.5";
-const grey = `${chip} bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300`;
+/** A small count pill (what waits with them). */
+const pill = "inline-flex items-center gap-0.5 rounded-full px-1.5 text-[11px] font-semibold leading-4 tabular-nums";
 
 export function PersonCard({ p, info, now, soonUntil, weeks, open, run }: { p: CardPerson; info: PersonCardInfo | undefined; now: number; soonUntil: string; weeks: number; open: () => void; run: (tool: PeopleTool, key: string) => Promise<{ ok: boolean; draft?: string }> }) {
   const t = useT();
@@ -78,49 +78,61 @@ export function PersonCard({ p, info, now, soonUntil, weeks, open, run }: { p: C
               {info?.role || p.context}
             </p>
           )}
-          <div className="flex flex-wrap gap-1 pt-0.5 text-xs">
-            {/* Unread from them: first and loud — the inbox opens on them. */}
-            {!!info?.unread && (
-              <a
-                href={`/mail?q=${encodeURIComponent(p.name)}`}
-                className={`${chip} inline-flex items-center gap-1 bg-teal-600 font-semibold text-white no-underline hover:bg-teal-700 dark:bg-teal-500 dark:text-teal-950`}
-                title={t("Open their unread messages")}
-                onClick={(e) => e.stopPropagation()}
-              >
-                ✉ {info.unread === 1 ? t("1 unread message") : t("{n} unread messages", { n: info.unread })}
-              </a>
-            )}
-            {info?.lastContact ? (
-              <span className={`${chip} ${quiet ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`} title={t("Last contact: {when}", { when: new Date(info.lastContact.at).toLocaleString() })}>
-                {channel(info.lastContact.channel)} · {agoText(t, info.lastContact.at, now)}
-              </span>
-            ) : null}
-            {info?.birthdayIn != null && <span className={`${chip} bg-rose-100 text-rose-700 dark:bg-rose-950 dark:text-rose-300`}>🎂 {info.birthdayIn === 0 ? t("today") : t("tomorrow")}</span>}
-            {p.next && info?.birthdayIn == null && <span className={soon ? `${chip} bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300` : grey}>{p.nextKind ? `${p.nextKind} · ${day(p.next)}` : day(p.next)}</span>}
-            {info?.away && <span className={grey}>{t("Away until {date}", { date: day(info.away) })}</span>}
-            {mine.length > 0 && (
-              <button type="button" aria-expanded={panel === "owed"} className={`${chip} bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-300`} onClick={() => toggle("owed")}>
-                {t("you owe {n}", { n: mine.length })}
-              </button>
-            )}
-            {theirs.length > 0 && (
-              <button type="button" aria-expanded={panel === "owed"} className={`${chip} bg-sky-50 text-sky-700 hover:bg-sky-100 dark:bg-sky-950 dark:text-sky-300`} onClick={() => toggle("owed")}>
-                {t("owes you {n}", { n: theirs.length })}
-              </button>
-            )}
-            {info?.debt && info.debt.owe > 0 && (
-              <span className={`${chip} bg-rose-100 font-medium text-rose-800 dark:bg-rose-950 dark:text-rose-300`} title={t("What you owe them")}>
-                {t("Debt {amount}", { amount: info.debt.owe.toLocaleString(undefined, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) })}
-              </span>
-            )}
-            {info?.debt && info.debt.owed > 0 && (
-              <span className={`${chip} bg-emerald-100 font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300`} title={t("What they owe you")}>
-                {t("Claim {amount}", { amount: info.debt.owed.toLocaleString(undefined, { style: "currency", currency: "EUR", maximumFractionDigits: 0 }) })}
-              </span>
-            )}
-            {p.todos > 0 && <span className={`${chip} bg-indigo-50 text-indigo-700 dark:bg-indigo-950 dark:text-indigo-300`}>{p.todos === 1 ? t("1 todo") : t("{n} todos", { n: p.todos })}</span>}
-            {p.tickets > 0 && <span className={grey}>{p.tickets === 1 ? t("1 ticket") : t("{n} tickets", { n: p.tickets })}</span>}
-          </div>
+          {/* When: a quiet line of text — last contact, the next day (birthday …), away. */}
+          {(info?.lastContact || info?.birthdayIn != null || p.next || info?.away) && (
+            <p className="truncate text-xs text-zinc-500 dark:text-zinc-400">
+              {[
+                info?.lastContact && (
+                  <span key="c" className={quiet ? "text-amber-700 dark:text-amber-300" : ""} title={t("Last contact: {when}", { when: new Date(info.lastContact.at).toLocaleString() })}>
+                    {channel(info.lastContact.channel)} {agoText(t, info.lastContact.at, now)}
+                  </span>
+                ),
+                info?.birthdayIn != null ? (
+                  <span key="b" className="font-medium text-rose-700 dark:text-rose-300">🎂 {info.birthdayIn === 0 ? t("today") : t("tomorrow")}</span>
+                ) : p.next ? (
+                  <span key="n" className={soon ? "text-amber-700 dark:text-amber-300" : ""}>{p.nextKind ? `${p.nextKind} ${day(p.next)}` : day(p.next)}</span>
+                ) : null,
+                info?.away && <span key="a">{t("Away until {date}", { date: day(info.away) })}</span>,
+              ]
+                .filter(Boolean)
+                .flatMap((x, k) => (k ? [<span key={`s${k}`} aria-hidden> · </span>, x] : [x]))}
+            </p>
+          )}
+          {/* What waits: small pills, each saying what it counts. */}
+          {(!!info?.unread || p.todos > 0 || mine.length + theirs.length > 0 || !!info?.debt?.owe || !!info?.debt?.owed || p.tickets > 0) && (
+            <div className="flex flex-wrap gap-1 pt-0.5">
+              {!!info?.unread && (
+                <a href={`/mail?q=${encodeURIComponent(p.name)}`} className={`${pill} bg-teal-100 text-teal-800 no-underline hover:bg-teal-200 dark:bg-teal-950/60 dark:text-teal-300`} title={info.unread === 1 ? t("1 unread message") : t("{n} unread messages", { n: info.unread })} onClick={(e) => e.stopPropagation()}>
+                  ✉ {info.unread}
+                </a>
+              )}
+              {p.todos > 0 && (
+                <span className={`${pill} bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300`} title={p.todos === 1 ? t("1 todo") : t("{n} todos", { n: p.todos })}>
+                  ☐ {p.todos}
+                </span>
+              )}
+              {mine.length + theirs.length > 0 && (
+                <button type="button" aria-expanded={panel === "owed"} className={`${pill} bg-zinc-100 text-zinc-700 hover:bg-zinc-200 dark:bg-zinc-800 dark:text-zinc-300`} onClick={() => toggle("owed")} title={[mine.length ? t("you owe {n}", { n: mine.length }) : "", theirs.length ? t("owes you {n}", { n: theirs.length }) : ""].filter(Boolean).join(" · ")}>
+                  🤝 {mine.length + theirs.length}
+                </button>
+              )}
+              {info?.debt && (info.debt.owe > 0 || info.debt.owed > 0) && (() => {
+                const net = info.debt.owed - info.debt.owe;
+                const eur = (n: number) => n.toLocaleString(undefined, { style: "currency", currency: "EUR", maximumFractionDigits: 0 });
+                return (
+                  <span className={`${pill} ${net < 0 ? "bg-rose-100 text-rose-800 dark:bg-rose-950/60 dark:text-rose-300" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300"}`} title={[info.debt.owe > 0 ? t("Debt {amount}", { amount: eur(info.debt.owe) }) : "", info.debt.owed > 0 ? t("Claim {amount}", { amount: eur(info.debt.owed) }) : ""].filter(Boolean).join(" · ")}>
+                    {net < 0 ? "−" : net > 0 ? "+" : ""}
+                    {eur(Math.abs(net))}
+                  </span>
+                );
+              })()}
+              {p.tickets > 0 && (
+                <span className={`${pill} bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300`} title={p.tickets === 1 ? t("1 ticket") : t("{n} tickets", { n: p.tickets })}>
+                  🎫 {p.tickets}
+                </span>
+              )}
+            </div>
+          )}
         </div>
       </div>
 
