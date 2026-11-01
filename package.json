@@ -44,6 +44,7 @@
     "check:generated": "tsx scripts/plugins-index.mts --check && node scripts/integrations.mjs --check",
     "plugin:schema": "tsx scripts/plugin-schema.mts",
     "release:check": "node scripts/smoke-release.mjs",
+    "publish:github": "node scripts/publish-github.mjs",
     "launcher:start": "npm --prefix launcher start"
   },
   "dependencies": {
