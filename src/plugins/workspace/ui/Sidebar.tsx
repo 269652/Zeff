@@ -200,7 +200,7 @@ function FoldedBadge({ badge, below }: { badge: Badge | null | undefined; /** Wh
   };
   const sum = own.sum + sub.sum;
   const fresh = (badge?.activity ?? 0) > 0 || (below?.activity ?? 0) > 0;
-  const tip = unfolded ? t("Fold") : fresh ? `${t("Show what waits")} · ${t("Changed since you last opened it")}` : t("Show what waits");
+  const tip = unfolded ? (fresh ? `${t("Fold")} · ${t("Changed since you last opened it")}` : t("Fold")) : fresh ? `${t("Show what waits")} · ${t("Changed since you last opened it")}` : t("Show what waits");
   return (
     <span className="ml-auto flex shrink-0 items-center gap-1">
       <button
@@ -212,12 +212,8 @@ function FoldedBadge({ badge, below }: { badge: Badge | null | undefined; /** Wh
         aria-expanded={unfolded}
       >
         <span aria-hidden className="text-[10px]">{unfolded ? "▸" : "◂"}</span>
-        {!unfolded && (
-          <>
-            {fresh && <span aria-hidden className="size-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />}
-            {sum > 0 && <span className={fresh ? "text-sky-700 dark:text-sky-300" : ""}>{countLabel(sum)}</span>}
-          </>
-        )}
+        {fresh && <span aria-hidden className="size-1.5 rounded-full bg-sky-500 dark:bg-sky-400" />}
+        {!unfolded && sum > 0 && <span className={fresh ? "text-sky-700 dark:text-sky-300" : ""}>{countLabel(sum)}</span>}
       </button>
       {unfolded && pills}
     </span>
