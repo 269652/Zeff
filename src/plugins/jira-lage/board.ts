@@ -257,11 +257,5 @@ export async function lageBoard(id: string): Promise<RichBoard | null> {
   };
 }
 
-/** The briefing's run (My briefing's button): running, when last, the follow-up step going on. */
-export function briefingRunState(): NonNullable<RichBoard["briefing"]> {
-  const { at } = lageByTicket();
-  return { running: !!boardRunState(), lastAt: at, step: followUpStep(boardRunState()?.phase) };
-}
-
 /** The Board-Lage's run (a Jira board's "Auswerten"): running, and how it went last. */
 export const boardLageRunState = (): NonNullable<RichBoard["boardLage"]> => boardLageState()!;
