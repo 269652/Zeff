@@ -1,7 +1,7 @@
 "use server";
 
 import { cookies } from "next/headers";
-import { redirect } from "next/navigation";
+import { redirect } from "@/lib/redirect";
 import { deleteConnection } from "@/lib/calendar/microsoft";
 import { createEntry } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";

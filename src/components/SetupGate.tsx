@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname } from "next/navigation";
+import { usePagePathname } from "@/lib/use-page-pathname";
 import { useT } from "@/components/I18nProvider";
 
 /**
@@ -10,7 +10,7 @@ import { useT } from "@/components/I18nProvider";
  */
 export function SetupGate({ pending, allowed, account, children }: { pending: boolean; allowed: string[]; account?: string; children: React.ReactNode }) {
   const t = useT();
-  const pathname = usePathname();
+  const pathname = usePagePathname();
   if (!pending || allowed.some((p) => pathname === p || pathname.startsWith(`${p}/`))) return children;
   return (
     <div className="flex min-h-full items-center justify-center p-6">

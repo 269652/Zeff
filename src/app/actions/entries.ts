@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect } from "@/lib/redirect";
 import { parallelSaid } from "@/lib/entry-parallel";
 import { getJobNumberForTicket, createEntry, deleteEntry, updateEntry, getEntry, requireEntry } from "@/lib/entries";
 import { errorMessage } from "@/lib/errors";

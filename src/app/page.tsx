@@ -1,6 +1,6 @@
 import { collectHeadsOn } from "@/lib/entry-parallel";
 import { ParallelPanel } from "@/components/ParallelPanel";
-import { redirect } from "next/navigation";
+import { redirect } from "@/lib/redirect";
 import { firstAppTab } from "@/plugins/tabs";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";

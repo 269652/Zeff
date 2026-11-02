@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { openSearch } from "@/lib/search/shared";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { usePagePathname } from "@/lib/use-page-pathname";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -235,7 +236,7 @@ export function Sidebar({ appNav = {}, items: treeItems, favorites, badges = noB
   // A day list's log isn't a page of the tree: it is its list's "History" tab (still found by the search).
   const items = useMemo(() => treeItems.filter((i) => !i.dayLogOf), [treeItems]);
   const router = useRouter();
-  const path = usePathname();
+  const path = usePagePathname();
   const current = Number(/^\/workspace\/(\d+)/.exec(path)?.[1] ?? 0) || null;
   const builtinOpen = path.startsWith("/workspace/templates/") ? decodeURIComponent(path.slice("/workspace/templates/".length)) : null;
   const [open, toggle] = useOpen();

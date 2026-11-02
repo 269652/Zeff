@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { prefixOf, slugOf } from "@/lib/account-routes";
 import Link from "next/link";
 import { t } from "@/lib/i18n/server";
 import { connection } from "next/server";
@@ -20,7 +21,7 @@ export default async function AccountsPage() {
   await connection();
   if (!isInstalled("accounts")) return <PluginNotInstalled id="accounts" />;
   const current = currentAccountId();
-  const accounts = listAccounts().map((a) => ({ ...a, host: a.host ?? "", dir: accountDir(a.id), current: a.id === current, workerSetup: sharesWorkerSetup(a.id) }));
+  const accounts = listAccounts().map((a) => ({ ...a, host: a.host ?? "", slug: slugOf(a), prefix: prefixOf(a), dir: accountDir(a.id), current: a.id === current, workerSetup: sharesWorkerSetup(a.id) }));
   return (
     <div className="page">
       <div className="page-aside">

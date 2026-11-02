@@ -2,7 +2,8 @@
 
 import Link from "next/link";
 import { ChevronIcon } from "./icons";
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { usePagePathname } from "@/lib/use-page-pathname";
 import { useEffect, useRef, useState, useTransition } from "react";
 import { saveMenuAction } from "@/app/actions";
 import { inOrder, type Placement } from "@/lib/layout-shared";
@@ -127,7 +128,7 @@ export function SiteHeader({
     .map((l) => ({ id: l.href, label: l.label, hint: l.hint, href: l.href, group: "Pages" }))
     // …and each settings section by its own name (after the pages: a page's own link comes first).
     .concat(settingsSections.filter((l, i, all) => all.findIndex((x) => x.href === l.href) === i).map((l) => ({ id: `section:${l.href}`, label: l.label, hint: l.hint ? `${t("Settings")} · ${l.hint}` : t("Settings"), href: l.href, group: "Pages" })));
-  const pathname = usePathname();
+  const pathname = usePagePathname();
   const router = useRouter();
   const [open, setOpen] = useState(false);
   // "Anpassen": every entry with its controls — pinned to the header, in the menu, hidden.

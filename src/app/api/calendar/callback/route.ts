@@ -1,4 +1,5 @@
 import { isInstalled } from "@/plugins/state";
+import { prefixedUrl } from "@/lib/redirect";
 import { NextResponse, type NextRequest } from "next/server";
 import { getMicrosoftConfig } from "@/lib/calendar/config";
 import { decodeIdToken, exchangeCode, saveConnection } from "@/lib/calendar/microsoft";
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
   const cookie = parseOAuthCookie(req.cookies.get(OAUTH_COOKIE)?.value);
 
   const finish = (target: string) => {
-    const res = NextResponse.redirect(new URL(target, req.url));
+    const res = NextResponse.redirect(prefixedUrl(target, req.url));
     res.cookies.set(OAUTH_COOKIE, "", { path: "/api/calendar", maxAge: 0 });
     return res;
   };

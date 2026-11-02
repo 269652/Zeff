@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { usePagePathname } from "@/lib/use-page-pathname";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
@@ -126,7 +127,7 @@ function SyncPart(p: PartProps) {
   const inTree = p.view.nav === "workspace";
   const asked = useSearchParams().get("nav");
   const router = useRouter();
-  const path = usePathname();
+  const path = usePagePathname();
   const ref = useRef<HTMLSpanElement>(null);
   // (The view's setState is a new function each time it draws: effects call the latest, they don't run again for it.)
   const set = useRef(p.setState);

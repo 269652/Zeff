@@ -1,6 +1,7 @@
 import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import fs from "node:fs";
 import path from "node:path";
+import { DEFAULT_ACCOUNT_ID, prefixOf, slugMap, type RouteAccount } from "@/lib/account-routes";
 
 /**
  * The lock's files and its session cookie — what the proxy (src/proxy.ts) needs on every request, so: no database, no
@@ -65,7 +66,20 @@ export const ACCOUNT_HEADER = "x-zeff-account";
 /** The host names a request may arrive under ("privat.localhost:9333" → "privat.localhost"), lower case. */
 export const hostnameOf = (host: string | null | undefined): string => String(host ?? "").trim().toLowerCase().replace(/:\d+$/, "").replace(/^\[|\]$/g, "");
 
-let hostsCache: { at: number; hosts: Map<string, string>; rest: string | null } | null = null;
+let hostsCache: { at: number; hosts: Map<string, string>; rest: string | null; installed: boolean; slugs: Map<string, string>; prefixes: Map<string, string> } | null = null;
+
+/**
+ * The accounts' routes (src/lib/account-routes.ts): which slug names which account — only with the Accounts plugin (an empty
+ * map without). `prefixes`: each account's canonical prefix ("" for the first one).
+ */
+export function accountRoutes(): { installed: boolean; slugs: Map<string, string>; prefixes: Map<string, string> } {
+  accountForHost("localhost"); // fills the cache
+  const c = hostsCache!;
+  return { installed: c.installed, slugs: c.slugs, prefixes: c.prefixes };
+}
+
+/** The cookie of a session for one account (the lock's, Settings → Lock): the first account keeps the name it always had. */
+export const lockCookieFor = (account: string | null | undefined): string => (!account || account === DEFAULT_ACCOUNT_ID ? COOKIE : `${COOKIE}_${account}`);
 /**
  * The account a request's host names: the account whose `host` (data/accounts.json, Settings → Accounts) is that host name
  * — "privat.localhost" for one, "localhost" for another, a third on "business.localhost" — so two (or more) run side by side
@@ -76,18 +90,27 @@ export function accountForHost(host: string | null | undefined): string | null {
   if (!name) return null;
   const now = Date.now();
   if (!hostsCache || now - hostsCache.at > 1000) {
-    const r = readJson<{ installed?: boolean; accounts?: { id?: unknown; host?: unknown }[] }>(path.join(dataDir(), "accounts.json"));
+    const r = readJson<{ installed?: boolean; accounts?: { id?: unknown; host?: unknown; slug?: unknown }[] }>(path.join(dataDir(), "accounts.json"));
     const hosts = new Map<string, string>();
     const without: string[] = [];
+    const routes: RouteAccount[] = [];
     if (r?.installed)
       for (const a of r.accounts ?? []) {
         if (typeof a.id !== "string") continue;
+        routes.push({ id: a.id, ...(typeof a.slug === "string" && a.slug ? { slug: a.slug } : {}) });
         if (typeof a.host === "string" && a.host.trim()) hosts.set(hostnameOf(a.host), a.id);
         else without.push(a.id);
       }
     // The one account without an address of its own (the others have theirs): every address no account claims is its —
     // localhost, 127.0.0.1 — instead of the one switched to, which a switch in another tab would change under you.
-    hostsCache = { at: now, hosts, rest: hosts.size && without.length === 1 ? without[0] : null };
+    hostsCache = {
+      at: now,
+      hosts,
+      rest: hosts.size && without.length === 1 ? without[0] : null,
+      installed: !!r?.installed,
+      slugs: r?.installed ? slugMap(routes) : new Map(),
+      prefixes: new Map(routes.map((a) => [a.id, prefixOf(a)])),
+    };
   }
   return hostsCache.hosts.get(name) ?? hostsCache.rest;
 }

@@ -1,6 +1,6 @@
 "use server";
 
-import { redirect } from "next/navigation";
+import { redirect } from "@/lib/redirect";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { setDefaultTags } from "@/lib/default-tags";

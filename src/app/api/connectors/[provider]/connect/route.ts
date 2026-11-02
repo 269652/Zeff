@@ -1,3 +1,4 @@
+import { prefixedUrl } from "@/lib/redirect";
 import { NextResponse, type NextRequest } from "next/server";
 import { getPublicOrigin } from "mcp-handler";
 import { authorizeUrl, newPkce, newState } from "@/lib/connectors/oauth";
@@ -14,7 +15,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   const info = PROVIDERS[provider];
   const row = clientOf(provider);
   const origin = getPublicOrigin(req);
-  if (!row.clientId) return NextResponse.redirect(new URL(`${info.page}?provider=${provider}&error=client`, origin));
+  if (!row.clientId) return NextResponse.redirect(prefixedUrl(`${info.page}?provider=${provider}&error=client`, origin));
   const redirectUri = `${origin}/api/connectors/${provider}/callback`;
   const { verifier, challenge } = newPkce();
   const state = newState();

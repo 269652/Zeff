@@ -1,3 +1,4 @@
+import { prefixedUrl } from "@/lib/redirect";
 import { NextResponse, type NextRequest } from "next/server";
 import { getPublicOrigin } from "mcp-handler";
 import { errorMessage } from "@/lib/errors";
@@ -13,7 +14,7 @@ export async function GET(req: NextRequest) {
   const origin = getPublicOrigin(req);
   const sp = req.nextUrl.searchParams;
   const finish = (query: string) => {
-    const res = NextResponse.redirect(new URL(`/settings/connections${query}${query ? "&" : "?"}provider=drive#google-drive`, origin));
+    const res = NextResponse.redirect(prefixedUrl(`/settings/connections${query}${query ? "&" : "?"}provider=drive#google-drive`, origin));
     res.cookies.set(DRIVE_COOKIE, "", { path: "/api/google-drive", maxAge: 0 });
     return res;
   };
