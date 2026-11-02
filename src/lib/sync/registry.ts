@@ -285,7 +285,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     // The Lage itself: not while its run syncs first or relates the mails (their own steps show that).
     busy: () => {
       const r = accountFlag<{ phase: string }>("__zeffBoardRun");
-      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "notetodos" && r.phase !== "notes" && r.phase !== "documents" && r.phase !== "docrelations" && r.phase !== "knowledge" && r.phase !== "autoactions";
+      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "notetodos" && r.phase !== "notes" && r.phase !== "documents" && r.phase !== "docrelations" && r.phase !== "knowledge" && r.phase !== "briefingdb" && r.phase !== "autoactions";
     },
     last: () => {
       const run = latestRun();

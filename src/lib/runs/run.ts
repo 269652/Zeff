@@ -13,7 +13,7 @@ import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 import { localDay } from "@/lib/dates";
 
 /** What a run is doing right now — one at a time per account (each runs its own; kept across the server's module copies: lib/sync/account-flags.ts). */
-type BoardRunNow = { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "documents" | "docrelations" | "knowledge" | "people" | "autoactions"; since: number; provider: string };
+type BoardRunNow = { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "documents" | "docrelations" | "knowledge" | "people" | "briefingdb" | "autoactions"; since: number; provider: string };
 
 /** The run going on in this server, and its step — null when none is. */
 export const boardRunState = () => accountFlag<BoardRunNow>("__zeffBoardRun") ?? null;
@@ -69,6 +69,22 @@ export function cleanResult(r: BoardResult, tickets: BoardTicket[]): BoardResult
       })),
     left: (r.left ?? []).map((l) => ({ key: String(l.key ?? "").trim().toUpperCase(), note: String(l.note ?? "").trim() })).filter((l) => left.has(l.key) && l.note),
   };
+}
+
+/** Meine Lage's pipeline with its AI steps (where Jira briefing is on and it exists) — after a run without the AI that was going on. */
+async function briefingDatabaseRun(): Promise<void> {
+  const { isInstalled } = await import("@/plugins/state");
+  if (!isInstalled("jira-lage")) return;
+  const dbId = (await import("@/plugins/jira-lage/to-workspace")).briefingDatabase();
+  if (!dbId) return;
+  const { startPipeline } = await import("@/plugins/workspace/pipeline");
+  let run = startPipeline(dbId, { ai: true });
+  if (!run.started) {
+    await run.done;
+    run = startPipeline(dbId, { ai: true });
+  }
+  const r = await run.done;
+  if (!r.ok) throw new Error(r.error ?? "the pipeline failed");
 }
 
 /**
@@ -148,6 +164,10 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
           finishRun(id, { status: "ok", tickets, result, model: answer.model, costUsd: answer.costUsd, durationMs: Date.now() - t0 });
           kept = true;
         }
+        // Meine Lage (the Workspace database): its rows read again and its AI steps run — the Attention and Lage of the
+        // tickets new or changed, the summary. The Jira sync runs its pipeline without the AI, so the fields stayed empty.
+        setAccountFlag("__zeffBoardRun", { id, phase: "briefingdb", since: t0, provider });
+        await briefingDatabaseRun().catch((e) => console.error("[boards] Meine Lage:", errorMessage(e)));
         // Then steps of their own (the Lage is there already; the run ends when they're done too):
         // the new mails and WhatsApp messages gone through for todos (a training, a deadline) — then
         // which mails each todo is about (picked by content, with more room for mails).

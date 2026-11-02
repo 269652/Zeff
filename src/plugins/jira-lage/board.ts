@@ -166,6 +166,7 @@ function followUpStep(phase: string | undefined): string | null {
     docrelations: () => t("Document matching"),
     knowledge: () => t("Knowledge matching"),
     people: () => t("People matching"),
+    briefingdb: () => t("My briefing"),
     autoactions: () => t("Auto actions"),
   };
   return phase && labels[phase] ? labels[phase]() : null;
