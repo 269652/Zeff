@@ -8305,5 +8305,7 @@
   "“/{slug}” is the route of another account already.": "«/{slug}» ya es la ruta de otra cuenta.",
   "Its route — this account's pages are under it, each account in its own tab: e.g. privat → localhost:9333/privat/…": "Su ruta: las páginas de esta cuenta están bajo ella, cada cuenta en su propia pestaña: p. ej. privat → localhost:9333/privat/…",
   "Route": "Ruta",
-  "Opens this account at its own route": "Abre esta cuenta en su propia ruta"
+  "Opens this account at its own route": "Abre esta cuenta en su propia ruta",
+  "Vacation days without an absence booked ({days}) go to Chrono as entries on the <b>absence job</b>.": "Los días de vacaciones sin ausencia registrada ({days}) van a Chrono como registros en el <b>job de ausencia</b>.",
+  "from the schedule": "del horario"
 }
