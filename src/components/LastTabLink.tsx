@@ -1,7 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { usePathname, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
+import { usePagePathname } from "@/lib/use-page-pathname";
 import { Suspense, useEffect, useSyncExternalStore, type ReactNode } from "react";
 
 // Where you last were under a tab ("/work?run=5") — kept in this browser.
@@ -26,7 +27,7 @@ const readLast = (tab: string) => {
 type Props = { href: string; className: string; active: boolean; label: string; children: ReactNode };
 
 function Remembered({ href, className, active, label, children }: Props) {
-  const pathname = usePathname();
+  const pathname = usePagePathname();
   const search = useSearchParams().toString();
   const here = search ? `${pathname}?${search}` : pathname;
   const last = useSyncExternalStore(subscribeLast, () => readLast(href), () => href);

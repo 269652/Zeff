@@ -8299,5 +8299,11 @@
   "{n} unseen changes": "{n} ungesehene Änderungen",
   "{n} open, {late} late": "{n} offen, {late} überfällig",
   "Show what waits": "Zeigen, was wartet",
-  "No match": "Kein Treffer"
+  "No match": "Kein Treffer",
+  "“{slug}” can't be a route — lower case letters, digits and dashes, e.g. privat.": "„{slug}“ kann keine Route sein — Kleinbuchstaben, Ziffern und Bindestriche, z. B. privat.",
+  "“/{slug}” is one of Zeff's own pages — another one, please.": "„/{slug}“ ist eine von Zeffs eigenen Seiten — bitte eine andere.",
+  "“/{slug}” is the route of another account already.": "„/{slug}“ ist schon die Route eines anderen Kontos.",
+  "Its route — this account's pages are under it, each account in its own tab: e.g. privat → localhost:9333/privat/…": "Seine Route — die Seiten dieses Kontos liegen darunter, jedes Konto in seinem eigenen Tab: z. B. privat → localhost:9333/privat/…",
+  "Route": "Route",
+  "Opens this account at its own route": "Öffnet dieses Konto unter seiner Route"
 }

@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { usePagePathname } from "@/lib/use-page-pathname";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
@@ -35,7 +36,7 @@ const read = <T,>(k: string, fallback: T, store: Storage | undefined): T => {
 export function ChatPanel() {
   const t = useT();
   const router = useRouter();
-  const path = usePathname();
+  const path = usePagePathname();
   const pageId = Number(/^\/workspace\/(\d+)/.exec(path)?.[1] ?? 0) || undefined;
   const [open, setOpen] = useState(false);
   const [msgs, setMsgs] = useState<Msg[]>([]);

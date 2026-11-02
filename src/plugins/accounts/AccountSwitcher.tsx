@@ -1,20 +1,34 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useRef, useState, useTransition } from "react";
+import { useRef, useState } from "react";
 import { useMenuKeys } from "@/components/useMenuKeys";
-import { switchAccountAction } from "@/plugins/accounts/server-actions";
-import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { useDismiss } from "@/components/useDismiss";
+import { DEFAULT_SLUG, PREFIX_ATTR, stripPrefix, withPrefix } from "@/lib/account-routes";
 
-export type AccountChip = { id: string; name: string; color: string; /** Its own address (Settings → Accounts): switching opens it there — the other tab keeps the one before. */ host?: string };
+export type AccountChip = {
+  id: string;
+  name: string;
+  color: string;
+  /** Its route ("/privat"; "" the first account's): switching opens the same page there — the other tab keeps the one before. */
+  prefix: string;
+  /** A host of its own (Settings → Accounts), the older way: still served, not where switching goes. */
+  host?: string;
+};
 
-/** The same page at an account's own address (its host, this port and scheme). */
-export const accountUrl = (host: string, path?: string) => {
+/**
+ * The same page (or `path`) in another account: under its prefix, on this host — or on localhost when this host is an
+ * account's own (an unprefixed URL there would be that account's; the first account's "/standard" alias is used then).
+ */
+export const accountUrl = (target: { id: string; prefix: string }, hosts: (string | undefined)[], path?: string) => {
   const here = window.location;
-  return `${here.protocol}//${host}${here.port ? `:${here.port}` : ""}${path ?? `${here.pathname}${here.search}`}`;
+  const mine = document.documentElement.getAttribute(PREFIX_ATTR) ?? "";
+  const rest = path ?? `${stripPrefix(mine, here.pathname)}${here.search}${here.hash}`;
+  const onHost = hosts.includes(here.hostname);
+  const prefix = target.prefix || (onHost ? `/${DEFAULT_SLUG}` : "");
+  const origin = onHost ? `${here.protocol}//localhost${here.port ? `:${here.port}` : ""}` : "";
+  return `${origin}${withPrefix(prefix, rest)}`;
 };
 
 /** An account's color, as a dot (static class names, for Tailwind). */
@@ -32,8 +46,6 @@ export const dotOf = (color: string) => ACCOUNT_DOT[color] ?? ACCOUNT_DOT.indigo
 export function AccountSwitcher({ current, list }: { current: AccountChip; list: AccountChip[] }) {
   const t = useT();
   const [open, setOpen] = useState(false);
-  const [pending, start] = useTransition();
-  const router = useRouter();
   const box = useRef<HTMLDivElement>(null);
   const button = useRef<HTMLButtonElement>(null);
   const menu = useRef<HTMLDivElement>(null);
@@ -41,31 +53,13 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
 
   useDismiss(box, open, () => setOpen(false));
 
+  // Another account: the same page under its route, a page load (its own data, its own header) — this tab's account is the one
+  // of its URL, so a switch never changes what another tab shows.
   const go = (id: string) => {
-    // An account at its own address: the same page there (both run side by side — this one stays as it is).
     const target = list.find((a) => a.id === id);
-    if (target?.host) {
-      setOpen(false);
-      window.location.assign(accountUrl(target.host));
-      return;
-    }
-    // The one account without an address while the others have theirs: it is every other address (localhost) — opened there, not switched to.
-    if (target && list.filter((a) => !a.host).length === 1 && list.some((a) => a.host)) {
-      setOpen(false);
-      if (list.some((a) => a.host === window.location.hostname)) window.location.assign(accountUrl("localhost"));
-      return;
-    }
-    start(async () => {
-      const r = await switchAccountAction(id);
-      if (!r.ok) {
-        toast(r.error ?? t("That didn't work."), { tone: "error" });
-        return;
-      }
-      setOpen(false);
-      toast(r.message ?? t("Switched."), { tone: "ok" });
-      router.push(r.href ?? "/");
-      router.refresh();
-    });
+    if (!target) return;
+    setOpen(false);
+    window.location.assign(accountUrl(target, list.map((a) => a.host)));
   };
 
   return (
@@ -77,11 +71,10 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
         className="flex max-w-40 items-center gap-1.5 rounded-md border border-zinc-200 px-2 py-1 text-xs font-medium text-zinc-700 transition hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
         aria-haspopup="menu"
         aria-expanded={open}
-        disabled={pending}
         title={t("Account: {name} — switch", { name: current.name })}
       >
         <span className={`size-2 shrink-0 rounded-full ${dotOf(current.color)}`} aria-hidden />
-        <span className="truncate">{pending ? t("switching…") : current.name}</span>
+        <span className="truncate">{current.name}</span>
       </button>
       {open && (
         <div ref={menu} role="menu" className="absolute top-full left-0 z-50 mt-1 w-56 rounded-md border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
@@ -91,7 +84,6 @@ export function AccountSwitcher({ current, list }: { current: AccountChip; list:
               type="button"
               role="menuitemradio"
               aria-checked={a.id === current.id}
-              disabled={pending}
               onClick={() => (a.id === current.id ? setOpen(false) : go(a.id))}
               className={`flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm transition hover:bg-zinc-100 dark:hover:bg-zinc-800 ${a.id === current.id ? "font-semibold" : ""}`}
             >

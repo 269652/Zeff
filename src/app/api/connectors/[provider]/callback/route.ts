@@ -1,3 +1,4 @@
+import { prefixedUrl } from "@/lib/redirect";
 import { NextResponse, type NextRequest } from "next/server";
 import { getPublicOrigin } from "mcp-handler";
 import { exchangeCode } from "@/lib/connectors/oauth";
@@ -16,7 +17,7 @@ export async function GET(req: NextRequest, { params }: { params: Promise<{ prov
   const origin = getPublicOrigin(req);
   const sp = req.nextUrl.searchParams;
   const finish = (query: string) => {
-    const res = NextResponse.redirect(new URL(`${info.page}?provider=${provider}&${query}`, origin));
+    const res = NextResponse.redirect(prefixedUrl(`${info.page}?provider=${provider}&${query}`, origin));
     res.cookies.set(cookieName(provider), "", { path: `/api/connectors/${provider}`, maxAge: 0 });
     return res;
   };

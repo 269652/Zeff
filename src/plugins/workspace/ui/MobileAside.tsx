@@ -1,6 +1,6 @@
 "use client";
 
-import { usePathname } from "next/navigation";
+import { usePagePathname } from "@/lib/use-page-pathname";
 import { useEffect, useState, type ReactNode } from "react";
 import { useT } from "@/components/I18nProvider";
 
@@ -13,7 +13,7 @@ const pageBars = () => (typeof window === "undefined" ? 0 : ((window as { __wsPa
  */
 export function MobileAside({ children }: { children: ReactNode }) {
   const t = useT();
-  const path = usePathname();
+  const path = usePagePathname();
   const home = path === "/workspace";
   const [open, setOpen] = useState(home);
   const [bar, setBar] = useState(0);

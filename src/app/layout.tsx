@@ -26,6 +26,10 @@ function openTodoCounts(): { open: number; late: number } | undefined {
 import { getWorkSettings } from "@/lib/work/store";
 import type { Metadata } from "next";
 import { connection } from "next/server";
+import { headers } from "next/headers";
+import { prefixOf, PREFIX_ATTR, PREFIX_HEADER } from "@/lib/account-routes";
+import { accountNavScript } from "@/lib/account-nav-script";
+import { InlineScript } from "@/components/InlineScript";
 import localFont from "next/font/local";
 import { SiteHeader, type MenuGroup, type MenuLink } from "@/components/SiteHeader";
 import { PLUGINS } from "@/plugins/catalog";
@@ -82,7 +86,7 @@ const setupPages = () => ["/setup", "/settings/connections", "/plugins", "/accou
 /** The account you're in and the others — only with the Accounts plugin. */
 const headerAccount = () => {
   if (!installedPlugins().has("accounts")) return undefined;
-  const chip = (a: { id: string; name: string; color: string; host?: string }) => ({ id: a.id, name: a.name, color: a.color, ...(a.host ? { host: a.host } : {}) });
+  const chip = (a: { id: string; name: string; color: string; host?: string; slug?: string }) => ({ id: a.id, name: a.name, color: a.color, prefix: prefixOf(a), ...(a.host ? { host: a.host } : {}) });
   return { current: chip(currentAccount()), list: listAccounts().map(chip) };
 };
 import { Toaster } from "@/components/Toaster";
@@ -111,7 +115,7 @@ export async function generateMetadata(): Promise<Metadata> {
 }
 
 export default async function RootLayout({ children }: LayoutProps<"/">) {
-  // Every page is the account of its host (src/db/accounts.ts, the proxy's header): rendered per request, never prerendered
+  // Every page is the account of its route or host (src/db/accounts.ts, the proxy's header): rendered per request, never prerendered
   // or kept for one account and served to the other.
   await connection();
   // Not set up yet (a new Zeff, a new account): a bare header, and the way into the setup assistant.
@@ -120,11 +124,19 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const lang = applyLanguage();
   // What needs you: sign-ins as a bar, a waiting Work session as a dot on its tab.
   const attention = setupPending ? [] : await listAttention();
+  // The account's route ("/privat", "" for the first account — the proxy's header): the browser keeps it (account-nav-script).
+  const prefix = (await headers()).get(PREFIX_HEADER) ?? "";
   return (
     <html
       lang={lang}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
+      {...(prefix ? { [PREFIX_ATTR]: prefix } : {})}
     >
+      {prefix && (
+        <head>
+          <InlineScript html={accountNavScript(prefix)} />
+        </head>
+      )}
       {/* An app shell: the window is the page — the body never scrolls; the content does, in itself. */}
       <body className="flex h-screen flex-col overflow-hidden" suppressHydrationWarning>
         <I18nProvider lang={lang}>

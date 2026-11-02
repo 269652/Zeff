@@ -3,13 +3,13 @@
 import { confirmAction } from "@/components/confirm";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { createAccountAction, deleteAccountAction, switchAccountAction, updateAccountAction } from "@/plugins/accounts/server-actions";
+import { createAccountAction, deleteAccountAction, updateAccountAction } from "@/plugins/accounts/server-actions";
 import { startSetupAction } from "@/app/actions";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { ACCOUNT_DOT, accountUrl, dotOf } from "./AccountSwitcher";
 
-type Row = { id: string; name: string; color: string; host: string; createdAt: string; dir: string; current: boolean; workerSetup: boolean };
+type Row = { id: string; name: string; color: string; host: string; slug: string; prefix: string; createdAt: string; dir: string; current: boolean; workerSetup: boolean };
 
 const COLORS = Object.keys(ACCOUNT_DOT);
 
@@ -39,7 +39,7 @@ export function AccountsManager({ accounts }: { accounts: Row[] }) {
   const router = useRouter();
   const [pending, start] = useTransition();
   const [editing, setEditing] = useState<string | null>(null);
-  const [draft, setDraft] = useState({ name: "", color: "indigo", host: "", workerSetup: false });
+  const [draft, setDraft] = useState({ name: "", color: "indigo", slug: "", host: "", workerSetup: false });
   const [fresh, setFresh] = useState({ name: "", color: "emerald", copyFrom: "", shareChrome: true });
   // The account just made: its setup assistant one click away.
   const [made, setMade] = useState<{ id: string; name: string } | null>(null);
@@ -66,6 +66,12 @@ export function AccountsManager({ accounts }: { accounts: Row[] }) {
                 }}
               >
                 <input className="input w-full" value={draft.name} onChange={(e) => setDraft({ ...draft, name: e.target.value })} aria-label={t("Name")} autoFocus />
+                {a.id !== "default" && (
+                  <label className="block text-xs text-zinc-500">
+                    {t("Its route — this account's pages are under it, each account in its own tab: e.g. privat → localhost:9333/privat/…")}
+                    <input className="input mt-1 w-full font-mono text-sm" value={draft.slug} onChange={(e) => setDraft({ ...draft, slug: e.target.value })} placeholder={a.id} aria-label={t("Route")} />
+                  </label>
+                )}
                 <label className="block text-xs text-zinc-500">
                   {t("Its own address (host name) — accounts with one run side by side, each in its own tab: e.g. privat.localhost, business.localhost. Empty: the address of whichever account is active.")}
                   <input className="input mt-1 w-full font-mono text-sm" value={draft.host} onChange={(e) => setDraft({ ...draft, host: e.target.value })} placeholder="privat.localhost" aria-label={t("Address (host name)")} />
@@ -94,11 +100,9 @@ export function AccountsManager({ accounts }: { accounts: Row[] }) {
                     <span className="truncate">{a.name}</span>
                     {a.current && <span className="rounded bg-indigo-100 px-1.5 py-0.5 text-xs font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-200">{t("active")}</span>}
                   </h2>
-                  {a.host && (
-                    <button type="button" onClick={() => window.location.assign(accountUrl(a.host, "/"))} className="font-mono text-xs text-indigo-600 hover:underline dark:text-indigo-400" title={t("Opens this account at its own address")}>
-                      {a.host}
-                    </button>
-                  )}
+                  <button type="button" onClick={() => window.location.assign(accountUrl(a, accounts.map((x) => x.host), "/"))} className="font-mono text-xs text-indigo-600 hover:underline dark:text-indigo-400" title={t("Opens this account at its own route")}>
+                    {a.prefix || "/"}
+                  </button>
                   <span className="flex shrink-0 gap-2">
                     {!a.current && (
                       <button
@@ -106,18 +110,8 @@ export function AccountsManager({ accounts }: { accounts: Row[] }) {
                         className="btn btn-sm btn-primary"
                         disabled={pending}
                         title={t("Switch to “{name}”", { name: a.name })}
-                        onClick={() =>
-                          // At its own address: opened there (side by side with this one), not switched to. The one without an
-                          // address while the others have theirs is every other address (localhost).
-                          a.host
-                            ? window.location.assign(accountUrl(a.host, "/"))
-                            : accounts.filter((x) => !x.host).length === 1 && accounts.some((x) => x.host)
-                              ? window.location.assign(accountUrl("localhost", "/"))
-                              : start(async () => {
-                                  const r = await switchAccountAction(a.id);
-                                  if (done(r)) router.push(r.href ?? "/");
-                                })
-                        }
+                        // Its route, in this tab (another tab keeps the account it shows).
+                        onClick={() => window.location.assign(accountUrl(a, accounts.map((x) => x.host), "/"))}
                       >
                         {t("Switch")}
                       </button>
@@ -127,7 +121,7 @@ export function AccountsManager({ accounts }: { accounts: Row[] }) {
                       className="btn btn-sm"
                       disabled={pending}
                       onClick={() => {
-                        setDraft({ name: a.name, color: a.color, host: a.host, workerSetup: a.workerSetup });
+                        setDraft({ name: a.name, color: a.color, slug: a.slug === a.id ? "" : a.slug, host: a.host, workerSetup: a.workerSetup });
                         setEditing(a.id);
                       }}
                     >

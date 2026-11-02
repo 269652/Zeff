@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
+import { usePagePathname } from "@/lib/use-page-pathname";
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
@@ -54,7 +55,7 @@ const shownIn = (state: Record<string, string>, c: CalendarView) => (state[`cal$
 /** The view and the day from the address once (else a narrow screen opens on the day view), and back into it as they change. */
 function useAddress(state: Record<string, string>, setState: (name: string, value: string) => void) {
   const router = useRouter();
-  const path = usePathname();
+  const path = usePagePathname();
   const params = useSearchParams();
   // What the view opened with (the address' or the state's): from then on a change goes into the address.
   const opened = useRef<string | null>(null);

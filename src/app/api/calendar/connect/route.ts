@@ -1,4 +1,5 @@
 import { isInstalled } from "@/plugins/state";
+import { prefixedUrl } from "@/lib/redirect";
 import { NextResponse, type NextRequest } from "next/server";
 import { getPublicOrigin } from "mcp-handler";
 import { getMicrosoftConfig, hasCustomApp } from "@/lib/calendar/config";
@@ -9,7 +10,7 @@ import { OAUTH_COOKIE, safeReturnTo } from "@/lib/calendar/oauth-cookie";
 export async function GET(req: NextRequest) {
   if (!isInstalled("outlook-calendar")) return new Response("Plugin not installed", { status: 404 });
   if (!hasCustomApp()) {
-    return NextResponse.redirect(new URL("/import?error=use-device-code", req.url));
+    return NextResponse.redirect(prefixedUrl("/import?error=use-device-code", req.url));
   }
   const config = getMicrosoftConfig();
   const origin = getPublicOrigin(req);

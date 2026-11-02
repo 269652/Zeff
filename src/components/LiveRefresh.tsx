@@ -1,6 +1,7 @@
 "use client";
 
-import { usePathname, useRouter } from "next/navigation";
+import { useRouter } from "next/navigation";
+import { usePagePathname } from "@/lib/use-page-pathname";
 import { useEffect } from "react";
 import { topicsFor } from "./live-topics";
 
@@ -15,7 +16,7 @@ const MIN_GAP = 3000;
 
 export function LiveRefresh() {
   const router = useRouter();
-  const path = usePathname();
+  const path = usePagePathname();
   const topics = topicsFor(path).join(",");
   useEffect(() => {
     if (!topics) return;

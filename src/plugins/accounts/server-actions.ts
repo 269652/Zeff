@@ -43,12 +43,12 @@ export async function createAccountAction(v: { name: string; color: string; copy
   }
 }
 
-export async function updateAccountAction(id: string, v: { name?: string; color?: string; host?: string; workerSetup?: boolean }): Promise<ActionState> {
+export async function updateAccountAction(id: string, v: { name?: string; color?: string; host?: string; slug?: string; workerSetup?: boolean }): Promise<ActionState> {
   try {
     const off = await accountsOn();
     if (off) return { ok: false, error: off };
     const { updateAccount } = await import("@/db/accounts");
-    const a = updateAccount(String(id), { name: v.name === undefined ? undefined : String(v.name), color: v.color === undefined ? undefined : String(v.color), host: v.host === undefined ? undefined : String(v.host), workerSetup: v.workerSetup === undefined ? undefined : v.workerSetup === true });
+    const a = updateAccount(String(id), { name: v.name === undefined ? undefined : String(v.name), color: v.color === undefined ? undefined : String(v.color), host: v.host === undefined ? undefined : String(v.host), slug: v.slug === undefined ? undefined : String(v.slug), workerSetup: v.workerSetup === undefined ? undefined : v.workerSetup === true });
     revalidateAll();
     return { ok: true, message: t("“{name}” saved.", { name: a.name }) };
   } catch (err) {

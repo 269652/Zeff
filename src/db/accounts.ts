@@ -6,14 +6,16 @@ import { zeffUserDir } from "../../scripts/browser-find.mjs";
 import { cdpEndpoint } from "../../scripts/cdp-endpoint.mjs";
 import * as workUnit from "next/dist/server/app-render/work-unit-async-storage.external";
 import { ACCOUNT_HEADER } from "@/lib/lock/shared";
+import { ALWAYS_RESERVED, prefixOf, PREFIX_HEADER, slugOf, slugProblem } from "@/lib/account-routes";
 
 /**
  * Accounts (the Accounts plugin): Zeff more than once — business and private, say. Each account is
  * a database of its own (its data, its settings, its installed plugins) in a folder of its own; the
  * first one is the database Zeff always had (data/zeff.db), the others live in data/accounts/<id>/.
  * Which one you're in is kept here (data/accounts.json): the active one, for whatever names no account — and each
- * account may have a host of its own ("privat.localhost"), so two or more run side by side in the browser: a request to
- * that host is that account's (the proxy says so, src/proxy.ts). Work done for one account in the background (a backup,
+ * account has a route of its own ("/privat/…", the first account's unprefixed — src/lib/account-routes.ts), so two or more
+ * run side by side in the browser, each in its tab: a request under the prefix is that account's (the proxy says so,
+ * src/proxy.ts). A host of its own ("privat.localhost") still works as well. Work done for one account in the background (a backup,
  * copying settings) runs inside `withAccount`.
  */
 
@@ -30,6 +32,8 @@ export type Account = {
   chromeFrom?: string;
   /** The host name it is served under ("privat.localhost", "business.localhost", "localhost") — any number of accounts side by side. */
   host?: string;
+  /** Its route: "/<slug>/…" is this account (unset: its id; the first account's URLs are unprefixed, "/standard/…" an alias). */
+  slug?: string;
   /**
    * Whether its workers may use this computer's own setup: Zeff's .env (its secrets — Jira, GitLab …) and your MCP servers
    * (your settings', the folder's). Unset: the first account yes, the others no — a private worker sees nothing of work's.
@@ -160,18 +164,25 @@ export const activeAccountId = () => {
  * Next's request store (every database read in a page, a Server Action, a route handler goes through currentAccountId).
  * Null: not in a request, or a host no account has.
  */
-function requestAccount(): string | null {
+function requestHeader(name: string): string | null {
   try {
     const storage = (workUnit as { workUnitAsyncStorage?: { getStore(): unknown } }).workUnitAsyncStorage ?? (workUnit as { default?: { workUnitAsyncStorage?: { getStore(): unknown } } }).default?.workUnitAsyncStorage;
     const store = storage?.getStore() as { type?: string; headers?: { get(name: string): string | null } } | undefined;
     if (store?.type !== "request") return null;
-    const id = store.headers?.get(ACCOUNT_HEADER);
-    const r = read();
-    return id && r.installed && r.accounts.some((a) => a.id === id) ? id : null;
+    return store.headers?.get(name) ?? null;
   } catch {
     return null; // outside Next (a script, a test)
   }
 }
+
+function requestAccount(): string | null {
+  const id = requestHeader(ACCOUNT_HEADER);
+  const r = read();
+  return id && r.installed && r.accounts.some((a) => a.id === id) ? id : null;
+}
+
+/** The route the request came under ("/privat"; "" unprefixed or not in a request) — the proxy's header. */
+export const requestPrefix = (): string => requestHeader(PREFIX_HEADER) ?? "";
 
 /** The account this code runs for: the one `withAccount` set, else the request's (its host), else the active one. */
 export const currentAccountId = () => scope.getStore() ?? requestAccount() ?? activeAccountId();
@@ -239,7 +250,33 @@ export function normalizeHost(v: string | null | undefined): string | undefined 
 /** Whether the account's workers get this computer's setup (Zeff's .env, your MCP servers) — see Account.workerSetup. */
 export const sharesWorkerSetup = (id: string): boolean => accountById(id)?.workerSetup ?? id === DEFAULT_ACCOUNT;
 
-export function updateAccount(id: string, patch: { name?: string; color?: string; host?: string | null; workerSetup?: boolean }): Account {
+/** The top-level routes of Zeff (src/app's segments, Next's own, the static files): no account's slug. */
+function reservedSlugs(): Set<string> {
+  const out = new Set(ALWAYS_RESERVED);
+  try {
+    for (const e of fs.readdirSync(path.join(process.cwd(), "src", "app"), { withFileTypes: true })) out.add(e.name.replace(/\.[^.]+$/, "").toLowerCase());
+  } catch {
+    // (no sources at hand: the fixed ones)
+  }
+  return out;
+}
+
+/** An account's route: its slug, checked — lower case letters, digits, dashes; not Zeff's own, not another account's. */
+export function normalizeSlug(v: string | null | undefined, id: string, others: Account[]): string | undefined {
+  const s = String(v ?? "").trim().toLowerCase().replace(/^\/+|\/+$/g, "");
+  if (!s || s === id) return undefined;
+  const taken = new Set(others.flatMap((a) => [slugOf(a), a.id]));
+  const problem = slugProblem(s, { reserved: reservedSlugs(), taken });
+  if (problem === "pattern") throw new Error(t("“{slug}” can't be a route — lower case letters, digits and dashes, e.g. privat.", { slug: s }));
+  if (problem === "reserved") throw new Error(t("“/{slug}” is one of Zeff's own pages — another one, please.", { slug: s }));
+  if (problem === "taken") throw new Error(t("“/{slug}” is the route of another account already.", { slug: s }));
+  return s;
+}
+
+/** Where an account's pages are: "" for the first one (unprefixed), "/privat" for the others. */
+export const accountPrefix = (id = currentAccountId()): string => prefixOf(accountById(id) ?? { id });
+
+export function updateAccount(id: string, patch: { name?: string; color?: string; host?: string | null; slug?: string | null; workerSetup?: boolean }): Account {
   const r = fresh();
   const a = r.accounts.find((x) => x.id === id);
   if (!a) throw new Error(t("Unknown account."));
@@ -248,8 +285,10 @@ export function updateAccount(id: string, patch: { name?: string; color?: string
   if (name && r.accounts.some((x) => x.id !== id && x.name.toLowerCase() === name.toLowerCase())) throw new Error(t("“{name}” already exists.", { name }));
   const host = patch.host === undefined ? a.host : normalizeHost(patch.host);
   if (host && r.accounts.some((x) => x.id !== id && x.host === host)) throw new Error(t("“{host}” is the address of another account already.", { host }));
-  const next: Account = { ...a, ...(name ? { name } : {}), ...(patch.color && (ACCOUNT_COLORS as readonly string[]).includes(patch.color) ? { color: patch.color } : {}), host, ...(patch.workerSetup !== undefined ? { workerSetup: patch.workerSetup } : {}) };
+  const slug = patch.slug === undefined ? a.slug : normalizeSlug(patch.slug, id, r.accounts.filter((x) => x.id !== id));
+  const next: Account = { ...a, ...(name ? { name } : {}), ...(patch.color && (ACCOUNT_COLORS as readonly string[]).includes(patch.color) ? { color: patch.color } : {}), host, slug, ...(patch.workerSetup !== undefined ? { workerSetup: patch.workerSetup } : {}) };
   if (!host) delete next.host;
+  if (!slug) delete next.slug;
   write({ ...r, accounts: r.accounts.map((x) => (x.id === id ? next : x)) });
   return next;
 }

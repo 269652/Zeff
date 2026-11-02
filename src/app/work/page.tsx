@@ -3,7 +3,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
 import { t } from "@/lib/i18n/server";
-import { redirect } from "next/navigation";
+import { redirect } from "@/lib/redirect";
 import { connection } from "next/server";
 import { WorkFollow } from "@/components/work/WorkFollow";
 import { composerOptions } from "@/lib/work/composer-options";
