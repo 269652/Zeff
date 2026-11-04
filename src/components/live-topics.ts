@@ -9,4 +9,5 @@ const LIVE: [RegExp, string[]][] = [
 ];
 
 /** The change topics a page refreshes on: its own, and "sync" (mails, chats, tickets, news … — whatever a sync step brought). */
-export const topicsFor = (path: string): string[] => [...(LIVE.find(([r]) => r.test(path))?.[1] ?? []), "sync"];
+// The news page never refreshes by itself: a feed that changes under your hands while you scroll is unusable — its "N new" button says when there is more.
+export const topicsFor = (path: string): string[] => /^\/news(\/|$)/.test(path) ? [] : [...(LIVE.find(([r]) => r.test(path))?.[1] ?? []), "sync"];

@@ -145,7 +145,7 @@ export async function syncNews(deps: NewsSyncDeps = {}): Promise<{ ok: boolean; 
   let gate = { judged: 0, passed: 0, top: 0 };
   let gateNote = "";
   try {
-    gate = await (deps.funnel ?? (async () => (await import("./funnel")).runFunnel({ nowMs })))();
+    gate = await (deps.funnel ?? (async () => (await import("./funnel")).runFunnelRounds(3, { nowMs })))();
   } catch (e) {
     gateNote = ` · the filter failed (${e instanceof Error ? e.message : String(e)})`.slice(0, 160);
   }

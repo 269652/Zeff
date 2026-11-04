@@ -76,6 +76,8 @@ const height = (i: FItem, image: boolean) => 150 + (image && i.image ? 190 : 0) 
 export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, term = "", showImages, done: initialDone }: { initial: NewsItem[]; ago: Record<number, string>; view: NewsView; sourceId: number | null; category: string; term?: string; showImages: boolean; done: boolean }) {
   const t = useT();
   const [items, setItems] = useState<FItem[]>(initial);
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
   // Following a topic from a card's chip: the topic's news come in right below that card and go on loading as you scroll, until you
   // pick another chip, stop, or the topic runs out — then the feed carries on where it was (what was below the card waits in `stash`).
   const stash = useRef<FItem[]>([]);
@@ -266,7 +268,7 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
     busy.current = true;
     setLoading(true);
     try {
-      const r = await newsMoreAction(view, sourceId, category, offset.current, term);
+      const r = await newsMoreAction(view, sourceId, category, offset.current, term, itemsRef.current.map((i) => i.id));
       offset.current += r.items.length;
       setItems((cur) => {
         const have = new Set(cur.map((i) => i.id));
@@ -377,9 +379,12 @@ export function NewsFeed({ initial, ago: initialAgo, view, sourceId, category, t
     <div ref={box} className="space-y-4">
       {stage && <MagicStage item={stage.item} from={stage.from} done={stage.done} onGone={endStage} showImage={showImages} />}
       {fresh > 0 && view !== "discover" && (
-        <button type="button" className="btn btn-primary btn-sm sticky top-2 z-30 mx-auto block shadow" onClick={() => window.location.reload()}>
-          ↑ {t("{n} new — show", { n: fresh })}
-        </button>
+        // Zero height: the banner floats over the cards, it never pushes them down while you read.
+        <div className="sticky top-2 z-30 h-0 overflow-visible text-center">
+          <button type="button" className="btn btn-primary btn-sm shadow" onClick={() => window.location.reload()}>
+            ↑ {t("{n} new — show", { n: fresh })}
+          </button>
+        </div>
       )}
       {topic && (
         <div className="sticky top-2 z-30 mx-auto w-full max-w-3xl space-y-2 rounded-2xl border border-indigo-300 bg-indigo-50/95 px-4 py-2 text-xs text-indigo-900 shadow backdrop-blur dark:border-indigo-800 dark:bg-indigo-950/95 dark:text-indigo-100">

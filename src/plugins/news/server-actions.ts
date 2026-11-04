@@ -84,12 +84,12 @@ export async function newsReadAction(id: number): Promise<{ ok: boolean; text?: 
 
 
 /** The next page of a view (infinite scroll): items with how old they are, as the page shows them. */
-export async function newsMoreAction(view: string, sourceId: number | null, category: string, offset: number, term = ""): Promise<{ items: import("./shared").NewsItem[]; ago: Record<number, string>; done: boolean }> {
+export async function newsMoreAction(view: string, sourceId: number | null, category: string, offset: number, term = "", exclude: number[] = []): Promise<{ items: import("./shared").NewsItem[]; ago: Record<number, string>; done: boolean }> {
   guard();
   const { formatAgo } = await import("@/lib/format");
   const { getPrefs } = await import("./store");
   const v = (["foryou", "latest", "saved", "hidden", "discover", "filtered"] as string[]).includes(view) ? (view as NewsView) : "foryou";
-  const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, likeOf: term.startsWith("like:") ? Number(term.slice(5)) || undefined : undefined, term: term.startsWith("story:") || term.startsWith("like:") ? undefined : term || undefined, story: term.startsWith("story:") ? term.slice(6) : undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: Math.max(0, Math.floor(offset)) });
+  const items = listItems({ view: v, sourceId: sourceId ?? undefined, category: category || undefined, likeOf: term.startsWith("like:") ? Number(term.slice(5)) || undefined : undefined, term: term.startsWith("story:") || term.startsWith("like:") ? undefined : term || undefined, story: term.startsWith("story:") ? term.slice(6) : undefined, maxAgeDays: getPrefs().maxAgeDays, limit: NEWS_PAGE, offset: exclude.length ? 0 : Math.max(0, Math.floor(offset)), exclude: exclude.slice(0, 20000).map(Number).filter(Number.isFinite) });
   return { items, ago: Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)])), done: items.length < NEWS_PAGE };
 }
 
@@ -99,8 +99,17 @@ export async function newsFunnelAction(): Promise<Result> {
     guard();
     if (!getPrefs().funnel) throw new Error(t("The filter is off — switch it on under News settings → Funnel."));
     if (!isInstalled("llm")) throw new Error(t("The filter needs the LLM plugin (Menu → Plugins)."));
-    const started = (await import("./funnel")).startFunnel();
-    return { ok: true, message: started ? t("The agent is reading the new headlines — what it lets through comes in at the top.") : t("The agent is at it already.") };
+    const { runFunnelRounds, funnelRunning } = await import("./funnel");
+    if (funnelRunning()) return { ok: true, message: t("The agent is at it already.") };
+    // A round can take minutes: errors and quick results are reported, a long one goes on in the background.
+    const round = runFunnelRounds();
+    const r = await Promise.race([round, new Promise<null>((res) => setTimeout(() => res(null), 20000))]);
+    if (r === null) {
+      round.catch(() => undefined);
+      return { ok: true, message: t("The agent is still reading — what it lets through comes in at the top.") };
+    }
+    if (!r.judged) return { ok: true, message: t("Nothing to read right now — no new headlines are waiting for the agent.") };
+    return { ok: true, message: t("The agent read {n} headlines: {p} let through, {d} filtered out.", { n: r.judged, p: r.passed + r.top, d: r.dropped }) };
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
   }

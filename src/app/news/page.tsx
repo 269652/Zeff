@@ -65,6 +65,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
             </Link>
           ))}
         </nav>
+        <NewsRefreshButtons digest={prefs.digest} />
         {byCategory.size > 0 && (
           <div className="space-y-1 text-sm">
             <p className="text-xs font-semibold text-zinc-500 uppercase">{t("Categories")}</p>
@@ -86,7 +87,6 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
           </div>
         )}
         <DiscoverButton />
-        <NewsRefreshButtons digest={prefs.digest} />
         <Link href="/settings/news" className="btn btn-sm w-full text-center">
           {t("News settings")}
         </Link>
@@ -215,7 +215,7 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
             )}
           </div>
         ) : (
-          <NewsFeed key={`${view}:${sourceId ?? 0}:${category}:${items[0]?.id ?? 0}`} initial={items} ago={Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)]))} view={view} sourceId={sourceId ?? null} category={category} showImages={prefs.images} done={items.length < NEWS_PAGE} />
+          <NewsFeed key={`${view}:${sourceId ?? 0}:${category}`} initial={items} ago={Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)]))} view={view} sourceId={sourceId ?? null} category={category} showImages={prefs.images} done={items.length < NEWS_PAGE} />
         )}
       </div>
     </div>

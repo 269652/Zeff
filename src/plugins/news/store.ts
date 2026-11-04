@@ -14,6 +14,7 @@ function db() {
   d.exec(`
     create table if not exists news_sources (id integer primary key autoincrement, name text not null, url text not null unique, enabled integer not null default 1, weight real not null default 1, votes integer not null default 0, last_at text, last_error text, created_at text not null);
     create table if not exists news_items (id integer primary key autoincrement, source_id integer references news_sources(id) on delete set null, source_name text not null, guid text not null, url text not null, url_key text not null unique, title text not null, title_key text not null, summary text not null default '', published_at text not null, fetched_at text not null, state text not null default 'new', vote integer not null default 0, score real not null default 0, reasons text not null default '[]');
+    create index if not exists news_items_source on news_items (source_id);
     create index if not exists news_items_published on news_items (published_at);
     create index if not exists news_items_title on news_items (title_key);
     create table if not exists news_terms (term text primary key, score real not null);
@@ -301,13 +302,13 @@ export const funnelOn = (): boolean => getPrefs().funnel;
 const PASSED = "i.gate in ('pass', 'top')";
 
 /** The items of a view: For you (best first, nothing hidden or muted), Latest (by date), Saved, Hidden. */
-export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; term?: string; story?: string; likeOf?: number; limit?: number; offset?: number; maxAgeDays?: number } = {}): NewsItem[] {
+export function listItems(opts: { view?: NewsView; sourceId?: number; category?: string; term?: string; story?: string; likeOf?: number; limit?: number; offset?: number; maxAgeDays?: number; exclude?: number[] } = {}): NewsItem[] {
   const view = opts.view ?? "foryou";
   // Discover: what was found for the taste description (like_of −1).
   if (view === "discover") opts = { ...opts, likeOf: -1 };
   // "More like this": what was found for an item, the closest first (what you have seen after).
   if (opts.likeOf) {
-    return (db().prepare(`select ${ICOLS} from ${IFROM} join news_similar sm on sm.item_id = i.id where sm.like_of = ? and i.state != 'hidden' order by (i.seen_at is not null), sm.score desc, i.published_at desc limit ? offset ?`).all(opts.likeOf, opts.limit ?? 60, opts.offset ?? 0) as IRow[]).map(toItem);
+    return (db().prepare(`select ${ICOLS} from ${IFROM} join news_similar sm on sm.item_id = i.id where sm.like_of = ? and i.state != 'hidden' and i.id not in (select value from json_each(?)) order by (i.seen_at is not null), sm.score desc, i.published_at desc limit ? offset ?`).all(opts.likeOf, JSON.stringify(opts.exclude ?? []), opts.limit ?? 60, opts.offset ?? 0) as IRow[]).map(toItem);
   }
   const where: string[] = [];
   const args: (string | number)[] = [];
@@ -320,6 +321,11 @@ export function listItems(opts: { view?: NewsView; sourceId?: number; category?:
     where.push("i.state != 'hidden'", "i.score > -50", "i.published_at > ?", "(i.source_id is null or s.enabled = 1)");
     args.push(new Date(Date.now() - (opts.maxAgeDays ?? 7) * 864e5).toISOString());
     if (gated) where.push(PASSED);
+  }
+  // Paging by what is on the screen already, not by an offset: what you have seen moves to the end of the list, so an offset would skip unseen items.
+  if (opts.exclude?.length) {
+    where.push("i.id not in (select value from json_each(?))");
+    args.push(JSON.stringify(opts.exclude));
   }
   if (opts.sourceId) {
     where.push("i.source_id = ?");

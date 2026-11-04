@@ -118,9 +118,25 @@ export async function runFunnel(deps: { ask?: (prompt: string) => Promise<Answer
   }
 }
 
+/** Rounds one after the other until nothing is left to read (or `max` rounds): a backlog of hundreds is worked off, not one batch at a time. */
+export async function runFunnelRounds(max = 10, deps: Parameters<typeof runFunnel>[0] = {}): Promise<{ judged: number; passed: number; top: number; dropped: number }> {
+  const total = { judged: 0, passed: 0, top: 0, dropped: 0 };
+  for (let i = 0; i < max; i++) {
+    const r = await runFunnel(deps);
+    if (!r.judged) break;
+    total.judged += r.judged;
+    total.passed += r.passed;
+    total.top += r.top;
+    total.dropped += r.dropped;
+  }
+  return total;
+}
+
+export const funnelRunning = (): boolean => !!g.__zeffFunnelRunning;
+
 /** A round started by hand (the page's "Let the agent look now"): in the background, the page shows the result when it is there. */
 export function startFunnel(): boolean {
   if (g.__zeffFunnelRunning || !getPrefs().funnel) return false;
-  void runFunnel().catch(() => undefined);
+  void runFunnelRounds().catch(() => undefined);
   return true;
 }
