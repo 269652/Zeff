@@ -68,6 +68,21 @@ export async function runRoutineAction(pageId: number) {
   });
 }
 
+/** The agents that fill a database on a schedule (its catch-up buttons). */
+export async function databaseAgentsAction(dbId: number) {
+  return run(async () => ({ agents: (await import("../routines")).agentsOfDatabase(Number(dbId)) }));
+}
+
+/** An agent started by hand to catch up on the periods it missed. */
+export async function catchUpAgentAction(pageId: number) {
+  return run(async () => {
+    const { runRoutine } = await import("../routine-run");
+    const { CATCH_UP } = await import("../routines");
+    const res = await runRoutine(Number(pageId), { kind: "manual" }, { payload: { Auftrag: CATCH_UP } });
+    return { status: res.status, error: res.error ?? null };
+  });
+}
+
 /** What the steps' pickers offer: the databases (with their fields) and the other routines. */
 export async function routineChoicesAction() {
   return run(async () => {

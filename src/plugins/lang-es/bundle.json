@@ -8316,5 +8316,8 @@
   "The agent is still reading — what it lets through comes in at the top.": "El agente sigue leyendo: lo que deje pasar aparecerá arriba.",
   "Nothing to read right now — no new headlines are waiting for the agent.": "Nada que leer ahora mismo: ningún titular nuevo espera al agente.",
   "The agent read {n} headlines: {p} let through, {d} filtered out.": "El agente leyó {n} titulares: {p} dejados pasar, {d} filtrados.",
-  "The agent is reading … {n} of {total}": "El agente está leyendo… {n} de {total}"
+  "The agent is reading … {n} of {total}": "El agente está leyendo… {n} de {total}",
+  "Writes what is missing for every finished period, not only the last one": "Escribe lo que falta de cada período terminado, no solo del último",
+  "{title}: catch up": "{title}: ponerse al día",
+  "{title}: catching up …": "{title}: poniéndose al día…"
 }

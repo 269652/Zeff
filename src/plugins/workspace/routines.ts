@@ -265,6 +265,16 @@ export function listRoutines(): (Routine & { title: string })[] {
   });
 }
 
+/** The agents directly under a database that run on a schedule: what fills it by itself (the journal's reviews). */
+export function agentsOfDatabase(dbId: number): { pageId: number; title: string }[] {
+  return listRoutines()
+    .filter((r) => r.kind === "agent" && r.triggers.some((x) => x.kind === "schedule") && getPage(r.pageId)?.parentId === dbId)
+    .map((r) => ({ pageId: r.pageId, title: r.title }));
+}
+
+/** What an agent is told on top of its instructions when it is to catch up: its work for every period, not only the last one. */
+export const CATCH_UP = "Nachholen: Dieser Lauf wurde von Hand gestartet, weil frühere Läufe ausgefallen sein können. Geh alle abgeschlossenen Zeiträume durch, für die es Daten gibt, und mach deine Aufgabe für jeden, für den das Ergebnis noch fehlt, je einmal. Was schon da ist, bleibt, wie es ist. Der laufende, noch nicht abgeschlossene Zeitraum zählt nicht.";
+
 /** When it is due next (set by the scheduler). */
 export function setNextRun(pageId: number, at: string | null): void {
   db().prepare("update ws_routines set next_run_at = ? where page_id = ?").run(at, pageId);

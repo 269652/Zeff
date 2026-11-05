@@ -28,6 +28,7 @@ import type { TplError } from "../view-template";
 import { ShareDialog } from "./sheet";
 import { DatabaseMenu, PLAIN_VIEWS, VIEW_ICON } from "./db-menu";
 import { parseChartMarker } from "../legacy-blocks";
+import { DatabaseAgents } from "./db-agents";
 import { DAY_TABS, DayListTab, isDayTab, useDayTabLabels, type DayTab } from "./day-list";
 import { useDatabase } from "./database/use-database";
 import { INTERNAL_REFS, countRules, type Selection } from "./database/shared";
@@ -548,6 +549,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
 
       {data.extras?.running && <p className="text-sm text-indigo-600 dark:text-indigo-400" data-running>✨ {t("The AI is going through the rows — they change as it writes them …")}</p>}
       <PipelineSummaries pipeline={schema.pipeline} />
+      <DatabaseAgents dbId={dbId} />
       {dayTab && <DayListTab tab={dayTab} dbId={dbId} data={data} set={api.set} saved={api.saved} reload={api.reload} logView={(logId) => <DatabaseView initial={null} dbId={logId} embedded />} />}
       {!dayTab && view.type === "app" && code?.viewId === view.id && (
         <ViewCode

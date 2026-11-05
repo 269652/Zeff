@@ -84,6 +84,9 @@ export function workerEnv(runId: number, viaHost = false): Record<string, string
     if (secrets?.has(k)) continue;
     env[k] = v;
   }
+  // How long a worker waits for its MCP servers: Zeff's own can take a while to answer (a dev server compiles it first), and the
+  // default 30 s left a scheduled agent without Zeff — it ended without doing its work.
+  env.MCP_TIMEOUT ??= "120000";
   // Which run this is: `npm run deploy` doesn't wait for its own session — and needs it off this server's process tree.
   env.ZEFF_WORK_RUN = String(runId);
   env.ZEFF_WORK_ACCOUNT = currentAccountId();
