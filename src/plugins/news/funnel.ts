@@ -1,5 +1,5 @@
 import { promptText } from "@/lib/prompts";
-import { bumpFunnel, funnelCandidates, getPrefs, setGate, tasteSignals } from "./store";
+import { bumpFunnel, clearStale, funnelCandidates, getPrefs, setGate, tasteSignals } from "./store";
 
 /**
  * The funnel: thousands of headlines come in a day, a few dozen are worth your time. The scoring (interests, what you liked,
@@ -84,6 +84,9 @@ export async function runFunnel(deps: { ask?: (prompt: string) => Promise<Answer
   const none = { judged: 0, passed: 0, top: 0, dropped: 0 };
   const prefs = getPrefs();
   if (!prefs.funnel || g.__zeffFunnelRunning) return none;
+  // Stale headlines go first: they wouldn't be shown any more, so nobody pays for reading them.
+  const cleared = clearStale(deps.nowMs);
+  if (cleared) bumpFunnel({ cleared }, deps.nowMs);
   if (!deps.ask) {
     const { isInstalled } = await import("@/plugins/state");
     if (!isInstalled("llm")) return none;

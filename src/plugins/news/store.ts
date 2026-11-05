@@ -601,6 +601,24 @@ export function funnelCandidates(limit: number, nowMs: number = Date.now()): { i
     .all(new Date(nowMs - FUNNEL_DAYS * 864e5).toISOString(), limit) as { id: number; title: string; summary: string; source_name: string; published_at: string }[]).map((r) => ({ id: r.id, title: r.title, summary: r.summary, sourceName: r.source_name, publishedAt: r.published_at }));
 }
 
+/**
+ * With the agent on, what it hasn't read by the time it is stale never shows in For you, so it goes before the agent reads: it
+ * isn't left waiting, and no tokens are spent on it. What you saved, liked or have seen stays, and so does what Discover found.
+ * Remembered like what `trim` clears, so a feed that still carries it doesn't bring it back. Returns how many went.
+ */
+export function clearStale(nowMs: number = Date.now()): number {
+  if (!funnelOn()) return 0;
+  const d = db();
+  const cutoff = new Date(nowMs - FUNNEL_DAYS * 864e5).toISOString();
+  const stale = "gate = '' and state = 'new' and seen_at is null and vote != 1 and published_at <= @cutoff and id not in (select item_id from news_similar)";
+  let gone = 0;
+  d.transaction(() => {
+    d.prepare(`insert or replace into news_gone (url_key, title_key, at) select url_key, case when length(title_key) > 12 then title_key else '' end, @now from news_items where ${stale}`).run({ cutoff, now: new Date(nowMs).toISOString() });
+    gone = d.prepare(`delete from news_items where ${stale}`).run({ cutoff }).changes;
+  })();
+  return gone;
+}
+
 /** What the agent decided about items, with why. */
 export function setGate(entries: { id: number; gate: "pass" | "top" | "drop"; why: string }[], nowMs: number = Date.now()): void {
   const d = db();

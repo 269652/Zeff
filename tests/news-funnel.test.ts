@@ -148,3 +148,35 @@ test("stories: Important first (the agent's top and the best report of a big sto
   const few = storyGroups([item(1), item(2), item(3)]);
   assert.deepEqual(few.map((x) => x.kind), ["best"]);
 });
+
+test("stale headlines the agent hasn't read go before it reads: it never sees them, and a feed doesn't bring them back; what you kept stays", async () => {
+  const s = await import("@/plugins/news/store");
+  const { runFunnel } = await import("@/plugins/news/funnel");
+  const src = s.addSource({ name: "Alt", url: "https://stale.example/rss" });
+  const item = (n: string, hours: number) => ({ guid: n, url: `https://stale.example/${n}`, title: `Eine Meldung namens ${n} von gestern`, summary: "", publishedAt: hoursAgo(hours) });
+  s.addItems({ id: src.id, name: "Alt" }, [item("alt", 72), item("gemerkt", 72), item("gemocht", 72), item("gesehen", 72), item("gelesen-vom-agenten", 72), item("frisch", 2)]);
+  const all = s.listItems({ view: "latest", limit: 10 });
+  const by = (n: string) => all.find((i) => i.url.endsWith(`/${n}`))!;
+  s.setState(by("gemerkt").id, "saved");
+  s.vote(by("gemocht").id, 1);
+  s.markSeen([by("gesehen").id]);
+  s.setGate([{ id: by("gelesen-vom-agenten").id, gate: "pass", why: "passt" }]);
+
+  // With the agent off everything is shown, so nothing goes.
+  assert.equal(s.clearStale(), 0);
+  s.setPrefs({ funnel: true });
+  const asked: string[] = [];
+  await runFunnel({
+    ask: async (prompt) => {
+      asked.push(prompt);
+      return { items: [{ n: 1, verdict: "drop", why: "nein" }] };
+    },
+    context: () => ({ taste: "", likes: [], avoids: [], profile: [], liked: [], disliked: [] }),
+  });
+  assert.equal(asked.length, 1);
+  assert.ok(asked[0].includes("frisch") && !asked[0].includes("namens alt"), "only the fresh one is read");
+  assert.ok(!s.getItem(by("alt").id), "the stale one went");
+  for (const n of ["gemerkt", "gemocht", "gesehen", "gelesen-vom-agenten"]) assert.ok(s.getItem(by(n).id), `${n} stays`);
+  assert.equal(s.addItems({ id: src.id, name: "Alt" }, [item("alt", 72)]), 0, "the feed doesn't bring it back");
+  assert.ok(s.funnelStats().cleared >= 1);
+});
