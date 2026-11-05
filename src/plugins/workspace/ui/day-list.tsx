@@ -9,6 +9,7 @@ import { closeDayAction, dayListAction, undoCloseDayAction, type DatabaseData } 
 import type { dayStats } from "../day-lists";
 import type { RowsItem } from "../form-spec";
 import { RowsField } from "./form-runner";
+import { useIdleWrites } from "./idle-writes";
 
 /**
  * A day list's own tabs (day-lists.ts), before its views: Today (each item a line — its tick, its dose and its time, changed in place;
@@ -36,7 +37,7 @@ export function useDayTabLabels(): Record<DayTab, string> {
   return { "day:today": `☑ ${t("Today")}`, "day:history": `🗓 ${t("History")}`, "day:stats": `📈 ${t("Figures")}` };
 }
 
-export function DayListTab({ tab, dbId, data, set, reload, logView }: { tab: DayTab; dbId: number; data: DatabaseData; set: (rowId: number, propId: string, value: unknown) => void; reload: () => Promise<unknown>; /** The log's table (a database view of it). */ logView: (logId: number) => ReactNode }) {
+export function DayListTab({ tab, dbId, data, set, saved, reload, logView }: { tab: DayTab; dbId: number; data: DatabaseData; set: (rowId: number, propId: string, value: unknown) => void; /** Done when what was written is saved. */ saved: () => Promise<unknown>; reload: () => Promise<unknown>; /** The log's table (a database view of it). */ logView: (logId: number) => ReactNode }) {
   const t = useT();
   const router = useRouter();
   const [stats, setStats] = useState<Stats | null>(null);
@@ -54,14 +55,16 @@ export function DayListTab({ tab, dbId, data, set, reload, logView }: { tab: Day
     await load();
     router.refresh();
   };
-  if (tab === "day:today") return <DayToday data={data} stats={stats} dbId={dbId} set={set} after={after} reload={reload} />;
+  if (tab === "day:today") return <DayToday data={data} stats={stats} dbId={dbId} set={set} saved={saved} after={after} reload={reload} />;
   if (!stats) return <p className="py-6 text-sm text-zinc-500">{t("Loading …")}</p>;
   if (tab === "day:history") return <DayHistory stats={stats} logView={logView} />;
   return <DayFigures stats={stats} />;
 }
 
-function DayToday({ data, stats, dbId, set, after, reload }: { data: DatabaseData; stats: Stats | null; dbId: number; set: (rowId: number, propId: string, value: unknown) => void; after: () => Promise<void>; reload: () => Promise<unknown> }) {
+function DayToday({ data, stats, dbId, set, saved, after, reload }: { data: DatabaseData; stats: Stats | null; dbId: number; set: (rowId: number, propId: string, value: unknown) => void; saved: () => Promise<unknown>; after: () => Promise<void>; reload: () => Promise<unknown> }) {
   const t = useT();
+  // A dose or a time is written when you stop changing it: what comes back from the server must not overwrite a date being stepped down.
+  const { edits, writes } = useIdleWrites(set);
   const props = data.schema.properties;
   const tick = props.find((p) => p.type === "checkbox");
   const time = props.find((p) => p.type === "date" && !!tick && p.stampOf === tick.id) ?? props.find((p) => p.type === "date" && p.includeTime);
@@ -75,6 +78,9 @@ function DayToday({ data, stats, dbId, set, after, reload }: { data: DatabaseDat
   const done = rows.filter((r) => (tick ? r.cells[tick.id] === true : !!time && /T\d{2}:\d{2}/.test(String(r.cells[time.id] ?? "")))).length;
   const day = stats?.state.day;
   const closeDay = async () => {
+    // (What is still held belongs to the day being closed.)
+    writes.flush();
+    await saved();
     const r = await closeDayAction(dbId);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     await after();
@@ -112,11 +118,13 @@ function DayToday({ data, stats, dbId, set, after, reload }: { data: DatabaseDat
         item={{ ...item, label: t("Today") }}
         db={{ id: dbId, title: data.title, titleName: data.schema.titleName, props }}
         rows={rows}
-        edits={{}}
+        edits={edits}
         onEdit={(rowId, propId, value) => {
+          if (propId !== tick?.id) return writes.hold(rowId, propId, value);
+          // A tick counts at once. Unticked, the list clears its time by itself (read back a moment later): a time still held would bring it back.
+          if (value !== true && time) writes.drop(rowId, time.id);
           set(rowId, propId, value);
-          // (Unticked, the list clears its time by itself: read back a moment later.)
-          if (propId === tick?.id && value !== true) setTimeout(() => void reload(), 800);
+          if (value !== true) setTimeout(() => void reload(), 800);
         }}
         uid={`day-${dbId}`}
       />

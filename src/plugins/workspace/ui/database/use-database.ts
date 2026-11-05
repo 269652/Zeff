@@ -144,6 +144,8 @@ export function useDatabase(initial: DatabaseData | null, dbId: number) {
     [reloadSoon, t],
   );
   const isPending = useCallback((rowId: number, propId: string) => pending.has(`${rowId}:${propId}`), [pending]);
+  /** Done when everything written so far is saved. */
+  const saved = useCallback(() => schemaSaving.current, []);
 
   /** A button field pressed: its routine runs on the row, then the rows are read again (what it changed). */
   const press = useCallback(
@@ -235,7 +237,7 @@ export function useDatabase(initial: DatabaseData | null, dbId: number) {
   );
 
   void t;
-  return { data, error, reload, saveSchema, changeSchema, set, isPending, press, addOption, addRow, removeRow, duplicateRow, place };
+  return { data, error, reload, saveSchema, changeSchema, set, saved, isPending, press, addOption, addRow, removeRow, duplicateRow, place };
 }
 
 // ---------------------------------------------------------------------------
