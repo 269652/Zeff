@@ -8307,5 +8307,14 @@
   "Route": "Route",
   "Opens this account at its own route": "Öffnet dieses Konto unter seiner Route",
   "Vacation days without an absence booked ({days}) go to Chrono as entries on the <b>absence job</b>.": "Urlaubstage ohne gebuchte Abwesenheit ({days}) gehen als Buchungen auf dem <b>Abwesenheits-Job</b> an Chrono.",
-  "from the schedule": "aus den Arbeitszeiten"
+  "from the schedule": "aus den Arbeitszeiten",
+  "{n} cleared away": "{n} weggeräumt",
+  "({n} important)": "({n} wichtig)",
+  "{n} seen": "{n} gesehen",
+  "Removed by the clearing, read or not: only the newest and the best are kept, besides what you saved or liked": "Beim Aufräumen entfernt, gelesen oder nicht: Nur das Neueste und Beste bleibt, dazu was du gemerkt oder gemocht hast",
+  "What you have seen already, or what the agent didn't read before you saw it": "Was du schon gesehen hast, oder was der Agent nicht gelesen hat, bevor du es gesehen hast",
+  "The agent is still reading — what it lets through comes in at the top.": "Der Agent liest noch — was er durchlässt, kommt oben an.",
+  "Nothing to read right now — no new headlines are waiting for the agent.": "Gerade nichts zu lesen — es warten keine neuen Schlagzeilen auf den Agenten.",
+  "The agent read {n} headlines: {p} let through, {d} filtered out.": "Der Agent hat {n} Schlagzeilen gelesen: {p} durchgelassen, {d} rausgefiltert.",
+  "The agent is reading … {n} of {total}": "Der Agent liest … {n} von {total}"
 }

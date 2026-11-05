@@ -93,26 +93,25 @@ export async function newsMoreAction(view: string, sourceId: number | null, cate
   return { items, ago: Object.fromEntries(items.map((i) => [i.id, formatAgo(i.publishedAt)])), done: items.length < NEWS_PAGE };
 }
 
-/** "Let the agent look now": a round of the funnel in the background (the page's "N new" shows what it let through). */
+/** "Let the agent look now": starts the agent in the background; the button follows it with `newsFunnelStatusAction`. */
 export async function newsFunnelAction(): Promise<Result> {
   try {
     guard();
     if (!getPrefs().funnel) throw new Error(t("The filter is off — switch it on under News settings → Funnel."));
     if (!isInstalled("llm")) throw new Error(t("The filter needs the LLM plugin (Menu → Plugins)."));
-    const { runFunnelRounds, funnelRunning } = await import("./funnel");
-    if (funnelRunning()) return { ok: true, message: t("The agent is at it already.") };
-    // A round can take minutes: errors and quick results are reported, a long one goes on in the background.
-    const round = runFunnelRounds();
-    const r = await Promise.race([round, new Promise<null>((res) => setTimeout(() => res(null), 20000))]);
-    if (r === null) {
-      round.catch(() => undefined);
-      return { ok: true, message: t("The agent is still reading — what it lets through comes in at the top.") };
-    }
-    if (!r.judged) return { ok: true, message: t("Nothing to read right now — no new headlines are waiting for the agent.") };
-    return { ok: true, message: t("The agent read {n} headlines: {p} let through, {d} filtered out.", { n: r.judged, p: r.passed + r.top, d: r.dropped }) };
+    const { funnelProgress, startFunnel } = await import("./funnel");
+    if (startFunnel() || funnelProgress().running) return { ok: true };
+    // (A sync's rounds are running: they aren't followed here, but a second run would only get in their way.)
+    return { ok: false, error: t("The agent is at it already.") };
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
   }
+}
+
+/** How far the agent is (the button asks while it runs). */
+export async function newsFunnelStatusAction(): Promise<import("./funnel").FunnelProgress> {
+  guard();
+  return (await import("./funnel")).funnelProgress();
 }
 
 /** Ask your news: a question answered from the fetched items, with the sources it used. */

@@ -16,7 +16,7 @@ import { FunnelButton } from "@/plugins/news/FunnelButton";
 import { NewsStories } from "@/plugins/news/Stories";
 import { storyGroups } from "@/plugins/news/story-groups";
 import { NEWS_PAGE } from "@/plugins/news/shared";
-import { countItems, counts, funnelStats, getItem, getPrefs, listItems, listSources, type NewsView } from "@/plugins/news/store";
+import { cameInToday, counts, funnelNow, funnelStats, getItem, getPrefs, listItems, listSources, type NewsView } from "@/plugins/news/store";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("News") };
@@ -46,6 +46,8 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
   const stories = view === "foryou" && !sourceId && !category ? storyGroups(listItems({ view: "foryou", limit: 150, maxAgeDays: Math.min(prefs.maxAgeDays, 3) })) : [];
   const storyAgo = Object.fromEntries(stories.flatMap((g) => g.items).map((i) => [i.id, formatAgo(i.publishedAt)]));
   const stats = funnelStats();
+  const inToday = cameInToday() ?? stats.fetched;
+  const now = funnelNow();
   const llm = isInstalled("llm");
   const taste = view === "discover" ? getTaste() : null;
   const href = (v: NewsView, s?: number, c?: string) => `/news?view=${v}${s ? `&source=${s}` : ""}${c ? `&category=${encodeURIComponent(c)}` : ""}`;
@@ -95,29 +97,40 @@ export default async function NewsPage({ searchParams }: { searchParams: Promise
       <div className="space-y-3">
         {view === "foryou" && !sourceId && !category && (
           <section className="card flex flex-wrap items-center gap-x-2 gap-y-1.5 px-4 py-2 text-xs text-zinc-600 dark:text-zinc-300" aria-label={t("Funnel")}>
-            <span className="font-semibold text-zinc-500 uppercase">{t("Today")}</span>
-            <span title={t("Headlines fetched from your sources today")}>📥 {t("{n} in", { n: stats.fetched })}</span>
             {prefs.funnel ? (
               <>
-                <span className="text-zinc-400">→</span>
+                <span className="font-semibold text-zinc-500 uppercase">{t("Today")}</span>
+                <span title={t("Headlines fetched from your sources today")}>📥 {t("{n} in", { n: inToday })}</span>
+                <span className="text-zinc-400">·</span>
                 <span title={t("The best by score that the agent read")}>🔎 {t("{n} read by the agent", { n: stats.judged })}</span>
-                <span className="text-zinc-400">→</span>
-                <span className="font-semibold text-emerald-700 dark:text-emerald-400" title={t("Let through to For you")}>✓ {t("{n} for you", { n: stats.passed + stats.top })}</span>
-                {stats.top > 0 && <span className="font-semibold text-amber-600 dark:text-amber-400">★ {t("{n} important", { n: stats.top })}</span>}
-                <Link href={href("filtered")} className="text-zinc-500 hover:underline">⊘ {t("{n} filtered out", { n: stats.dropped })}</Link>
+                <span className="text-zinc-400">·</span>
+                <span title={t("Removed by the clearing, read or not: only the newest and the best are kept, besides what you saved or liked")}>🧹 {t("{n} cleared away", { n: stats.cleared })}</span>
+                <span className="basis-full" aria-hidden="true" />
+                <span className="font-semibold text-zinc-500 uppercase">{t("Now")}</span>
+                <span title={t("Only the newest and the best are kept, besides what you saved or liked")}>🧹 {t("{n} kept", { n: now.kept })}</span>
+                <span className="text-zinc-400">=</span>
+                <span className="font-semibold text-emerald-700 dark:text-emerald-400" title={t("Let through to For you")}>✓ {t("{n} for you", { n: now.forYou })}</span>
+                {now.important > 0 && <span className="font-semibold text-amber-600 dark:text-amber-400">{t("({n} important)", { n: now.important })}</span>}
+                <span className="text-zinc-400">+</span>
+                <span>{t("{n} waiting for the agent", { n: now.waiting })}</span>
+                <span className="text-zinc-400">+</span>
+                <Link href={href("filtered")} className="text-zinc-500 hover:underline">⊘ {t("{n} filtered out", { n: now.filtered })}</Link>
+                <span className="text-zinc-400">+</span>
+                <span title={t("What you have seen already, or what the agent didn't read before you saw it")}>{t("{n} seen", { n: now.rest })}</span>
               </>
             ) : (
               <>
+                <span className="font-semibold text-zinc-500 uppercase">{t("Today")}</span>
+                <span title={t("Headlines fetched from your sources today")}>📥 {t("{n} in", { n: inToday })}</span>
                 <span className="text-zinc-400">→</span>
                 <span>{t("scored for you")}</span>
+                <span className="text-zinc-400">·</span>
+                <span title={t("Only the newest and the best are kept, besides what you saved or liked")}>🧹 {t("{n} kept", { n: now.kept })}</span>
               </>
             )}
-            <span className="text-zinc-400">·</span>
-            <span title={t("Only the newest and the best are kept, besides what you saved or liked")}>🧹 {t("{n} kept", { n: countItems() })}</span>
             <span className="flex-1" />
             {prefs.funnel ? (
               <>
-                {c.waiting > 0 && <span className="text-zinc-500">{t("{n} waiting for the agent", { n: c.waiting })}</span>}
                 <FunnelButton />
               </>
             ) : (

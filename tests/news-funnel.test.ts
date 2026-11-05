@@ -180,3 +180,85 @@ test("stale headlines the agent hasn't read go before it reads: it never sees th
   assert.equal(s.addItems({ id: src.id, name: "Alt" }, [item("alt", 72)]), 0, "the feed doesn't bring it back");
   assert.ok(s.funnelStats().cleared >= 1);
 });
+
+test("the refresh's numbers: what came in even if the clearing took more away, and with the agent on only the cards you would see", async () => {
+  const s = await import("@/plugins/news/store");
+  const { startRefresh } = await import("@/plugins/news/refresh");
+  const src = s.addSource({ name: "Zahl", url: "https://count.example/rss" });
+  const item = (n: string) => ({ guid: n, url: `https://count.example/${n}`, title: `Die Meldung mit der Nummer ${n}`, summary: "", publishedAt: hoursAgo(1) });
+  s.addItems({ id: src.id, name: "Zahl" }, ["a", "b", "c", "d", "e"].map(item));
+  const ids = s.listItems({ view: "latest", limit: 10 }).map((i) => i.id);
+  s.setGate([{ id: ids[0], gate: "pass", why: "" }, { id: ids[1], gate: "top", why: "" }, { id: ids[2], gate: "drop", why: "" }]);
+  s.setPrefs({ funnel: true });
+  assert.equal(s.unseenCount(7), 2, "neither what it filtered out nor what it hasn't read");
+
+  const done = await startRefresh({
+    sync: async () => {
+      s.addItems({ id: src.id, name: "Zahl" }, [item("f")]);
+      (await import("@/db")).getSqlite().prepare("delete from news_items where id in (?, ?)").run(ids[3], ids[4]);
+      return { ok: true, message: "" };
+    },
+    syncDeps: {},
+  }).promise;
+  assert.equal(done.newItems, 1, "one came in, two went: not -1");
+  assert.match(done.message, /^1 new items — 2 unseen cards/);
+});
+
+test("the header's numbers: each kept item is in exactly one place, and what came in today counts what was cleared away, whoever fetched it", async () => {
+  const s = await import("@/plugins/news/store");
+  const { getSqlite } = await import("@/db");
+  const src = s.addSource({ name: "Teile", url: "https://parts.example/rss" });
+  const item = (n: string) => ({ guid: n, url: `https://parts.example/${n}`, title: `Die Meldung mit dem Namen ${n}`, summary: "", publishedAt: hoursAgo(1) });
+  s.addItems({ id: src.id, name: "Teile" }, ["alt", "durch", "wichtig", "weg", "wartet", "gesehen", "gemerkt", "versteckt", "raeumt"].map(item));
+  const all = s.listItems({ view: "latest", limit: 20 });
+  const by = (n: string) => all.find((i) => i.url.endsWith(`/${n}`))!.id;
+  s.setPrefs({ funnel: true });
+  s.setGate([{ id: by("durch"), gate: "pass", why: "" }, { id: by("wichtig"), gate: "top", why: "" }, { id: by("weg"), gate: "drop", why: "" }]);
+  s.markSeen([by("gesehen")]);
+  s.setState(by("gemerkt"), "saved");
+  s.setState(by("versteckt"), "hidden");
+  const now = s.funnelNow();
+  assert.equal(now.forYou + now.waiting + now.filtered + now.rest, now.kept);
+  assert.deepEqual(now, { kept: 9, forYou: 2, important: 1, waiting: 3, filtered: 1, rest: 3 });
+
+  getSqlite().prepare("update news_items set fetched_at = ? where id = ?").run(hoursAgo(72), by("alt"));
+  getSqlite().prepare("delete from news_items where id = ?").run(by("raeumt"));
+  assert.equal(s.cameInToday(), s.itemsEverAdded() - by("alt"), "the cleared one still came in");
+  getSqlite().exec("delete from news_items");
+  assert.equal(s.cameInToday(), null);
+});
+
+test("a run by hand reports how far it is, how it ended and why it failed", async () => {
+  const s = await import("@/plugins/news/store");
+  const { funnelProgress, startFunnel } = await import("@/plugins/news/funnel");
+  const src = s.addSource({ name: "Lauf", url: "https://run.example/rss" });
+  s.addItems({ id: src.id, name: "Lauf" }, Array.from({ length: 7 }, (_, i) => ({ guid: `${i}`, url: `https://run.example/${i}`, title: `Die Schlagzeile mit der Nummer ${i}`, summary: "", publishedAt: hoursAgo(1) })));
+  s.setPrefs({ funnel: true, funnelBatch: 5 });
+  const context = () => ({ taste: "", likes: [], avoids: [], profile: [], liked: [], disliked: [] });
+  const ended = async () => {
+    for (let i = 0; i < 200 && funnelProgress().running; i++) await new Promise((r) => setTimeout(r, 5));
+    return funnelProgress();
+  };
+
+  const seen: number[] = [];
+  assert.equal(startFunnel({ context, ask: async (prompt) => {
+    seen.push(funnelProgress().judged);
+    return { items: Array.from({ length: (prompt.match(/^\d+\. \[/gm) ?? []).length }, (_, i) => ({ n: i + 1, verdict: i ? "drop" : "pass", why: "x" })) };
+  } }), true);
+  assert.equal(funnelProgress().running, true);
+  assert.equal(funnelProgress().total, 7);
+  assert.equal(startFunnel({ context }), false, "one at a time");
+  const done = await ended();
+  assert.deepEqual(seen, [0, 5], "it goes up from round to round");
+  assert.equal(done.judged, 7);
+  assert.equal(done.passed, 2);
+  assert.equal(done.dropped, 5);
+  assert.equal(done.error, "");
+
+  s.addItems({ id: src.id, name: "Lauf" }, [{ guid: "n", url: "https://run.example/n", title: "Noch eine neue Schlagzeile", summary: "", publishedAt: hoursAgo(1) }]);
+  startFunnel({ context, ask: async () => {
+    throw new Error("das Limit ist erreicht");
+  } });
+  assert.equal((await ended()).error, "das Limit ist erreicht");
+});
+

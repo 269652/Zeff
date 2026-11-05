@@ -173,9 +173,14 @@ export function countItems(): number {
   return (db().prepare("select count(*) n from news_items").get() as { n: number }).n;
 }
 
-/** How many unseen, visible items there are (what is left to read before the feed runs dry). */
+/** How many items ever came in: what a refresh brought is the difference, whatever was cleared away meanwhile. */
+export function itemsEverAdded(): number {
+  return (db().prepare("select seq from sqlite_sequence where name = 'news_items'").get() as { seq: number } | undefined)?.seq ?? 0;
+}
+
+/** How many unseen, visible items there are (what is left to read before the feed runs dry) — with the agent on, only what it let through. */
 export function unseenCount(maxAgeDays: number): number {
-  return (db().prepare("select count(*) n from news_items i left join news_sources s on s.id = i.source_id where i.seen_at is null and i.state = 'new' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1)").get(new Date(Date.now() - maxAgeDays * 864e5).toISOString()) as { n: number }).n;
+  return (db().prepare(`select count(*) n from news_items i left join news_sources s on s.id = i.source_id where i.seen_at is null and i.state = 'new' and i.score > -50 and i.published_at > ? and (i.source_id is null or s.enabled = 1)${funnelOn() ? ` and ${PASSED}` : ""}`).get(new Date(Date.now() - maxAgeDays * 864e5).toISOString()) as { n: number }).n;
 }
 
 /** How many visible items were fetched after `sinceIso` (the page shows "N new"). */
@@ -632,6 +637,25 @@ export function setGate(entries: { id: number; gate: "pass" | "top" | "drop"; wh
 /** The day's funnel: how many came in, how many the agent looked at, let through, found important, filtered out, cleared away. */
 export type FunnelStats = { day: string; fetched: number; judged: number; passed: number; top: number; dropped: number; cleared: number };
 const dayOf = (ms: number) => new Date(ms).toLocaleDateString("sv-SE");
+/**
+ * How many headlines came in today, whichever server fetched them: ids only go up, so it is the last id handed out minus the last
+ * one from before today (what was cleared away since counts too). Null when nothing older is left to tell.
+ */
+export function cameInToday(nowMs: number = Date.now()): number | null {
+  const start = new Date(nowMs);
+  start.setHours(0, 0, 0, 0);
+  const last = (db().prepare("select max(id) id from news_items where fetched_at < ?").get(start.toISOString()) as { id: number | null }).id;
+  return last === null ? null : itemsEverAdded() - last;
+}
+
+/** Everything kept, each item in exactly one place: the parts always add up to `kept`. For the page's header. */
+export function funnelNow(): { kept: number; forYou: number; important: number; waiting: number; filtered: number; rest: number } {
+  const c = counts();
+  const kept = countItems();
+  const important = (db().prepare("select count(*) n from news_items i where i.gate = 'top' and i.state = 'new' and i.seen_at is null and i.score > -50 and i.published_at > ?").get(new Date(Date.now() - getPrefs().maxAgeDays * 864e5).toISOString()) as { n: number }).n;
+  return { kept, forYou: c.unread, important, waiting: c.waiting, filtered: c.filtered, rest: kept - c.unread - c.waiting - c.filtered };
+}
+
 export function funnelStats(nowMs: number = Date.now()): FunnelStats {
   const s = getPref<Partial<FunnelStats>>("news:funnel-stats", {});
   const empty: FunnelStats = { day: dayOf(nowMs), fetched: 0, judged: 0, passed: 0, top: 0, dropped: 0, cleared: 0 };

@@ -1,7 +1,7 @@
 import { discoverWhenLow } from "./auto-discover";
 import { expandFromCatalog } from "./expand";
 import { aiTagBatch, retagAll } from "./retag";
-import { countItems, getPrefs, listSources, unseenCount } from "./store";
+import { getPrefs, itemsEverAdded, listSources, unseenCount } from "./store";
 import { syncNews, type NewsSyncDeps } from "./sync";
 
 /**
@@ -55,11 +55,11 @@ async function run(deps: RefreshDeps, target: number): Promise<RefreshStatus> {
   const budget = deps.budgetMs ?? 4 * 60_000;
   const sync = deps.sync ?? syncNews;
   const unseen = deps.unseen ?? (() => unseenCount(getPrefs().maxAgeDays));
-  const before = countItems();
+  const before = itemsEverAdded();
   // Rounds fetch without the extras (no discovery, no AI): those come once at the end.
   const quiet: NewsSyncDeps = { ...deps.syncDeps, noLow: true, discoverFeeds: async () => 0, discoverWhenLow: async () => 0, aiTags: async () => undefined };
   let sourcesAdded = 0;
-  const progress = (phase: string) => set({ phase, unseen: unseen(), newItems: countItems() - before, sourcesAdded });
+  const progress = (phase: string) => set({ phase, unseen: unseen(), newItems: itemsEverAdded() - before, sourcesAdded });
 
   await sync({ ...quiet, all: true });
   progress("Fetched all sources");
@@ -97,9 +97,9 @@ async function run(deps: RefreshDeps, target: number): Promise<RefreshStatus> {
     running: false,
     phase: "",
     unseen: u,
-    newItems: countItems() - before,
+    newItems: itemsEverAdded() - before,
     sourcesAdded,
     finishedAt: new Date().toISOString(),
-    message: `${countItems() - before} new items${sourcesAdded ? `, ${sourcesAdded} sources added` : ""} — ${u} unseen cards${u < target ? ` (the sources have no more fresh news right now)` : ""}`,
+    message: `${itemsEverAdded() - before} new items${sourcesAdded ? `, ${sourcesAdded} sources added` : ""} — ${u} unseen cards${u < target ? ` (the sources have no more fresh news right now)` : ""}`,
   });
 }

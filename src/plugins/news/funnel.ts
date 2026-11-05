@@ -74,7 +74,12 @@ async function context(): Promise<FunnelContext> {
   };
 }
 
-const g = globalThis as { __zeffFunnelRunning?: boolean };
+/** How far the agent is with what was waiting when it started: what the button shows, and what became of it. */
+export type FunnelProgress = { running: boolean; judged: number; passed: number; top: number; dropped: number; total: number; error: string };
+
+const g = globalThis as { __zeffFunnelRunning?: boolean; __zeffFunnelProgress?: FunnelProgress };
+const idle: FunnelProgress = { running: false, judged: 0, passed: 0, top: 0, dropped: 0, total: 0, error: "" };
+export const funnelProgress = (): FunnelProgress => g.__zeffFunnelProgress ?? idle;
 
 /**
  * One round of the agent: the best items it hasn't looked at yet go to the AI, its verdicts are kept. Returns what it
@@ -122,7 +127,7 @@ export async function runFunnel(deps: { ask?: (prompt: string) => Promise<Answer
 }
 
 /** Rounds one after the other until nothing is left to read (or `max` rounds): a backlog of hundreds is worked off, not one batch at a time. */
-export async function runFunnelRounds(max = 10, deps: Parameters<typeof runFunnel>[0] = {}): Promise<{ judged: number; passed: number; top: number; dropped: number }> {
+export async function runFunnelRounds(max = 10, deps: Parameters<typeof runFunnel>[0] = {}, onRound?: (total: { judged: number; passed: number; top: number; dropped: number }) => void): Promise<{ judged: number; passed: number; top: number; dropped: number }> {
   const total = { judged: 0, passed: 0, top: 0, dropped: 0 };
   for (let i = 0; i < max; i++) {
     const r = await runFunnel(deps);
@@ -131,15 +136,18 @@ export async function runFunnelRounds(max = 10, deps: Parameters<typeof runFunne
     total.passed += r.passed;
     total.top += r.top;
     total.dropped += r.dropped;
+    onRound?.(total);
   }
   return total;
 }
 
-export const funnelRunning = (): boolean => !!g.__zeffFunnelRunning;
-
-/** A round started by hand (the page's "Let the agent look now"): in the background, the page shows the result when it is there. */
-export function startFunnel(): boolean {
-  if (g.__zeffFunnelRunning || !getPrefs().funnel) return false;
-  void runFunnelRounds().catch(() => undefined);
+/** A run started by hand (the page's "Let the agent look now"): in the background, `funnelProgress` says how far it is and how it ended. */
+export function startFunnel(deps: Parameters<typeof runFunnel>[0] = {}): boolean {
+  if (g.__zeffFunnelRunning || funnelProgress().running || !getPrefs().funnel) return false;
+  g.__zeffFunnelProgress = { ...idle, running: true, total: funnelCandidates(1000, deps.nowMs).length };
+  const update = (patch: Partial<FunnelProgress>) => (g.__zeffFunnelProgress = { ...funnelProgress(), ...patch });
+  void runFunnelRounds(10, deps, (total) => update(total))
+    .then((total) => update({ ...total, running: false }))
+    .catch((e) => update({ running: false, error: e instanceof Error ? e.message : String(e) }));
   return true;
 }
