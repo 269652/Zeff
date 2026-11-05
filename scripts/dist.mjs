@@ -226,9 +226,9 @@ async function buildApp() {
 
 /** The build tooling: not run by a bundle (scripts/bundle-check.mjs stays — the smoke test runs it). */
 const BUILD_ONLY = ["AGENTS.md", "CLAUDE.md", "eslint.config.mjs", "postcss.config.mjs", "tsconfig.tsbuildinfo", "site", "assets", "scripts/dist.mjs", "scripts/deploy.mjs", "scripts/site-deploy.mjs", "scripts/swap-dist.mjs", "scripts/integrations.mjs", "scripts/keep-write-check.mjs", "knowledge/postcss.config.mjs", "knowledge/tsconfig.tsbuildinfo"];
-/** What a bundle runs from its builds alone: TypeScript and CSS (next.config.ts stays — next start reads it). */
+/** What a bundle runs from its builds alone: TypeScript and CSS (next.config.ts stays — next start reads it — and what it imports). */
 const SOURCE = /\.(tsx?|mts|cts|css)$/;
-const KEEP = new Set(["next.config.ts", path.join("knowledge", "next.config.ts")]);
+const KEEP = new Set(["next.config.ts", path.join("src", "lib", "moved-pages.ts"), path.join("knowledge", "next.config.ts")]);
 
 /**
  * A release ships no sources: the builds (.next, knowledge/.next) are what runs. Out go the TypeScript and CSS, the build
