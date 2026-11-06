@@ -49,7 +49,7 @@ const template = (t: T) => `<state name="dir" value="owe"/>
 
 <datatable source="app.debts" empty="{{ app.owe ? ${q(t("No debts — or not written down yet (+ Debt)."))} : ${q(t("Nobody owes you anything — or it isn't written down yet (+ Debt)."))} }}">
   <column label="{{ app.owe ? ${q(t("Creditor"))} : ${q(t("Debtor"))} }}" foot="${t("Total")}">
-    <row gap=2 wrap=false><dot color="{{ color }}"/><button action="open" row="{{ id }}" label="{{ creditor }}" variant=link/></row>
+    <row gap=2 wrap=false><dot color="{{ color }}"/><button action="open" row="{{ id }}" label="{{ creditor }}" variant=link/><part name="debts.side" debt="{{ id }}"/></row>
     <small><muted>{{ what }}</muted></small>
     {{#if contact}}<small><muted>{{ contact | truncate(70) }}</muted></small>{{/if}}
   </column>
@@ -122,6 +122,7 @@ export const DEBTS_VIEW: ViewAppMeta = {
     { name: "debts.add", description: "The form for a new debt (creditor, what for, amount, instalment, due) and the promises to write down as debts; the toolbar's New opens it" },
     { name: "debts.income", description: "Your income a month, changed with a click (from the bank statements, else yours)" },
     { name: "debts.money", description: "A debt's figure — changed in place for your own debts, as the letters say for a case's", attrs: { debt: "{{ id }} of an item of app.debts", field: "total | open | installment | due" } },
+    { name: "debts.side", description: "A ✎ that changes who is on the debt's other side", attrs: { debt: "{{ id }}" } },
     { name: "debts.pay", description: "Pay: a button that shows the debt's GiroCode (IBAN, amount, purpose) to scan", attrs: { debt: "{{ id }}" } },
     { name: "debts.delete", description: "Remove one of your own debts (shown when the row is pointed at)", attrs: { debt: "{{ id }}" } },
     { name: "debts.balance-chart", description: "The money open month by month until debt-free (a line)" },

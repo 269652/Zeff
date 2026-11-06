@@ -1,7 +1,8 @@
 import { amountIn } from "@/lib/girocode";
 import { emitChange } from "@/lib/events";
+import { t } from "@/lib/i18n/server";
 import { caseRefs } from "@/lib/todos/similar";
-import { contactFor } from "@/plugins/cases/parties";
+import { contactFor, setParty } from "@/plugins/cases/parties";
 import { caseKey } from "@/plugins/cases/shared";
 import { casesDb, listCases } from "@/plugins/cases/store";
 import { openCommitments } from "@/plugins/people/graph";
@@ -76,6 +77,18 @@ export function setDebtMoney(rowId: number, patch: { total?: number | null; open
     const v = patch[k];
     setCell(rowId, id, k === "due" ? (typeof v === "string" && /^\d{4}-\d{2}-\d{2}$/.test(v) ? v : null) : k === "day" ? (typeof v === "number" && v >= 1 && v <= 31 ? Math.round(v) : null) : money(v as number | null));
   }
+}
+
+/** Who is on a debt's other side: a contact, or a new one. A case's debt: its creditor among the case's parties — your word, the AI's doesn't go over it. */
+export function setDebtSide(rowId: number, side: { creditorId?: number | null; creditorName?: string; creditorKind?: Kind }): void {
+  const row = getPage(rowId);
+  if (!row?.dbId || row.dbId !== debtsDbId()) throw new Error("No such debt.");
+  const person = side.creditorId ?? (side.creditorName ? contactFor(side.creditorName, true, side.creditorKind, true) : null);
+  if (!person) throw new Error(t("Pick a contact."));
+  const ref = /^case:(\d+)$/.exec(String(row.props.srcref ?? ""));
+  if (ref) setParty(Number(ref[1]), "creditor", person, "manual");
+  else setCell(rowId, DEBT.creditor, [person]);
+  emitChange("todos");
 }
 
 /** A debt of your own removed (to the Workspace's bin — back from there). */

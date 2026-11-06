@@ -74,6 +74,15 @@ export async function debtMoneyAction(rowId: number, patch: { total?: number | n
   });
 }
 
+/** Who is on a debt's other side. */
+export async function debtSideAction(rowId: number, side: { creditorId?: number | null; creditorName?: string; creditorKind?: "person" | "organization" }): Promise<Result> {
+  return run(async () => {
+    (await import("./own")).setDebtSide(Number(rowId), side);
+    await rowsAgain();
+    return {};
+  });
+}
+
 /** A debt of your own removed. */
 export async function deleteDebtAction(rowId: number): Promise<Result> {
   return run(async () => {

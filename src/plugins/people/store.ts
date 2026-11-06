@@ -2,6 +2,7 @@ import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { isChatFolder } from "@/lib/mail/shared";
 import { t } from "@/lib/i18n/server";
+import { movePersonRefs } from "./merge-refs";
 import { daysBetween, isCircle, isDateKind, isoDay, nextOccurrence, type Circle, type ContactKind, type DateKind, type Person, type PersonAccount, type PersonDate, type PersonSummary, type Upcoming } from "./shared";
 
 /**
@@ -379,7 +380,7 @@ export function addAliases(id: number, names: string[]): number {
 
 /**
  * Two profiles that are one person: `drop` goes into `keep` — its name and aliases become aliases,
- * its addresses, chat, notes, dates (those not there yet) and star come along; `drop` is deleted.
+ * its addresses, chat, notes, dates (those not there yet) and star come along, and what points at it follows (merge-refs.ts); `drop` is deleted.
  */
 export function mergePeople(keepId: number, dropId: number): void {
   if (keepId === dropId) return;
@@ -413,6 +414,8 @@ export function mergePeople(keepId: number, dropId: number): void {
     graphSql("update or ignore fact_versions set subject = ? where subject = ?", `person:${keep.id}`, `person:${drop.id}`);
     graphSql("update or ignore people_links set target_ref = ? where target_type = 'person' and target_ref = ?", String(keep.id), String(drop.id));
     graphSql("delete from people_links where person_id = ? and target_type = 'person' and target_ref = ?", keep.id, String(keep.id));
+    // What others keep of them: a debt's other side, a case's parties, a person field.
+    movePersonRefs(d, keep.id, drop.id);
     deletePerson(drop.id);
   })();
 }

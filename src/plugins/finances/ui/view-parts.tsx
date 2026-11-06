@@ -14,6 +14,7 @@ import { creditorColors, type CreditorOf } from "./colors";
 import { DebtChart } from "./DebtChart";
 import { DeleteDebt } from "./DeleteDebt";
 import { EditMoney } from "./EditMoney";
+import { EditSide } from "./EditSide";
 import { InlineAmount } from "./InlineAmount";
 
 /**
@@ -113,6 +114,14 @@ function MoneyPart(p: PartProps) {
   return <EditMoney readOnly={!d.manual} rowId={d.id} field={field as "total" | "open" | "installment" | "due"} value={value} onSaved={p.reloadApp} />;
 }
 
+/** Who is on a debt's other side, changed in place. */
+function SidePart(p: PartProps) {
+  const o = overviewOf(p);
+  const d = debtOf(p);
+  if (!o || !d) return null;
+  return <EditSide rowId={d.id} value={d.creditorId} contacts={o.contacts} onSaved={p.reloadApp} />;
+}
+
 /** Pay: the debt's GiroCode, shown under the button. */
 function PayPart(p: PartProps) {
   const t = useT();
@@ -168,6 +177,7 @@ const view: ViewAppModule = {
     "debts.add": AddPart,
     "debts.income": IncomePart,
     "debts.money": MoneyPart,
+    "debts.side": SidePart,
     "debts.pay": PayPart,
     "debts.delete": DeletePart,
     "debts.balance-chart": BalancePart,
