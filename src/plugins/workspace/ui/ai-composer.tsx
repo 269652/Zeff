@@ -4,7 +4,8 @@ import { useRouter } from "next/navigation";
 import { useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { undoAction, workspaceChatAction } from "../actions";
+import { undoAction } from "../actions";
+import { askWorkspace } from "./chat-client";
 import { answerFits, routeAiEntry, type AiChip, type WriteMode } from "../ai-entry";
 import type { ChatStep } from "../agent";
 import { handToChat, WS_CHANGED } from "./ChatPanel";
@@ -47,7 +48,7 @@ export function AiComposer({ pageId, scope, chip: firstChip = null, onThink, onW
   const ask = async (question: string) => {
     setBusy(true);
     try {
-      const r = await workspaceChatAction([{ role: "user", text: question }], pageId);
+      const r = await askWorkspace([{ role: "user", text: question }], pageId);
       if (!r.ok) return void toast(r.error, { tone: "error" });
       if (r.changed) {
         router.refresh();

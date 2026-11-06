@@ -361,6 +361,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
     </Dropdown>
   );
 
+  const countText = rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length });
+  // (A table says it in its footer: no line of its own under it.)
+  const countInTable = !dayTab && view.type === "table" && rows.length > 0;
   return (
     <div className="space-y-2">
       <div ref={setBar} className={`flex items-center gap-1 ${narrow ? "flex-nowrap" : "flex-wrap"}`}>
@@ -575,7 +578,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       )}
       {!dayTab && view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} onNew={setAppNew} ctx={ctx} rowOps={rowOps} src={code?.viewId === view.id ? code.draft : undefined} onErrors={code?.viewId === view.id ? setCodeErrors : undefined} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
       {!dayTab && view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} onHide={(hide) => (api.changeSchema((s) => hideRows(s, [...picked], hide)), setPicked(new Set()))} />}
-      {!dayTab && view.type === "table" && <TableView onForm={onForm} fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
+      {!dayTab && view.type === "table" && <TableView count={countInTable ? countText : undefined} onForm={onForm} fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {!dayTab && view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} onForm={onForm} />}
       {!dayTab && view.type === "list" && <ListView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} />}
       {!dayTab && view.type === "gallery" && <GalleryView rows={rows} visible={visible} ctx={ctx} openRow={openRow} add={(cells, title) => api.addRow(cells, title)} onForm={onForm} locked={!!data.locked || !!data.noNewRows} template={view.card} />}
@@ -583,17 +586,17 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {!dayTab && view.type === "todo" && <TodoView dbId={dbId} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} canAdd={!data.noNewRows} />}
       {!dayTab && view.type === "chart" && <ChartView view={view} rows={rows} schema={schema} />}
       {!dayTab && view.type === "calendar" && <CalendarView canAdd={!data.noNewRows} view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
-      <p className="text-xs text-zinc-500">
-        {rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length })}
+      {(!countInTable || hiddenCount > 0) && <p className="text-xs text-zinc-500">
+        {!countInTable && countText}
         {hiddenCount > 0 && (
           <>
-            {" · "}
+            {!countInTable && " · "}
             <button type="button" className="hover:underline" onClick={() => setView({ ...view, showHidden: !view.showHidden })}>
               {view.showHidden ? t("{n} hidden shown — leave them out", { n: hiddenCount }) : t("{n} hidden — show", { n: hiddenCount })}
             </button>
           </>
         )}
-      </p>
+      </p>}
 
       {asking && (
         <Modal title={asking.title} onClose={() => setAsking(null)}>

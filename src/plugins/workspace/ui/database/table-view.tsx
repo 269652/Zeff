@@ -11,7 +11,7 @@ import { CalcCell, usePublished } from "../calc-row";
 import { type ViewProps, type Selection, SELECT_COLUMN, ADD_COLUMN } from "./shared";
 import { RowMenu, TitleCell } from "./row-menu";
 
-export function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, setView, onSchema, justAdded, onEdited, sel, fill = false, onForm }: ViewProps & { /** The entry form opened with these cells (none set: a row is made). */ onForm?: (cells: Record<string, unknown>) => void; setView: (v: View) => void; onSchema: () => void; justAdded: number | null; onEdited: () => void; sel?: Selection; /** A database page of its own: the table as high as the window has room for. */ fill?: boolean }) {
+export function TableView({ view, rows, visible, schema, ctx, api, labels, openRow, setView, onSchema, justAdded, onEdited, sel, fill = false, onForm, count }: ViewProps & { /** "4 rows": in the footer, where it takes no line of its own. */ count?: string; /** The entry form opened with these cells (none set: a row is made). */ onForm?: (cells: Record<string, unknown>) => void; setView: (v: View) => void; onSchema: () => void; justAdded: number | null; onEdited: () => void; sel?: Selection; /** A database page of its own: the table as high as the window has room for. */ fill?: boolean }) {
   const t = useT();
   // As high as the window has room for (the line under it counted): the head on top, the sum row at the bottom, + New
   // right after the last row — an empty row between takes up the rest; more rows than room: it scrolls in itself.
@@ -353,10 +353,10 @@ export function TableView({ view, rows, visible, schema, ctx, api, labels, openR
             </tr>
           </tbody>
         )}
-        {numeric && rows.length > 0 && (
+        {(numeric || count) && rows.length > 0 && (
           <tfoot className="border-t border-zinc-200 dark:border-zinc-800">
             <tr>
-              <td />
+              <td className="px-2 align-top text-xs whitespace-nowrap text-zinc-500">{count}</td>
               {cols.map((id) => (
                 <CalcCell key={id} p={byId.get(id)} view={view} rows={rows} dbId={ctx.data.id} setView={setView} published={published} />
               ))}

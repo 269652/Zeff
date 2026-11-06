@@ -11,6 +11,7 @@ import { navOf, renderView, viewDefaults, type ViewNavEntry, type VNode } from "
 import type { ActionEnv, AppViewProps, ViewAppModule } from "./app-view";
 import { draw, Level, type DrawExt } from "./card-template";
 import { Cell } from "./cells";
+import { LookupField } from "./view-lookup";
 import { WidgetBlock } from "./widget-node";
 
 /**
@@ -371,6 +372,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
       }
       case "search":
         return <input key={key} type="search" className="input w-44 py-1 text-sm print:hidden" placeholder={a.placeholder ?? t("Search …")} aria-label={a.placeholder ?? t("Search")} value={a.current} onChange={(e) => setState(a.bind, e.target.value)} />;
+      case "lookup":
+        return <LookupField key={key} a={a} dbId={props.data.id} reload={props.reload} openRow={props.openRow} />;
       case "toggle":
         return (
           <label key={key} className="inline-flex items-center gap-1.5 text-sm print:hidden">

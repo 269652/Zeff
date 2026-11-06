@@ -18,6 +18,7 @@ export const AGENT_TOOL_GROUPS: ToolGroup[] = [
   { id: "metrics.read", label: "Read metrics", hint: "The named numbers (Tilgungsrate, Sparquote, hours …) with their history", tools: ["metric_list", "metric_get"], default: true },
   { id: "metrics.write", label: "Make metrics", hint: "Define a new metric from a formula", tools: ["metric_define"], default: false },
   { id: "web", label: "Search and read the web", hint: "Web search and fetching pages", tools: ["web_search", "web_fetch"], default: true },
+  { id: "web.browser", label: "Use a browser", hint: "An automated Chrome on public websites: read, click, type — it can leave traces there", tools: ["browser_open"], default: false },
   { id: "gmail.read", label: "Search Gmail", hint: "Find mails with Gmail's search, list its labels and filters", tools: ["gmail_find", "gmail_labels", "gmail_filters"], default: true },
 ];
 

@@ -10,6 +10,7 @@ import { runAi } from "@/lib/ai";
 import { docToMarkdown } from "./doc";
 import { registerWorkspaceTools } from "./mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
+import { registerBrowserTools } from "@/plugins/browser/mcp";
 import { registerEntityTools } from "@/plugins/entities/mcp";
 import * as store from "./store";
 
@@ -42,6 +43,8 @@ function collectTools(): Map<string, Tool> {
   registerWorkspaceTools(stand, helpers);
   // The web (search, read a page) — while its plugin is installed: the chat can look up facts and fill a database with them.
   registerWebSearchTools(stand, helpers);
+  // A browser of its own (while that plugin is installed): pages that load with JavaScript, the address of a picture.
+  registerBrowserTools(stand, helpers);
   // Organisations, projects and places (while that plugin is installed): which customer, which project a ticket is.
   registerEntityTools(stand, helpers);
   return tools;
@@ -67,7 +70,9 @@ function shape(s: JsonSchema | undefined): string {
 }
 
 const MAX_RESULT = 5000;
-const MAX_ROUNDS = 8;
+/** A page in the browser: its pictures and links come first, and the text after them still has to fit. */
+const MAX_PAGE_RESULT = 12000;
+const MAX_ROUNDS = 12;
 
 const SCHEMA = {
   type: "object",
@@ -90,6 +95,9 @@ So arbeitest du: In jeder Runde gibst du JSON zurück: calls (Werkzeugaufrufe, d
 - „diese Seite“ / „hier“ ist die aktuelle Seite unten. Auf sie beziehst du dich, wenn der Nutzer keine andere nennt.
 - Eine Änderung nur, wenn der Nutzer sie verlangt. Was er nicht verlangt, lässt du. Löschen (Spalten, Seiten) nur, was er genannt hat.
 - Schreibst du Text für Seiten, dann gut und vollständig (Überschriften, Listen, Tabellen, Callouts) in der Sprache des Nutzers, nur mit dem, was du weißt oder gefunden hast — sonst frag.
+- Wünscht sich jemand eine eigene Darstellung einer Datenbank (Karten mit Bildern, ein Dashboard, ein eigenes Layout): Lies workspace_view_template_docs und lege mit workspace_update_database eine neue Ansicht an (add_view mit template). Sie kommt zu den vorhandenen dazu, nichts daran wird überschrieben; soll sie weg, entfernt remove_view sie wieder. Schlägt die Vorlage fehl, steht in der Meldung die Zeile: korrigiere sie.
+- Soll eine Ansicht Dinge von außerhalb in die Tabelle holen (Filme von TMDB, Bücher, Artikel): Nimm <lookup> — ein Suchfeld mit Vorschlägen, der gewählte Treffer wird eine Zeile. Lege zuerst mit workspace_update_database die Spalten an, die die map braucht, nimm für Listen multi_select und für Zahlen number. Die Quellen und ihre Felder stehen in workspace_view_template_docs; ist eine NOT READY, sag dem Nutzer, was fehlt.
+- Bilder: Nutze nur echte Adressen, die du gefunden hast (web_search, browser_open) oder die schon in den Daten stehen. Erfinde keine Bild-Adressen und nimm keine Platzhalter-Dienste. Findest du keins, lass das Feld leer und sag es.
 - Mehrere Dinge: so viele calls pro Runde, wie sinnvoll (höchstens 6). Schlägt ein Aufruf fehl, steht die Meldung im Ergebnis: korrigiere und versuche es noch einmal, oder sag dem Nutzer, was nicht ging.`;
 
 /** What the AI is told about where the user is: the current page, as far as it helps. */
@@ -106,7 +114,7 @@ function pageContext(pageId?: number): string {
 type Answer = { calls?: { tool?: string; args?: unknown }[]; reply?: string };
 const askAi = async (prompt: string): Promise<Answer> => (await runAi<Answer>(prompt, SCHEMA, { task: "workspace-chat", timeoutMs: 4 * 60000, maxBudgetUsd: 0.6 })).output ?? {};
 
-export async function workspaceChat(messages: ChatMessage[], pageId?: number, ask: (prompt: string) => Promise<Answer> = askAi): Promise<ChatResult> {
+export async function workspaceChat(messages: ChatMessage[], pageId?: number, ask: (prompt: string) => Promise<Answer> = askAi, onStep?: (steps: ChatStep[]) => void): Promise<ChatResult> {
   const tools = collectTools();
   const catalog = [...tools.values()].map((t) => `### ${t.name}\n${t.description}\nargs: ${shape(z.toJSONSchema(t.schema) as JsonSchema)}`).join("\n\n");
   const talk = messages.slice(-12).map((m) => `${m.role === "user" ? "Nutzer" : "Du"}: ${m.text.slice(0, 4000)}`).join("\n");
@@ -118,7 +126,9 @@ export async function workspaceChat(messages: ChatMessage[], pageId?: number, as
     const out = await ask(prompt);
     const calls = round === MAX_ROUNDS ? [] : (out.calls ?? []).slice(0, 6);
     if (!calls.length) {
-      const reply = String(out.reply ?? "").trim();
+      // Out of rounds with more to do: it says so, it doesn't pass for done.
+      const unfinished = round === MAX_ROUNDS && !!out.calls?.length;
+      const reply = unfinished ? `Ich bin nach ${steps.length} Schritten nicht fertig geworden. Sag „weiter“, dann mache ich weiter.` : String(out.reply ?? "").trim();
       return { reply: reply || (steps.length ? "Erledigt." : "…"), steps, changed };
     }
     for (const c of calls) {
@@ -146,7 +156,8 @@ export async function workspaceChat(messages: ChatMessage[], pageId?: number, as
         }
       }
       steps.push({ tool: String(c.tool ?? "?"), summary: text.split("\n")[0].slice(0, 200), ok });
-      log += `\n- ${String(c.tool)}(${JSON.stringify(c.args ?? {}).slice(0, 600)}) → ${ok ? "" : "FEHLER: "}${text.slice(0, MAX_RESULT)}`;
+      onStep?.(steps);
+      log += `\n- ${String(c.tool)}(${JSON.stringify(c.args ?? {}).slice(0, 600)}) → ${ok ? "" : "FEHLER: "}${text.slice(0, c.tool === "browser_open" ? MAX_PAGE_RESULT : MAX_RESULT)}`;
     }
   }
   return { reply: "", steps, changed };

@@ -70,6 +70,9 @@ export async function webSearch(query: string, opts: { count?: number; site?: st
 // A page as text
 // ---------------------------------------------------------------------------
 
+/** The same check for others that reach the web (the Browser plugin). */
+export const publicUrl = (raw: string): Promise<URL> => checkUrl(raw, {});
+
 /** Whether an address is the machine's own or a private network's (loopback, link-local, RFC 1918, carrier NAT, unique-local …). */
 export function isPrivateAddress(ip: string): boolean {
   const v4 = /^::ffff:(\d+\.\d+\.\d+\.\d+)$/i.exec(ip)?.[1] ?? (isIP(ip) === 4 ? ip : null);

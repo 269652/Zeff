@@ -145,3 +145,31 @@ test("runRoutine: an automation runs through; an agent starts and goes on — on
   assert.equal(b.status, "done");
   await assert.rejects(() => runRoutine(w.createPage({ title: "Keine Routine" }), { kind: "manual" }), /no routine/i);
 });
+
+test("a view of its own: the assistant adds it from a template (a bad one is refused with its line), it joins the others and goes again; out of rounds it says so", async () => {
+  const { createPage } = await import("@/plugins/workspace/store");
+  const { getDatabase } = await import("@/plugins/workspace/store");
+  const { applyOps } = await import("@/plugins/workspace/schema-ops");
+  const { workspaceChat } = await import("@/plugins/workspace/agent");
+  const id = createPage({ parentId: null, title: "Filme", kind: "database", schema: { titleName: "Name", properties: [], views: [{ id: "v1", name: "Liste", type: "table", filter: { op: "and", rules: [] }, sorts: [], hidden: [] }] } });
+  const schema = getDatabase(id)!.schema;
+
+  const good = '<cards source="rows" cols=3><b>{{ title }}</b></cards>';
+  const made = applyOps(schema, [{ op: "add_view", name: "Karten", template: good }], { related: () => null });
+  const view = made.schema.views.find((v) => v.name === "Karten")!;
+  assert.equal(view.type, "app");
+  assert.equal(view.app, "template");
+  assert.equal(view.template, good);
+  assert.equal(made.schema.views.length, 2, "the others stay");
+
+  assert.throws(() => applyOps(schema, [{ op: "add_view", name: "Kaputt", template: "<nosuchtag/>" }], { related: () => null }), /view template has errors/);
+  assert.equal(applyOps(made.schema, [{ op: "remove_view", view: "Karten" }], { related: () => null }).schema.views.length, 1, "and it can go again");
+
+  let asked = 0;
+  const steps: number[] = [];
+  const r = await workspaceChat([{ role: "user", text: "mach" }], undefined, async () => (asked++, { calls: [{ tool: "workspace_view_template_docs", args: {} }], reply: "" }), (s) => steps.push(s.length));
+  assert.equal(asked, 12);
+  assert.match(r.reply, /nicht fertig/);
+  assert.deepEqual(steps.slice(0, 2), [1, 2], "each step is reported");
+});
+

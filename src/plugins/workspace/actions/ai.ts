@@ -145,6 +145,28 @@ export async function workspaceChatAction(messages: { role: "user" | "assistant"
   });
 }
 
+/** The assistant in the background: it starts here, `workspaceChatJobAction` says how far it is (chat-jobs.ts). */
+export async function startWorkspaceChatAction(messages: { role: "user" | "assistant"; text: string }[], pageId?: number) {
+  return run(async () => {
+    if (!isInstalled("llm")) throw new Error(t("The LLM plugin is needed for this (Menu → Plugins)."));
+    const talk = (Array.isArray(messages) ? messages : []).filter((m) => m && (m.role === "user" || m.role === "assistant") && typeof m.text === "string");
+    if (!talk.length || talk[talk.length - 1].role !== "user") throw new Error(t("Say what the AI should do."));
+    const { workspaceChat } = await import("../agent");
+    const { startChatJob } = await import("../chat-jobs");
+    const label = t("AI chat: {text}", { text: talk[talk.length - 1].text.replace(/\s+/g, " ").slice(0, 80) });
+    const id = startChatJob((onStep) => asUndoable(label, () => workspaceChat(talk, pageId ? Number(pageId) : undefined, undefined, onStep), "ai"));
+    return { id };
+  });
+}
+
+export async function workspaceChatJobAction(id: string) {
+  return run(async () => {
+    const job = (await import("../chat-jobs")).chatJob(String(id));
+    if (!job) throw new Error(t("That didn't work."));
+    return { done: job.done, steps: job.steps, result: job.result, error: job.error };
+  });
+}
+
 /** A page's current text and revision - for an editor that is open while the assistant changed it. */
 export async function pageContentAction(id: number) {
   return run(async () => {

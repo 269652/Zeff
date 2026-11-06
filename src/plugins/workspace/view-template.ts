@@ -103,6 +103,8 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   selected: T({ empty: "text" }),
   button: T({ action: "text", label: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text" }, true),
   search: T({ bind: "text", placeholder: "text" }, true),
+  // A field that finds things elsewhere: the one picked becomes a row (lookup-point.ts).
+  lookup: T({ source: "text", map: "text", placeholder: "text", unique: "text", language: "text", open: { oneOf: ["true", "false"] } }, true),
   select: T({ bind: "text", options: "text", label: "text", /** Typed to find (an autocomplete), as wide as there is room. */ search: { oneOf: ["true", "false"] } }, true),
   toggle: T({ bind: "text", label: "text" }, true),
   field: T({ name: "text" }, true),
@@ -424,6 +426,13 @@ function storedValue(p: Property, v: string): unknown {
   return v;
 }
 
+/** map="Poster=poster, Year=year" as pairs: [property, field]. */
+const lookupMap = (s: string): [string, string][] =>
+  s.split(",").flatMap((part): [string, string][] => {
+    const i = part.indexOf("=");
+    return i > 0 && part.slice(i + 1).trim() ? [[part.slice(0, i).trim(), part.slice(i + 1).trim()]] : [];
+  });
+
 function withRow(ctx: Ctx, row: Row): Ctx {
   return { ...ctx, row, item: null, locals: new Map(ctx.locals) };
 }
@@ -468,6 +477,14 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       if (!opts.length) return (err(`<${n.name}> needs options="value:Label, …".`), []);
       if (ctx.state[a.bind] === undefined) ctx.state[a.bind] = opts[0][0];
       return [{ t: n.name, a: { ...a, options: JSON.stringify(opts), current: ctx.state[a.bind] }, c: [] }];
+    }
+    case "lookup": {
+      if (!a.source) return (err('<lookup> needs source="…".'), []);
+      const map = lookupMap(a.map ?? "");
+      if (!map.length) return (err('<lookup> needs map="Property=field, …".'), []);
+      const isTitle = (name: string) => norm(name) === "title" || norm(name) === norm(ctx.data.titleName);
+      for (const name of [...map.map(([prop]) => prop), ...(a.unique ? [a.unique] : [])]) if (!isTitle(name) && !propByName(ctx, name)) return (err(`There is no property “${name}”.`), []);
+      return [{ t: "lookup", a: { ...a, map: JSON.stringify(map) }, c: [] }];
     }
     case "search":
     case "toggle": {
@@ -677,6 +694,7 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     "FIGURES: <tile label=\"…\" value=\"{{ … }}\" sub=\"…\" tone=good|warn|bad/> — or <tile …>content under the value (text, a part)</tile>.",
     "DATA: <list source=\"rows | …\" select=true open=true spacing=roomy empty=\"…\">item template</list>, <cards source=\"…\" cols=3>item template</cards>, <table source=\"rows | …\" columns=\"title, Status, [Due]\" sum=\"Amount\" empty=\"…\"/>, <chart kind=bar|column|line|pie source=\"rows\" group=\"Status\" value=\"Amount\" calc=count|sum|avg/>, <selected empty=\"…\">template of the row picked (a list with select=true picks)</selected>, <field name=\"Status\"/> (a row's property, editable), <datatable source=\"app.list | …\" empty=\"…\"><column label=\"…\" align=right nowrap=true foot=\"{{ … }}\">cell template (the item's fields by name)</column>…</datatable> (a table of any list).",
     "STATE: <state name=\"dir\" value=\"owe\"/> (a default), <tabs bind=\"dir\" options=\"owe:Label, owed:Label:3\"/> (:3 — a count beside the label), <select bind=… options=… label=…/>, <search bind=\"q\" placeholder=…/> (use it: rows | search(state.q)), <toggle bind=\"done\" label=…/> (state.done is \"true\"/\"\").",
+    "LOOKUP: <lookup source=\"tmdb.movies\" placeholder=\"…\" map=\"Poster=poster, Year=year, title=title\" unique=\"TMDB ID\" open=false language=\"de-DE\"/> — a field that searches elsewhere with suggestions; the one picked becomes a row, its fields into the properties of map (Property=field; the properties must exist; title: the row's title, by default its title). unique: a property that tells it is there already, so it isn't added twice. open=true: opens the row. The sources are listed with the language for the AI, and under Settings → Lookups.",
     `BUTTONS: <button action=… label=\"…\" row=\"{{ id }}\" (the row it acts on, outside a row) variant=primary|plain|quiet|danger|link confirm=\"…\" print=true (also on paper) disabled=\"{{ … }}\" wide=true keys=\"N\" (its key, shown in the tooltip)/> — actions: ${Object.entries(ACTIONS)
       .map(([k, v]) => `${k} (${v.what}${v.row ? "; in a row" : ""})`)
       .join(", ")}${actions.length ? `, ${actions.map((x) => `${x.name} (${x.description})`).join(", ")}` : ""}.`,

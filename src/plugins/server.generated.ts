@@ -10,6 +10,7 @@ import "./gitlab/server";
 import "./jira/server";
 import "./keep/server";
 import "./llm/server";
+import "./lookups/server";
 import "./loops/server";
 import "./mail-client/server";
 import "./news/server";

@@ -5,7 +5,8 @@ import { usePagePathname } from "@/lib/use-page-pathname";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { undoAction, workspaceChatAction } from "../actions";
+import { undoAction } from "../actions";
+import { askWorkspace } from "./chat-client";
 import type { ChatStep } from "../agent";
 
 /** Tell this to the editors and databases on screen: the workspace was changed by the assistant - read it again. */
@@ -42,6 +43,8 @@ export function ChatPanel() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  /** What the running answer has done so far. */
+  const [live, setLive] = useState<ChatStep[]>([]);
   const end = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -55,8 +58,8 @@ export function ChatPanel() {
     } catch {
       // not remembered
     }
-    end.current?.scrollIntoView({ block: "end" });
-  }, [msgs, busy]);
+    end.current?.scrollIntoView({ block: "nearest" });
+  }, [msgs, busy, live]);
 
   const show = (v: boolean) => {
     setOpen(v);
@@ -87,7 +90,8 @@ export function ChatPanel() {
     setText("");
     setBusy(true);
     try {
-      const r = await workspaceChatAction(next.map((m) => ({ role: m.role, text: m.text })), pageId);
+      setLive([]);
+      const r = await askWorkspace(next.map((m) => ({ role: m.role, text: m.text })), pageId, setLive);
       if (!r.ok) setMsgs([...next, { role: "assistant", text: r.error, error: true }]);
       else {
         setMsgs([...next, { role: "assistant", text: r.reply || t("Done."), steps: r.steps, undoId: r.undoId }]);
@@ -107,16 +111,16 @@ export function ChatPanel() {
   const examples = [t("Add a row: …"), t("Change this database to a board"), t("Write an article about …"), t("Remove the empty columns")];
 
   return (
-    <section className="rounded-lg border border-violet-200 dark:border-violet-900/60">
-      <button type="button" className="flex w-full items-center gap-2 px-2.5 py-1.5 text-left text-sm font-medium text-violet-700 dark:text-violet-300" onClick={toggle} aria-expanded={open}>
+    <section className="flex max-h-[min(70vh,calc(100dvh-16rem))] shrink-0 flex-col rounded-lg border border-violet-200 dark:border-violet-900/60">
+      <button type="button" className="flex w-full shrink-0 items-center gap-2 px-2.5 py-1.5 text-left text-sm font-medium text-violet-700 dark:text-violet-300" onClick={toggle} aria-expanded={open}>
         <span aria-hidden>✨</span>
         <span className="flex-1">{t("Workspace assistant")}</span>
         <span className="text-xs text-zinc-400">{open ? "▾" : "▸"}</span>
       </button>
       {open && (
-        <div className="space-y-2 border-t border-violet-100 p-2 dark:border-violet-900/40">
-          {/* No scrollbar of its own: the sidebar scrolls (one scrollbar), the message field below stays in view. */}
-          <div className="min-h-16 space-y-2 text-sm">
+        <div className="flex min-h-0 flex-1 flex-col gap-2 border-t border-violet-100 p-2 dark:border-violet-900/40">
+          {/* The talk scrolls in here, at most 70 % of the window high: the message field under it always stays in view. */}
+          <div className="min-h-16 flex-1 space-y-2 overflow-y-auto pr-1 text-sm">
             {!msgs.length && (
               <div className="space-y-1.5">
                 <p className="text-xs text-zinc-500">{t("Tell the AI what to do with the workspace — it works on the page you have open, or on any page and database.")}</p>
@@ -162,12 +166,11 @@ export function ChatPanel() {
                 )}
               </div>
             ))}
-            {busy && <p className="text-xs text-violet-700 dark:text-violet-300">✨ {t("The AI is working …")}</p>}
+            {busy && <p className="text-xs text-violet-700 dark:text-violet-300">✨ {t("The AI is working …")}{live.length > 0 && ` ${live.length === 1 ? t("1 step") : t("{n} steps", { n: live.length })} — ${live[live.length - 1].tool.replace(/^workspace_/, "")}`}</p>}
             <div ref={end} />
           </div>
           <form
-            className="sticky bottom-0 -mx-2 -mb-2 space-y-1 rounded-b-lg border-t border-violet-100 px-2 pt-1.5 pb-2 dark:border-violet-900/40"
-            style={{ background: "var(--background)" }}
+            className="-mx-2 shrink-0 space-y-1 border-t border-violet-100 px-2 pt-1.5 dark:border-violet-900/40"
             onSubmit={(e) => {
               e.preventDefault();
               void send(text);

@@ -3,6 +3,7 @@ import { registerReportTool } from "@/plugins/workspace/mcp-report";
 import { registerGmailTools } from "@/plugins/gmail/mcp";
 import { registerWorkspaceTools } from "@/plugins/workspace/mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
+import { registerBrowserTools } from "@/plugins/browser/mcp";
 import { registerAiQualityTool } from "@/lib/learning/mcp";
 import { registerCorrelationTools } from "@/plugins/correlations/mcp";
 import { registerEntityTools } from "@/plugins/entities/mcp";
@@ -78,6 +79,7 @@ export function registerZeffTools(server: McpServer): void {
   // The Workspace's pages and databases (when that plugin is installed, the tools say so otherwise).
   registerWorkspaceTools(server, { run, ok, fail });
   registerWebSearchTools(server, { run, ok, fail } as never);
+  registerBrowserTools(server, { run, ok, fail } as never);
   registerEntityTools(server, { run, ok, fail } as never);
   registerQuestionTools(server, { run, ok, fail } as never);
   registerGmailTools(server, { run, ok, fail } as never);

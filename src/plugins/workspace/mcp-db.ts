@@ -84,6 +84,7 @@ const viewShape = {
   chartCalc: z.enum(["count", "sum", "avg"]).optional().describe("Chart view: count rows, or the sum / average of chartProp."),
   chartProp: z.string().nullable().optional().describe("Chart view: the number property summed or averaged."),
   card: z.string().nullable().optional().describe("Board / gallery view: how a card looks — a template: tags <row gap=2> <col> <grow/> <b> <muted> <small> <clamp lines=3> <chip> <bar value=.. max=..> <img src=.. h=..> <a href=..>, values {{ title }} {{ key }} {{ Property }} ({{ [Name with spaces] }}), filters {{ Status | chip }} {{ Due | date }} {{ Due | relative }} {{ Hours | hours }} {{ x | truncate(40) }} {{ x | default(\"–\") }}, and {{#if Due < today()}}…{{#else}}…{{/if}} / {{#each Labels}}{{ this }}{{/each}}. Null or empty: the automatic card."),
+  template: z.string().nullable().optional().describe("A view of its own design, in the view template language (workspace_view_template_docs tells it): makes this an app view drawn from the template. For cards with pictures, dashboards, any layout the other types don't give."),
   hidden: z.array(z.string()).optional().describe("Properties this view does not show."),
   order: z.array(z.string()).optional().describe('The columns in order, property names; "title" is the title column and may be anywhere.'),
   sorts: z.array(z.object({ property: z.string(), dir: z.enum(["asc", "desc"]).optional() })).optional(),
@@ -237,6 +238,19 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
         throw e;
       }
     }),
+  );
+
+  server.registerTool(
+    "workspace_view_template_docs",
+    {
+      title: "The view template language",
+      description: "How a database view of its own design is written (add_view with template): tags, filters, buttons, names. Read it before writing one.",
+      inputSchema: z.object({}),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    guard(async () => h.ok(`${(await import("./view-template")).viewReference()}
+
+${(await import("./lookups")).lookupReference()}`)),
   );
 
   server.registerTool(
