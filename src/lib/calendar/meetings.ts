@@ -19,6 +19,8 @@ export type GraphEvent = {
   organizer?: { emailAddress?: { name?: string; address?: string } };
   location?: { displayName?: string };
   webLink?: string;
+  /** The appointment's description (plain text) — what its body says. */
+  bodyPreview?: string;
 };
 
 export type ExclusionReason =
