@@ -1,7 +1,7 @@
 {
   "name": "zeff-launcher",
   "productName": "Zeff",
-  "version": "0.1.3",
+  "version": "0.1.4",
   "private": true,
   "description": "Runs Zeff and its knowledge server and serves them on https://zeff",
   "main": "main.js",
