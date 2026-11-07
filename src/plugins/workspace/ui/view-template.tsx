@@ -14,6 +14,7 @@ import { ChannelLogo } from "@/components/ChannelLogo";
 import { toggleTaskAction } from "../actions";
 import { askWorkspace } from "./chat-client";
 import { WS_CHANGED } from "./ChatPanel";
+import { TodoMark } from "./todo-mark";
 import { Cell } from "./cells";
 import { EmptyState, Sparkline, viewBlock } from "./view-blocks";
 import { LookupField } from "./view-lookup";
@@ -273,6 +274,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
             {kids(n.c)}
           </div>
         );
+      case "todomark":
+        return <TodoMark key={key} mark={props.data.extras?.todoMarks?.[Number(a.row)]} />;
       case "task": {
         // A box of a row's checklist: the n-th task of its page, ticked there.
         const rowId = Number(a.row);
@@ -758,12 +761,12 @@ function Fold({ title, open, children }: { title: string; open: boolean | "wide"
 
 /** A box of a row's checklist in a view: ticks the item in the row's page itself (and the view shows it at once). */
 function TaskBox({ rowId, index, checked, label, editable, done }: { rowId: number; index: number | undefined; checked: boolean; label: string; editable: boolean; done: () => void }) {
-  const [on, setOn] = useState<boolean | null>(null);
-  useEffect(() => setOn(null), [checked]);
-  const shown = on ?? checked;
+  // (Ticked here until the view brings the page's own state — then that.)
+  const [on, setOn] = useState<{ was: boolean; v: boolean } | null>(null);
+  const shown = on && on.was === checked ? on.v : checked;
   const tick = (next: boolean) => {
     if (index === undefined) return;
-    setOn(next);
+    setOn({ was: checked, v: next });
     void toggleTaskAction(rowId, index, next).then((r) => {
       if (!r.ok) {
         toast(r.error, { tone: "error" });

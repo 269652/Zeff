@@ -237,6 +237,29 @@ export async function archiveImap(c: ImapConfig, items: { path: string; messageI
   });
 }
 
+/**
+ * Every read mail (\\Seen) of the inbox moved to the archive on the server — all of them, also those older than Zeff reads in (it keeps
+ * the last weeks). Where they went, and how many.
+ */
+export async function archiveSeenImap(c: ImapConfig, inbox = "INBOX", deps: MailDeps = {}): Promise<{ folder: string; moved: number }> {
+  return withImap(c, deps, async (client) => {
+    if (!client.search || !client.messageMove) throw new Error("This IMAP client can't move mails.");
+    const folder = archiveFolderOf(await client.list(), c.archiveFolder);
+    if (!folder) throw new Error("The server has no archive folder — choose one in the account's settings.");
+    if (folder === inbox) return { folder, moved: 0 };
+    const lock = await client.getMailboxLock(inbox);
+    try {
+      const uids = await client.search({ seen: true }, { uid: true });
+      if (!uids || !uids.length) return { folder, moved: 0 };
+      // (In parts: a server takes a long range of numbers badly.)
+      for (let i = 0; i < uids.length; i += 500) await client.messageMove(uids.slice(i, i + 500), folder, { uid: true });
+      return { folder, moved: uids.length };
+    } finally {
+      lock.release();
+    }
+  });
+}
+
 export type OutMail = { to: string; cc?: string; subject: string; body: string; inReplyTo?: string; references?: string[] };
 
 /** The mail as it goes out (MIME, built by nodemailer): its bytes, its Message-ID and its recipients. */

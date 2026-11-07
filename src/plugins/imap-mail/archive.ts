@@ -3,7 +3,7 @@ import { getDb, getSqlite, schema } from "@/db";
 import { ARCHIVE_SUFFIX } from "@/lib/mail/mirror";
 import { ME_SENDER } from "@/lib/mail/shared";
 import { archivePage } from "@/plugins/workspace/store";
-import { archiveImap, type MailDeps } from "./client";
+import { archiveImap, archiveSeenImap, type MailDeps } from "./client";
 import { accountIdOfConv, getMailAccount, mailAccounts, mailboxName, saveMailAccount } from "./config";
 import { serverFolderOf } from "./read-on-open";
 
@@ -55,28 +55,57 @@ export async function archiveMails(keys: string[], deps: MailDeps = {}): Promise
       }
     }
     // In Zeff: to the account's archive, and out of the databases' views.
-    getDb().update(schema.emails).set({ folder: `${mailboxName(a)}${ARCHIVE_SUFFIX}` }).where(inArray(schema.emails.key, list.map((m) => m.key))).run();
-    for (const row of rowsShowing(list.map((m) => m.key))) archivePage(row);
+    archiveLocally(a, list.map((m) => m.key));
     archived += list.length;
   }
   return { archived, failed };
 }
 
-/** Every read mail in the inbox of the IMAP / POP3 accounts (one, or all) archived — yours, sent, are not in the inbox anyway. */
+/**
+ * Every read mail in the inbox of the IMAP / POP3 accounts (one, or all) archived. IMAP: on the server, all of the inbox's read mails —
+ * also the older ones Zeff never read in (it keeps the last weeks); then in Zeff the read ones it knows. POP3: in Zeff only, a
+ * conversation with something unread staying whole. `archived`: how many left the inbox (on the server, where there is one).
+ */
 export async function archiveReadInbox(accountId?: string, deps: MailDeps = {}): Promise<{ archived: number; failed: string[] }> {
   const accounts = mailAccounts().filter((a) => !accountId || a.id === accountId);
-  const keys: string[] = [];
+  const failed: string[] = [];
+  let archived = 0;
   for (const a of accounts) {
     const read = getDb()
       .select({ key: schema.emails.key, convId: schema.emails.convId, unread: schema.emails.unread, fromName: schema.emails.fromName })
       .from(schema.emails)
       .where(and(like(schema.emails.convId, `imap:${a.id}:%`), eq(schema.emails.folder, mailboxName(a))))
       .all();
+    if (a.method === "imap") {
+      let moved = 0;
+      try {
+        const r = await archiveSeenImap(a, serverFolderOf(a, mailboxName(a)) ?? "INBOX", deps);
+        if (r.folder && r.folder !== a.archiveFolder) saveMailAccount(a.id, { archiveFolder: r.folder });
+        moved = r.moved;
+      } catch (e) {
+        failed.push(`${mailboxName(a)}: ${e instanceof Error ? e.message : String(e)}`);
+        continue;
+      }
+      // In Zeff: the read ones it knows follow (on the server they are gone already).
+      const keys = read.filter((m) => !m.unread).map((m) => m.key);
+      archiveLocally(a, keys);
+      archived += Math.max(moved, keys.length);
+      continue;
+    }
     // A conversation with something unread stays whole.
     const unreadConvs = new Set(read.filter((m) => m.unread).map((m) => m.convId));
-    keys.push(...read.filter((m) => !m.unread && m.fromName !== ME_SENDER && !unreadConvs.has(m.convId)).map((m) => m.key));
+    const r = await archiveMails(read.filter((m) => !m.unread && m.fromName !== ME_SENDER && !unreadConvs.has(m.convId)).map((m) => m.key), deps);
+    archived += r.archived;
+    failed.push(...r.failed);
   }
-  return archiveMails(keys, deps);
+  return { archived, failed };
+}
+
+/** Mails of an account archived in Zeff: to its archive folder, and out of the databases' views. */
+function archiveLocally(a: { name: string } & Parameters<typeof mailboxName>[0], keys: string[]): void {
+  if (!keys.length) return;
+  getDb().update(schema.emails).set({ folder: `${mailboxName(a)}${ARCHIVE_SUFFIX}` }).where(inArray(schema.emails.key, keys)).run();
+  for (const row of rowsShowing(keys)) archivePage(row);
 }
 
 /** The mails the rows of a database show ("mail:<key>"). */

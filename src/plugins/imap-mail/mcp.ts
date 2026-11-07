@@ -47,7 +47,7 @@ export function registerMailboxTools(server: McpServer, h: Helpers): void {
     {
       title: "Archive mails of the mailboxes",
       description:
-        "Archive IMAP / POP3 mails out of their inbox — on the server too (to its archive; Gmail: All Mail). Either `keys` (from mailbox_inbox; a key archives its whole conversation) or `allRead: true` (every read conversation in the inboxes). Never deletes.",
+        "Archive IMAP / POP3 mails out of their inbox — on the server too (to its archive; Gmail: All Mail). Either `keys` (from mailbox_inbox; a key archives its whole conversation) or `allRead: true` (IMAP: every read mail of the inbox on the server — also the older ones mailbox_inbox doesn't list, it shows only the last weeks; POP3: every read conversation). Never deletes.",
       inputSchema: z.object({ keys: z.array(z.string()).max(500).optional(), allRead: z.boolean().optional() }),
       annotations: { readOnlyHint: false, destructiveHint: false },
     },

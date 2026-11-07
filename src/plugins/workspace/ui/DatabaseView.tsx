@@ -2,6 +2,7 @@
 
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { chartViewAction, templateParamsAction, discardIfUntouchedAction, formFromTableAction, savePageAction, databasesAction, loadDatabaseAction, makeInboxAction, refreshPipelineAction, rowsMatchingAction, runPipelineAction, type DatabaseData } from "../actions";
@@ -679,6 +680,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   );
 }
 
+/** Where a page in its expanded view puts the titles of its database blocks (PageView's breadcrumb). */
+export const CRUMB_SLOT = "ws-crumb-slot";
+
 /** A database shown in a page (a block): its own view, loaded when it appears. */
 export function DatabaseBlock({ dbId, viewId, onView, blockTitle = "" }: { dbId: number; viewId: string; onView: (id: string) => void; /** The block's own title (an old chart block's: the name of the chart view it becomes). */ blockTitle?: string }) {
   const t = useT();
@@ -701,12 +705,32 @@ export function DatabaseBlock({ dbId, viewId, onView, blockTitle = "" }: { dbId:
     if (!marker) return;
     void chartViewAction(dbId, marker, blockTitle).then((r) => (r.ok ? onViewRef.current(r.viewId) : toast(r.error, { tone: "error" })));
   }, [dbId, marker, blockTitle]);
+  // A page in its expanded view (an app — the Agenda): the title goes into the breadcrumb, a click there shows it here again.
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
+  const [reveal, setReveal] = useState(false);
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setSlot(document.getElementById(CRUMB_SLOT)));
+    return () => cancelAnimationFrame(id);
+  }, []);
   if (marker) return <p className="text-sm text-zinc-400">…</p>;
+  const name = `🗂️ ${title || t("Database")}`;
   return (
     <div className="space-y-1">
-      <button type="button" className="text-sm font-semibold hover:underline" onClick={() => router.push(`/workspace/${dbId}`)} title={t("Open as a page")}>
-        🗂️ {title || t("Database")}
-      </button>
+      {slot &&
+        createPortal(
+          <span className="flex items-center gap-1">
+            ›
+            <button type="button" className="max-w-48 truncate hover:underline" aria-expanded={reveal} title={t("Title")} onClick={() => setReveal(!reveal)}>
+              {name}
+            </button>
+          </span>,
+          slot,
+        )}
+      {(!slot || reveal) && (
+        <button type="button" className="text-sm font-semibold hover:underline" onClick={() => router.push(`/workspace/${dbId}`)} title={t("Open as a page")}>
+          {name}
+        </button>
+      )}
       <DatabaseView initial={null} dbId={dbId} viewId={viewId} onView={onView} embedded />
     </div>
   );

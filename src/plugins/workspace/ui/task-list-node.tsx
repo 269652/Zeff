@@ -168,7 +168,8 @@ export const TaskListBlock = TaskList.extend<{ pageId: number; flush: () => Prom
       ...this.parent?.(),
       listId: { default: null, parseHTML: (el: HTMLElement) => el.getAttribute("data-list-id"), renderHTML: (a: Record<string, unknown>) => (a.listId ? { "data-list-id": String(a.listId) } : {}) },
       title: { default: "", parseHTML: (el: HTMLElement) => el.getAttribute("data-title") ?? "", renderHTML: (a: Record<string, unknown>) => (a.title ? { "data-title": String(a.title) } : {}) },
-      engine: { default: false, parseHTML: (el: HTMLElement) => el.getAttribute("data-engine") === "true", renderHTML: (a: Record<string, unknown>) => (a.engine ? { "data-engine": "true" } : {}) },
+      // (null: as the page says — a note of the Agenda: on; false: switched off.)
+      engine: { default: null, parseHTML: (el: HTMLElement) => (el.getAttribute("data-engine") === "true" ? true : null), renderHTML: (a: Record<string, unknown>) => (a.engine ? { "data-engine": "true" } : {}) },
     };
   },
   addNodeView() {

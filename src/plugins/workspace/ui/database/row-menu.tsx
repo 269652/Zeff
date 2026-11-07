@@ -1,5 +1,6 @@
 "use client";
 
+import { TodoMark } from "../todo-mark";
 import { useEffect, useState } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
@@ -133,6 +134,7 @@ export function TitleCell({ row, ctx, openRow, autoEdit = false, onEdited }: { r
       <button type="button" className="min-w-0 flex-1 truncate text-left font-medium hover:underline" onClick={() => openRow(row.id)} title={t("Open")}>
         {row.title || <span className="text-zinc-400">{t("Untitled")}</span>}
       </button>
+      <TodoMark mark={ctx.data.extras?.todoMarks?.[row.id]} />
       {ctx.data.extras?.links?.[row.id] && (
         <span className="ws-chip shrink-0" data-kind="link" title={t("Linked to “{title}” in {board} — it follows changes there.", { title: ctx.data.extras.links[row.id].sourceTitle, board: ctx.data.extras.links[row.id].sourceDb })}>
           🔗

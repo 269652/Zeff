@@ -7,6 +7,16 @@
   line-height: 1.65;
   caret-color: currentColor;
 }
+/* A page in its expanded view (full width — an app like the Agenda): no room below the content. */
+.ws-expanded .ws-editor .ProseMirror {
+  min-height: 0;
+  padding-bottom: 0;
+}
+/* (…and the empty line after its last block only while you write there.) */
+.ws-expanded .ws-editor .ProseMirror:not(:focus-within) > p:last-child:has(> br:only-child),
+.ws-expanded .ws-editor .ProseMirror:not(:focus-within) > p:last-child:empty {
+  display: none;
+}
 .ws-editor.ws-small .ProseMirror {
   font-size: 0.875rem;
 }

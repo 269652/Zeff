@@ -3,7 +3,8 @@ import { isInstalled } from "@/plugins/state";
 import { markdownToDoc } from "@/plugins/workspace/doc";
 import { COLORS, newId, newProperty, newView, type DbSchema, type Option, type Property, type View } from "@/plugins/workspace/model";
 import { addRow, createPage, updatePage, updateSchema } from "@/plugins/workspace/store";
-import { agendaNames, agendaScreen } from "./view-template.meta";
+import { ensureAgenda } from "./upgrade";
+import { agendaNames } from "./view-template.meta";
 
 /**
  * Agenda (the Agenda plugin): notes on a timeline, in projects, like the app Agenda — a note has a date (or a range), stands in a
@@ -43,15 +44,15 @@ export function agendaPage(parentId: number | null): number {
   const tags = select(t("Tags"), "multi_select", []);
   // People are the People plugin's contacts where it is installed, else names.
   const people = isInstalled("people") ? newProperty(t("People"), "person") : select(t("People"), "multi_select", []);
-  // (Named as the screen names them: agendaNames.)
-  const names = { ...agendaNames(t), people: people.name };
   const notesSchema: DbSchema = {
     titleName: t("Note"),
     properties: [date, project, agenda, pinned, done, tags, people],
     dataType: "agenda",
-    views: [{ ...newView(t("Agenda"), "app"), app: "agenda", template: agendaScreen(names, t) }, { ...newView(t("Calendar"), "calendar"), dateProp: date.id }, { ...newView(t("Table"), "table"), sorts: [{ prop: date.id, dir: "desc" }] }],
+    // (Its screen drawn by the upgrade below, with the reminder and the calendar's event it adds: a bare mark of an older version here.)
+    views: [{ ...newView(t("Agenda"), "app"), app: "agenda", template: '<part name="agenda.new"/>' }, { ...newView(t("Calendar"), "calendar"), dateProp: date.id }, { ...newView(t("Table"), "table"), sorts: [{ prop: date.id, dir: "desc" }] }],
   };
   const notes = createPage({ parentId: root, title: t("Notes"), icon: "📝", kind: "database", schema: notesSchema });
+  ensureAgenda(notes);
 
   // The projects see their notes.
   const back = { ...newProperty(t("Notes"), "relation"), relationDb: notes, backOf: project.id };
@@ -62,7 +63,9 @@ export function agendaPage(parentId: number | null): number {
   const first = addRow(notes, { title: t("Welcome to your agenda"), cells: { [date.id]: day(0), [project.id]: [home], [agenda.id]: true, [pinned.id]: true } });
   updatePage(first, { content: markdownToDoc(t("Every note has a date, or none. Put what matters now on the agenda (○), pin what should stay on top (📌), mark what is done (✓). Open a note to write: lists, checklists, tables, pictures and links to other notes.")) });
   const call = addRow(notes, { title: t("Call the doctor"), cells: { [date.id]: day(1), [project.id]: [home], [agenda.id]: true } });
-  updatePage(call, { content: markdownToDoc(`- [ ] ${t("Ask about the appointment")}\n- [ ] ${t("Bring the card")}`) });
+  // (The example's checklist is no todo of yours: switched off, as any list can be.)
+  const example = markdownToDoc(`- [ ] ${t("Ask about the appointment")}\n- [ ] ${t("Bring the card")}`);
+  updatePage(call, { content: { ...example, content: (example.content ?? []).map((n) => (n.type === "taskList" ? { ...n, attrs: { ...(n.attrs ?? {}), engine: false } } : n)) } });
   addRow(notes, { title: t("Ideas for the garden"), cells: { [project.id]: [home] } });
 
   updatePage(root, { fullWidth: true, content: { type: "doc", content: [{ type: "databaseView", attrs: { dbId: notes, viewId: notesSchema.views[0].id, title: "" } }, { type: "paragraph" }] } });

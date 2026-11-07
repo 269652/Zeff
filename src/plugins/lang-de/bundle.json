@@ -8505,5 +8505,16 @@
   "{n} archived.": "{n} archiviert.",
   "Archive folder": "Archiv-Ordner",
   "(found on the server)": "(vom Server ermittelt)",
-  "May change mail (Gmail: labels, read, spam, filters; mailboxes: archive)": "Darf Mails ändern (Gmail: Labels, gelesen, Spam, Filter; Postfächer: archivieren)"
+  "May change mail (Gmail: labels, read, spam, filters; mailboxes: archive)": "Darf Mails ändern (Gmail: Labels, gelesen, Spam, Filter; Postfächer: archivieren)",
+  "Reminder": "Erinnerung",
+  "On that day the note is a todo — in Todos and Today.": "An dem Tag ist die Notiz ein Todo – in Todos und Heute.",
+  "All notes": "Alle Notizen",
+  "Show done ones": "Erledigte zeigen",
+  "All tags": "Alle Schlagwörter",
+  "No note has a reminder: give one in a note's ⏰ Reminder.": "Keine Notiz hat eine Erinnerung: Gib einer Notiz eine unter ⏰ Erinnerung.",
+  "Today in the calendar": "Heute im Kalender",
+  "No reminders.": "Keine Erinnerungen.",
+  "In a todo (done)": "In einem Todo (erledigt)",
+  "In a todo": "In einem Todo",
+  "In {n} todos, {open} open": "In {n} Todos, {open} offen"
 }

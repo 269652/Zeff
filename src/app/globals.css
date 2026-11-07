@@ -376,6 +376,17 @@ p a:not([class*="btn"]):not([role]),
 }
 
 /* In a pane the pane is the frame: a list has none of its own, a search takes the room there is. */
+/* The reply under a mail or chat: it stays at the bottom of its pane while the mail above it scrolls (a long one scrolls in itself). */
+.ws-panes .ws-reply-dock {
+  position: sticky;
+  bottom: -0.75rem;
+  z-index: 5;
+  margin: 0 -0.75rem -0.75rem;
+  padding: 0.5rem 0.75rem 0.75rem;
+  max-height: 60%;
+  overflow-y: auto;
+  @apply border-t border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900;
+}
 .ws-panes .ws-list {
   border-width: 0;
   border-radius: 0;

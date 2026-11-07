@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type CSSProperties, type DragEvent, type FormEvent, type ReactNode } from "react";
+import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type FormEvent, type ReactNode } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { TITLE } from "../model";
@@ -286,7 +286,7 @@ export function viewBlock(n: Node, key: string | number, kids: Kids, env: BlockE
       const list = items(n);
       const columns = list.map((p) => (Number(p.a.width) > 0 ? `${Math.min(640, Number(p.a.width))}px` : "minmax(0,1fr)")).join(" ");
       return (
-        <div key={key} className="ws-panes grid gap-3" style={{ "--panes": columns } as CSSProperties}>
+        <FillHeight key={key} className="ws-panes grid gap-3" style={{ "--panes": columns } as CSSProperties}>
           {list.map((p, i) => (
             <section key={i} aria-label={p.a.title || undefined} className="flex min-h-0 min-w-0 flex-col rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
               {(p.a.title || p.a.aside) && (
@@ -298,7 +298,7 @@ export function viewBlock(n: Node, key: string | number, kids: Kids, env: BlockE
               <div className={p.a.flush === "true" ? "flex min-h-0 flex-1 flex-col" : "min-h-0 flex-1 space-y-3 overflow-y-auto p-3"}>{kids(p.c)}</div>
             </section>
           ))}
-        </div>
+        </FillHeight>
       );
     }
     case "cover":
@@ -420,4 +420,41 @@ export function viewBlock(n: Node, key: string | number, kids: Kids, env: BlockE
     default:
       return undefined;
   }
+}
+
+/**
+ * The panes as high as the window leaves below them, to its bottom edge (each pane scrolls by itself, the page doesn't): measured
+ * where they start and what the page has below them, again when the window changes. Without a measure (print, a phone): the CSS's.
+ */
+function FillHeight({ className, style, children }: { className: string; style: CSSProperties; children: ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    let frame = 0;
+    const fit = () => {
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        // (In a page — an app there; a database's own page keeps the CSS's height, its row count sits below.)
+        const page = el.closest(".ws-editor");
+        if (!page || !window.matchMedia("(min-width: 768px)").matches) return void el.style.removeProperty("height");
+        const box = el.getBoundingClientRect();
+        // What its page has below the panes (a frame's padding, a line after the block) — not the sidebar beside it — and the
+        // window's own margin.
+        const end = page.getBoundingClientRect().bottom;
+        const below = Math.max(0, end - box.bottom) + 16;
+        el.style.height = `${Math.max(448, window.innerHeight - box.top - below)}px`;
+      });
+    };
+    fit();
+    window.addEventListener("resize", fit);
+    const ro = new ResizeObserver(fit);
+    if (el.parentElement) ro.observe(el.parentElement);
+    return () => (cancelAnimationFrame(frame), window.removeEventListener("resize", fit), ro.disconnect());
+  }, []);
+  return (
+    <div ref={ref} className={className} style={style}>
+      {children}
+    </div>
+  );
 }

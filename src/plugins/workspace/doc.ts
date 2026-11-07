@@ -60,6 +60,19 @@ export function withTaskIds(doc: Doc, previous?: Doc | null): Doc {
   return fix(doc as DocNode) as Doc;
 }
 
+/**
+ * A document whose to-do lists are Zeff todos unless one was switched off (a note of the Agenda: its checklist's items are todos —
+ * in the Todos, with @, ticked from either side). Only lists not inside another list's item; `engine: false` stays.
+ */
+export function withEngineLists(doc: Doc): Doc {
+  if (!JSON.stringify(doc).includes('"taskList"')) return doc;
+  const fix = (n: DocNode, inItem: boolean): DocNode => {
+    const on = n.type === "taskList" && !inItem && n.attrs?.engine !== false && n.attrs?.engine !== true;
+    return { ...n, ...(on ? { attrs: { ...(n.attrs ?? {}), engine: true } } : {}), ...(n.content ? { content: n.content.map((c) => fix(c, inItem || n.type === "taskItem")) } : {}) };
+  };
+  return fix(doc as DocNode, false) as Doc;
+}
+
 /** What a to-do item says: its own text, not the items below it. */
 const taskItemText = (item: DocNode): string =>
   (item.content ?? [])
@@ -183,7 +196,7 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
       if (!ctx.nested) {
         if (n.attrs?.listId) head.id = n.attrs.listId;
         if (n.attrs?.title) head.title = n.attrs.title;
-        if (n.attrs?.engine === true) head.engine = true;
+        if (n.attrs?.engine === true || n.attrs?.engine === false) head.engine = n.attrs.engine;
       }
       return `${Object.keys(head).length ? `:::list ${JSON.stringify(head)}\n` : ""}${kids.map((li) => block(li, {})).join("\n")}`;
     }
@@ -480,7 +493,7 @@ export function markdownToDoc(md: string): Doc {
         const list = parseList(l.match(/^\s*/)![0].length);
         if (pendingList && list.type === "taskList") {
           const { id, title, engine } = pendingList;
-          list.attrs = { ...(typeof id === "string" ? { listId: id } : {}), ...(typeof title === "string" ? { title } : {}), ...(engine === true ? { engine: true } : {}) };
+          list.attrs = { ...(typeof id === "string" ? { listId: id } : {}), ...(typeof title === "string" ? { title } : {}), ...(typeof engine === "boolean" ? { engine } : {}) };
         }
         pendingList = null;
         out.push(list);
@@ -721,8 +734,8 @@ export function sanitizeDoc(input: unknown): Doc {
         const title = String(attrs.title ?? "").trim().slice(0, 120);
         if (title) attrs.title = title;
         else delete attrs.title;
-        if (attrs.engine === true) attrs.engine = true;
-        else delete attrs.engine;
+        // (true: its items are todos; false: switched off — kept, a note of the Agenda would have them on; else: as the page says.)
+        if (attrs.engine !== true && attrs.engine !== false) delete attrs.engine;
       }
       if (o.type === "taskItem") {
         const id = String(attrs.itemId ?? "");

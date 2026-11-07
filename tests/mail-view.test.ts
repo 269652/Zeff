@@ -243,8 +243,16 @@ test("the inbox is two panes: the list in the first, the one picked in the secon
   assert.equal(find(reading.c, "selected").length, 1);
 });
 
-test("mail and chat are a split: the list in its first column, the one picked in its second", () => {
-  for (const r of [drawMail({}), drawChat({})]) {
+test("mail is two panes like the inbox (each scrolls by itself); the reply sits at the bottom of the second", () => {
+  const panes = find(drawMail({}).nodes, "panes");
+  assert.equal(panes.length, 1);
+  const [list, reading] = panes[0].c.filter((c): c is Extract<VNode, object> => typeof c !== "string");
+  assert.equal(find(list.c, "list").length, 1);
+  assert.equal(find(reading.c, "selected").length, 1);
+});
+
+test("chat is a split: the list in its first column, the one picked in its second", () => {
+  for (const r of [drawChat({})]) {
     const split = find(r.nodes, "split");
     assert.equal(split.length, 1);
     const cols = split[0].c.filter((c): c is Extract<VNode, object> => typeof c !== "string");

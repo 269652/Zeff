@@ -31,7 +31,8 @@ export function syncRow(rowId: number, opts: { reopenDismissed?: boolean } = {})
   const title = row.title.trim().slice(0, 500) || "(untitled)";
   const due = dueOf(row.props, cols.due);
 
-  if (row.archivedAt || row.template) {
+  // (Only dated rows are todos — the Agenda's notes with a reminder: one without leaves the Todos, or never enters them.)
+  if (row.archivedAt || row.template || (d.schema.todoList.dated && !due)) {
     if (todo?.status === "open") setTodoStatus(todo.id, "dismissed", "The entry was removed from the Workspace.");
     return;
   }

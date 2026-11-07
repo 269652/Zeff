@@ -24,8 +24,8 @@ const KNOW: PartMeta = { name: "mail.know", description: "What you should know a
 const REPLY: PartMeta = { name: "mail.reply", description: "The reply: a mail drafted to send yourself, a chat written (or drafted by the AI) and sent from here", attrs: { bar: "true: one line under a chat, Enter sends" } };
 
 const mailTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/>
-<split ratio=1:2>
-<col>
+<panes>
+<pane title="${t("Mail")}" aside="{{ app.unread ? app.unread + ' ' + ${q(t("unread"))} : '' }}" width=420>
   <row gap=2>
     <toggle bind="unread" label="${t("Unread only")}{{ app.unread ? ' (' + app.unread + ')' : '' }}"/>
     <grow/>
@@ -34,13 +34,14 @@ const mailTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/>
   <list source="app.mails" select=true empty="${t("No mails here.")}">
     <row gap=2 align=baseline wrap=false>
       <part name="mail.text" field="from" strong="{{ mailunread ? 'true' : '' }}"/>
+      <todomark/>
       <muted>${when("mailreceived")}</muted>
     </row>
     <clamp lines=1>{{#if mailunread}}<b>{{ title }}</b>{{#else}}{{ title }}{{/if}}</clamp>
     <clamp lines=1><muted><part name="mail.text" field="preview"/></muted></clamp>
   </list>
-</col>
-<col>
+</pane>
+<pane>
   <selected empty="${t("Pick a mail.")}">
     <heading level=2>{{ title }}</heading>
     <text tone=muted>{{ mailfrom }} · ${when("mailreceived")} · {{ mailaccount }} · {{ mailfolder }}</text>
@@ -55,8 +56,8 @@ const mailTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/>
     <part name="mail.suggested"/>
     {{#if app.current.canReply}}<part name="mail.reply"/>{{/if}}
   </selected>
-</col>
-</split>`;
+</pane>
+</panes>`;
 
 const chatTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/>
 <split ratio=1:3>
@@ -67,6 +68,7 @@ const chatTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/>
       ${icon("msgchannel", "💬")}
       <b>{{ msgchat }}</b>
       <grow/>
+      <todomark/>
       <muted>{{ msgsent ? formatDate(msgsent, 'DD.MM., HH:mm') : '' }}</muted>
     </row>
     <clamp lines=1><muted>{{#if msgmine}}${t("Me")}: {{/if}}{{ title }}</muted></clamp>
@@ -113,12 +115,13 @@ const inboxTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/
       <small><muted>${when("commwhen")}</muted></small>
     </row>
     <clamp lines=1>{{#if contains(app.unreadIds, id)}}<b>{{ title }}</b>{{#else}}{{ title }}{{/if}}</clamp>
-    <row gap=1 align=center wrap=false><logo name="{{ commchannel }}"/><col fill=true><clamp lines=1><small><muted><part name="mail.text" field="preview"/></muted></small></clamp></col></row>
+    <row gap=1 align=center wrap=false><logo name="{{ commchannel }}"/><col fill=true><clamp lines=1><small><muted><part name="mail.text" field="preview"/></muted></small></clamp></col><todomark/></row>
   </list>
 </pane>
 <pane>
   <selected empty="${t("Pick a message.")}">
     <header title="{{ title }}" subtitle="{{ commfrom }} · ${when("commwhen")} · {{ app.current.channel }}">
+      <todomark/>
       {{#if app.current.archivable}}<part name="inbox.archive"/>{{/if}}
       <part name="inbox.snooze"/>
       {{#if app.current.link}}<button action="url" href="{{ app.current.link }}" label="↗" tip="${t("Open in {app}", { app: "{{ app.current.channel }}" })}" variant=quiet/>{{/if}}

@@ -8505,5 +8505,16 @@
   "{n} archived.": "{n} archivados.",
   "Archive folder": "Carpeta de archivo",
   "(found on the server)": "(detectada en el servidor)",
-  "May change mail (Gmail: labels, read, spam, filters; mailboxes: archive)": "Puede cambiar correo (Gmail: etiquetas, leído, spam, filtros; buzones: archivar)"
+  "May change mail (Gmail: labels, read, spam, filters; mailboxes: archive)": "Puede cambiar correo (Gmail: etiquetas, leído, spam, filtros; buzones: archivar)",
+  "Reminder": "Recordatorio",
+  "On that day the note is a todo — in Todos and Today.": "Ese día la nota es una tarea, en Tareas y Hoy.",
+  "All notes": "Todas las notas",
+  "Show done ones": "Mostrar las hechas",
+  "All tags": "Todas las etiquetas",
+  "No note has a reminder: give one in a note's ⏰ Reminder.": "Ninguna nota tiene recordatorio: añade uno en ⏰ Recordatorio de una nota.",
+  "Today in the calendar": "Hoy en el calendario",
+  "No reminders.": "Sin recordatorios.",
+  "In a todo (done)": "En una tarea (hecha)",
+  "In a todo": "En una tarea",
+  "In {n} todos, {open} open": "En {n} tareas, {open} abiertas"
 }

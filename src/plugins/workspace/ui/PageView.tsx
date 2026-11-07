@@ -10,7 +10,7 @@ import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { applyRowLayoutAction, archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, saveAsTemplateAction, savePageAction, setTemplateAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
-import { DatabaseView, RowProperties } from "./DatabaseView";
+import { CRUMB_SLOT, DatabaseView, RowProperties } from "./DatabaseView";
 import { DayEntry } from "./day-entry";
 import { FormPageBody } from "./form-page";
 import type { FormRun } from "../forms";
@@ -266,6 +266,8 @@ export function PageView({ page, row, database, form, person }: { page: PageView
               </button>
             </span>
           )}
+          {/* (Expanded: the titles of its database blocks — DatabaseBlock.) */}
+          {fullWidth && page.kind === "page" && <span id={CRUMB_SLOT} className="contents" />}
         </nav>
         <span className="flex-1 max-sm:hidden" />
         <span className={`text-xs ${status === "error" || status === "conflict" ? "text-red-600" : "text-zinc-400"} ${status === "saving" || status === "error" || status === "conflict" ? "" : "max-sm:hidden"}`} role="status">
@@ -517,7 +519,7 @@ export function PageView({ page, row, database, form, person }: { page: PageView
         </div>
       )}
 
-      <div className={`mx-auto w-full space-y-3 ${width}`}>
+      <div className={`mx-auto w-full space-y-3 ${width} ${fullWidth && page.kind === "page" ? "ws-expanded" : ""}`}>
         <div className={`${showTitle ? "flex" : "hidden"} items-start gap-2`}>
           {editable ? (
             <EmojiPicker
@@ -590,7 +592,8 @@ export function PageView({ page, row, database, form, person }: { page: PageView
           <Editor key={page.id} pageId={page.id} initial={page.content} rev={page.rev} editable={editable} smallText={smallText} onSave={setStatus} />
         )}
 
-        {page.kind === "page" && (
+        {/* (Expanded: the page is the app — its sub-pages stay in the tree.) */}
+        {page.kind === "page" && !fullWidth && (
           <div className="space-y-4 border-t border-zinc-200 pt-4 text-sm dark:border-zinc-800">
             <section>
               <div className="mb-1 flex items-center gap-2">

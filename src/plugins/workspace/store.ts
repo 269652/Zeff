@@ -17,7 +17,7 @@ import { logChange } from "./activity";
 import { withCause } from "@/lib/cause";
 import { parseCustom } from "./field-types";
 import { made, touch } from "./undo";
-import { docRefs, docText, emptyDoc, sanitizeDoc, withTaskIds, type Doc, type DocRef } from "./doc";
+import { docRefs, docText, emptyDoc, sanitizeDoc, withEngineLists, withTaskIds, type Doc, type DocRef } from "./doc";
 import { sourceTable } from "./source-table";
 import { t } from "@/lib/i18n/server";
 import { dayLogIds, followListRename, isDayList, startDayIfNew, writeDayLog } from "./day-log";
@@ -299,6 +299,12 @@ const VERSIONS_KEPT = 60;
  * A page changed. `rev` is the revision the editor started from: when the page has moved on since (another
  * tab, an agent) and the content would be overwritten, nothing is saved and the conflict is reported.
  */
+/** A database whose rows' checklists are Zeff todos: the Agenda's notes. */
+function listsAreTodos(dbId: number): boolean {
+  const r = getSqlite().prepare("select schema from ws_pages where id = ?").get(dbId) as { schema: string | null } | undefined;
+  return !!r?.schema && parse<{ dataType?: string }>(r.schema, {}).dataType === "agenda";
+}
+
 export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResult {
   noAgentOnSystem(id);
   const d = db();
@@ -325,6 +331,8 @@ export function updatePage(id: number, patch: PagePatch, rev?: number): SaveResu
   let newRev = cur.rev;
   if (patch.content !== undefined) {
     doc = withTaskIds(sanitizeDoc(patch.content), parse<Doc | null>(cur.content, null));
+    // A note of the Agenda: its checklists are Zeff todos (one switched off stays off).
+    if (cur.db_id && listsAreTodos(cur.db_id)) doc = withEngineLists(doc);
     const json = JSON.stringify(doc);
     if (json !== cur.content) {
       // The state before this change is kept as a version — at most one every ten minutes.

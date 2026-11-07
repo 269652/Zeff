@@ -508,7 +508,8 @@ test("archived: the whole conversation moves to the server's archive (Gmail: All
     getMailboxLock: async (p: string) => ((open = p), { release: () => undefined }),
     fetch: () => (async function* () {})(),
     append: async () => undefined,
-    search: async (q: Record<string, unknown>) => [JSON.stringify(q).length],
+    // (All read ones of the inbox on the server: 40 of them — Zeff knows one; else the mail searched for by its Message-ID.)
+    search: async (q: Record<string, unknown>) => (q.seen === true ? Array.from({ length: 40 }, (_, i) => i + 1) : [JSON.stringify(q).length]),
     messageMove: async (ids: number[], to: string) => void moved.push({ from: open, ids, to }),
   });
   const r = await archiveMails([keyOf("Eins")], { imap });
@@ -521,6 +522,8 @@ test("archived: the whole conversation moves to the server's archive (Gmail: All
 
   moved.length = 0;
   const all = await archiveReadInbox(a.id, { imap });
-  assert.equal(all.archived, 1, "the read one; the unread one stays");
+  assert.equal(all.archived, 40, "every read one of the server's inbox — not only those Zeff read in");
+  assert.deepEqual(moved.map((m) => [m.from, m.ids.length, m.to]), [["INBOX", 40, "[Gmail]/Alle Nachrichten"]]);
+  assert.equal(listMails({ limit: 2000 }).find((m) => m.subject === "Gelesen" && m.convId.startsWith(`imap:${a.id}:`))!.folder, "Box · Archive", "in Zeff too");
   assert.equal(listMails({ limit: 2000 }).find((m) => m.subject === "Ungelesen" && m.convId.startsWith(`imap:${a.id}:`))!.folder, "Box");
 });

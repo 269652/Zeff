@@ -1,12 +1,12 @@
 "use client";
 
-import { useState, type FormEvent, type KeyboardEvent } from "react";
+import { useCallback, useEffect, useRef, useState, type FormEvent, type KeyboardEvent } from "react";
 import { useT } from "@/components/I18nProvider";
 import { Modal } from "@/components/Modal";
 import { toast } from "@/components/Toaster";
-import { addAgendaNoteAction } from "../server-actions";
+import { addAgendaNoteAction, agendaDataAction, type AgendaAppData } from "../server-actions";
 import type { Property } from "@/plugins/workspace/model";
-import { useNoAppData, type PartProps, type ViewAppModule } from "@/plugins/workspace/ui/app-view";
+import type { AppViewProps, PartProps, ViewAppModule } from "@/plugins/workspace/ui/app-view";
 
 /** Agenda's screen, client side: the form for a new note — the toolbar's New and the screen's own button open it. */
 
@@ -21,6 +21,7 @@ function NewNote(p: PartProps) {
   const agenda = byName(p.attrs.agenda);
   const pinned = byName(p.attrs.pinned);
   const tags = byName(p.attrs.tags);
+  const reminder = byName(p.attrs.reminder);
   const projects = project?.relationDb !== undefined ? (p.data.related[project.relationDb]?.rows ?? []) : [];
 
   const [title, setTitle] = useState("");
@@ -34,6 +35,7 @@ function NewNote(p: PartProps) {
   const [picked, setPicked] = useState<string[]>([]);
   const [fresh, setFresh] = useState("");
   const [text, setText] = useState("");
+  const [remind, setRemind] = useState("");
   const [busy, setBusy] = useState(false);
 
   if (p.state.adding !== "true") return null;
@@ -50,6 +52,7 @@ function NewNote(p: PartProps) {
       if (project && proj) values[project.name] = [Number(proj)];
       if (agenda && onAgenda) values[agenda.name] = true;
       if (pinned && pin) values[pinned.name] = true;
+      if (reminder && remind) values[reminder.name] = remind;
       if (tags) {
         const names = [...picked.map((id) => tags.options?.find((o) => o.id === id)?.name ?? ""), ...fresh.split(",").map((x) => x.trim())].filter(Boolean);
         if (names.length) values[tags.name] = [...new Set(names)];
@@ -133,6 +136,16 @@ function NewNote(p: PartProps) {
           </div>
         </div>
 
+        {reminder && (
+          <label className="block text-sm">
+            <span className="label">⏰ {t("Reminder")}</span>
+            <span className="flex flex-wrap items-center gap-2">
+              <input type="datetime-local" className="input w-auto" value={remind} onChange={(e) => setRemind(e.target.value)} />
+              <span className="text-xs text-zinc-500">{t("On that day the note is a todo — in Todos and Today.")}</span>
+            </span>
+          </label>
+        )}
+
         {tags && (
           <fieldset className="space-y-1.5">
             <legend className="label">{t("Tags")}</legend>
@@ -171,9 +184,36 @@ function NewNote(p: PartProps) {
   );
 }
 
+/** The screen's own data: the projects by category, today's events — and an older Agenda brought up to date on the way (then reloaded). */
+function useAgendaData(props: AppViewProps): { data: Record<string, unknown>; reload: () => void } {
+  const [data, setData] = useState<AgendaAppData>({ projects: [], events: [], upgraded: false });
+  const [tick, setTick] = useState(0);
+  const { id } = props.data;
+  // (The rows' reload by a ref: a new function every time the view is drawn must not load again.)
+  const reloadRows = useRef(props.reload);
+  useEffect(() => {
+    reloadRows.current = props.reload;
+  });
+  // (Again when the notes change: a project's count of open notes.)
+  const notes = props.rows.length;
+  useEffect(() => {
+    let live = true;
+    void agendaDataAction(id).then((r) => {
+      if (!live || !r.ok) return;
+      setData(r);
+      if (r.upgraded) reloadRows.current();
+    });
+    return () => {
+      live = false;
+    };
+  }, [id, notes, tick]);
+  const reload = useCallback(() => setTick((n) => n + 1), []);
+  return { data: data as unknown as Record<string, unknown>, reload };
+}
+
 const view: ViewAppModule = {
   parts: { "agenda.new": NewNote },
-  useAppData: useNoAppData,
+  useAppData: useAgendaData,
   actions: { "agenda.new": (env) => env.setState("adding", "true") },
   // The toolbar's New: the form, not a bare row.
   onNew: (env) => env.setState("adding", "true"),

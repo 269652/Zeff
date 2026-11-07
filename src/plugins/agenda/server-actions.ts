@@ -26,3 +26,10 @@ export async function addAgendaNoteAction(v: { dbId: number; title: string; valu
     });
   });
 }
+
+export type { AgendaAppData } from "./data";
+
+/** What Agenda's screen shows besides its notes (data.ts) — an older Agenda brought up to date first. */
+export async function agendaDataAction(dbId: number) {
+  return run(async () => (await import("./data")).agendaData(Number(dbId)));
+}

@@ -209,7 +209,8 @@ export function shownRows<R extends { id: number }>(rows: R[], schema: Pick<DbSc
   return rows.filter((r) => !hidden.has(r.id));
 }
 
-export type TodoListSpec = { done: string; due?: string; engine?: boolean };
+/** `dated`: only rows with a due date are todos (the Agenda: a note with a reminder) — one whose date is taken away leaves the Todos. */
+export type TodoListSpec = { done: string; due?: string; engine?: boolean; dated?: boolean };
 
 /** The checkbox and date a todo list goes by - what it says, else its first checkbox and date (null: no checkbox, so no todo list). */
 export function todoColumns(schema: Pick<DbSchema, "properties" | "todoList">): { done: Property; due?: Property; engine: boolean } | null {
@@ -226,7 +227,7 @@ function todoListOf(raw: unknown, props: Property[]): TodoListSpec | undefined {
   const done = props.find((p) => p.id === o.done && p.type === "checkbox");
   if (!done) return undefined;
   const due = props.find((p) => p.id === o.due && p.type === "date");
-  return { done: done.id, ...(due ? { due: due.id } : {}), ...(o.engine === true ? { engine: true } : {}) };
+  return { done: done.id, ...(due ? { due: due.id } : {}), ...(o.engine === true ? { engine: true } : {}), ...(o.dated === true && due ? { dated: true } : {}) };
 }
 
 /**

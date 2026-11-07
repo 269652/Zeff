@@ -184,8 +184,12 @@ function ReplyPart(p: PartProps) {
   const c = currentOf(p);
   const r = c?.reply;
   if (!c || !r) return null;
-  if (r.kind === "mail") return <MailReply key={c.id} rowId={c.id} account={r.account} to={r.to} subject={r.subject} />;
-  return <ChatReply key={String(c.key ?? c.id)} rowId={r.rowId} channel={r.channel} chat={r.chat} onSent={p.reload} bar={p.attrs.bar === "true"} />;
+  // (At the bottom of the pane while you scroll the mail above it — a long reply scrolls in itself.)
+  return (
+    <div className="ws-reply-dock">
+      {r.kind === "mail" ? <MailReply key={c.id} rowId={c.id} account={r.account} to={r.to} subject={r.subject} /> : <ChatReply key={String(c.key ?? c.id)} rowId={r.rowId} channel={r.channel} chat={r.chat} onSent={p.reload} bar={p.attrs.bar === "true"} />}
+    </div>
+  );
 }
 
 /** 💤 Snooze: the whole thread away until a time — or awake again. */
