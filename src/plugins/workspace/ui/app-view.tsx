@@ -23,7 +23,8 @@ export type AppViewProps = {
 };
 
 export type RowOps = {
-  add: (cells: Record<string, unknown>) => Promise<number | null>;
+  /** A new row; with a title it is complete and isn't opened to be filled in. */
+  add: (cells: Record<string, unknown>, title?: string) => Promise<number | null>;
   remove: (id: number) => Promise<void> | void;
   duplicate: (id: number) => Promise<void> | void;
   hide: (id: number) => void;
@@ -68,6 +69,7 @@ const MODULES: Record<string, () => Promise<ViewAppModule>> = {
   documents: () => import("@/plugins/documents/ui/view-parts").then((m) => m.default),
   cases: () => import("@/plugins/cases/ui/view-parts").then((m) => m.default),
   debts: () => import("@/plugins/finances/ui/view-parts").then((m) => m.default),
+  agenda: () => import("@/plugins/agenda/ui/view-parts").then((m) => m.default),
 };
 
 type HostProps = AppViewProps & { src: string; onErrors?: (errors: { line: number; message: string }[]) => void };

@@ -354,9 +354,9 @@ function toFormula(expr: string): string {
       if (j < 0) throw new Error("A [ is never closed with ].");
       out += `prop(${JSON.stringify(expr.slice(i + 1, j).trim())})`;
       i = j + 1;
-    } else if (/[A-Za-z_]/.test(c)) {
+    } else if (/[\p{L}_]/u.test(c)) {
       let j = i;
-      while (j < expr.length && /\w/.test(expr[j])) j++;
+      while (j < expr.length && /[\p{L}\p{N}_]/u.test(expr[j])) j++;
       const w = expr.slice(i, j);
       out += KEYWORDS.has(w.toLowerCase()) || expr.slice(j).trimStart()[0] === "(" ? w : `prop(${JSON.stringify(w)})`;
       i = j;
@@ -386,7 +386,7 @@ const truthy = (v: unknown): boolean => !(v === null || v === undefined || v ===
 
 /** The first thing of an output: a bare name is its Field (so filters know its property), anything else its value. */
 function first(expr: string, ctx: Ctx, line: number): unknown {
-  const bare = /^\[([^\]]+)\]$/.exec(expr.trim())?.[1] ?? (/^[A-Za-z_]\w*$/.test(expr.trim()) ? expr.trim() : null);
+  const bare = /^\[([^\]]+)\]$/.exec(expr.trim())?.[1] ?? (/^[\p{L}_][\p{L}\p{N}_]*$/u.test(expr.trim()) ? expr.trim() : null);
   const f = bare ? lookup(ctx, bare) : undefined;
   if (f) return f;
   if (bare && !KEYWORDS.has(bare.toLowerCase())) {
@@ -583,7 +583,7 @@ export function parsedTemplate(src: string): ReturnType<typeof parseTemplate> {
 
 /** A starting template made of the database's own properties: the title and key, the first choices as chips, a date, a number, a passage. */
 export function starterTemplate(props: Property[]): string {
-  const ref = (p: Property) => (/^[A-Za-z_]\w*$/.test(p.name) ? p.name : `[${p.name}]`);
+  const ref = (p: Property) => (/^[\p{L}_][\p{L}\p{N}_]*$/u.test(p.name) ? p.name : `[${p.name}]`);
   const choices = props.filter((p) => p.type === "status" || p.type === "select" || p.type === "multi_select").slice(0, 2);
   const date = props.find((p) => p.type === "date");
   const num = props.find((p) => p.type === "number" || p.type === "rollup");

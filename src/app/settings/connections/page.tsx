@@ -68,7 +68,6 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
   const toc: [string, string][] = [
     ["api", t("APIs (OAuth)")],
     ["sign-ins", t("Browser sign-ins")],
-    ...(gmail ? ([["gmail-accounts", "Gmail"]] as [string, string][]) : []),
     ...(drive ? ([["google-drive", t("Google Drive")]] as [string, string][]) : []),
     ["syncs", t("Sync settings")],
   ];
@@ -136,7 +135,16 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
         <LoginsList />
       </section>
 
-      {gmail && <GmailCard />}
+      {/* (The Gmail accounts read in the automation Chrome moved to the mail accounts — the old link lands here.) */}
+      {gmail && (
+        <p id="gmail-accounts" className="scroll-mt-4 text-sm text-zinc-500">
+          {t("Which mail accounts are read — Gmail's too — is set under")}{" "}
+          <Link href="/settings/mail" className={LINK}>
+            {t("E-Mail accounts")}
+          </Link>
+          .
+        </p>
+      )}
       {drive && <DriveCard error={errorFor("drive")} justConnected={sp.connected === "1" && provider === "drive"} redirectUri={`${proto}://${host}/api/google-drive/callback`} />}
 
       <section id="syncs" className="scroll-mt-4 space-y-3">
@@ -149,42 +157,6 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
         <SyncSettingsList />
       </section>
     </div>
-  );
-}
-
-/** Gmail (was /gmail): which accounts its sync reads — each signed in in the account's automation Chrome, its mails in a folder of its own. */
-async function GmailCard() {
-  const { GmailAccountsForm } = await import("@/plugins/gmail/GmailAccountsForm");
-  const { gmailAccounts, gmailFolder, signedInGmailAccounts } = await import("@/plugins/gmail/accounts");
-  const accounts = gmailAccounts();
-  const signedIn = await signedInGmailAccounts();
-  return (
-    <section id="gmail-accounts" className="card scroll-mt-4 space-y-3 p-4">
-      <div className="space-y-1">
-        <h2 className="font-medium">Gmail</h2>
-        <p className="text-sm text-zinc-500">
-          {t(
-            "Which Gmail accounts the mail sync reads — the Google accounts signed in to this account's automation Chrome. “Add account” brings Google's sign-in to the front there; you sign in yourself (Zeff types nothing), then “Reload”.",
-          )}
-        </p>
-        <p className="text-sm text-zinc-500">
-          {rich(t("Each account's mails land in a folder of their own — in the <mail>Inbox</mail>'s Gmail filter an account each."), {
-            mail: (s) => (
-              <Link href="/mail?channel=gmail" className={LINK}>
-                {s}
-              </Link>
-            ),
-          })}
-        </p>
-      </div>
-      {driverOf("gmail") === "api" && (
-        <p className="rounded-md bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
-          {t("Gmail is read through Google's API (above): the accounts below apply to the automation Chrome only.")}
-        </p>
-      )}
-      <GmailAccountsForm signedIn={signedIn} configured={accounts} />
-      <p className="text-xs text-zinc-400">{t("Read into the folders: {folders}", { folders: accounts.map((a, i) => gmailFolder(a, i)).join(", ") })}</p>
-    </section>
   );
 }
 

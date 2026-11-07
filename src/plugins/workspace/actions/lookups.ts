@@ -8,8 +8,8 @@ import { asUndoable, readOnlyRows, run } from "./shared";
 // ---------------------------------------------------------------------------
 
 /** The hits for what was typed. */
-export async function lookupSearchAction(source: string, query: string, language: string) {
-  return run(async () => (await import("../lookups")).searchLookup(String(source), String(query), String(language)));
+export async function lookupSearchAction(source: string, query: string, language: string, enter = false) {
+  return run(async () => (await import("../lookups")).searchLookup(String(source), String(query), String(language), enter === true));
 }
 
 /** The hit picked becomes a row, with the fields of the map. */

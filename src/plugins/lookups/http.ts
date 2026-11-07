@@ -1,7 +1,7 @@
 /** What the sources share: a JSON request that says what went wrong, without the address (it can hold a key). Server only. */
 
 export async function getJson<T>(url: string, who: string, headers: Record<string, string> = {}): Promise<T> {
-  const r = await fetch(url, { headers: { Accept: "application/json", "User-Agent": "Zeff", ...headers }, signal: AbortSignal.timeout(8000) }).catch((e: unknown) => {
+  const r = await fetch(url, { headers: { Accept: "application/json", "User-Agent": "Zeff/0.1 (personal app; https://getzeff.com)", ...headers }, signal: AbortSignal.timeout(8000) }).catch((e: unknown) => {
     throw new Error(`${who}: ${e instanceof Error && e.name === "TimeoutError" ? "no answer" : "not reachable"}`);
   });
   const data = (await r.json().catch(() => null)) as { status_message?: string; error?: { message?: string } | string } | null;

@@ -16,7 +16,7 @@
  */
 import { evalFormula } from "./formula";
 import { ANY_TAG_ATTRS, cardScope, CARD_TAGS, checkAttr, FILTERS as CARD_FILTERS, isField, isNode, KEYWORDS, numOf, parseFilter, parseTemplate, splitPipes, textOf, type AttrKind, type CardScope, type Ctx as CardCtx, type Field, type TagDef, type TNode, type TplError, type VNode } from "./card-template";
-import { noLabels, type Labels, type Property, type Row } from "./model";
+import { noLabels, TITLE, type Labels, type Property, type Row } from "./model";
 import { localDay } from "@/lib/dates";
 
 export type { VNode, TplError };
@@ -60,6 +60,7 @@ const ACTIONS: Record<string, { row?: boolean; what: string }> = {
   url: { what: 'go to an address: href="/todos"' },
   print: { what: "print the view (a PDF)" },
   reload: { what: "read the data again" },
+  assistant: { what: 'hand a request to the Workspace assistant, who works it through with all its tools in the background: request="…", what was typed in it with {{ state.name }} (not in a row: a row\'s text must not become a request)' },
 };
 
 const T = (attrs: Record<string, AttrKind>, isVoid = false): TagDef => ({ attrs, void: isVoid });
@@ -85,7 +86,7 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   box: T({ title: "text", tone: { oneOf: ["plain", "muted", "good", "warn", "bad"] }, scroll: "int" }),
   heading: T({ level: { oneOf: ["1", "2", "3"] } }),
   text: T({ tone: { oneOf: ["plain", "muted", "good", "warn", "bad"] }, tip: "text", pre: { oneOf: ["true", "false"] } }),
-  tile: T({ label: "text", value: "text", sub: "text", tone: { oneOf: ["plain", "good", "warn", "bad"] }, tip: "text" }),
+  tile: T({ label: "text", value: "text", sub: "text", tone: { oneOf: ["plain", "good", "warn", "bad"] }, tip: "text", icon: "text", trend: "text", spark: "text" }),
   bar: T({ value: "num", max: "num", color: "color", fill: "paint" }, true),
   dot: T({ color: "paint" }, true),
   printonly: T({}),
@@ -96,14 +97,43 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   tabs: T({ bind: "text", options: "text" }, true),
   split: T({ ratio: { oneOf: ["1:1", "1:2", "2:1", "2:3", "3:2", "1:3", "3:1"] }, side: { oneOf: ["left", "right"] }, width: "int" }),
   // grid: the rows share one grid of these columns ("max-content minmax(0,80ch) 1fr max-content") — each as wide as its widest cell.
-  list: T({ spacing: { oneOf: ["compact", "roomy"] }, source: "list", select: { oneOf: ["true", "false"] }, open: { oneOf: ["true", "false"] }, empty: "text", grid: "text" }),
-  cards: T({ spacing: { oneOf: ["compact", "roomy"] }, source: "list", cols: "int", open: { oneOf: ["true", "false"] }, select: { oneOf: ["true", "false"] }, empty: "text" }),
+  list: T({ spacing: { oneOf: ["compact", "roomy"] }, source: "list", select: { oneOf: ["true", "false"] }, open: { oneOf: ["true", "false"] }, empty: "text", grid: "text", page: "int", more: "text" }),
+  cards: T({ spacing: { oneOf: ["compact", "roomy"] }, source: "list", cols: "int", open: { oneOf: ["true", "false"] }, select: { oneOf: ["true", "false"] }, empty: "text", page: "int", more: "text" }),
+  // The bigger blocks (ui/view-blocks.tsx).
+  header: T({ title: "text", subtitle: "text", icon: "text" }),
+  toolbar: T({}),
+  // A channel's mark (Gmail, Outlook, Teams, WhatsApp, Signal, any mailbox): ui ChannelLogo.
+  logo: T({ name: "text", size: { oneOf: ["sm", "lg"] } }, true),
+  panes: T({}),
+  pane: T({ title: "text", aside: "text", width: "int", flush: { oneOf: ["true", "false"] } }),
+  cover: T({ src: "url", h: "int", title: "text", subtitle: "text" }, true),
+  callout: T({ tone: { oneOf: ["info", "good", "warn", "bad"] }, title: "text", icon: "text" }),
+  empty: T({ icon: "text", title: "text", text: "text" }),
+  kv: T({ min: "int" }),
+  pair: T({ label: "text" }),
+  avatar: T({ src: "url", name: "text", size: "int" }, true),
+  quote: T({ cite: "text" }),
+  divider: T({ label: "text" }, true),
+  progress: T({ value: "num", max: "num", label: "text", tone: { oneOf: ["info", "good", "warn", "bad"] }, show: { oneOf: ["true", "false"] } }, true),
+  sparkline: T({ values: "text", wide: { oneOf: ["true", "false"] } }, true),
+  steps: T({}),
+  step: T({ title: "text", state: { oneOf: ["done", "active", "todo"] } }),
+  gallery: T({ source: "list", image: "list", alt: "list", ratio: { oneOf: ["2:3", "1:1", "16:9", "3:2"] }, min: "int", empty: "text", page: "int", more: "text" }),
+  timeline: T({ source: "list", date: "list", empty: "text", page: "int", more: "text" }),
+  board: T({ source: "list", group: "text", none: "text" }),
+  groups: T({ source: "list", by: "text", none: "text" }),
+  facets: T({ bind: "text", field: "text", source: "list", all: "text", label: "text" }, true),
+  quickadd: T({ placeholder: "text", label: "text", values: "text" }, true),
+  form: T({ fields: "text", title: "text", label: "text", done: "text" }, true),
   table: T({ source: "list", columns: "text", sum: "text", empty: "text" }, true),
   chart: T({ source: "list", kind: { oneOf: ["bar", "column", "line", "pie"] }, group: "text", value: "text", calc: { oneOf: ["count", "sum", "avg"] } }, true),
   selected: T({ empty: "text" }),
-  button: T({ action: "text", label: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text" }, true),
+  button: T({ action: "text", label: "text", icon: "text", request: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text" }, true),
   search: T({ bind: "text", placeholder: "text" }, true),
   // A field that finds things elsewhere: the one picked becomes a row (lookup-point.ts).
+  // A database as a body of knowledge (dossier.ts): a question to its rows, what they say together.
+  ask: T({ placeholder: "text", suggest: "text", intro: "text" }, true),
+  dossier: T({ focus: "text", empty: "text", plain: { oneOf: ["true", "false"] } }, true),
   lookup: T({ source: "text", map: "text", placeholder: "text", unique: "text", language: "text", open: { oneOf: ["true", "false"] } }, true),
   select: T({ bind: "text", options: "text", label: "text", /** Typed to find (an autocomplete), as wide as there is room. */ search: { oneOf: ["true", "false"] } }, true),
   toggle: T({ bind: "text", label: "text" }, true),
@@ -193,9 +223,9 @@ function toFormula(expr: string): string {
       if (j < 0) throw new Error("A [ is never closed with ].");
       out += `prop(${JSON.stringify(expr.slice(i + 1, j).trim())})`;
       i = j + 1;
-    } else if (/[A-Za-z_]/.test(c)) {
+    } else if (/[\p{L}_]/u.test(c)) {
       let j = i;
-      while (j < expr.length && /[\w.]/.test(expr[j])) j++;
+      while (j < expr.length && /[\p{L}\p{N}_.]/u.test(expr[j])) j++;
       const w = expr.slice(i, j);
       out += KEYWORDS.has(w.toLowerCase()) || expr.slice(j).trimStart()[0] === "(" ? w : `prop(${JSON.stringify(w)})`;
       i = j;
@@ -230,7 +260,7 @@ function evaluate(expr: string, ctx: Ctx, line: number): unknown {
 /** The first thing of a pipe: a path is its value (a field, so filters know its property; a collection), anything else evaluated. */
 function head(expr: string, ctx: Ctx, line: number): unknown {
   const e = expr.trim();
-  const bare = /^\[([^\]]+)\]$/.exec(e)?.[1] ?? (/^[A-Za-z_][\w.]*$/.test(e) && !KEYWORDS.has(e.toLowerCase()) ? e : null);
+  const bare = /^\[([^\]]+)\]$/.exec(e)?.[1] ?? (/^[\p{L}_][\p{L}\p{N}_.]*$/u.test(e) && !KEYWORDS.has(e.toLowerCase()) ? e : null);
   if (bare) {
     const x = resolve(ctx, bare);
     if (x.found) return x.value;
@@ -265,6 +295,9 @@ function matches(x: unknown, op: string, want: unknown): boolean {
   const v = plain(x);
   const list = Array.isArray(v) ? v : [v];
   const eq = (a: unknown) => (typeof a === "number" && numOf(want) !== null ? a === numOf(want) : norm(textOf(a)) === norm(textOf(want)));
+  // (Nothing is not more or less than something: "from today on" leaves out what has no date.)
+  const none = v === null || v === undefined || v === "" || (Array.isArray(v) && !v.length);
+  if (none && (op === ">" || op === "<" || op === ">=" || op === "<=")) return false;
   switch (op) {
     case "=":
     case "==":
@@ -294,6 +327,16 @@ const sumOf = (xs: unknown[]) => xs.map((x) => numOf(plain(x))).filter((n): n is
 
 /** Filters for collections (rows, an app's lists) and the view's values — the cards' filters besides. */
 const LIST_FILTERS: Record<string, (v: unknown, a: (string | number)[], ctx: Ctx) => unknown> = {
+  // where(), while something is picked: with <facets>, <select>, nothing picked is all of them.
+  // The address's site: https://www.example.org/a → example.org.
+  host: (v) => {
+    try {
+      return new URL(textOf(v)).hostname.replace(/^www\./, "");
+    } catch {
+      return "";
+    }
+  },
+  only: (v, a, ctx) => (a[1] === undefined || a[1] === "" ? v : LIST_FILTERS.where(v, a, ctx)),
   where: (v, a, ctx) => {
     const [field, x, y] = a.map(String);
     const op = a.length >= 3 ? x : a.length === 2 && (x === "empty" || x === "filled") ? x : "=";
@@ -306,7 +349,12 @@ const LIST_FILTERS: Record<string, (v: unknown, a: (string | number)[], ctx: Ctx
     const vals = valuesOf(v, ctx, String(a[0] ?? "title"));
     const desc = String(a[1] ?? "asc").toLowerCase() === "desc";
     const idx = itemsOf(v).map((x, i) => ({ x, i }));
-    idx.sort((p, q) => (desc ? -1 : 1) * compare(vals[p.i], vals[q.i]));
+    // What has no value goes last, either way: "the newest first" doesn't start with what has no date.
+    const blank = (x: unknown) => {
+      const y = plain(x);
+      return y === null || y === undefined || y === "" || (Array.isArray(y) && !y.length);
+    };
+    idx.sort((p, q) => Number(blank(vals[p.i])) - Number(blank(vals[q.i])) || (desc ? -1 : 1) * compare(vals[p.i], vals[q.i]));
     return remake(v, idx.map((o) => o.x));
   },
   limit: (v, a) => remake(v, itemsOf(v).slice(0, typeof a[0] === "number" ? a[0] : 10)),
@@ -433,6 +481,25 @@ const lookupMap = (s: string): [string, string][] =>
     return i > 0 && part.slice(i + 1).trim() ? [[part.slice(0, i).trim(), part.slice(i + 1).trim()]] : [];
   });
 
+/**
+ * A row's text with its checklist (`text`: "☐ …" / "☑ …" lines): each box becomes a <task> — the n-th task of the row's page,
+ * ticked in place (the page's own checklist item). Other text stays as it is.
+ */
+export function taskify(nodes: VNode[], row: string, seen = { n: 0 }): VNode[] {
+  return nodes.flatMap((c): VNode[] => {
+    if (typeof c !== "string") return [{ ...c, c: taskify(c.c, row, seen) }];
+    if (!/(^|\n)[☐☑] /.test(c)) return [c];
+    const out: VNode[] = [];
+    for (const [i, line] of c.split("\n").entries()) {
+      if (i > 0) out.push("\n");
+      const m = /^([☐☑]) (.*)$/.exec(line);
+      if (!m) out.push(line);
+      else out.push({ t: "task", a: { row, n: String(seen.n++), checked: String(m[1] === "☑"), label: m[2] }, c: [] }, m[2]);
+    }
+    return out;
+  });
+}
+
 function withRow(ctx: Ctx, row: Row): Ctx {
   return { ...ctx, row, item: null, locals: new Map(ctx.locals) };
 }
@@ -478,6 +545,9 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       if (ctx.state[a.bind] === undefined) ctx.state[a.bind] = opts[0][0];
       return [{ t: n.name, a: { ...a, options: JSON.stringify(opts), current: ctx.state[a.bind] }, c: [] }];
     }
+    case "ask":
+    case "dossier":
+      return [{ t: n.name, a, c: [] }];
     case "lookup": {
       if (!a.source) return (err('<lookup> needs source="…".'), []);
       const map = lookupMap(a.map ?? "");
@@ -492,15 +562,98 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       return [{ t: n.name, a: { ...a, current: ctx.state[a.bind] ?? "" }, c: [] }];
     }
     case "list":
-    case "cards": {
-      const src = source();
-      const items = itemsOf(src).map((it, i) => {
+    case "cards":
+    case "gallery":
+    case "timeline": {
+      const all = itemsOf(source());
+      // page=20: that many, and a button for the next ones (where it stands is the view's state).
+      const page = Number(a.page) || 0;
+      const moreKey = `more:${n.line}`;
+      const count = page ? Number(ctx.state[moreKey]) || page : all.length;
+      const items = all.slice(0, count).map((it, i) => {
         const c = withItem(ctx, it);
         // (An item of an app's list with an id is picked by it, as a row is.)
         const id = c.row ? String(c.row.id) : c.item && (typeof c.item.id === "number" || typeof c.item.id === "string") ? String(c.item.id) : null;
-        return { t: "item", a: id ? { row: id } : { index: String(i) }, c: drawList(n.kids, c) } as VNode;
+        const own: Record<string, string> = id ? { row: id } : { index: String(i) };
+        if (a.image !== undefined) own.image = checkAttr("url", interpolate(a.image, c, n.line)) ?? "";
+        if (a.alt !== undefined) own.alt = interpolate(a.alt, c, n.line);
+        if (a.date !== undefined) own.date = interpolate(a.date, c, n.line);
+        return { t: "item", a: own, c: drawList(n.kids, c) } as VNode;
       });
-      return [{ t: n.name, a: { ...a, source: "" }, c: items }];
+      const more: VNode[] = count < all.length ? [{ t: "button", a: { action: "state", state: moreKey, value: String(count + page), label: a.more ?? "Show more", variant: "quiet", wide: "true" }, c: [] }] : [];
+      return [{ t: n.name, a: { ...a, source: "", image: "", alt: "", date: "" }, c: items }, ...more];
+    }
+    case "board": {
+      const p = a.group ? propByName(ctx, a.group) : undefined;
+      if (!p || (p.type !== "select" && p.type !== "status")) return (err('<board> needs group="…": a select or status property.'), []);
+      const src = source();
+      if (!isRows(src)) return (err('<board> shows rows: source="rows | …".'), []);
+      const cols = (p.options ?? []).map((o) => ({ id: o.id, name: o.name }));
+      const known = new Set(cols.map((c) => c.id));
+      const colOf = (r: Row) => (known.has(String(r.cells[p.id] ?? "")) ? String(r.cells[p.id]) : "");
+      const items = src.rows.map((r) => ({ t: "item", a: { row: String(r.id), col: colOf(r) }, c: drawList(n.kids, withRow(ctx, r)) }) as VNode);
+      return [{ t: "board", a: { prop: p.id, cols: JSON.stringify([...(src.rows.some((r) => !colOf(r)) ? [{ id: "", name: a.none ?? "—" }] : []), ...cols]) }, c: items }];
+    }
+    case "groups": {
+      const p = a.by ? propByName(ctx, a.by) : undefined;
+      if (!p) return (err(`<groups>: there is no property “${a.by ?? ""}”.`), []);
+      const src = source();
+      if (!isRows(src)) return (err('<groups> shows rows: source="rows | …".'), []);
+      const buckets = new Map<string, Row[]>((p.options ?? []).map((o) => [o.name, []]));
+      for (const r of src.rows) {
+        const label = fieldOf(ctx, r, p.id)?.text || (a.none ?? "—");
+        buckets.set(label, [...(buckets.get(label) ?? []), r]);
+      }
+      return [...buckets].flatMap(([label, rows]) => {
+        if (!rows.length) return [];
+        const locals = new Map(ctx.locals);
+        locals.set("group", { value: label, text: label, prop: null });
+        return drawList(n.kids, { ...ctx, data: { ...ctx.data, rows }, locals });
+      });
+    }
+    case "facets": {
+      if (!a.bind) return (err('<facets> needs bind="…".'), []);
+      const p = a.field ? propByName(ctx, a.field) : undefined;
+      if (!p) return (err(`<facets>: there is no property “${a.field ?? ""}”.`), []);
+      const src = source();
+      if (!isRows(src)) return (err('<facets> counts rows: source="rows | …".'), []);
+      const counts = new Map<string, number>((p.options ?? []).map((o) => [o.name, 0]));
+      for (const r of src.rows) {
+        const label = fieldOf(ctx, r, p.id)?.text ?? "";
+        if (label) counts.set(label, (counts.get(label) ?? 0) + 1);
+      }
+      return [{ t: "facets", a: { ...a, source: "", current: ctx.state[a.bind] ?? "", options: JSON.stringify([...counts].filter(([, c]) => c > 0).map(([label, c]) => [label, label, c])) }, c: [] }];
+    }
+    case "quickadd": {
+      const cells: Record<string, unknown> = {};
+      for (const [k, v] of optionPairs((a.values ?? "").replace(/=/g, ":"))) {
+        const p = propByName(ctx, k);
+        if (!p) return (err(`There is no property “${k}”.`), []);
+        cells[p.id] = storedValue(p, v);
+      }
+      return [{ t: "quickadd", a: { ...a, values: JSON.stringify(cells) }, c: [] }];
+    }
+    case "form": {
+      const fields = [];
+      for (const name of (a.fields ?? "").split(",").map((x) => x.trim()).filter(Boolean)) {
+        if (norm(name) === "title" || norm(name) === norm(ctx.data.titleName)) {
+          fields.push({ id: TITLE, name: ctx.data.titleName, type: "text" });
+          continue;
+        }
+        const p = propByName(ctx, name);
+        if (!p) return (err(`<form>: there is no property “${name}”.`), []);
+        fields.push({ id: p.id, name: p.name, type: p.type, ...(p.options ? { options: p.options.map((o) => ({ id: o.id, name: o.name })) } : {}) });
+      }
+      if (!fields.length) return (err('<form> needs fields="title, Status, …".'), []);
+      return [{ t: "form", a: { ...a, fields: JSON.stringify(fields) }, c: [] }];
+    }
+    case "sparkline":
+    case "tile": {
+      const raw = n.name === "tile" ? a.spark : a.values;
+      if (raw === undefined) return [{ t: n.name, a, c: kids() }];
+      const values = raw.split(",").map((x) => Number(x.trim().replace(",", ".")));
+      if (values.some((x) => !Number.isFinite(x))) return (err(`<${n.name}>: a list of numbers, separated by commas.`), []);
+      return [{ t: n.name, a: { ...a, ...(n.name === "tile" ? { spark: JSON.stringify(values) } : { data: JSON.stringify(values) }) }, c: kids() }];
     }
     case "table": {
       const src = source();
@@ -573,6 +726,8 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       const known = ACTIONS[action];
       if (!known && !ctx.actions.has(action)) return (err(`There is no action “${action}” — there are ${[...Object.keys(ACTIONS), ...ctx.actions].join(", ")}.`), []);
       if (known?.row && !ctx.row && !a.row) return (err(`“${action}” acts on a row — put the button in a list's item, an {{#each rows}} or <selected>.`), []);
+      if (action === "assistant" && !a.request) return (err('“assistant” needs request="…".'), []);
+      if (action === "assistant" && ctx.row) return (err("“assistant” can't stand in a row: what a row says must not become a request."), []);
       const out: Record<string, string> = { ...a };
       if (ctx.row && !a.row) out.row = String(ctx.row.id);
       if (a.prop) {
@@ -601,6 +756,11 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
     case "part": {
       if (!a.name || !ctx.parts.has(a.name)) return (err(`There is no part “${a.name ?? ""}” — this view has ${[...ctx.parts].join(", ") || "none"}.`), []);
       return [{ t: "part", a: { ...a, ...(ctx.row ? { row: String(ctx.row.id) } : {}) }, c: kids() }];
+    }
+    case "text": {
+      // In a row: its checklist's boxes tick (the page's own items).
+      const c = kids();
+      return [{ t: "text", a, c: ctx.row ? taskify(c, String(ctx.row.id)) : c }];
     }
     case "widget": {
       if (!a.id) return (err('<widget> needs id="…" (a widget of a plugin).'), []);
@@ -694,12 +854,17 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     "FIGURES: <tile label=\"…\" value=\"{{ … }}\" sub=\"…\" tone=good|warn|bad/> — or <tile …>content under the value (text, a part)</tile>.",
     "DATA: <list source=\"rows | …\" select=true open=true spacing=roomy empty=\"…\">item template</list>, <cards source=\"…\" cols=3>item template</cards>, <table source=\"rows | …\" columns=\"title, Status, [Due]\" sum=\"Amount\" empty=\"…\"/>, <chart kind=bar|column|line|pie source=\"rows\" group=\"Status\" value=\"Amount\" calc=count|sum|avg/>, <selected empty=\"…\">template of the row picked (a list with select=true picks)</selected>, <field name=\"Status\"/> (a row's property, editable), <datatable source=\"app.list | …\" empty=\"…\"><column label=\"…\" align=right nowrap=true foot=\"{{ … }}\">cell template (the item's fields by name)</column>…</datatable> (a table of any list).",
     "STATE: <state name=\"dir\" value=\"owe\"/> (a default), <tabs bind=\"dir\" options=\"owe:Label, owed:Label:3\"/> (:3 — a count beside the label), <select bind=… options=… label=…/>, <search bind=\"q\" placeholder=…/> (use it: rows | search(state.q)), <toggle bind=\"done\" label=…/> (state.done is \"true\"/\"\").",
+    "PANES: <panes><pane title=\"…\" aside=\"3\" width=300>…</pane><pane title=\"…\" flush=true><ask/></pane><pane title=\"…\" width=360>…</pane></panes> — an app's screen: columns as high as the window, each scrolling by itself, one under the other on a phone. width: pixels, without it a column takes the room left. flush: no padding, for what fills its pane (<ask>).",
+    "PAGE: <header title=\"…\" subtitle=\"…\" icon=\"📓\">buttons on its right</header> (a view's top, instead of <heading>), <toolbar>search, filters, buttons</toolbar> (a line with a rule under it), <cover src= h=200 title= subtitle=/> (a wide picture), <callout tone=info|good|warn|bad title=\"…\" icon=\"…\">text</callout>, <empty icon=\"📭\" title=\"…\" text=\"…\">a button</empty> (nothing here yet: what to do), <kv min=200><pair label=\"…\">value</pair>…</kv> (facts, label over value), <steps><step title=\"…\" state=done|active|todo>text</step>…</steps>, <quote cite=\"…\">text</quote>, <divider label=\"…\"/>, <avatar src= name=\"…\" size=32/> (initials without a picture), <logo name=\"{{ Channel }}\" size=sm|lg/> (a channel's mark: Gmail, Outlook, Teams, WhatsApp, Signal, E-Mail; in <tabs> a label \"logo-gmail Gmail\" shows the mark alone), <progress value= max= label=\"…\" tone= show=true/> (show: the percent), <sparkline values=\"1,4,2\" wide=true/>. <tile> also takes icon=\"📈\" trend=\"+12 %\" spark=\"1,4,2\"; <button> also icon=\"➕\".",
+    "COLLECTIONS: <gallery source=\"rows\" image=\"{{ Poster }}\" alt=\"{{ title }}\" ratio=2:3|1:1|16:9|3:2 min=150 empty=\"…\">caption</gallery> (a click opens the row), <timeline source=\"rows | sort('Date', 'desc')\" date=\"{{ Date | date }}\" empty=\"…\">item</timeline>, <board source=\"rows\" group=\"Status\" none=\"…\">card</board> (columns by a select or status; a dragged card takes the column's value), <groups source=\"rows\" by=\"Status\"><section title=\"{{ group }}\" aside=\"{{ rows | count }}\"><list source=\"rows\">…</list></section></groups> (what is inside repeats per value: rows is that group's, group its name). page=20 more=\"Show more\" on list, cards, gallery, timeline: that many, and a button for the next.",
+    "ENTRY: <facets bind=\"s\" field=\"Status\" all=\"All\"/> (filter pills with counts; narrow with rows | only('Status', state.s)), <quickadd placeholder=\"…\" values=\"Status=Open\"/> (a line: Enter adds a row by its title), <form fields=\"title, Status, Due\" title=\"…\" label=\"Add\" done=\"…\"/> (several fields at once).",
     "LOOKUP: <lookup source=\"tmdb.movies\" placeholder=\"…\" map=\"Poster=poster, Year=year, title=title\" unique=\"TMDB ID\" open=false language=\"de-DE\"/> — a field that searches elsewhere with suggestions; the one picked becomes a row, its fields into the properties of map (Property=field; the properties must exist; title: the row's title, by default its title). unique: a property that tells it is there already, so it isn't added twice. open=true: opens the row. The sources are listed with the language for the AI, and under Settings → Lookups.",
+    "KNOWLEDGE: a database's rows as sources — <ask placeholder=\"…\" intro=\"…\" suggest=\"A question|Another\"/>: a conversation answered only from the rows, each statement naming its row, the field at its bottom; plain=true on <dossier>: without a frame, in a pane; <dossier focus=\"what matters\" empty=\"…\"/>: what the rows say together, compiled by the AI with a button, only what changed costs anything. Together with <lookup>, a list and a <text> of sources they make a notebook.",
     `BUTTONS: <button action=… label=\"…\" row=\"{{ id }}\" (the row it acts on, outside a row) variant=primary|plain|quiet|danger|link confirm=\"…\" print=true (also on paper) disabled=\"{{ … }}\" wide=true keys=\"N\" (its key, shown in the tooltip)/> — actions: ${Object.entries(ACTIONS)
       .map(([k, v]) => `${k} (${v.what}${v.row ? "; in a row" : ""})`)
       .join(", ")}${actions.length ? `, ${actions.map((x) => `${x.name} (${x.description})`).join(", ")}` : ""}.`,
-    "FILTERS for collections: where(\"Field\", \"value\") or where(\"Field\", \">\", 5) (=, !=, >, <, >=, <=, contains, empty, filled), sort(\"Field\", \"desc\"), limit(5), search(state.q), count, sum(\"Field\"), avg(\"Field\"), min(\"Field\"), max(\"Field\"), pluck(\"Field\").",
-    "FILTERS for values: euro (euro(0): whole euros), number(2), percent, hours, date, relative, chip, upper, lower, truncate(40), clamp(3), default(\"—\"), join(\", \"), first, last, count, check, bold, muted, small, code, link, img(80), bar(max), initials.",
+    "FILTERS for collections: where(\"Field\", \"value\") or where(\"Field\", \">\", 5) (=, !=, >, <, >=, <=, contains, empty, filled), only(\"Field\", state.s) (where, or all while nothing is picked), sort(\"Field\", \"desc\"), limit(5), search(state.q), count, sum(\"Field\"), avg(\"Field\"), min(\"Field\"), max(\"Field\"), pluck(\"Field\").",
+    "FILTERS for values: host (an address's site), euro (euro(0): whole euros), number(2), percent, hours, date, relative, chip, upper, lower, truncate(40), clamp(3), default(\"—\"), join(\", \"), first, last, count, check, bold, muted, small, code, link, img(80), bar(max), initials.",
     "NAV: <nav title=\"…\"><entry label=\"…\" icon=\"📥\" state=\"scope\" value=\"inbox\" n=\"{{ … }}\" group=\"…\"/>…</nav> — the view's sidebar (beside the view, or — its setting — in the Workspace tree under the database); an entry sets the view's state, opens a row (row=\"{{ id }}\" — in {{#each}} the row by itself) or goes to an address (href). E.g. the newest five: {{#each rows | sort('Date', 'desc') | limit(5)}}<entry label=\"{{ title }}\" group=\"Newest\"/>{{/each}}.",
     "WIDGETS: <widget id=\"plugin.widget\" setting=value/> — a plugin's widget (as on pages).",
     parts.length ? `PARTS of this app (its own blocks; <part name=…>template content</part> where a part shows content): ${parts.map((p) => `<part name="${p.name}"${Object.entries(p.attrs ?? {}).map(([k, v]) => ` ${k}="${v}"`).join("")}/> — ${p.description}`).join("; ")}.` : "PARTS: none (a view of any table: build it from the tags above).",
@@ -711,6 +876,15 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     '<row><heading level=2>{{ db.title }}</heading><grow/><search bind="q"/><button action="new" label="New" variant=primary/></row>',
     '<grid cols=3><tile label="Open" value="{{ rows | where(\'Status\', \'!=\', \'Done\') | count }}"/><tile label="Sum" value="{{ rows | sum(\'Amount\') | euro }}"/></grid>',
     '<split ratio=1:2><list source="rows | search(state.q) | sort(\'Due\')" select=true><row><b>{{ title }}</b><grow/>{{ Status | chip }}</row></list><selected empty="Pick a row"><heading level=3>{{ title }}</heading><field name="Status"/><button action="open" label="Open"/></selected></split>',
+    "",
+    "DESIGN — first decide what kind of app this is; it sets the layout. WORKSPACE (you work in it for a while: a notebook, an inbox, research, a reader): <panes> filling the screen, side by side, everything at once; no tabs, no tiles. CATALOGUE (things you look at: films, books, recipes): a <toolbar> and a <gallery>. PIPELINE (things move through stages): a <board>, or <groups> by the stage. TRACKER (a list you keep up: tasks, contacts, doses): a list with <selected> beside it. DASHBOARD (only if you came for the numbers: money, hours): tiles and charts. What you do most is on the first screen without a click: never hide a main function behind <tabs> or a button; tabs are for views of the same thing. A number earns a <tile> only if you would act on it: a count of rows is no figure, it goes into the header's subtitle or a pane's aside. One line of controls: search, filters and add belong together in one <toolbar> or pane head, never stacked in rows of inputs. A <header> with the name and at most one line that says something the name doesn't; the main action on the right, the only primary button; inside <panes> usually no header at all, the page already has the title. Density like a good tool, not like a form: a row of a list is a title and one quiet line ({{ URL | host }}, a date, a <clamp>), the status as a chip only if it varies. A title with something beside it: <row wrap=false><col fill=true><truncate>…</truncate></col>…</row>, or it breaks into two lines. Details beside a list, not under it. A pane with one job: no <selected> and <dossier> stacked in one pane with a <divider> between them; no line that only says what to click (leave <selected empty=\"\"> blank if something else is shown). Always an <empty> that says how to get out of it. No box in a box, no box around what stands alone, no decoration, no emoji in every label (one icon on the header is enough), at most one or two colours that mean something. Values as they are meant: {{ x | euro }}, {{ d | date }}, {{ Status | chip }}. Labels short, in the user's language, no explaining text on the page: a good tool needs none. Long collections: page=.",
+    "",
+    "FULL EXAMPLE:",
+    '<state name="q" value=""/><state name="s" value=""/>',
+    '<header title="{{ db.title }}" subtitle="{{ rows | count }} entries" icon="📌"><button action="new" label="New" icon="➕" variant=primary/></header>',
+    '<grid cols=3 min=160><tile label="Open" value="{{ rows | where(\'Status\', \'!=\', \'Done\') | count }}" icon="📬"/><tile label="Done" value="{{ rows | where(\'Status\', \'Done\') | count }}" tone=good/><tile label="All" value="{{ rows | count }}"/></grid>',
+    '<toolbar><search bind="q" placeholder="Search"/><grow/></toolbar>',
+    '<split side=right width=352><list source="rows | search(state.q)" select=true page=20 empty="Nothing yet: add the first entry."><row><b>{{ title }}</b><grow/></row></list><selected empty="Pick an entry"><header title="{{ title }}"><button action="open" label="Open"/></header></selected></split>',
   ].join("\n");
 }
 

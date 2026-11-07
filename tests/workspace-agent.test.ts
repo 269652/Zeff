@@ -92,12 +92,27 @@ test("runs follow their worker: when the worker run ends, the routine's run ends
   assert.equal(a.syncAgentRuns((id) => state[id]), 0, "still running: nothing ends");
   state[91] = { status: "done", summary: "Bericht geschrieben." };
   state[92] = { status: "failed", error: "Out of budget" };
-  assert.equal(a.syncAgentRuns((id) => state[id]), 2);
+  assert.equal(a.syncAgentRuns((id) => state[id], () => true), 2);
   const [second, first] = r.routineRuns(agent);
   assert.equal(first.status, "done");
   assert.deepEqual(first.log.map((l) => l.note), ["Bericht geschrieben."]);
   assert.equal(second.status, "failed");
   assert.match(second.error ?? "", /budget/);
+});
+
+test("a worker that ended well but never reached Zeff's MCP: the run failed, with why — so it shows and is made up for", async () => {
+  const { r, agent } = await world();
+  const a = await import("@/plugins/workspace/routine-agent");
+  const { noteRunContact } = await import("@/mcp/run-contacts");
+  await a.startAgent(agent, { kind: "manual" }, {}, { dispatch: () => ({ id: 191 }) });
+  await a.startAgent(agent, { kind: "manual" }, {}, { dispatch: () => ({ id: 192 }) });
+  noteRunContact(192);
+  const done = { status: "done", summary: "Der Rückblick ist nicht geschrieben, der MCP-Server war nicht erreichbar." };
+  assert.equal(a.syncAgentRuns((id) => (id === 191 || id === 192 ? done : undefined)), 2);
+  const [reached, never] = r.routineRuns(agent);
+  assert.equal(never.status, "failed");
+  assert.match(never.error ?? "", /never reached Zeff/);
+  assert.equal(reached.status, "done");
 });
 
 test("permissions: what an agent's MCP tools may change — its own page and below, its parent's, everything, nothing", async () => {

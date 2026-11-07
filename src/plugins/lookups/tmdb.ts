@@ -1,9 +1,12 @@
-import { t } from "@/lib/i18n/server";
 import type { LookupSource, LookupValue } from "@/plugins/workspace/lookup-point";
 import { getLookupConfig } from "./config";
+import { filmDetails, FILMS_CREDIT, searchFilms, searchShows, showDetails, SHOWS_CREDIT } from "./keyless";
 import { getJson, language2, short, year } from "./http";
 
-/** Films and series at TMDB, through its API, with the user's own key (its terms: no shared key, the credit shown, pictures linked). */
+/**
+ * Films and series at TMDB, through its API, with the user's own key (its terms: no shared key, the credit shown, pictures linked).
+ * Without a key the same fields come from elsewhere (keyless.ts), so a view works from the start and a key only makes it better.
+ */
 
 export const TMDB_CREDIT = "This product uses the TMDB API but is not endorsed or certified by TMDB.";
 const API = "https://api.themoviedb.org/3";
@@ -52,19 +55,27 @@ const COMMON_FIELDS = {
   poster: "the poster's address (w500)",
   backdrop: "a wide picture's address",
   tmdb_id: "TMDB's id: a good `unique`",
+  id: "the same as tmdb_id",
   url: "its page at TMDB",
   imdb_url: "its page at IMDb",
 };
 
-function source(kind: "movie" | "tv", id: string, label: string, what: string, own: Record<string, string>, fill: (d: Common) => Record<string, LookupValue>): LookupSource {
+/** `id` is what a view written by hand or by the AI reaches for first. */
+const withId = (d: Record<string, LookupValue>) => ({ ...d, id: d.tmdb_id ?? null });
+
+type Keyless = Pick<LookupSource, "search" | "details"> & { credit: string };
+
+const hasKey = () => !!getLookupConfig().tmdbKey;
+
+function source(kind: "movie" | "tv", id: string, label: string, what: string, own: Record<string, string>, keyless: Keyless, fill: (d: Common) => Record<string, LookupValue>): LookupSource {
   return {
     id,
     label,
     what,
-    credit: TMDB_CREDIT,
+    credit: () => (hasKey() ? TMDB_CREDIT : keyless.credit),
     fields: { ...COMMON_FIELDS, ...own },
-    missing: () => (getLookupConfig().tmdbKey ? null : t("Add your TMDB API key under Settings → Lookups.")),
     search: async (q, language) => {
+      if (!hasKey()) return keyless.search(q, language);
       const r = await tmdb<{ results?: Found[] }>(`/search/${kind}`, { query: q, language, include_adult: "false" });
       return (r.results ?? []).map((x) => ({
         id: String(x.id),
@@ -74,10 +85,12 @@ function source(kind: "movie" | "tv", id: string, label: string, what: string, o
       }));
     },
     details: async (hit, language) => {
+      // (A suggestion made before the key came, too.)
+      if (!hasKey() || /^Q\d+$/.test(hit)) return withId(await keyless.details(hit, language));
       if (!/^\d+$/.test(hit)) throw new Error("Not a TMDB id.");
       const d = await tmdb<Common>(`/${kind}/${hit}`, { language, append_to_response: "credits,external_ids" });
       const imdb = d.external_ids?.imdb_id;
-      return {
+      return withId({
         title: d.title ?? d.name ?? "",
         original_title: d.original_title ?? d.original_name ?? "",
         overview: d.overview ?? "",
@@ -93,19 +106,19 @@ function source(kind: "movie" | "tv", id: string, label: string, what: string, o
         url: `https://www.themoviedb.org/${kind}/${d.id}?language=${language2(language)}`,
         imdb_url: imdb ? `https://www.imdb.com/title/${imdb}/` : "",
         ...fill(d),
-      };
+      });
     },
   };
 }
 
 export const TMDB_SOURCES: LookupSource[] = [
-  source("movie", "tmdb.movies", "TMDB: films", "Films at The Movie Database.", { release_date: "YYYY-MM-DD", runtime: "minutes (a number)", director: "a list", countries: "a list" }, (d) => ({
+  source("movie", "tmdb.movies", "TMDB: films", "Films, in the user's language: from TMDB with a key, from Wikidata and Wikipedia without one (no key needed; then no rating).", { release_date: "YYYY-MM-DD", runtime: "minutes (a number)", director: "a list", countries: "a list" }, { search: searchFilms, details: filmDetails, credit: FILMS_CREDIT }, (d) => ({
     release_date: d.release_date ?? "",
     runtime: d.runtime || null,
     director: (d.credits?.crew ?? []).filter((c) => c.job === "Director").map((c) => c.name ?? "").filter(Boolean),
     countries: names(d.production_countries),
   })),
-  source("tv", "tmdb.tv", "TMDB: series", "TV series at The Movie Database.", { first_air_date: "YYYY-MM-DD", status: "running or ended, in words", seasons: "a number", episodes: "a number", runtime: "an episode's minutes (a number)", creators: "a list", networks: "a list" }, (d) => ({
+  source("tv", "tmdb.tv", "TMDB: series", "TV series: from TMDB with a key, from TVmaze without one (no key needed; then in English, and no tmdb_id).", { first_air_date: "YYYY-MM-DD", status: "running or ended, in words", seasons: "a number", episodes: "a number", runtime: "an episode's minutes (a number)", creators: "a list", networks: "a list" }, { search: searchShows, details: showDetails, credit: SHOWS_CREDIT }, (d) => ({
     first_air_date: d.first_air_date ?? "",
     status: d.status ?? "",
     seasons: d.number_of_seasons ?? null,

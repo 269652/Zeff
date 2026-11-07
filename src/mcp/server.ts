@@ -1,6 +1,7 @@
 import { guardTools } from "@/mcp/tool-guard";
 import { registerReportTool } from "@/plugins/workspace/mcp-report";
 import { registerGmailTools } from "@/plugins/gmail/mcp";
+import { registerMailboxTools } from "@/plugins/imap-mail/mcp";
 import { registerWorkspaceTools } from "@/plugins/workspace/mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
 import { registerBrowserTools } from "@/plugins/browser/mcp";
@@ -83,6 +84,8 @@ export function registerZeffTools(server: McpServer): void {
   registerEntityTools(server, { run, ok, fail } as never);
   registerQuestionTools(server, { run, ok, fail } as never);
   registerGmailTools(server, { run, ok, fail } as never);
+  // The mailboxes (IMAP / POP3): their inboxes read, archived.
+  registerMailboxTools(server, { run, ok, fail } as never);
   registerReportTool(server, { run, ok, fail } as never);
   // How useful each AI step is, from the user's decisions (read-only).
   registerAiQualityTool(server, { run, ok, fail } as never);

@@ -9,7 +9,8 @@ import { getGitlabSettings } from "@/lib/gitlab/store";
 import { getTeamsSettings } from "@/lib/teams/store";
 import { getMailSettings } from "@/lib/mail/store";
 import { SYNC_KEYS, type SyncKey, type SyncOverview, type SyncView } from "./shared";
-import { stepAvailable } from "@/plugins/state";
+import { isInstalled, stepAvailable } from "@/plugins/state";
+import { mailAccounts, mailboxName } from "@/plugins/imap-mail/config";
 import { currentAccountId, inThisAccount } from "@/db/accounts";
 import { ABORTED, sleep, withAbort } from "@/lib/abort";
 import { emitChange } from "@/lib/events";
@@ -140,6 +141,18 @@ export const lastSyncOf = (key: SyncKey) =>
   (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" || key === "drivebackup" || key === "drivedocs" || key === "news" ? recorded(key) : (STEPS[key]?.last?.() ?? recorded(key))).lastAt;
 
 /** Each step: how it runs, what it last did, when it runs by itself. All only read from elsewhere. */
+/** The mailboxes the mail step reads, as text: what is installed, IMAP / POP3 accounts by their names. */
+function mailSourcesText(): string {
+  const names: string[] = [];
+  if (isInstalled("outlook-mail")) names.push("Outlook");
+  if (isInstalled("gmail")) names.push("Gmail");
+  if (isInstalled("imap-mail")) {
+    const accounts = mailAccounts();
+    names.push(...(accounts.length ? accounts.map((a) => mailboxName(a)) : ["E-Mail"]));
+  }
+  return names.join(", ") || "—";
+}
+
 const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   jira: {
     label: "Jira",
@@ -180,7 +193,8 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
   mail: {
     get label() { return t("Mail"); },
     href: "/mail",
-    get what() { return t("Your inbox's latest mails (Outlook, Gmail — read from the list, none opened)"); },
+    // The mailboxes it reads, by name: Outlook, Gmail and every IMAP / POP3 account.
+    get what() { return t("Your mail accounts' latest mails ({accounts}) — none marked read", { accounts: mailSourcesText() }); },
     ownRecord: true,
     run: async () => (await import("@/lib/mail/sync")).syncMail(),
     busy: () => flag("__zeffMailSyncing"),

@@ -531,11 +531,12 @@ function StepBody({ dbId, saved, step: s, allSteps, set, databases, fields }: { 
   if (s.kind === "source" && s.from === "mail") {
     const c = s.mail ?? {};
     const setC = (p: Partial<NonNullable<PipelineStep["mail"]>>) => set({ mail: { ...c, ...p } });
-    const acc = (a: "outlook" | "gmail", on: boolean) => setC({ accounts: on ? [...new Set([...(c.accounts ?? []), a])] : (c.accounts ?? ["outlook", "gmail"]).filter((x) => x !== a) });
+    const acc = (a: "outlook" | "gmail" | "imap", on: boolean) => setC({ accounts: on ? [...new Set([...(c.accounts ?? []), a])] : (c.accounts ?? ["outlook", "gmail", "imap"]).filter((x) => x !== a) });
     return (
       <div className={row}>
         <Check label="Outlook" on={!c.accounts?.length || c.accounts.includes("outlook")} set={(v) => acc("outlook", v)} />
         <Check label="Gmail" on={!c.accounts?.length || c.accounts.includes("gmail")} set={(v) => acc("gmail", v)} />
+        <Check label={t("E-Mail (IMAP)")} on={!c.accounts?.length || c.accounts.includes("imap")} set={(v) => acc("imap", v)} />
         <label className="flex items-center gap-1.5 text-sm">
           {t("Folders")}
           <input className="input w-44 text-sm" placeholder={t("(all)")} value={(c.folders ?? []).join(", ")} onChange={(e) => setC({ folders: e.target.value.split(",").map((x) => x.trim()).filter(Boolean) })} />

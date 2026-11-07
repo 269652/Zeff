@@ -5,7 +5,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { saveWebSearchAction, testWebSearchAction } from "@/plugins/web-search/server-actions";
-import { getSearchConfig, searchReady } from "@/plugins/web-search/search";
+import { canSearch, getSearchConfig, searchReady } from "@/plugins/web-search/search";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Web search") };
@@ -32,10 +32,17 @@ export default async function WebSearchSettingsPage({ searchParams }: { searchPa
         <label className="block text-sm">
           <span className="font-medium">{t("Search with")}</span>
           <select name="provider" defaultValue={c.provider} className={`${field} mt-1`}>
-            <option value="google">Google Programmable Search</option>
             <option value="brave">Brave Search</option>
+            <option value="google">Google Programmable Search</option>
           </select>
         </label>
+        <fieldset className="space-y-2 rounded border border-zinc-200 p-3 dark:border-zinc-800">
+          <legend className="px-1 text-xs font-semibold uppercase text-zinc-500">Brave</legend>
+          <label className="block text-sm">
+            {t("API key")}
+            <input name="braveKey" type="password" autoComplete="off" className={`${field} mt-1`} placeholder={c.braveKey ? t("(set — leave empty to keep)") : ""} />
+          </label>
+        </fieldset>
         <fieldset className="space-y-2 rounded border border-zinc-200 p-3 dark:border-zinc-800">
           <legend className="px-1 text-xs font-semibold uppercase text-zinc-500">Google</legend>
           <label className="block text-sm">
@@ -48,19 +55,12 @@ export default async function WebSearchSettingsPage({ searchParams }: { searchPa
           </label>
           <p className="text-xs text-zinc-500">{t("Made once in Google: a Programmable Search Engine that searches the whole web (programmablesearchengine.google.com), and an API key with the Custom Search API switched on (console.cloud.google.com). 100 searches a day are free.")}</p>
         </fieldset>
-        <fieldset className="space-y-2 rounded border border-zinc-200 p-3 dark:border-zinc-800">
-          <legend className="px-1 text-xs font-semibold uppercase text-zinc-500">Brave</legend>
-          <label className="block text-sm">
-            {t("API key")}
-            <input name="braveKey" type="password" autoComplete="off" className={`${field} mt-1`} placeholder={c.braveKey ? t("(set — leave empty to keep)") : ""} />
-          </label>
-        </fieldset>
         <div className="flex items-center gap-2">
           <button className="btn btn-primary btn-sm">{t("Save")}</button>
-          <button formAction={testWebSearchAction} className="btn btn-sm" disabled={!searchReady(c)}>
+          <button formAction={testWebSearchAction} className="btn btn-sm" disabled={!canSearch(c)}>
             {t("Try a search")}
           </button>
-          <span className="text-xs text-zinc-500">{searchReady(c) ? t("Ready.") : t("Not set up yet.")}</span>
+          <span className="text-xs text-zinc-500">{searchReady(c) ? t("Ready.") : canSearch(c) ? t("Ready: without a key, through your Claude login.") : t("Not set up yet.")}</span>
         </div>
       </form>
     </div>

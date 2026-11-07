@@ -194,7 +194,7 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
           </select>
           <label className="flex items-center gap-1.5 text-xs text-zinc-500" title={t("Labels, read/unread, spam and filters in Gmail — never deleting. Needs “Allow changes to Gmail” on the Connections page.")}>
             <input type="checkbox" checked={!!view.permissions.gmail} disabled={!editable} onChange={(e) => void save({ permissions: { ...view.permissions, gmail: e.target.checked || undefined } })} />
-            {t("May change Gmail (labels, read, spam, filters)")}
+            {t("May change mail (Gmail: labels, read, spam, filters; mailboxes: archive)")}
           </label>
           <label className="flex items-center gap-1.5 text-xs text-zinc-500" title={t("WhatsApp, Signal, the bank, a journal … — what Settings → Data boundaries marks personal. Secret data stays closed either way.")}>
             <input type="checkbox" checked={!!view.permissions.personal} disabled={!editable} onChange={(e) => void save({ permissions: { ...view.permissions, personal: e.target.checked || undefined } })} />

@@ -12,4 +12,6 @@ export default definePlugin({
   category: "app",
   defaultInstalled: true,
   dependsOn: ["workspace"],
+  // The mail accounts' one place: whatever reads them (Outlook, Gmail, IMAP / POP3) is installed from there.
+  settings: { href: "/settings/mail", what: "Mail accounts: add one, its servers, password and folders" },
 });

@@ -9,6 +9,7 @@ export const WORKSPACE_LLM_TASKS = (t: T) =>
     { plugin: "workspace", id: "editor-ai", label: t("Writing help (pages)"), what: t("Writes or rewrites text in a page at your request (Workspace).") },
     { plugin: "workspace", id: "page-todos", label: t("Todos from a page"), what: t("Finds the todos a page asks of you (Workspace).") },
     { plugin: "workspace", id: "workspace-ask", label: t("Questions to the workspace"), what: t("Answers a question from the pages that fit, naming them (Workspace).") },
+    { plugin: "workspace", id: "workspace-dossier", label: t("Dossiers"), what: t("Boils a database's rows down, compiles them into its dossier and answers questions from them, naming them (Workspace).") },
     { plugin: "workspace", id: "page-assist", label: t("Think along (pages)"), what: t("“✨ Think along” on a page: understands what a block is about, asks what is missing and proposes what to set up (a plan calendar, todos, widgets, text).") },
     { plugin: "workspace", id: "workspace-chat", label: t("Workspace assistant"), what: t("Does what you ask in the Workspace's sidebar with the workspace's tools — rows, views, pages, columns (Workspace).") },
     { plugin: "workspace", id: "ai-block", label: t("AI blocks (pages)"), what: t("Writes an AI block's section of a page by its instruction, from the page and the databases it shows (Workspace).") },

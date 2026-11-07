@@ -130,6 +130,8 @@ export function SyncMenu() {
   const [error, setError] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const [, start] = useTransition();
+  // What was just clicked, until the server has answered: it shows as running at once ("all" for Sync all), and nothing is clicked twice.
+  const [starting, setStarting] = useState<string | null>(null);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const wasRunning = useRef(false);
@@ -186,13 +188,19 @@ export function SyncMenu() {
     },
   });
 
-  const go = (fn: () => Promise<{ ok?: boolean; error?: string } | null>) =>
+  const go = (fn: () => Promise<{ ok?: boolean; error?: string } | null>, key?: string) => {
+    if (key) setStarting(key);
     start(async () => {
       setError(null);
-      const r = await fn();
-      if (r && r.ok === false) setError(r.error ?? t("Couldn't start."));
-      setData(await syncOverviewAction());
+      try {
+        const r = await fn();
+        if (r && r.ok === false) setError(r.error ?? t("Couldn't start."));
+        setData(await syncOverviewAction());
+      } finally {
+        setStarting(null);
+      }
     });
+  };
 
   return (
     <div ref={root} className="relative">
@@ -219,8 +227,8 @@ export function SyncMenu() {
                 <SyncIcon className="size-4 animate-spin" /> {t("Stop")}
               </button>
             ) : (
-              <button type="button" className="btn btn-primary btn-sm" disabled={!data} onClick={() => go(runSyncAllAction)}>
-                <SyncIcon className="size-4" /> {t("Sync all")}
+              <button type="button" className="btn btn-primary btn-sm" disabled={!data || !!starting} onClick={() => go(runSyncAllAction, "all")}>
+                <SyncIcon className={`size-4 ${starting === "all" ? "animate-spin" : ""}`} /> {starting === "all" ? t("Starting …") : t("Sync all")}
               </button>
             )}
             <span className="truncate text-xs text-zinc-500">
@@ -233,7 +241,7 @@ export function SyncMenu() {
           {/* The steps scroll (there are many); the head and the links stay. */}
           <ul className="min-h-0 flex-1 divide-y divide-zinc-100 overflow-y-auto overscroll-contain dark:divide-zinc-900">
             {(data?.steps ?? []).map((s) => (
-              <SyncStepRow key={s.key} s={s} health={healthOf.get(s.key)} disabled={!!data?.all.running} onRun={() => go(() => runSyncAction(s.key))} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => {
+              <SyncStepRow key={s.key} s={s} health={healthOf.get(s.key)} running={s.running || starting === s.key} disabled={!!data?.all.running || !!starting} onRun={() => go(() => runSyncAction(s.key), s.key)} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => {
                 setOpen(false);
                 trigger.current?.focus();
               }} />

@@ -191,7 +191,8 @@ export const folderAllowed = (folder: string, s: Pick<AttachmentSettings, "onlyF
 /** Which source a mail came from (by its conversation id), or null for chats. */
 export function mailSourceOf(convId: string): AttachmentSource | null {
   if (convId.startsWith("gmail:")) return "gmail";
-  if (/^(wa|sg):/.test(convId)) return null;
+  // (An IMAP mailbox's attachments aren't fetched yet: like a chat's, none.)
+  if (/^(wa|sg|imap):/.test(convId)) return null;
   return "outlook";
 }
 

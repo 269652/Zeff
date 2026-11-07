@@ -276,6 +276,16 @@ const RAW_API: ApiContribution = {
         context: () => [],
       },
     },
+    "workspace.dossier.compile": {
+      perm: "workspace.write",
+      automatic: true,
+      summary: "A database's dossier brought up to date (database: its title or id; focus: optional): only rows that changed are read.",
+      run: async (p) => {
+        const db = findDatabase(str(p, "database", { required: true, max: 300 }));
+        if (!db) throw new ApiError("not_found", "database: no such database");
+        return (await import("./dossier")).compileDatabase(db, { focus: str(p, "focus", { max: 500 }) || undefined });
+      },
+    },
     "workspace.pages.append": {
       perm: "workspace.write",
       automatic: true,

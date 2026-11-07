@@ -16,7 +16,13 @@ export type MailView = {
 };
 
 /** Where a document came from: the mail an attachment was taken from (Documents list and detail show it). */
-export type DocOrigin = { mailKey: string; source: "outlook" | "gmail"; subject: string; from: string; receivedAt: string; file: string };
+export type DocOrigin = { mailKey: string; source: "outlook" | "gmail" | "imap"; subject: string; from: string; receivedAt: string; file: string };
+
+/** A mailbox read over IMAP (the E-Mail (IMAP) plugin): its conversations are "imap:<thread's first Message-ID>". */
+export const isImapConv = (convId: string) => convId.startsWith("imap:");
+
+/** How an IMAP mailbox is named as an account and a channel (its folders carry the display name set on its settings page). */
+export const IMAP_ACCOUNT = "E-Mail";
 
 /** The chat apps whose messages the sync keeps with the mails — each in a folder of its name. */
 export const CHAT_FOLDERS = ["WhatsApp", "Signal"] as const;
@@ -29,15 +35,19 @@ export const isChatFolder = (folder: string): folder is ChatFolder => (CHAT_FOLD
 export const INBOX_CHANNELS = [
   { id: "outlook", name: "Outlook", plugin: "outlook-mail" },
   { id: "gmail", name: "Gmail", plugin: "gmail" },
+  { id: "imap", name: IMAP_ACCOUNT, plugin: "imap-mail" },
   { id: "whatsapp", name: "WhatsApp", plugin: "whatsapp" },
   { id: "signal", name: "Signal", plugin: "signal" },
   { id: "teams", name: "Teams", plugin: "teams" },
 ] as const;
 export type InboxChannel = (typeof INBOX_CHANNELS)[number]["id"];
 
-/** The channel a stored message's folder belongs to ("Gmail · me@x.com" → gmail; any other mail folder → outlook). */
-export const channelOfFolder = (folder: string): Exclude<InboxChannel, "teams"> =>
-  folder === "WhatsApp" ? "whatsapp" : folder === "Signal" ? "signal" : folder.startsWith("Gmail") ? "gmail" : "outlook";
+/**
+ * The channel a stored message's folder belongs to ("Gmail · me@x.com" → gmail; any other mail folder → outlook). An IMAP
+ * mailbox's folders carry the name you gave it: the folders known to hold its mails (`imapFolders`, see imapFolderNames) are its.
+ */
+export const channelOfFolder = (folder: string, imapFolders?: ReadonlySet<string>): Exclude<InboxChannel, "teams"> =>
+  folder === "WhatsApp" ? "whatsapp" : folder === "Signal" ? "signal" : imapFolders?.has(folder) ? "imap" : folder.startsWith("Gmail") ? "gmail" : "outlook";
 
 /** A chat's conversation (its id: "wa:<chat>", "sg:<chat>"). */
 export const isChatConv = (convId: string) => /^(wa|sg):/.test(convId);
@@ -51,9 +61,9 @@ export const mailLink = (key: string) => `zeff:mail:${key}`;
 /** The mail a link points at ("zeff:mail:<key>", or a todo's ref "mail:<key>"), or null. */
 export const mailKeyOfLink = (url: string) => /^(?:zeff:)?mail:(.+)$/.exec(url.trim())?.[1] ?? null;
 
-/** The mail's conversation in Outlook on the web — null for a chat's message or a Gmail thread. */
+/** The mail's conversation in Outlook on the web — null for a chat's message, a Gmail thread or an IMAP mailbox's mail. */
 export const outlookLink = (m: Pick<MailView, "convId" | "folder">): string | null =>
-  !m.convId || isChatFolder(m.folder) || isChatConv(m.convId) || m.convId.startsWith("gmail:")
+  !m.convId || isChatFolder(m.folder) || isChatConv(m.convId) || m.convId.startsWith("gmail:") || isImapConv(m.convId)
     ? null
     : `https://outlook.office.com/mail/inbox/id/${encodeURIComponent(m.convId)}`;
 

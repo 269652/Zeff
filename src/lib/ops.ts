@@ -166,6 +166,12 @@ export async function runRowOp(rowId: number, raw: Record<string, unknown>, mode
     const r = await runGmailCompose(op as unknown as Extract<TodoOp, { type: "gmail-compose" }>, { mode: mode === "draft" ? "draft" : "send", thread: conv?.startsWith("gmail:") ? conv : null, refs: [`page:${rowId}`] });
     return { what: r.what };
   }
+  // An IMAP mailbox's mail: sent over its SMTP server, into the row's conversation (only "send": it has no drafts here).
+  if (mode === "send" && op.type === "imap-send") {
+    const { runImapSend } = await import("@/plugins/imap-mail/run");
+    const r = await runImapSend(op as unknown as Extract<TodoOp, { type: "imap-send" }>, { conv: rowMailConv(rowId), refs: [`page:${rowId}`] });
+    return { what: r.what };
+  }
   if (href) return { href };
   const runner = RUNNERS[op.type as TodoOp["type"]];
   if (!runner) throw new Error(t("Unknown action."));
@@ -190,6 +196,12 @@ export async function runConvOp(conv: string, mailKey: string, raw: Record<strin
     const r = await runGmailCompose(op as unknown as Extract<TodoOp, { type: "gmail-compose" }>, { mode: mode === "draft" ? "draft" : "send", thread: conv.startsWith("gmail:") ? conv : null, refs: mailKey ? [`mail:${mailKey}`] : [] });
     return { what: r.what };
   }
+  // (A new mail has no conversation: `conv` empty.)
+  if (mode === "send" && op.type === "imap-send") {
+    const { runImapSend } = await import("@/plugins/imap-mail/run");
+    const r = await runImapSend(op as unknown as Extract<TodoOp, { type: "imap-send" }>, { conv, refs: mailKey ? [`mail:${mailKey}`] : [] });
+    return { what: r.what };
+  }
   if (href) return { href };
   // The message senders need no todo (ctx.todo stays unread); the mail drafts have an href and never get here.
   if (!CONV_RUN_OPS.has(op.type)) throw new Error(t("Unknown action."));
@@ -199,6 +211,6 @@ export async function runConvOp(conv: string, mailKey: string, raw: Record<strin
   return { what: r.what };
 }
 
-/** What the inbox's reply may send: the mail drafts (they open for you, or go through Gmail's API) and the messages. */
+/** What the inbox's reply may send: the mail drafts (they open for you, or go through Gmail's API), an IMAP mailbox's mail and the messages. */
 const CONV_RUN_OPS = new Set(["teams-message", "whatsapp-message", "signal-message"]);
-const CONV_REPLY_OPS = new Set(["gmail-compose", "mail-compose", ...CONV_RUN_OPS]);
+const CONV_REPLY_OPS = new Set(["gmail-compose", "mail-compose", "imap-send", ...CONV_RUN_OPS]);

@@ -47,7 +47,7 @@ export function sourcesOverview(): SourceView[] {
   if (isInstalled("jira-lage") || isInstalled("jira")) out.push(jiraSource());
   if (isInstalled("keep")) out.push(keepSource());
   if (isInstalled("todos")) out.push(todoSource());
-  if (isInstalled("outlook-mail") || isInstalled("gmail")) out.push(mailSource());
+  if (isInstalled("outlook-mail") || isInstalled("gmail") || isInstalled("imap-mail")) out.push(mailSource());
   if (isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal")) out.push(messageSource());
   for (const c of workspaceSources.list()) for (const s of c.impl) if (!s.relationOnly) out.push(extSource(s));
   return out;

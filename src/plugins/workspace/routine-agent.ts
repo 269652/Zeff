@@ -1,3 +1,4 @@
+import { reachedZeff } from "@/mcp/run-contacts";
 import { getSqlite } from "@/db";
 import { callerRunId } from "@/mcp/caller";
 import { t } from "@/lib/i18n/server";
@@ -114,14 +115,20 @@ export async function startAgent(pageId: number, trigger: Trigger, ctx: { row?: 
 }
 
 type WorkRunLike = { status: string; summary?: string | null; error?: string | null } | undefined;
+/** Whether a worker reached Zeff's MCP at all (tests give their own). */
+type Reached = (workRunId: number) => boolean;
 
 /** The runs of agents follow their workers: a worker run that has ended ends the routine's run. How many ended. */
-export function syncAgentRuns(lookup: (workRunId: number) => WorkRunLike = realLookup): number {
+export function syncAgentRuns(lookup: (workRunId: number) => WorkRunLike = realLookup, reached: Reached = reachedZeff): number {
   let ended = 0;
   for (const run of runningAgentRuns()) {
     const w = lookup(run.workRunId!);
     if (!w || w.status === "queued" || w.status === "running") continue;
-    if (w.status === "done") finishRun(run.id, { status: "done", log: [{ step: "agent", kind: "agent", status: "ok", note: w.summary ?? "" }] });
+    // Ended well, but never reached Zeff: it read and wrote nothing (Zeff wasn't reachable) — a failure, so it shows and is made up for.
+    if (w.status === "done" && !reached(run.workRunId!)) {
+      const error = t("The agent never reached Zeff (its MCP tools): nothing was read or written. Start it again once Zeff answers.");
+      finishRun(run.id, { status: "failed", log: [{ step: "agent", kind: "agent", status: "failed", note: w.summary ?? error }], error });
+    } else if (w.status === "done") finishRun(run.id, { status: "done", log: [{ step: "agent", kind: "agent", status: "ok", note: w.summary ?? "" }] });
     else finishRun(run.id, { status: "failed", log: [{ step: "agent", kind: "agent", status: "failed", note: w.error ?? w.status }], error: w.error ?? t("The worker run {status}.", { status: w.status }) });
     ended++;
   }

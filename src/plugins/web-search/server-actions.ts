@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "@/lib/redirect";
 import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
-import { saveSearchConfig, searchReady, webSearch } from "./search";
+import { canSearch, saveSearchConfig, webSearch } from "./search";
 
 const text = (fd: FormData, k: string) => (typeof fd.get(k) === "string" ? String(fd.get(k)) : undefined);
 
@@ -26,7 +26,7 @@ export async function testWebSearchAction(): Promise<void> {
   let msg: string;
   let ok = true;
   try {
-    if (!searchReady()) throw new Error(t("Add the key first."));
+    if (!canSearch()) throw new Error(t("Add the key first."));
     const hits = await webSearch("OpenAI API pricing per million tokens", { count: 3 });
     msg = hits.length ? `${t("It works")}: ${hits.map((h) => h.title).join(" · ")}` : t("No results — the key works, the search found nothing.");
   } catch (e) {

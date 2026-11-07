@@ -10,7 +10,7 @@ export default definePlugin({
   category: "connector",
   defaultInstalled: false,
   requires: "The account's automation Chrome with Gmail (mail.google.com), signed in — or Google's API with your own sign-in (Connections page).",
-  settings: { href: "/settings/connections#gmail-accounts", what: "Which Gmail accounts are read" },
+  settings: { href: "/settings/mail", what: "Mail accounts: add one, its servers, password and folders" },
   apps: [
     { href: "/mail", label: "Inbox", short: "Inbox", hint: "All your mails and chats in one place, a filter per channel" },
   ],

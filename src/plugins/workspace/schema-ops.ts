@@ -229,7 +229,8 @@ export function applyOps(schema: DbSchema, ops: DbOp[], ctx: OpsContext): { sche
       case "add_view": {
         if (s.views.some((x) => lc(x.name) === lc(o.name))) throw new Error(`There is a view "${o.name}" already.`);
         const made = fillView(s, newView(o.name, (VIEW_TYPES as readonly string[]).includes(o.type ?? "table") ? ((o.type ?? "table") as ViewType) : "table"), { ...o, type: o.type ?? "table" });
-        s = { ...s, views: [...s.views, made] };
+        // (A view built for the purpose is what opening the database should show.)
+        s = { ...s, views: o.template ? [made, ...s.views] : [...s.views, made] };
         notes.push(`added ${made.type} view "${made.name}"`);
         break;
       }

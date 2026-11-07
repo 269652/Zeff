@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { BetaBadge, BetaWarning, ExperimentalBadge, ExperimentalWarning } from "@/components/BetaBadge";
 import { PluginExtensions, type ExtensionRow } from "@/components/PluginExtensions";
 import { PluginInstallButton } from "@/components/PluginInstallButton";
+import { PluginSearch } from "@/components/PluginSearch";
 import { ThisPc } from "@/components/ThisPc";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
 import { PLUGIN_CATEGORY_LABELS, featuresOf, listedPlugins, pluginById, type PluginCategory, type PluginManifest } from "@/plugins/catalog";
@@ -56,9 +57,10 @@ export default async function PluginsPage() {
           )}
         </p>
       </div>
+      <PluginSearch />
       <ThisPc />
       {groups.map(([category, list]) => (
-        <section key={category} className="space-y-2">
+        <section key={category} className="space-y-2" data-plugin-group>
           <h2 className="text-sm font-semibold text-zinc-500 uppercase">{catalogText(t, PLUGIN_CATEGORY_LABELS[category])}</h2>
           <ul className="grid gap-3 md:grid-cols-2">
             {list.map((p) => {
@@ -66,8 +68,13 @@ export default async function PluginsPage() {
               const installed = set.has(p.id);
               const missing = installed && !on.has(p.id) ? (p.dependsOn ?? []).filter((d) => !on.has(d)) : [];
               const found = foundOn(p);
+              // What the search looks through: its name, description, id, what it needs, its group and its parts.
+              const text = [p.id, p.name, p.description, p.requires ?? "", PLUGIN_CATEGORY_LABELS[category], ...featuresOf(p.id).flatMap((f) => [f.name, f.description])]
+                .flatMap((x) => [x, catalogText(t, x)])
+                .join(" ")
+                .toLowerCase();
               return (
-                <li key={p.id} className={`card space-y-2 p-4 ${installed ? "" : "opacity-80"}`}>
+                <li key={p.id} data-plugin-text={text} className={`card space-y-2 p-4 ${installed ? "" : "opacity-80"}`}>
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <h3 className="font-medium">

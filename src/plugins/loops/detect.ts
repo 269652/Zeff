@@ -62,7 +62,9 @@ function fromMail(r: Resolver, since: string, now: Date): Loop[] {
   for (const [conv, msgs] of byConv) {
     const chat = conv.startsWith("wa:") || conv.startsWith("sg:");
     const gmail = conv.startsWith("gmail:");
-    const source = conv.startsWith("wa:") ? "whatsapp" : conv.startsWith("sg:") ? "signal" : gmail ? "gmail" : "mail";
+    // (Gmail and an IMAP mailbox keep what you sent: a thread you wrote in is known there.)
+    const keepsSent = gmail || conv.startsWith("imap:");
+    const source = conv.startsWith("wa:") ? "whatsapp" : conv.startsWith("sg:") ? "signal" : gmail ? "gmail" : conv.startsWith("imap:") ? "imap" : "mail";
     const chatName = chat ? conv.slice(3) : "";
     const mine = (m: M) => m.from_name === "Ich";
     // The app's own account (WhatsApp's tips) — not a conversation.
@@ -80,7 +82,7 @@ function fromMail(r: Resolver, since: string, now: Date): Loop[] {
       const owner = chat ? r.person(chatName) : null;
       const personId = chat && !group ? (owner ?? sender) : sender;
       // A mail is a loop when it is a conversation: from one of your people, or a thread you wrote in.
-      if (!chat && !personId && !(gmail && spoke)) continue;
+      if (!chat && !personId && !(keepsSent && spoke)) continue;
       const text = chat ? m.preview : `${m.subject} — ${m.preview}`;
       const kind = kindOf(text, null);
       if (!kind) continue;

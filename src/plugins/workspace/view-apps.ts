@@ -1,6 +1,7 @@
 import { CALENDAR_VIEW } from "@/plugins/calendar/view-template.meta";
 import { CASES_VIEW } from "@/plugins/cases/view-template.meta";
 import { DOCUMENTS_VIEW } from "@/plugins/documents/view-template.meta";
+import { AGENDA_VIEW } from "@/plugins/agenda/view-template.meta";
 import { DEBTS_VIEW } from "@/plugins/finances/view-template.meta";
 import { CHAT_VIEW, INBOX_VIEW, MAIL_VIEW } from "@/plugins/mail-client/view-template.meta";
 import { PEOPLE_VIEW } from "@/plugins/people/view-template.meta";
@@ -40,7 +41,7 @@ export const TEMPLATE_VIEW: ViewAppMeta = {
     ].join("\n"),
 };
 
-const ALL: ViewAppMeta[] = [TEMPLATE_VIEW, DEBTS_VIEW, CASES_VIEW, PEOPLE_VIEW, CALENDAR_VIEW, DOCUMENTS_VIEW, MAIL_VIEW, CHAT_VIEW, INBOX_VIEW];
+const ALL: ViewAppMeta[] = [TEMPLATE_VIEW, AGENDA_VIEW, DEBTS_VIEW, CASES_VIEW, PEOPLE_VIEW, CALENDAR_VIEW, DOCUMENTS_VIEW, MAIL_VIEW, CHAT_VIEW, INBOX_VIEW];
 
 export const viewAppMeta = (app: string): ViewAppMeta | undefined => ALL.find((m) => m.app === app);
 

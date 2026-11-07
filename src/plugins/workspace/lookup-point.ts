@@ -6,6 +6,8 @@ import { extensionPoint } from "@/lib/plugin-kit/extension-point";
  * actions/lookups.ts, and a source's keys stay here.
  */
 export type LookupValue = string | number | string[] | null;
+/** In what `details` gives: the text for the row's own page (not a field). */
+export const LOOKUP_PAGE = "_page";
 export type LookupHit = { id: string; title: string; subtitle?: string; image?: string };
 
 export type LookupSource = {
@@ -17,9 +19,11 @@ export type LookupSource = {
   /** The fields a hit has, by name: what each one is (for the AI, and to check a template's map). */
   fields: Record<string, string>;
   /** What is shown with its results, where its terms ask for it. */
-  credit?: string;
+  credit?: string | (() => string);
   /** What it still needs, in words (a key) — null: ready. */
   missing?: () => string | null;
+  /** A search takes long or costs something: not at each key, only when asked for (Enter). */
+  slow?: boolean;
   /** The hits for what was typed: quick, at most a handful. `language`: "de-DE". */
   search: (query: string, language: string) => Promise<LookupHit[]>;
   /** A hit in full: its fields by name. */

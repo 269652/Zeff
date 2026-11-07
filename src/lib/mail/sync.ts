@@ -30,12 +30,14 @@ import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 /** The Gmail labels kept as folders of their own (names, added by hand on the Mail settings page). */
 export const GMAIL_LABELS_PREF = "mail:gmailLabels";
 
-type Source = "outlook" | "gmail" | "whatsapp" | "signal";
-const SOURCE_LABELS: Record<Source, string> = { outlook: "Outlook", gmail: "Gmail", whatsapp: "WhatsApp", signal: "Signal" };
-const SOURCE_PLUGINS = { outlook: "outlook-mail", gmail: "gmail", whatsapp: "whatsapp" } as const;
+type Source = "outlook" | "gmail" | "imap" | "whatsapp" | "signal";
+const SOURCE_LABELS: Record<Source, string> = { outlook: "Outlook", gmail: "Gmail", imap: "E-Mail", whatsapp: "WhatsApp", signal: "Signal" };
+const SOURCE_PLUGINS = { outlook: "outlook-mail", gmail: "gmail", imap: "imap-mail", whatsapp: "whatsapp" } as const;
 
 /** Gmail / Outlook read through the service's API (the sign-in on the Connections page) instead of the automation Chrome. */
 const isApi = (source: Source) => (source === "gmail" && driverOf("gmail") === "api") || (source === "outlook" && driverOf("outlook-mail") === "api");
+/** A mailbox read without the automation Chrome: through its API, or an IMAP mailbox (its own server). */
+const chromeless = (source: Source) => isApi(source) || source === "imap";
 
 /** WhatsApp: the active chats' messages — else (WhatsApp Web doesn't offer them) each chat's last one from the list. */
 async function whatsappRead(call: (name: string, args: Record<string, unknown>) => Promise<unknown>, days: number, background: boolean): Promise<unknown> {
@@ -51,7 +53,17 @@ async function whatsappRead(call: (name: string, args: Record<string, unknown>) 
 }
 
 /** One source read (Outlook's or Gmail's list, WhatsApp's chat list) — as shown: no mail or chat opened, none marked read. */
-async function readMailbox(source: Source, days: number, background: boolean, gmail?: { account: string; folder: string }): Promise<{ messages: MailInput[]; missing?: string[]; mirrors?: MirrorRead[] }> {
+async function readMailbox(source: Source, days: number, background: boolean, gmail?: { account: string; folder: string }): Promise<{ messages: MailInput[]; missing?: string[]; mirrors?: MirrorRead[]; remember?: () => void }> {
+  // An IMAP mailbox: its server, signed in with the password set on its settings page.
+  if (source === "imap") {
+    const { accountReady, getMailAccount, mailboxName } = await import("@/plugins/imap-mail/config");
+    const c = getMailAccount(gmail?.account ?? "");
+    if (!c) throw new Error(t("No such mail account."));
+    if (!accountReady(c)) throw new Error(t("{account}: fill in the address, the password and both servers first (Settings → E-Mail).", { account: mailboxName(c) }));
+    // POP3: what is new since the last read (by UIDL); IMAP: the window of days, folder by folder.
+    if (c.method === "pop3") return (await import("@/plugins/imap-mail/pop3")).readPop3(c);
+    return (await import("@/plugins/imap-mail/client")).readImap(c, { days });
+  }
   // Gmail through Google's API: no automation Chrome.
   if (source === "gmail" && isApi(source)) {
     const { readGmail } = await import("@/lib/google/gmail-api");
@@ -89,12 +101,20 @@ async function readMailbox(source: Source, days: number, background: boolean, gm
   return { messages: data.messages, missing: data.missing };
 }
 
+/** A mail account's (IMAP, POP3) last sync noted on it, for the account list. */
+async function noteAccount(source: Source, box: { account: string } | undefined, ok: boolean, message: string): Promise<void> {
+  if (source !== "imap" || !box) return;
+  const { getMailAccount, saveMailAccount } = await import("@/plugins/imap-mail/config");
+  if (getMailAccount(box.account)) saveMailAccount(box.account, { lastSyncAt: new Date().toISOString(), lastOk: ok, lastResult: message });
+}
+
 /** One source read and kept — "N new · M in all", or why not (a sign-in it wants: asked of you, never done by Zeff). */
 async function syncSource(source: Source, days: number, background: boolean, prefix: boolean, gmail?: { account: string; folder: string }): Promise<{ ok: boolean; part: string }> {
   const label = gmail?.folder ?? SOURCE_LABELS[source];
   try {
     const r = await readMailbox(source, days, background, gmail);
     const { added, total } = saveMails(r.messages);
+    r.remember?.();
     // A mirror (Gmail through its API): what left the inbox or a chosen label there leaves it here — to the archive.
     for (const read of r.mirrors ?? []) archiveGone({ read });
     if (r.mirrors?.length) moveSent(gmail?.folder ?? "Gmail");
@@ -105,12 +125,14 @@ async function syncSource(source: Source, days: number, background: boolean, pre
     }
     clearAttention(`login:${source}`);
     const counted = t("{added} new · {total} in all", { added, total });
-    const missing = r.missing?.length ? ` — ${t("not found in Outlook: {folders}", { folders: r.missing.join(", ") })}` : "";
+    const missing = r.missing?.length ? ` — ${source === "imap" ? t("not found on the mail server: {folders}", { folders: r.missing.join(", ") }) : t("not found in Outlook: {folders}", { folders: r.missing.join(", ") })}` : "";
+    await noteAccount(source, gmail, true, `${counted}${missing}`);
     return { ok: true, part: `${prefix ? `${label}: ` : ""}${counted}${missing}` };
   } catch (e) {
     const message = errorMessage(e).slice(0, 300);
     // (An API sign-in that fails is told in the result — connect again on the Connections page; no Chrome login to raise.)
-    if (!isApi(source) && (needsSignIn(message) || /sign[- ]in|anmeld|verknüpf/i.test(message))) raiseLogin(source, message);
+    if (!chromeless(source) && (needsSignIn(message) || /sign[- ]in|anmeld|verknüpf/i.test(message))) raiseLogin(source, message);
+    await noteAccount(source, gmail, false, message);
     return { ok: false, part: `${label}: ${message}` };
   }
 }
@@ -128,31 +150,58 @@ export async function syncMail({ background = false } = {}): Promise<{ ok: boole
     // (that would also make the next sync read two months again).
     // Gmail through the API doesn't need it: that part runs, the Chrome-driven ones wait.
     const { isInstalled } = await import("@/plugins/state");
-    const sources = (["outlook", "gmail"] as const).filter((s) => isInstalled(SOURCE_PLUGINS[s]));
-    const chromeDown = background && !(await chromeUp());
-    if (chromeDown && !sources.some(isApi)) return { ok: true, message: t("The automation Chrome isn't running — later.") };
-    if (!sources.length) return record(false, t("No mail plugin installed (Outlook Mail or Gmail)."));
+    const sources = (["outlook", "gmail", "imap"] as const).filter((s) => isInstalled(SOURCE_PLUGINS[s]));
+    // (Only the mailboxes read in the automation Chrome need it: an IMAP mailbox alone never starts or asks for it.)
+    const chromeDown = background && sources.some((s) => !chromeless(s)) && !(await chromeUp());
+    if (chromeDown && !sources.some(chromeless)) return { ok: true, message: t("The automation Chrome isn't running — later.") };
+    if (!sources.length) return record(false, t("No mail plugin installed (Outlook Mail, Gmail or E-Mail (IMAP))."));
     const days = background && getMailSettings().lastOk ? DAYS : FULL_DAYS;
     const done = [];
     // Gmail: each account set on its settings page, into its own folder.
     const { gmailAccounts, gmailFolder } = await import("@/plugins/gmail/accounts");
     // (With the API there is one account — the one signed in on the Connections page — in the folder "Gmail".)
+    // (The mail accounts — IMAP, POP3 —: each by itself, under its name.)
+    const { mailAccounts, mailboxName } = await import("@/plugins/imap-mail/config");
     const all = sources.flatMap((source): { source: Source; gmail?: { account: string; folder: string } }[] =>
-      source === "gmail" && isApi(source) ? [{ source, gmail: { account: "0", folder: "Gmail" } }] : source === "gmail" ? gmailAccounts().map((a, i) => ({ source, gmail: { account: a.account, folder: gmailFolder(a, i) } })) : [{ source, gmail: undefined }],
+      source === "gmail" && isApi(source)
+        ? [{ source, gmail: { account: "0", folder: "Gmail" } }]
+        : source === "gmail"
+          ? gmailAccounts().map((a, i) => ({ source, gmail: { account: a.account, folder: gmailFolder(a, i) } }))
+          : source === "imap"
+            ? mailAccounts().map((a) => ({ source, gmail: { account: a.id, folder: mailboxName(a) } }))
+            : [{ source, gmail: undefined }],
     );
-    const boxes = chromeDown ? all.filter((b) => isApi(b.source)) : all;
+    const boxes = chromeDown ? all.filter((b) => chromeless(b.source)) : all;
     for (const b of boxes) done.push(await syncSource(b.source, days, background, boxes.length > 1, b.gmail));
     // Attachments → Documents (when turned on): its own step after the mails are kept — whatever goes wrong
     // there is a note in the result, never a failed mail sync.
     if (done.some((d) => d.ok)) {
       try {
-        const att = await (await import("./attachments-sync")).fetchMailAttachments(chromeDown ? { only: sources.filter(isApi) } : {});
+        const att = await (await import("./attachments-sync")).fetchMailAttachments(chromeDown ? { only: sources.filter((x): x is "outlook" | "gmail" => x !== "imap" && isApi(x)) } : {});
         if (att.message) done.push({ ok: true, part: att.message });
       } catch (e) {
         done.push({ ok: true, part: t("attachments: {error}", { error: errorMessage(e).slice(0, 200) }) });
       }
     }
     return record(done.some((d) => d.ok), done.map((d) => d.part).join(" · "));
+  } finally {
+    setAccountFlag("__zeffMailSyncing", false);
+  }
+}
+
+/** One mail account (IMAP, POP3) read now — "Sync now" on the account list: two months the first time, then the last days. */
+/** Whether a mail sync runs now (in this account). */
+export const isMailSyncing = (): boolean => !!accountFlag("__zeffMailSyncing");
+
+export async function syncMailAccount(id: string): Promise<{ ok: boolean; message: string }> {
+  if (accountFlag("__zeffMailSyncing")) return { ok: false, message: t("A mail sync is already running.") };
+  const { getMailAccount, mailboxName } = await import("@/plugins/imap-mail/config");
+  const a = getMailAccount(id);
+  if (!a) return { ok: false, message: t("No such mail account.") };
+  setAccountFlag("__zeffMailSyncing", true);
+  try {
+    const r = await syncSource("imap", a.lastOk ? DAYS : FULL_DAYS, false, false, { account: a.id, folder: mailboxName(a) });
+    return { ok: r.ok, message: r.part };
   } finally {
     setAccountFlag("__zeffMailSyncing", false);
   }

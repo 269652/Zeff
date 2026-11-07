@@ -1,4 +1,5 @@
 import { t } from "@/lib/i18n/server";
+import { IMAP_ACCOUNT } from "@/lib/mail/shared";
 import { rowKey } from "./collections";
 import { docText } from "./doc";
 import { getDatabase, getPage } from "./store";
@@ -55,7 +56,7 @@ function replyTarget(row: NonNullable<ReturnType<typeof getPage>>): { channel: s
   const channel = select("commchannel") || select("mailaccount") || select("msgchannel");
   const from = typeof p.commfrom === "string" ? p.commfrom : typeof p.mailfrom === "string" ? p.mailfrom : "";
   const conv = String(p.commconv ?? p.mailconv ?? p.msgconv ?? "");
-  if (channel === "Outlook" || channel === "Gmail" || (!channel && typeof p.mailfrom === "string")) {
+  if (channel === "Outlook" || channel === "Gmail" || channel === IMAP_ACCOUNT || (!channel && typeof p.mailfrom === "string")) {
     const address = /<([^>]+)>/.exec(from)?.[1] ?? (/@/.test(from) ? from : "");
     return { channel: channel || "Outlook", to: address, subject: /^(AW|RE|Re|Aw):/.test(row.title) ? row.title : `AW: ${row.title}`, conv };
   }
@@ -82,7 +83,7 @@ export async function draftReply(target: { channel: string; to: string; subject:
   const history = target.conv && !target.conv.startsWith("19:") ? conversationOf(target.conv, 12).map((m) => `${m.receivedAt.slice(0, 16).replace("T", " ")} ${m.fromName ?? m.fromEmail ?? "?"}: ${m.preview.slice(0, 1500)}`) : [alone];
   const { fillPrompt } = await import("@/lib/prompts");
   const { INSTRUCTIONS } = await import("@/lib/todos/reply-draft");
-  const channel = target.channel === "Outlook" || target.channel === "Gmail" ? "Mail" : target.channel === "Teams" ? "Teams-Nachricht" : `${target.channel}-Unterhaltung`;
+  const channel = target.channel === "Outlook" || target.channel === "Gmail" || target.channel === IMAP_ACCOUNT ? "Mail" : target.channel === "Teams" ? "Teams-Nachricht" : `${target.channel}-Unterhaltung`;
   const { runAi } = await import("@/lib/ai");
   const r = await runAi<{ text?: string }>(
     [fillPrompt("reply-draft", INSTRUCTIONS, { channel }), "", `# Verlauf (älteste zuerst) — an ${target.to || target.channel}`, ...history, "", `Heute ist ${new Date().toLocaleDateString("de-DE", { weekday: "long", day: "numeric", month: "long", year: "numeric" })}.`].join("\n"),

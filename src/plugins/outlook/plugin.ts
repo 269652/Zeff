@@ -18,7 +18,7 @@ export default definePlugin({
       name: "Outlook Mail",
       description: "Reads your inbox in Outlook Web (only the list, nothing is opened) — mails as context for todos, the mail review and mail matching.",
       defaultInstalled: true,
-      settings: { href: "/settings/mail", what: "Which Outlook folders are read, and what happens to the attachments" },
+      settings: { href: "/settings/mail", what: "Mail accounts: add one, its servers, password and folders" },
       apps: [{ href: "/mail", label: "Inbox", short: "Inbox", hint: "All your mails and chats in one place, a filter per channel" }],
       routes: ["/mail", "/api/boards/mail-relations"],
       syncSteps: ["mail", "mailtodos", "relations"],

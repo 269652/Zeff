@@ -1,7 +1,7 @@
-import { htmlToText, searchReady, webSearch } from "@/plugins/web-search/search";
+import { canSearch, htmlToText, webFetch, webSearch } from "@/plugins/web-search/search";
 import { isInstalled } from "@/plugins/state";
 import { t } from "@/lib/i18n/server";
-import type { LookupSource } from "@/plugins/workspace/lookup-point";
+import { LOOKUP_PAGE, type LookupSource } from "@/plugins/workspace/lookup-point";
 import { getLookupConfig } from "./config";
 import { getJson, language2, short, year } from "./http";
 
@@ -128,17 +128,20 @@ const googleKnowledge: LookupSource = {
 
 // -- The web --------------------------------------------------------------------------------------------------------------------
 
-/** Web search's results (Google or Brave, what is set there). A hit is complete as it comes, so it carries itself. */
+/** Web search's results. A hit carries itself; picked, the document behind it is read, and its text is the row's page (a refusal leaves the snippet). */
 const web: LookupSource = {
   id: "web.search",
   label: "Web search",
-  what: "Pages of the web, through the Web search plugin.",
+  what: "Pages and PDFs of the web, through the Web search plugin; the document's whole text becomes the row's page.",
+  slow: true,
   fields: { title: "the page's title", snippet: "a few lines from it", url: "its address" },
-  missing: () => (!isInstalled("web-search") ? t("Install the Web search plugin (Menu → Plugins).") : searchReady() ? null : t("Add the key under Settings → Web search.")),
+  missing: () => (!isInstalled("web-search") ? t("Install the Web search plugin (Menu → Plugins).") : canSearch() ? null : t("The Claude CLI or a key is needed: Settings → Web search.")),
   search: async (q, language) => (await webSearch(q, { count: 8, language: language2(language) })).map((h) => ({ id: JSON.stringify(h), title: h.title, subtitle: short(h.snippet, 90) })),
   details: async (hit) => {
     const h = JSON.parse(hit) as { title?: unknown; url?: unknown; snippet?: unknown };
-    return { title: short(h.title, 300), snippet: short(h.snippet, 600), url: /^https?:\/\//.test(String(h.url)) ? String(h.url) : "" };
+    const url = /^https?:\/\//.test(String(h.url)) ? String(h.url) : "";
+    const doc = url ? await webFetch(url, { maxChars: 150000 }).catch(() => null) : null;
+    return { title: short(h.title, 300), snippet: short(h.snippet, 600), url, [LOOKUP_PAGE]: doc?.text ?? "" };
   },
 };
 

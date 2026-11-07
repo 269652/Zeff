@@ -10,6 +10,7 @@ export * from "./actions/databases";
 export * from "./actions/pipeline";
 export * from "./actions/rows";
 export * from "./actions/lookups";
+export * from "./actions/dossier";
 export * from "./actions/todos";
 export * from "./actions/ai";
 export * from "./actions/routines";

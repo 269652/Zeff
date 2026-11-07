@@ -176,7 +176,11 @@ test("inbox data: threads by conversation (unread when any of it is), the channe
   const a = inboxAppData({ rows: items, props: INBOX_PROPS, state: {}, reply: ["Outlook", "WhatsApp"], now: NOW.getTime() });
   assert.deepEqual((a.threads as Row[]).map((r) => r.id), [22, 21]);
   assert.deepEqual(a.unreadIds, [21], "c1's older mail is unread: the thread is");
-  assert.deepEqual(a.texts, { 21: { from: "Me", count: 2 }, 22: { from: "Eva", count: 1 } });
+  assert.deepEqual(
+    Object.fromEntries(Object.entries(a.texts as Record<string, { from: string; count: number }>).map(([k, v]) => [k, { from: v.from, count: v.count }])),
+    { 21: { from: "Me", count: 2 }, 22: { from: "Eva", count: 1 } },
+  );
+  assert.ok(Object.values(a.texts as Record<string, { preview: string }>).every((v) => typeof v.preview === "string"), "each thread has its preview line");
   assert.equal(a.total, 4);
   assert.equal(a.allUnread, " · 1");
   assert.equal(a.channelOptions, "Outlook:✉️ Outlook 2 · 1, Teams:🟣 Teams 1, WhatsApp:🟢 WhatsApp 1");
@@ -212,17 +216,18 @@ test("the inbox's default template draws without an error — every channel, unr
 test("inbox: channels as tabs, threads as the language's list, the reading pane in <selected>", () => {
   const r = drawInbox({ selected: "21" });
   const tabs = find(r.nodes, "tabs")[0];
-  assert.deepEqual(JSON.parse(tabs.a.options), [["", "All 4 · 1"], ["Outlook", "✉️ Outlook 2 · 1"], ["Teams", "🟣 Teams 1"], ["WhatsApp", "🟢 WhatsApp 1"]]);
+  // (A tab's count is what is unread there: none, no count.)
+  assert.deepEqual(JSON.parse(tabs.a.options), [["", "logo-all All", "1"], ["Outlook", "logo-outlook Outlook", "1"], ["Teams", "logo-teams Teams"], ["WhatsApp", "logo-whatsapp WhatsApp"]]);
   assert.equal(tabs.a.current, "");
-  assert.deepEqual(find(r.nodes, "toggle").map((x) => x.a.bind), ["snoozed", "unread"]);
+  assert.deepEqual(find(r.nodes, "toggle").map((x) => x.a.bind), ["unread", "snoozed"]);
   const list = find(r.nodes, "list")[0];
   assert.equal(list.a.select, "true");
   assert.deepEqual(list.c.map((it) => (typeof it === "string" ? "" : it.a.row)), ["22", "21"]);
-  assert.match(vnodeToString(list.c[1]), /✉️.*<b>AW: Invoice<\/b>/, "the thread unread: in bold");
-  assert.match(vnodeToString(list.c[0]), /🟢.*Lunch\?.*Eva/);
+  assert.match(vnodeToString(list.c[1]), /<b>AW: Invoice<\/b>.*<logo name=Outlook/, "the thread unread: in bold, its channel beside its preview");
+  assert.match(vnodeToString(list.c[0]), /Lunch\?.*<logo name=WhatsApp/);
   const sel = find(r.nodes, "selected")[0];
   const pane = vnodeToString(sel);
-  assert.match(pane, /✉️ Outlook · Me <me@x\.de> · 10:00 · Inbox/);
+  assert.match(find(sel.c, "header")[0].a.subtitle, /Me <me@x\.de> · 10:00 · Outlook/);
   assert.match(pane, /From a customer/);
   assert.deepEqual(parts(sel.c), ["inbox.snooze", "mail.know", "mail.thread", "mail.suggested", "mail.reply"]);
   const teams = drawInbox({ snoozed: "true", selected: "23" });
@@ -230,8 +235,16 @@ test("inbox: channels as tabs, threads as the language's list, the reading pane 
   assert.ok(!parts(teams.nodes).includes("mail.reply"));
 });
 
-test("each view is a split: the list in its first column, the one picked in its second", () => {
-  for (const r of [drawMail({}), drawChat({}), drawInbox({})]) {
+test("the inbox is two panes: the list in the first, the one picked in the second", () => {
+  const panes = find(drawInbox({}).nodes, "panes");
+  assert.equal(panes.length, 1);
+  const [list, reading] = panes[0].c.filter((c): c is Extract<VNode, object> => typeof c !== "string");
+  assert.equal(find(list.c, "list").length, 1);
+  assert.equal(find(reading.c, "selected").length, 1);
+});
+
+test("mail and chat are a split: the list in its first column, the one picked in its second", () => {
+  for (const r of [drawMail({}), drawChat({})]) {
     const split = find(r.nodes, "split");
     assert.equal(split.length, 1);
     const cols = split[0].c.filter((c): c is Extract<VNode, object> => typeof c !== "string");

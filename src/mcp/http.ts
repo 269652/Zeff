@@ -1,3 +1,4 @@
+import { noteRunContact } from "./run-contacts";
 import { promptText } from "@/lib/prompts";
 import { createMcpHandler } from "mcp-handler";
 import { accountById, listAccounts, withAccount } from "@/db/accounts";
@@ -51,5 +52,16 @@ export async function handleMcp(req: Request, accountId?: string): Promise<Respo
   if (accountId === undefined && !account) return unauthorized("Send 'Authorization: Bearer <token>' with the token of a Zeff account (Zeff → Menu → MCP, in that account).");
   if (!account) return Response.json({ error: "not_found", message: `No Zeff account "${accountId}".` }, { status: 404 });
   if (!bearerIs(auth, "mcp", account.id)) return unauthorized(`Send 'Authorization: Bearer <token>' with the token of Zeff's account "${account.name}" (Zeff → Menu → MCP, in that account).`);
-  return withAccount(account.id, () => withCallerRun(req.headers.get(RUN_HEADER), () => handlerFor(account.id, account.name)(req)));
+  return withAccount(account.id, () => {
+    // A work run's session reached Zeff (an agent that never does, did nothing: routine-agent.ts).
+    const run = Number(req.headers.get(RUN_HEADER));
+    if (Number.isInteger(run) && run > 0) {
+      try {
+        noteRunContact(run);
+      } catch {
+        // only the note is missing; the request goes on
+      }
+    }
+    return withCallerRun(req.headers.get(RUN_HEADER), () => handlerFor(account.id, account.name)(req));
+  });
 }

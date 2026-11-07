@@ -10,8 +10,14 @@ import type { ViewAppMeta } from "../view-apps";
 import { navOf, renderView, viewDefaults, type ViewNavEntry, type VNode } from "../view-template";
 import type { ActionEnv, AppViewProps, ViewAppModule } from "./app-view";
 import { draw, Level, type DrawExt } from "./card-template";
+import { ChannelLogo } from "@/components/ChannelLogo";
+import { toggleTaskAction } from "../actions";
+import { askWorkspace } from "./chat-client";
+import { WS_CHANGED } from "./ChatPanel";
 import { Cell } from "./cells";
+import { EmptyState, Sparkline, viewBlock } from "./view-blocks";
 import { LookupField } from "./view-lookup";
+import { AskBox, DossierBox } from "./view-notebook";
 import { WidgetBlock } from "./widget-node";
 
 /**
@@ -117,6 +123,14 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         case "url":
           // Zeff's own pages in place, a mail written in the mail program, anything else in a new tab.
           return void (a.href && (a.href.startsWith("/") ? router.push(a.href) : a.href.startsWith("mailto:") ? (window.location.href = a.href) : window.open(a.href, "_blank", "noopener")));
+        case "assistant": {
+          if (!a.request?.trim()) return;
+          toast(t("The assistant is on it …"), { ms: 5000 });
+          const r = await askWorkspace([{ role: "user", text: a.request }], props.data.id);
+          props.reload();
+          app.reload();
+          return toast(r.ok ? r.reply || t("Done.") : r.error, { tone: r.ok ? "ok" : "error" });
+        }
         case "print":
           return window.print();
         case "reload":
@@ -240,7 +254,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         );
       case "box":
         return (
-          <div key={key} className={`space-y-2 rounded-xl border border-zinc-200 p-4 dark:border-zinc-800 ${BOX_TONE[a.tone ?? ""] ?? ""}`} style={scrolls(a)}>
+          <div key={key} className={`space-y-2 rounded-xl border border-zinc-200 bg-white p-4 shadow-xs dark:border-zinc-800 dark:bg-zinc-900 ${BOX_TONE[a.tone ?? ""] ?? ""}`} style={scrolls(a)}>
             {a.title && <h3 className="text-sm font-semibold">{a.title}</h3>}
             {kids(n.c)}
           </div>
@@ -259,11 +273,24 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
             {kids(n.c)}
           </div>
         );
+      case "task": {
+        // A box of a row's checklist: the n-th task of its page, ticked there.
+        const rowId = Number(a.row);
+        const index = (previews?.[rowId] ?? []).filter((l) => l.kind === "task")[Number(a.n)]?.index;
+        return <TaskBox key={key} rowId={rowId} index={index} checked={a.checked === "true"} label={a.label ?? ""} editable={!!props.ctx?.editable} done={() => props.reload()} />;
+      }
       case "tile":
         return (
-          <div key={key} className="h-full rounded-xl border border-zinc-200 px-4 py-3 dark:border-zinc-800" title={a.tip || undefined}>
-            <div className="text-xs font-medium text-zinc-500">{a.label}</div>
-            <div className={`mt-0.5 text-xl font-semibold tracking-tight tabular-nums ${TONE[a.tone ?? ""] ?? ""}`}>{a.value || "—"}</div>
+          <div key={key} className="h-full rounded-xl border border-zinc-200 bg-white px-4 py-3 shadow-xs dark:border-zinc-800 dark:bg-zinc-900" title={a.tip || undefined}>
+            <div className="flex items-center justify-between gap-2 text-xs font-medium text-zinc-500">
+              <span className="truncate">{a.label}</span>
+              {a.icon && <span aria-hidden>{a.icon}</span>}
+            </div>
+            <div className="mt-1 flex items-end justify-between gap-2">
+              <div className={`text-2xl leading-7 font-semibold tracking-tight tabular-nums ${TONE[a.tone ?? ""] ?? ""}`}>{a.value || "—"}</div>
+              {a.spark && <Sparkline values={json<number[]>(a.spark, [])} />}
+            </div>
+            {a.trend && <div className={`mt-0.5 text-xs font-medium tabular-nums ${a.trend.startsWith("-") || a.trend.startsWith("−") ? TONE.bad : TONE.good}`}>{a.trend}</div>}
             {(a.sub || n.c.length > 0) && (
               <div className="mt-0.5 text-xs text-zinc-500">
                 {a.sub}
@@ -344,12 +371,16 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         const opts = json<[string, string, string?][]>(a.options, []);
         return (
           <div key={key} className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-zinc-100 p-0.5 print:hidden dark:bg-zinc-800/70" role="tablist">
-            {opts.map(([v, label, count]) => (
-              <button key={v} type="button" role="tab" aria-selected={a.current === v} className={`rounded-md px-3 py-1 text-sm font-medium transition ${a.current === v ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100" : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"}`} onClick={() => setState(a.bind, v)}>
-                {label}
+            {opts.map(([v, label, count]) => {
+              // A label "logo-<channel> Name": the channel's mark alone, its name the tab's tooltip and accessible name.
+              const logo = /^logo-(\S+)\s+(.*)$/.exec(label);
+              return (
+              <button key={v} type="button" role="tab" aria-selected={a.current === v} aria-label={logo ? `${logo[2]}${count ? ` (${count})` : ""}` : undefined} title={logo?.[2]} className={`inline-flex items-center rounded-md px-3 py-1 text-sm font-medium transition ${a.current === v ? "bg-white text-zinc-900 shadow-sm dark:bg-zinc-950 dark:text-zinc-100" : "text-zinc-500 hover:text-zinc-800 dark:text-zinc-400 dark:hover:text-zinc-200"}`} onClick={() => setState(a.bind, v)}>
+                {logo ? <ChannelLogo name={logo[1]} className="size-[18px]" /> : label}
                 {count !== undefined && <span className="ml-1 text-xs font-normal text-zinc-400 tabular-nums">{count}</span>}
               </button>
-            ))}
+              );
+            })}
           </div>
         );
       }
@@ -372,6 +403,12 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
       }
       case "search":
         return <input key={key} type="search" className="input w-44 py-1 text-sm print:hidden" placeholder={a.placeholder ?? t("Search …")} aria-label={a.placeholder ?? t("Search")} value={a.current} onChange={(e) => setState(a.bind, e.target.value)} />;
+      case "ask":
+        return <AskBox key={key} a={a} dbId={props.data.id} openRow={props.openRow} />;
+      case "dossier":
+        return <DossierBox key={key} a={a} dbId={props.data.id} rowsKey={props.rows.map((x) => `${x.id}:${x.updatedAt}`).join()} />;
+      case "logo":
+        return <ChannelLogo key={key} name={a.name ?? ""} className={a.size === "lg" ? "size-5" : "size-4"} />;
       case "lookup":
         return <LookupField key={key} a={a} dbId={props.data.id} reload={props.reload} openRow={props.openRow} />;
       case "toggle":
@@ -384,7 +421,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
       case "list":
       case "cards": {
         const items = n.c.filter((c): c is Extract<VNode, object> => typeof c !== "string");
-        if (!items.length) return a.empty ? <p key={key} className="text-sm text-zinc-500">{a.empty}</p> : null;
+        if (!items.length) return a.empty ? <EmptyState key={key} text={a.empty} /> : null;
         const active = (it: Extract<VNode, object>) => it.a.row && it.a.row === r.state.selected;
         const click = (it: Extract<VNode, object>) => (it.a.row ? () => (a.select === "true" ? setState("selected", it.a.row) : a.open === "true" ? props.openRow(Number(it.a.row)) : undefined) : undefined);
         const clickable = a.select === "true" || a.open === "true";
@@ -392,7 +429,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
           return (
             <div key={key} className="grid" style={cols({ cols: a.cols ?? "3", min: "200" })}>
               {items.map((it, i) => (
-                <div key={it.a.row ?? i} className={`min-w-0 rounded-xl border p-3 text-sm ${active(it) ? "border-indigo-400 ring-2 ring-indigo-200 dark:ring-indigo-900" : "border-zinc-200 dark:border-zinc-800"} ${clickable ? "cursor-pointer hover:border-zinc-300 dark:hover:border-zinc-700" : ""}`} onClick={click(it)}>
+                <div key={it.a.row ?? i} className={`min-w-0 rounded-xl border bg-white p-3 text-sm shadow-xs transition dark:bg-zinc-900 ${active(it) ? "border-indigo-400 ring-2 ring-indigo-200 dark:ring-indigo-900" : "border-zinc-200 dark:border-zinc-800"} ${clickable ? "cursor-pointer hover:-translate-y-0.5 hover:shadow-md" : ""}`} onClick={click(it)}>
                   <div className="flex flex-col gap-1">{kids(it.c)}</div>
                 </div>
               ))}
@@ -423,7 +460,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
             </ul>
           );
         return (
-          <ul key={key} className="divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
+          <ul key={key} className="ws-list divide-y divide-zinc-100 rounded-xl border border-zinc-200 dark:divide-zinc-800 dark:border-zinc-800">
             {items.map((it, i) => (
               <li key={it.a.row ?? i} className={`${a.spacing === "roomy" ? "px-4 py-3" : "px-3 py-2"} text-sm ${active(it) ? "bg-indigo-50/70 dark:bg-indigo-950/40" : ""} ${clickable ? "cursor-pointer hover:bg-zinc-50 dark:hover:bg-zinc-900/50" : ""}`} onClick={click(it)}>
                 <div className={`flex flex-col ${a.spacing === "roomy" ? "gap-2" : "gap-1"}`}>{kids(it.c)}</div>
@@ -457,6 +494,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
             className={`${variant} ${sign ? "min-w-7 justify-center" : ""} ${a.wide === "true" ? "w-full justify-center" : ""} ${a.print === "true" ? "" : "print:hidden"} ${a.action === "print" ? "max-sm:hidden" : ""}`}
             onClick={(e) => (e.stopPropagation(), void run(a))}
           >
+            {a.icon && <span aria-hidden>{a.icon}</span>}
             {a.label ?? a.action}
           </button>
         );
@@ -487,7 +525,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         return <WidgetBlock key={key} id={id} config={conf} title={title} />;
       }
       default:
-        return undefined;
+        return viewBlock(n, key, kids, { props, state: r.state, setState, run: (x) => void run(x) });
     }
   };
 
@@ -715,5 +753,35 @@ function Fold({ title, open, children }: { title: string; open: boolean | "wide"
       <summary className="cursor-pointer text-sm font-semibold select-none">{title}</summary>
       {children}
     </details>
+  );
+}
+
+/** A box of a row's checklist in a view: ticks the item in the row's page itself (and the view shows it at once). */
+function TaskBox({ rowId, index, checked, label, editable, done }: { rowId: number; index: number | undefined; checked: boolean; label: string; editable: boolean; done: () => void }) {
+  const [on, setOn] = useState<boolean | null>(null);
+  useEffect(() => setOn(null), [checked]);
+  const shown = on ?? checked;
+  const tick = (next: boolean) => {
+    if (index === undefined) return;
+    setOn(next);
+    void toggleTaskAction(rowId, index, next).then((r) => {
+      if (!r.ok) {
+        toast(r.error, { tone: "error" });
+        return setOn(null);
+      }
+      window.dispatchEvent(new Event(WS_CHANGED));
+      done();
+    });
+  };
+  return (
+    <input
+      type="checkbox"
+      className="mr-1.5 size-3.5 translate-y-0.5 accent-indigo-600"
+      checked={shown}
+      disabled={!editable || index === undefined}
+      aria-label={label}
+      onClick={(e) => e.stopPropagation()}
+      onChange={(e) => tick(e.target.checked)}
+    />
   );
 }

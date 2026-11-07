@@ -37,7 +37,7 @@ export default async function LookupsSettingsPage({ searchParams }: { searchPara
             {t("API key")}
             <input name="tmdbKey" type="password" autoComplete="off" className={`${field} mt-1`} placeholder={c.tmdbKey ? t("(set — leave empty to keep)") : ""} />
           </label>
-          <p className="text-xs text-zinc-500">{t("Free for personal, non-commercial use: an account at themoviedb.org, then Settings → API. The key or the read access token both work.")}</p>
+          <p className="text-xs text-zinc-500">{t("Optional: without a key, films come from Wikidata and Wikipedia (no ratings, not every poster) and series from TVmaze. Free for personal, non-commercial use: an account at themoviedb.org, then Settings → API. The key or the read access token both work.")}</p>
           <p className="text-xs text-zinc-500">{TMDB_CREDIT}</p>
         </fieldset>
         <fieldset className="space-y-2 rounded border border-zinc-200 p-3 dark:border-zinc-800">

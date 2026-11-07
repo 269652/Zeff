@@ -1,4 +1,3 @@
-import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { PluginExperimental } from "@/components/BetaBadge";
 import { isInstalled } from "@/plugins/state";
 import type { Metadata } from "next";
@@ -15,10 +14,10 @@ import { attachmentOfferOpen, attachmentSettings } from "@/lib/mail/attachments-
 import { SyncSplitButton } from "@/components/SyncSplitButton";
 import { TeamsMessageList } from "@/components/TeamsMessageList";
 import { TodoRefs } from "@/components/boards/TodoRefs";
-import { getMailSettings, listMails, mailFolderCounts } from "@/lib/mail/store";
+import { getMailSettings, imapFolderNames, listMails, mailFolderCounts } from "@/lib/mail/store";
 import { getTeamsSettings, listTeamsMessages, teamsMessageCounts } from "@/lib/teams/store";
 import type { TeamsKind } from "@/lib/teams/shared";
-import { channelOfFolder, INBOX_CHANNELS, isChatFolder, isInboxFolder, isMine, sourceLink, type InboxChannel, type MailView } from "@/lib/mail/shared";
+import { channelOfFolder as folderChannel, IMAP_ACCOUNT, INBOX_CHANNELS, isChatFolder, isInboxFolder, isMine, sourceLink, type InboxChannel, type MailView } from "@/lib/mail/shared";
 import { UnreadDot, UnreadDotSlot } from "@/components/UnreadDot";
 import { agoText } from "@/lib/teams/time";
 import { syncOverview } from "@/lib/sync/registry";
@@ -30,6 +29,7 @@ import { WRITE_CHANNELS } from "@/plugins/workspace/capabilities";
 import { HistoryButton } from "@/plugins/whatsapp/HistoryButton";
 import { SignalButton } from "@/plugins/signal/SignalButton";
 import { SignalStatus } from "@/plugins/signal/SignalStatus";
+import { NewMail } from "@/plugins/imap-mail/ui/NewMail";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Inbox") };
@@ -47,12 +47,25 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
   await connection();
   // A plugin's page: there while one of the channels is installed.
   const channels = INBOX_CHANNELS.filter((c) => isInstalled(c.plugin));
-  if (!channels.length) return <PluginNotInstalled id="outlook-mail" />;
+  // Nothing to read yet: where a mail account is added (whatever reads it is installed from there).
+  if (!channels.length)
+    return (
+      <div className="mx-auto max-w-xl space-y-3 py-8 text-center">
+        <h1 className="text-lg font-semibold">{t("Inbox")}</h1>
+        <p className="text-sm text-zinc-500">{t("No mail account yet. Add one — Gmail, Outlook, T-Online, GMX, WEB.DE or any other.")}</p>
+        <Link href="/settings/mail/add" className="btn btn-primary btn-sm">
+          ＋ {t("Add account")}
+        </Link>
+      </div>
+    );
   const on = (id: InboxChannel) => channels.some((c) => c.id === id);
-  const mailOn = on("outlook") || on("gmail");
+  const mailOn = on("outlook") || on("gmail") || on("imap");
   const sp = await searchParams;
   const q = sp.q?.trim() ?? "";
   const counts = mailFolderCounts();
+  // (An IMAP mailbox's folders carry its own name: known by the mails in them.)
+  const imapFolders = on("imap") ? imapFolderNames() : undefined;
+  const channelOfFolder = (f: string) => folderChannel(f, imapFolders);
   // The channel: asked for, else the folder's (the old links: ?folder=WhatsApp).
   const asked = channels.find((c) => c.id === sp.channel)?.id ?? (sp.folder && sp.folder in counts ? channelOfFolder(sp.folder) : undefined);
   const channel = asked && on(asked) ? asked : undefined;
@@ -82,7 +95,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
   const settings = getMailSettings();
   const teams = teamsOn && (!channel || channel === "teams") ? getTeamsSettings() : null;
   const syncs = [
-    ...(mailOn && (!channel || channel === "outlook" || channel === "gmail")
+    ...(mailOn && (!channel || channel === "outlook" || channel === "gmail" || channel === "imap")
       ? [{ key: "mail", label: t("Mails"), minutes: settings.syncMinutes, sync: syncMailAction, last: settings.lastSyncAt ? { at: settings.lastSyncAt, ago: agoText(settings.lastSyncAt), ok: !!settings.lastOk, result: settings.lastResult ?? "" } : null }]
       : []),
     ...(wa ? [{ key: "whatsapp", label: "WhatsApp", minutes: wa.everyMinutes, sync: syncWhatsappAction, last: wa.lastAt ? { at: wa.lastAt, ago: agoText(wa.lastAt), ok: !!wa.lastOk, result: wa.lastMessage ?? "" } : null }] : []),
@@ -115,7 +128,7 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
     if (isChatFolder(latest.folder)) return { kind: "chat", channel: c === "whatsapp" ? "WhatsApp" : "Signal", chat: latest.subject, mailKey: latest.key };
     const other = list.find((m) => !isMine(m) && m.fromEmail) ?? latest;
     const subject = /^(AW|RE|Re|Aw):/.test(latest.subject) ? latest.subject : `AW: ${latest.subject}`;
-    return { kind: "mail", account: c === "gmail" ? "Gmail" : "Outlook", to: other.fromEmail ?? "", subject, mailKey: latest.key };
+    return { kind: "mail", account: c === "gmail" ? "Gmail" : c === "imap" ? IMAP_ACCOUNT : "Outlook", to: other.fromEmail ?? "", subject, mailKey: latest.key };
   };
   // A chat's own tools: its whole history loaded (WhatsApp Web, Signal Desktop).
   const toolsOf = (latest: MailView) =>
@@ -156,11 +169,12 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
           )}
         </p>
         <p className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs">
-          {mailOn && (
-            <Link href="/settings/mail" className="text-indigo-600 hover:underline dark:text-indigo-400">
-              {t("Mail settings")}
-            </Link>
-          )}
+          <Link href="/settings/mail" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            {t("E-Mail accounts")}
+          </Link>
+          <Link href="/settings/mail/add" className="text-indigo-600 hover:underline dark:text-indigo-400">
+            ＋ {t("Add account")}
+          </Link>
           {teamsOn && (
             <Link href="/settings/connections" className="text-indigo-600 hover:underline dark:text-indigo-400">
               {t("Teams connection")}
@@ -168,6 +182,12 @@ export default async function MailPage({ searchParams }: { searchParams: Promise
           )}
         </p>
         {channel === "signal" && <SignalStatus />}
+        {/* A new mail from the IMAP mailbox (the other mailboxes are written to in their own apps). */}
+        {on("imap") && opAvailable("imap-send") && (!channel || channel === "imap") && (
+          <div className="mt-2">
+            <NewMail accounts={(await import("@/plugins/imap-mail/config")).mailAccounts().map((a) => ({ id: a.id, name: (a.name || a.address) + (a.address && a.name ? ` <${a.address}>` : "") }))} />
+          </div>
+        )}
         {isTeams && (
           <p className="text-sm text-zinc-500">
             {t("Where you were @mentioned, and what colleagues wrote you in 1:1 chats — read from Teams in the automation Chrome (from its own cache: nothing is clicked, sent or marked read). Pick them as context on an entry (From: Teams), or add one as context here.")}

@@ -26,8 +26,8 @@ export type Current = {
 
 export type MailInput = { rows: Row[]; props: Property[]; state: Record<string, string>; previews?: Record<number, { text: string }[]>; reply?: string[]; now?: number };
 
-export const ICON: Record<string, string> = { Outlook: "✉️", Gmail: "📮", Teams: "🟣", WhatsApp: "🟢", Signal: "🔵" };
-const MAIL = new Set(["Outlook", "Gmail"]);
+export const ICON: Record<string, string> = { Outlook: "✉️", Gmail: "📮", "E-Mail": "📧", Teams: "🟣", WhatsApp: "🟢", Signal: "🔵" };
+const MAIL = new Set(["Outlook", "Gmail", "E-Mail"]);
 
 const optName = (props: Property[], prop: string, v: unknown) => props.find((p) => p.id === prop)?.options?.find((o) => o.id === v)?.name ?? "";
 const str = (v: unknown) => (typeof v === "string" ? v : "");
@@ -160,6 +160,8 @@ export function inboxAppData(v: MailInput): Record<string, unknown> {
       link: str(row.cells.srcurl),
       why: str(row.cells.filterwhy),
       canReply,
+      // (An IMAP / POP3 account's mail: archived through Zeff.)
+      archivable: String(row.cells.commconv ?? "").startsWith("imap:"),
       ids,
       conv,
       // (A Teams chat: its own text; a mail's or a WhatsApp / Signal chat's from Zeff's copy.)
@@ -173,12 +175,18 @@ export function inboxAppData(v: MailInput): Record<string, unknown> {
     threads: threads.map((x) => x.head),
     first,
     unreadIds: threads.filter((x) => x.unread > 0).map((x) => x.head.id),
-    texts: Object.fromEntries(threads.map((x) => [x.head.id, { from: fromName(x.head.cells.commfrom), count: x.count }])),
+    texts: Object.fromEntries(threads.map((x) => [x.head.id, { from: fromName(x.head.cells.commfrom), count: x.count, preview: previewOf(v, x.head.id, " ") }])),
     total: v.rows.length,
     allUnread: unread ? ` · ${unread}` : "",
     channelOptions: [...counts.entries()]
       .sort((a, b) => a[0].localeCompare(b[0]))
       .map(([c, x]) => `${clean(c)}:${ICON[c] ?? "•"} ${clean(c)} ${x.all}${x.unread ? ` · ${x.unread}` : ""}`)
+      .join(", "),
+    // (For tabs: "value:Label:count" — the count is what is unread, none when nothing is.)
+    unreadCount: unread || "",
+    channelTabs: [...counts.entries()]
+      .sort((a, b) => a[0].localeCompare(b[0]))
+      .map(([c, x]) => `${clean(c)}:logo-${clean(c).toLowerCase().replace(/\s+/g, "-")} ${clean(c)}${x.unread ? `:${x.unread}` : ""}`)
       .join(", "),
     snoozed: grouped.snoozed,
     snoozedToggle: grouped.snoozed > 0 || showSnoozed,

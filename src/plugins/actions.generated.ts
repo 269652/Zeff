@@ -4,6 +4,7 @@ import { CALENDAR_ACTIONS } from "./calendar/actions";
 import { CASES_ACTIONS } from "./cases/actions";
 import { GITLAB_ACTIONS } from "./gitlab/actions";
 import { GMAIL_ACTIONS } from "./gmail/actions";
+import { IMAP_ACTIONS } from "./imap-mail/actions";
 import { JIRA_ACTIONS } from "./jira/actions";
 import { KEEP_ACTIONS } from "./keep/note-action";
 import { OUTLOOK_MAIL_ACTIONS } from "./outlook/actions";
@@ -16,4 +17,4 @@ import { WHATSAPP_ACTIONS } from "./whatsapp/actions";
 import { WORK_ACTIONS } from "./work/actions";
 
 /** Every plugin's actions (plugins/actions/catalog.ts orders them by their plugin's `actionsOrder`). */
-export const ACTION_LISTS = [ZEFF_ACTIONS, CALENDAR_ACTIONS, CASES_ACTIONS, GITLAB_ACTIONS, GMAIL_ACTIONS, JIRA_ACTIONS, KEEP_ACTIONS, OUTLOOK_MAIL_ACTIONS, OUTLOOK_CALENDAR_ACTIONS, REVOLUT_ACTIONS, SIGNAL_ACTIONS, TEAMS_ACTIONS, TODOS_ACTIONS, WHATSAPP_ACTIONS, WORK_ACTIONS] as const;
+export const ACTION_LISTS = [ZEFF_ACTIONS, CALENDAR_ACTIONS, CASES_ACTIONS, GITLAB_ACTIONS, GMAIL_ACTIONS, IMAP_ACTIONS, JIRA_ACTIONS, KEEP_ACTIONS, OUTLOOK_MAIL_ACTIONS, OUTLOOK_CALENDAR_ACTIONS, REVOLUT_ACTIONS, SIGNAL_ACTIONS, TEAMS_ACTIONS, TODOS_ACTIONS, WHATSAPP_ACTIONS, WORK_ACTIONS] as const;

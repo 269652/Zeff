@@ -26,6 +26,7 @@ export const BOUNDARY_SOURCES: BoundarySource[] = [
   { key: "teams", name: "Teams", default: "open", plugin: "teams" },
   { key: "mail", name: "Work mail (Outlook)", default: "open", plugin: "outlook-mail" },
   { key: "gmail", name: "Gmail", default: "open", plugin: "gmail" },
+  { key: "imap", name: "E-Mail (IMAP)", default: "open", plugin: "imap-mail" },
   { key: "gitlab", name: "GitLab", default: "open", plugin: "gitlab" },
   { key: "todos", name: "Todos", default: "open", plugin: "todos" },
   { key: "reports", name: "Worker reports", default: "open", plugin: "work" },
@@ -47,8 +48,8 @@ const DEFAULTS = new Map(BOUNDARY_SOURCES.map((s) => [s.key, s.default]));
 /** A source's label when you have set none (an unknown source: open). */
 export const defaultSourceLabel = (key: string): Label => DEFAULTS.get(key) ?? "open";
 
-/** A mail's source by its key: WhatsApp's and Signal's chats and Gmail's mails share the mail table with Outlook's. */
-const mailSource = (key: string): string => (key.startsWith("wa:") ? "whatsapp" : key.startsWith("sg:") ? "signal" : key.startsWith("gmail") ? "gmail" : "mail");
+/** A mail's source by its key: WhatsApp's and Signal's chats, Gmail's and an IMAP mailbox's mails share the mail table with Outlook's. */
+const mailSource = (key: string): string => (key.startsWith("wa:") ? "whatsapp" : key.startsWith("sg:") ? "signal" : key.startsWith("gmail") ? "gmail" : key.startsWith("imap:") ? "imap" : "mail");
 
 const DOC_PREFIX: [string, string][] = [
   ["zeff:jira:", "jira"],

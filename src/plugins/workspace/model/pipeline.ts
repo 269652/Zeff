@@ -3,9 +3,9 @@ import { str, newId, defined, posInt, strs, ids } from "./util";
 /** The sources a pipeline can read: Jira's tickets, Google Keep's notes, the todos, another database of the Workspace, the addresses of the knowledge base. */
 export const PIPELINE_SOURCES = ["jira", "keep", "todos", "database", "mail", "messages", "knowledge", "ext"] as const;
 /** What a database's rows can be, by their sources: mails (Outlook, Gmail), messages (Teams, WhatsApp, Signal). */
-export const DATA_TYPES = ["mail", "message", "inbox", "people", "news", "calendar", "documents", "cases", "debts"] as const;
+export const DATA_TYPES = ["mail", "message", "inbox", "people", "news", "calendar", "documents", "cases", "debts", "agenda"] as const;
 export type DataType = (typeof DATA_TYPES)[number];
-export const MAIL_ACCOUNTS = ["outlook", "gmail"] as const;
+export const MAIL_ACCOUNTS = ["outlook", "gmail", "imap"] as const;
 export const MESSAGE_CHANNELS = ["teams", "whatsapp", "signal"] as const;
 /** Which mails: of these accounts (none: all), in these folders, unread only, received within days. */
 export type MailCriteria = { accounts?: (typeof MAIL_ACCOUNTS)[number][]; folders?: string[]; unreadOnly?: boolean; recentDays?: number };

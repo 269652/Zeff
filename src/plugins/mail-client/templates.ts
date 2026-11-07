@@ -13,7 +13,7 @@ const filter = (match: "all" | "any", rules: ReturnType<typeof rule>[]): Pipelin
 const MACHINES = ["(Jira)", "noreply", "no-reply", "notification", "Bot", "@semantic", "mailer-daemon"];
 
 export const INBOX_TEMPLATES: InboxTemplate[] = [
-  { id: "inbox", dataType: "mail", title: "Inbox", icon: "📥", description: "Outlook's Posteingang and Gmail's inbox", steps: () => [filter("any", [rule("Folder", "is", "Posteingang"), rule("Folder", "is", "Inbox"), rule("Account", "is", "Gmail")])] },
+  { id: "inbox", dataType: "mail", title: "Inbox", icon: "📥", description: "Outlook's Posteingang, Gmail's inbox and the IMAP mailbox's", steps: () => [filter("any", [rule("Folder", "is", "Posteingang"), rule("Folder", "is", "Inbox"), rule("Account", "is", "Gmail"), rule("Account", "is", "E-Mail")])] },
   { id: "gmail", dataType: "mail", title: "Gmail", icon: "📮", description: "Only the Gmail account's mails", steps: () => [filter("all", [rule("Account", "is", "Gmail")])] },
   { id: "sent", dataType: "mail", title: "Sent", icon: "📤", description: "What you sent (Gmail's sent folder)", steps: () => [], folders: ["Gmail · Sent"] },
   { id: "archive", dataType: "mail", title: "Archive", icon: "🗄", description: "What left the Gmail inbox (archived or filed under a label) — still kept", steps: () => [], folders: ["Gmail · Archive"] },

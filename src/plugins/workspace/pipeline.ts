@@ -204,8 +204,10 @@ const personField = (id: string, name: string, ids: (number | null)[]): TypedFie
   return { id, name, type: "person", value: v.length ? v : null };
 };
 
-/** An account of a mail by where it's kept (Gmail's conversations: gmail:…; the rest: Outlook). */
-const accountOf = (convId: string): "outlook" | "gmail" => (convId.startsWith("gmail:") ? "gmail" : "outlook");
+/** An account of a mail by where it's kept (Gmail's conversations: gmail:…; an IMAP mailbox's: imap:…; the rest: Outlook). */
+export const accountOf = (convId: string): "outlook" | "gmail" | "imap" => (convId.startsWith("gmail:") ? "gmail" : convId.startsWith("imap:") ? "imap" : "outlook");
+/** An account's name as the Account field shows it. */
+const ACCOUNT_NAMES = { outlook: "Outlook", gmail: "Gmail", imap: "E-Mail" } as const;
 
 async function mailRecords(c: NonNullable<PipelineStep["mail"]>): Promise<SourceRecord[]> {
   const { listMails } = await import("@/lib/mail/store");
@@ -218,8 +220,8 @@ async function mailRecords(c: NonNullable<PipelineStep["mail"]>): Promise<Source
     .filter((m) => !isChatFolder(m.folder) && !/^(wa|sg):/.test(m.convId))
     // (a mirrored folder's archive and sent folder — what left the inbox, what you sent — only when the folder is asked for)
     .filter((m) => !isSideFolder(m.folder) || !!folders?.includes(m.folder.toLowerCase()))
-    // (your own Gmail mails kept in the inbox's folder before the sent folder existed: not the inbox's either)
-    .filter((m) => !(m.convId.startsWith("gmail:") && m.fromName === ME_SENDER) || !!folders?.includes(m.folder.toLowerCase()))
+    // (your own Gmail and IMAP mails kept in the inbox's folder: not the inbox's either)
+    .filter((m) => !(/^(gmail|imap):/.test(m.convId) && m.fromName === ME_SENDER) || !!folders?.includes(m.folder.toLowerCase()))
     .filter((m) => (!c.accounts?.length || c.accounts.includes(accountOf(m.convId))) && (!folders?.length || folders.includes(m.folder.toLowerCase())) && (!c.unreadOnly || m.unread) && (!from || at(m.receivedAt) >= from))
     .map((m) => ({
       ref: `mail:${m.key}`,
@@ -227,7 +229,7 @@ async function mailRecords(c: NonNullable<PipelineStep["mail"]>): Promise<Source
       fields: {},
       typed: [
         { id: "mailfrom", name: "From", type: "text" as const, value: m.fromEmail ? `${m.fromName ?? m.fromEmail} <${m.fromEmail}>` : (m.fromName ?? "") },
-        { id: "mailaccount", name: "Account", type: "select" as const, value: accountOf(m.convId) === "gmail" ? "Gmail" : "Outlook" },
+        { id: "mailaccount", name: "Account", type: "select" as const, value: ACCOUNT_NAMES[accountOf(m.convId)] },
         { id: "mailfolder", name: "Folder", type: "select" as const, value: m.folder },
         { id: "mailreceived", name: "Received", type: "date" as const, value: m.receivedAt ? new Date(at(m.receivedAt)).toISOString().slice(0, 16) : null },
         { id: "mailunread", name: "Unread", type: "checkbox" as const, value: m.unread || null },

@@ -7,6 +7,7 @@ import { syncSettings as autoActions } from "./auto-actions/sync-settings";
 import { syncSettings as backup } from "./backup/sync-settings";
 import { syncSettings as gitlab } from "./gitlab/sync-settings";
 import { syncSettings as gmail } from "./gmail/sync-settings";
+import { syncSettings as imapMail } from "./imap-mail/sync-settings";
 import { syncSettings as jira } from "./jira/sync-settings";
 import { syncSettings as jiraLage } from "./jira-lage/sync-settings";
 import { syncSettings as outlookCalendar } from "./outlook/calendar-sync-settings";
@@ -34,6 +35,7 @@ const modules = (): Partial<Record<PluginId, PluginSyncSettings>> => ({
   teams,
   "outlook-mail": outlookMail,
   gmail,
+  "imap-mail": imapMail,
   whatsapp,
   signal,
   keep,

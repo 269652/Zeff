@@ -14,6 +14,10 @@ import { chatAppData, inboxAppData, mailAppData, type Current, type MailInput, t
 import { ChatReply } from "./ChatReply";
 import { MailReply } from "./MailReply";
 import { NewInbox } from "./NewInbox";
+import { archiveReadAction, archiveRowsAction, markOpenedReadAction } from "@/plugins/imap-mail/open-actions";
+
+/** How long a mail is looked at before it counts as read. */
+const OPEN_READ_MS = 1500;
 
 /**
  * The mail client's views, client side: what their templates read as app.* (view-data.ts, worked out of the rows and the view's
@@ -31,10 +35,73 @@ const appData = (compute: (v: MailInput) => Record<string, unknown>) =>
       () => compute({ rows: props.rows, props: schema.properties, state, previews: extras?.previews, reply: extras?.capabilities?.reply ?? [], now: Date.now() }),
       [props.rows, schema, state, extras],
     );
+    // The one opened, still unread, looked at for a moment (not just passed while going through the list): read — in Zeff, and for an
+    // IMAP account on its server (the account's setting "mark read when opened").
+    const current = data.current as { id: number; ids?: number[] } | null | undefined;
+    const ids = current ? (current.ids ?? [current.id]) : [];
+    const unread = ids.some((id) => {
+      const cells = props.rows.find((r) => r.id === id)?.cells;
+      return !!(cells?.communread || cells?.mailunread);
+    });
+    // (Only what you picked: the newest, picked by itself when the view opens, isn't read for being shown.)
+    const key = unread && state.selected ? ids.join(",") : "";
+    const reload = props.reload;
+    useEffect(() => {
+      if (!key) return;
+      const timer = setTimeout(() => {
+        void markOpenedReadAction(key.split(",").map(Number)).then((r) => r.ok && r.marked > 0 && reload());
+      }, OPEN_READ_MS);
+      return () => clearTimeout(timer);
+    }, [key, reload]);
     return { data, reload: () => {} };
   };
 
 const currentOf = (p: PartProps) => (p.app.current as Current | null | undefined) ?? null;
+
+/** Archive: the conversation picked out of the inbox — on its mail server too. */
+function ArchivePart(p: PartProps) {
+  const t = useT();
+  const current = currentOf(p) as (Current & { ids?: number[] }) | null;
+  const [busy, setBusy] = useState(false);
+  if (!current) return null;
+  const archive = async () => {
+    setBusy(true);
+    const r = await archiveRowsAction(current.ids ?? [current.id]);
+    setBusy(false);
+    if (!r.ok) return toast(r.error, { tone: "error" });
+    if (r.failed.length) return toast(r.failed.join(" · "), { tone: "error" });
+    p.setState("selected", "");
+    p.reload();
+    toast(t("Archived."));
+  };
+  return (
+    <button type="button" className="btn btn-sm print:hidden" disabled={busy} onClick={() => void archive()} title={t("Out of the inbox — on the mail server too")}>
+      🗄 {busy ? t("Archiving …") : t("Archive")}
+    </button>
+  );
+}
+
+/** Archive what is read: the IMAP / POP3 inboxes' read conversations, at once. */
+function ArchiveReadPart(p: PartProps) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const any = p.rows.some((r) => String(r.cells.commconv ?? "").startsWith("imap:"));
+  if (!any) return null;
+  const go = async () => {
+    if (!window.confirm(t("Archive every read conversation of your mailboxes' inboxes (IMAP / POP3)?"))) return;
+    setBusy(true);
+    const r = await archiveReadAction();
+    setBusy(false);
+    if (!r.ok) return toast(r.error, { tone: "error" });
+    p.reload();
+    toast(r.failed.length ? r.failed.join(" · ") : t("{n} archived.", { n: r.archived }), { tone: r.failed.length ? "error" : "ok" });
+  };
+  return (
+    <button type="button" className="rounded px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 print:hidden dark:hover:bg-zinc-800" disabled={busy} onClick={() => void go()}>
+      {busy ? t("Archiving …") : t("Archive read")}
+    </button>
+  );
+}
 
 /** + New inbox (a database of the plugin's templates under this one). */
 function NewInboxPart(p: PartProps) {
@@ -190,4 +257,6 @@ const shared = { "mail.new-inbox": NewInboxPart, "mail.thread": ThreadPart, "mai
 
 export const MAIL: ViewAppModule = { parts: { ...shared, "mail.text": TextPart }, useAppData: appData(mailAppData) };
 export const CHAT: ViewAppModule = { parts: { ...shared, "chat.messages": MessagesPart }, useAppData: appData(chatAppData) };
-export const INBOX: ViewAppModule = { parts: { ...shared, "mail.text": TextPart, "inbox.snooze": SnoozePart }, useAppData: appData(inboxAppData) };
+export const INBOX: ViewAppModule = { parts: { ...shared, "mail.text": TextPart, "inbox.snooze": SnoozePart,
+    "inbox.archive": ArchivePart,
+    "inbox.archive-read": ArchiveReadPart }, useAppData: appData(inboxAppData) };

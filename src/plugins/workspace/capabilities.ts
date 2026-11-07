@@ -13,7 +13,7 @@ export type Capabilities = {
   reply: string[];
   /** Of them, the ones whose reply is a draft you send yourself (mail). */
   drafts: string[];
-  /** Of them, the mail Zeff sends itself on your click (Gmail, with its write access) — or saves as a draft there. */
+  /** Of them, the mail Zeff sends itself on your click (Gmail, with its write access — or saved as a draft there; an IMAP mailbox over its SMTP server). */
   sends: string[];
   /** Nothing to write back. */
   readOnly: boolean;
@@ -23,6 +23,7 @@ export type Capabilities = {
 export const WRITE_CHANNELS = [
   { channel: "outlook", name: "Outlook", action: "mail-compose", draft: true, source: "mail" },
   { channel: "gmail", name: "Gmail", action: "gmail-compose", draft: true, source: "mail" },
+  { channel: "imap", name: "E-Mail", action: "imap-send", draft: false, source: "mail" },
   { channel: "teams", name: "Teams", action: "teams-message", draft: false, source: "messages" },
   { channel: "whatsapp", name: "WhatsApp", action: "whatsapp-message", draft: false, source: "messages" },
   { channel: "signal", name: "Signal", action: "signal-message", draft: false, source: "messages" },
@@ -43,7 +44,7 @@ export function capabilitiesOf(schema: DbSchema): Capabilities {
       if (channels?.length && (s.from === "mail" || s.from === "messages") && !channels.includes(x.channel)) continue;
       if (!opAvailable(x.action)) continue;
       reply.add(x.name);
-      if (x.channel === "gmail" && gmailSends) sends.add(x.name);
+      if ((x.channel === "gmail" && gmailSends) || x.channel === "imap") sends.add(x.name);
       else if (x.draft) drafts.add(x.name);
     }
   }

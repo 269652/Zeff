@@ -25,8 +25,11 @@ export function settingsAreas(): SettingsAreaGroup[] {
     ...(on.has("zeiterfassung") ? [{ href: "/settings/time", label: t("Time-tracking settings"), what: t("Weekly hours, breaks, flex time, rules, absences") }] : []),
     ...(on.has("work") ? [{ href: "/settings/time#work", label: t("Code"), what: t("How the sessions and workers run: permission modes, limits, model, house rules") }] : []),
   ];
+  const mail = ["mail-client", "outlook-mail", "gmail", "imap-mail"] as const;
   const connections: SettingsArea[] = [
-    { href: "/settings/connections", label: t("Connections"), what: t("Per service: API or automation Chrome, the sign-ins, Gmail accounts, Google Drive, how often each sync runs") },
+    // The mail accounts' one place (Gmail, Outlook, IMAP, POP3): there while anything mail is installed (Mail & Chat is by default).
+    ...(mail.some((id) => on.has(id)) ? [{ href: "/settings/mail", label: t("E-Mail accounts"), what: t("Add a mail account (Gmail, Outlook, T-Online, GMX, IMAP, POP3), its folders, the attachments") }] : []),
+    { href: "/settings/connections", label: t("Connections"), what: t("Per service: API or automation Chrome, the sign-ins, Google Drive, how often each sync runs") },
   ];
   const listed = [...general, ...time, ...connections].map((a) => path(a.href));
   const plugins: SettingsArea[] = [
@@ -73,7 +76,8 @@ export function settingsSections(): SettingsArea[] {
     { href: "/settings/connections#api", label: t("APIs"), what: conn },
     { href: "/settings/connections#sign-ins", label: t("Browser sign-ins"), what: conn },
     { href: "/settings/connections#syncs", label: t("Sync settings"), what: conn },
-    on.has("gmail") && { href: "/settings/connections#gmail-accounts", label: t("Gmail accounts"), what: conn },
+    on.has("gmail") && { href: "/settings/mail/account/gmail", label: t("Gmail accounts"), what: t("E-Mail accounts") },
+    { href: "/settings/mail/add", label: t("Add mail account"), what: t("E-Mail accounts") },
     on.has("google-drive") && { href: "/settings/connections#google-drive", label: t("Google Drive"), what: conn },
     on.has("todos") && { href: "/settings/todos#boards", label: t("Todos (briefing)"), what: t("Todo settings") },
     ...(on.has("zeiterfassung")

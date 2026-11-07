@@ -232,9 +232,9 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
 
   // What a view's buttons do to rows (a template's new, delete, duplicate, hide).
   const rowOps: RowOps = {
-    add: async (cells) => {
-      const id = await api.addRow(cells, "");
-      if (id) fresh.current = { id, madeWith: Object.keys(cells) };
+    add: async (cells, title = "") => {
+      const id = await api.addRow(cells, title);
+      if (id && !title) fresh.current = { id, madeWith: Object.keys(cells) };
       return id;
     },
     remove: (id) => api.removeRow(id),
@@ -364,6 +364,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const countText = rows.length === data.rows.length ? (rows.length === 1 ? t("1 row") : t("{n} rows", { n: rows.length })) : t("{n} of {total} rows", { n: rows.length, total: data.rows.length });
   // (A table says it in its footer: no line of its own under it.)
   const countInTable = !dayTab && view.type === "table" && rows.length > 0;
+  // An app of its own (<panes>): it has its search, filters and counts, the table's tools around it would only compete.
+  const appScreen = view.type === "app" && /<panes\b/.test(view.template ?? "");
   return (
     <div className="space-y-2">
       <div ref={setBar} className={`flex items-center gap-1 ${narrow ? "flex-nowrap" : "flex-wrap"}`}>
@@ -436,14 +438,14 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           </Dropdown>
         </div>
         {!narrow && <span className="flex-1" />}
-        {!narrow || searchOpen || q ? (
+        {appScreen ? null : !narrow || searchOpen || q ? (
           <input type="search" value={q} onChange={(e) => setQ(e.target.value)} onBlur={() => !q && setSearchOpen(false)} autoFocus={narrow && searchOpen} placeholder={t("Search …")} aria-label={t("Search the rows")} className={`input text-sm ${narrow ? "w-28 shrink-0" : "w-36"}`} />
         ) : (
           <button type="button" className="icon-btn shrink-0" title={t("Search the rows")} aria-label={t("Search the rows")} onClick={() => setSearchOpen(true)}>
             🔍
           </button>
         )}
-        {!narrow && !dayTab && controlsNode}
+        {!narrow && !dayTab && !appScreen && controlsNode}
         {narrow && !dayTab && viewMenu}
         {!narrow && schema.pipeline?.steps.some((s) => s.kind === "source") && !data.extras?.source && (
           <button
@@ -462,7 +464,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
             {data.extras?.running ? <span className="inline-block animate-spin">↻</span> : "↻"}
           </button>
         )}
-        {!narrow && !dayTab && propsDropdown}
+        {!narrow && !dayTab && !appScreen && propsDropdown}
         {/* A rules database: its rules tried on what the pipelines read — per rule, what it would hit; nothing written (rules.ts). */}
         {data.schema.rules && <TryRules dbId={dbId} />}
         {!narrow && !dayTab && (view.type === "board" || view.type === "gallery") && (
@@ -586,7 +588,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       {!dayTab && view.type === "todo" && <TodoView dbId={dbId} rows={rows} schema={schema} api={api} openRow={openRow} locked={!!data.locked} canAdd={!data.noNewRows} />}
       {!dayTab && view.type === "chart" && <ChartView view={view} rows={rows} schema={schema} />}
       {!dayTab && view.type === "calendar" && <CalendarView canAdd={!data.noNewRows} view={view} rows={rows} schema={schema} api={api} openRow={openRow} newRow={newRow} />}
-      {(!countInTable || hiddenCount > 0) && <p className="text-xs text-zinc-500">
+      {!appScreen && (!countInTable || hiddenCount > 0) && <p className="text-xs text-zinc-500">
         {!countInTable && countText}
         {hiddenCount > 0 && (
           <>

@@ -59,8 +59,11 @@ export const keyOf = (m: MailInput) =>
   m.id ? `${m.convId}|${createHash("sha1").update(m.id).digest("hex").slice(0, 16)}` :
   `${m.convId}|${createHash("sha1").update(`${m.from}\n${m.subject}\n${m.preview}${isChatConv(m.convId) ? "" : `\n${m.receivedAt ?? ""}`}`).digest("hex").slice(0, 16)}`;
 
-/** What a mail needs to fetch its attachments later: Outlook gives an item id, Gmail's message id is it. */
-const attachRefOf = (m: MailInput) => (m.hasAttachments ? (m.attachRef ?? (m.convId.startsWith("gmail:") ? m.id : undefined)) : undefined) ?? null;
+/**
+ * What a mail needs to fetch its attachments later: Outlook gives an item id, Gmail's message id is it. An IMAP mail keeps its
+ * Message-ID here whether it has attachments or not (a reply names it in In-Reply-To / References).
+ */
+const attachRefOf = (m: MailInput) => (m.convId.startsWith("imap:") ? m.attachRef : m.hasAttachments ? (m.attachRef ?? (m.convId.startsWith("gmail:") ? m.id : undefined)) : undefined) ?? null;
 
 /** The attachment facts of a list read, for a mail already kept (only what the list said). */
 const attachmentFields = (m: MailInput) => (m.hasAttachments === undefined ? {} : { hasAttachments: m.hasAttachments, ...(attachRefOf(m) ? { attachRef: attachRefOf(m) } : {}) });
@@ -138,6 +141,11 @@ const toView = (r: typeof emails.$inferSelect): MailView => ({
 /** How many mails each folder has. */
 export function mailFolderCounts(): Record<string, number> {
   return Object.fromEntries(getDb().select({ folder: emails.folder, n: sql<number>`count(*)` }).from(emails).groupBy(emails.folder).all().map((r) => [r.folder, r.n]));
+}
+
+/** The folders holding an IMAP mailbox's mails (named by the mailbox: channelOfFolder can't tell them by name alone). */
+export function imapFolderNames(): Set<string> {
+  return new Set(getDb().selectDistinct({ folder: emails.folder }).from(emails).where(like(emails.convId, "imap:%")).all().map((r) => r.folder));
 }
 
 /** The mails with these keys, by key. */

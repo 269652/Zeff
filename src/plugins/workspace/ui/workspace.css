@@ -1142,6 +1142,17 @@
   display: block;
 }
 
+/* A database's own view in a page (a view template, an app): drawn by its own classes, not the page's headings and bullet lists —
+   the page's rules step back to Tailwind's (revert-layer), so what the view sets applies. */
+.ws-editor .ProseMirror [data-print-root] :is(h1, h2, h3, h4, ul, ol, li, p) {
+  font-size: revert-layer;
+  font-weight: revert-layer;
+  line-height: revert-layer;
+  margin: revert-layer;
+  padding: revert-layer;
+  list-style: revert-layer;
+}
+
 /* widgets: lists of rows with buttons — not the page's bullet lists and links */
 .ws-editor .ProseMirror .ws-widget ul {
   list-style: none;

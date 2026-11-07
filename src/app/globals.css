@@ -364,3 +364,47 @@ p a:not([class*="btn"]):not([role]),
     display: table-header-group;
   }
 }
+
+/* A view's <panes>: columns side by side on a wide screen, one under the other on a phone. */
+@media (min-width: 768px) {
+  .ws-panes {
+    grid-template-columns: var(--panes);
+    /* As high as the window leaves: each pane scrolls by itself, the page doesn't. */
+    height: calc(100dvh - 13rem);
+    min-height: 28rem;
+  }
+}
+
+/* In a pane the pane is the frame: a list has none of its own, a search takes the room there is. */
+.ws-panes .ws-list {
+  border-width: 0;
+  border-radius: 0;
+  margin: 0 -0.75rem;
+}
+.ws-panes .ws-toolbar {
+  border-width: 0;
+  padding-bottom: 0;
+}
+.ws-panes input[type="search"] {
+  flex: 1;
+  width: auto;
+  min-width: 0;
+}
+
+/* A source an answer names: a small number, not a link in the text. */
+.ws-answer a[href^="https://source.invalid/"] {
+  margin-inline: 0.125rem;
+  border-radius: 0.25rem;
+  background: var(--color-indigo-100);
+  padding-inline: 0.25rem;
+  color: var(--color-indigo-800);
+  font-size: 0.75rem;
+  font-weight: 500;
+  text-decoration: none;
+}
+@media (prefers-color-scheme: dark) {
+  .ws-answer a[href^="https://source.invalid/"] {
+    background: var(--color-indigo-950);
+    color: var(--color-indigo-200);
+  }
+}

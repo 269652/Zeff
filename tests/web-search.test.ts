@@ -13,7 +13,7 @@ const json = (body: unknown, status = 200) => new Response(JSON.stringify(body),
 
 test("webSearch: Google Programmable Search and Brave, mapped to title/url/snippet; no key: a clear error", async () => {
   const s = await import("@/plugins/web-search/search");
-  await assert.rejects(s.webSearch("gpt pricing"), /not set up/i, "no key yet");
+  await assert.rejects(s.webSearch("gpt pricing"), /Claude CLI/, "no key yet");
 
   s.saveSearchConfig({ provider: "google", googleKey: "KEY", googleCx: "CX" });
   let url = "";

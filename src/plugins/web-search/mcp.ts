@@ -1,7 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { isInstalled } from "@/plugins/state";
-import { searchReady, webFetch, webSearch } from "./search";
+import { webFetch, webSearch } from "./search";
 
 type Helpers = {
   run: (fn: () => unknown) => Promise<never>;
@@ -23,10 +23,10 @@ export function registerWebSearchTools(server: McpServer, h: Helpers): void {
     {
       title: "Search the web",
       description:
-        "Search the web (Google) for facts you need — prices, specs, documentation, news. Returns titles, URLs and snippets; read the page behind a promising result with web_fetch before you quote numbers from it. " +
+        "Search the web for facts and documents — prices, specs, documentation, news, articles. Returns titles, URLs and snippets; read the page behind a promising result with web_fetch before you quote numbers from it. " +
         `A snippet is often cut off or old: for figures (prices, token limits) open the official page. ${DATA}`,
       inputSchema: z.object({
-        query: z.string().min(2).describe("The search words, as you'd type them into Google."),
+        query: z.string().min(2).describe("The search words."),
         count: z.number().int().min(1).max(10).optional().describe("How many results (default 5)."),
         site: z.string().optional().describe("Only this domain, e.g. 'openai.com'."),
         language: z.string().length(2).optional().describe("Prefer a language, e.g. 'de' or 'en'."),
@@ -37,7 +37,6 @@ export function registerWebSearchTools(server: McpServer, h: Helpers): void {
       h.run(async () => {
         const gone = off();
         if (gone) return gone;
-        if (!searchReady()) return h.fail("Web search has no API key yet — the user sets it under Settings → Web search (Google Programmable Search or Brave).");
         const hits = await webSearch(query, { count, site, language });
         if (!hits.length) return h.ok(`No results for “${query}”.`);
         return h.ok(`${hits.length} results for “${query}” (${DATA})\n\n${hits.map((x, i) => `${i + 1}. ${x.title}\n   ${x.url}\n   ${x.snippet}`).join("\n\n")}`);
@@ -49,7 +48,7 @@ export function registerWebSearchTools(server: McpServer, h: Helpers): void {
     {
       title: "Read a web page",
       description:
-        "Read a public web page as text (HTML cleaned of scripts and navigation) — e.g. a pricing page behind a search result. Public http(s) pages only: the machine's own network and private addresses are refused. " +
+        "Read a public web page or PDF as text (HTML cleaned of scripts and navigation) — e.g. a pricing page behind a search result. Public http(s) pages only: the machine's own network and private addresses are refused. " +
         `Long pages are cut (set maxChars up to 40000). ${DATA}`,
       inputSchema: z.object({ url: z.string().url().describe("The page's address."), maxChars: z.number().int().min(1000).max(40000).optional() }),
       annotations: { readOnlyHint: true, openWorldHint: true },

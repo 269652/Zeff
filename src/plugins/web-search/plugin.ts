@@ -6,10 +6,10 @@ export default definePlugin({
   order: 125,
   name: "Web search",
   description:
-    "Lets Zeff's AI search the web (Google) and read a page — as MCP tools for agents and as tools of the Workspace chat: it can look up prices, token limits or documentation and fill a database with them. The search goes through an official API (Google Programmable Search, or Brave), never by scraping; pages are only read from the public internet, never from your own network. Off until you install it and add a key.",
+    "Lets Zeff's AI search the web and read a page — as MCP tools for agents and as tools of the Workspace chat: it can look up prices, token limits or documentation and fill a database with them. The search runs through your Claude login, without a key or card, or through an official API if you add a key (Brave, Google Programmable Search); never by scraping. Pages are only read from the public internet, never from your own network.",
   category: "connector",
   defaultInstalled: false,
-  requires: "An API key: Google Programmable Search (an API key and a search engine id, free for 100 searches a day) or a Brave Search API key.",
+  requires: "The Claude CLI, signed in. Optional and quicker: a Brave Search API key (Brave asks for a card), or Google Programmable Search if you already have it.",
   settings: { href: "/settings/web-search", what: "The provider and its API key" },
   routes: ["/settings/web-search"],
 });

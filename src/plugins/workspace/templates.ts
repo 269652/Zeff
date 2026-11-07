@@ -11,6 +11,7 @@ import { installPackage, listPackages } from "./packages";
 import { createRoutine, getRoutine } from "./routines";
 import { createTicketCockpit } from "./ticket-cockpit";
 import { journalPage } from "./templates-journal";
+import { agendaPage } from "@/plugins/agenda/template";
 import { meetingPage, weeklyReviewPage } from "./templates-pages";
 import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
@@ -95,6 +96,21 @@ const TEMPLATES: Template[] = [
     },
     kind: "page",
     build: (parentId) => journalPage(parentId),
+  },
+  {
+    key: "agenda",
+    category: "notes",
+    get name() {
+      return t("Agenda");
+    },
+    icon: "📒",
+    get description() {
+      return t("Notes on a timeline, in projects, as in the app Agenda: dates and ranges, on the agenda, today, pinned and done notes, tags and people — and what comes up beside them.");
+    },
+    kind: "page",
+    build: (parentId) => agendaPage(parentId),
+    // (With its plugin: its screen and its form for a new note are the plugin's.)
+    offered: () => isInstalled("agenda"),
   },
   {
     key: "meeting",

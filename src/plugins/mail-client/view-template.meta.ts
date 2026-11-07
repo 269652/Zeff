@@ -14,7 +14,7 @@ const q = (s: string) => `'${s.replace(/\\/g, "\\\\").replace(/'/g, "\\'")}'`;
 /** A date field written as the lists do: its time today, else its day. */
 const when = (f: string) => `{{ ${f} ? formatDate(${f}, formatDate(${f}) == formatDate(today()) ? 'HH:mm' : 'DD.MM.') : '' }}`;
 /** A channel's icon. */
-const icon = (f: string, other: string) => `{{ ifs(${f} == 'Outlook', '✉️', ${f} == 'Gmail', '📮', ${f} == 'Teams', '🟣', ${f} == 'WhatsApp', '🟢', ${f} == 'Signal', '🔵', '${other}') }}`;
+const icon = (f: string, other: string) => `{{ ifs(${f} == 'Outlook', '✉️', ${f} == 'Gmail', '📮', ${f} == 'E-Mail', '✉️', ${f} == 'Teams', '🟣', ${f} == 'WhatsApp', '🟢', ${f} == 'Signal', '🔵', '${other}') }}`;
 
 const NEW_INBOX: PartMeta = { name: "mail.new-inbox", description: "+ New inbox: one of the plugin's templates (Unread, From people, Important …) under this database", attrs: { type: "mail | message" } };
 const TEXT: PartMeta = { name: "mail.text", description: "What a list item shows that isn't a property, on one line: the sender's name (bold with strong=\"true\"), a mail's preview, a thread's size (a badge when more than one)", attrs: { field: "from | preview | count", strong: "true: bold" } };
@@ -96,44 +96,42 @@ const chatTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/>
 
 const inboxTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/>
 <state name="channel" value=""/>
-<split ratio=1:2>
-<col>
-  <row gap=1>
-    <tabs bind="channel" options=":${t("All")} {{ app.total }}{{ app.allUnread }}, {{ app.channelOptions }}"/>
-    <grow/>
-    {{#if app.snoozedToggle}}<toggle bind="snoozed" label="💤 ${t("Snoozed conversations")} ({{ app.snoozed }})"/>{{/if}}
+<panes>
+<pane title="${t("Inbox")}" aside="{{ app.unreadCount ? app.unreadCount + ' ' + ${q(t("unread"))} : '' }}" width=420>
+  <toolbar><tabs bind="channel" options=":logo-all ${t("All")}{{ app.unreadCount ? ':' + app.unreadCount : '' }}, {{ app.channelTabs }}"/></toolbar>
+  <row gap=3>
     <toggle bind="unread" label="${t("Unread only")}"/>
+    {{#if app.snoozedToggle}}<toggle bind="snoozed" label="💤 ${t("Snoozed")} ({{ app.snoozed }})"/>{{/if}}
+    <grow/>
+    <part name="inbox.archive-read"/>
     <part name="mail.new-inbox" type="mail"/>
   </row>
   <list source="app.threads" select=true empty="${t("Nothing here.")}">
     <row gap=2 align=baseline wrap=false>
-      ${icon("commchannel", "•")}
       <part name="mail.text" field="from" strong="{{ contains(app.unreadIds, id) ? 'true' : '' }}"/>
       <part name="mail.text" field="count"/>
-      <muted>${when("commwhen")}</muted>
+      <small><muted>${when("commwhen")}</muted></small>
     </row>
     <clamp lines=1>{{#if contains(app.unreadIds, id)}}<b>{{ title }}</b>{{#else}}{{ title }}{{/if}}</clamp>
-    <clamp lines=1><muted>{{ commwhere }}</muted></clamp>
+    <row gap=1 align=center wrap=false><logo name="{{ commchannel }}"/><col fill=true><clamp lines=1><small><muted><part name="mail.text" field="preview"/></muted></small></clamp></col></row>
   </list>
-</col>
-<col>
+</pane>
+<pane>
   <selected empty="${t("Pick a message.")}">
-    <heading level=2>{{ title }}</heading>
-    <text tone=muted>{{ app.current.icon }} {{ app.current.channel }} · {{ commfrom }} · ${when("commwhen")} · {{ commwhere }}</text>
-    <row gap=1>
-      {{#if app.current.link}}<button action="url" href="{{ app.current.link }}" label="↗ ${t("Open in {app}", { app: "{{ app.current.channel }}" })}"/>{{/if}}
-      <button action="open" label="▤ ${t("Open as row")}"/>
+    <header title="{{ title }}" subtitle="{{ commfrom }} · ${when("commwhen")} · {{ app.current.channel }}">
+      {{#if app.current.archivable}}<part name="inbox.archive"/>{{/if}}
       <part name="inbox.snooze"/>
-      {{#if not app.current.canReply}}<muted>🔒 ${t("Read-only — replying through {channel} isn't set up here.", { channel: "{{ app.current.channel }}" })}</muted>{{/if}}
-    </row>
-    {{#if app.current.why}}<box tone=warn>⭐ {{ app.current.why }}</box>{{/if}}
+      {{#if app.current.link}}<button action="url" href="{{ app.current.link }}" label="↗" tip="${t("Open in {app}", { app: "{{ app.current.channel }}" })}" variant=quiet/>{{/if}}
+      <button action="open" label="${t("Open as row")}" variant=quiet/>
+    </header>
+    {{#if app.current.why}}<callout tone=warn icon="⭐">{{ app.current.why }}</callout>{{/if}}
     <part name="mail.know"/>
     <part name="mail.thread"/>
     <part name="mail.suggested"/>
-    {{#if app.current.canReply}}<part name="mail.reply"/>{{/if}}
+    {{#if app.current.canReply}}<part name="mail.reply"/>{{#else}}<small><muted>🔒 ${t("Read-only — replying through {channel} isn't set up here.", { channel: "{{ app.current.channel }}" })}</muted></small>{{/if}}
   </selected>
-</col>
-</split>`;
+</pane>
+</panes>`;
 
 export const MAIL_VIEW: ViewAppMeta = {
   app: "mail",
@@ -154,7 +152,17 @@ export const CHAT_VIEW: ViewAppMeta = {
 export const INBOX_VIEW: ViewAppMeta = {
   app: "inbox",
   label: "Inbox",
-  parts: [NEW_INBOX, TEXT, { name: "inbox.snooze", description: "💤 Snooze: the thread picked away until later today, tomorrow morning, next week — or awake now" }, KNOW, THREAD, SUGGESTED, REPLY],
+  parts: [
+    NEW_INBOX,
+    TEXT,
+    { name: "inbox.snooze", description: "💤 Snooze: the thread picked away until later today, tomorrow morning, next week — or awake now" },
+    { name: "inbox.archive", description: "Archive: the conversation picked out of the inbox (an IMAP / POP3 account's: on the server too)" },
+    { name: "inbox.archive-read", description: "Archive what is read: every read conversation in the IMAP / POP3 accounts' inboxes (shown while there are such accounts)" },
+    KNOW,
+    THREAD,
+    SUGGESTED,
+    REPLY,
+  ],
   actions: [],
   appData: INBOX_APP_DATA,
   defaultTemplate: inboxTemplate,

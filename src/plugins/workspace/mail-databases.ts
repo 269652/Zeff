@@ -5,7 +5,7 @@ import { newId, newView, type DbSchema, type PipelineStep } from "./model";
 import { createPage, getDatabase, updatePage } from "./store";
 
 /**
- * Your mails and messages in the Workspace — once: a database "Mail" (Outlook, Gmail, the last 30 days) and one "Chats"
+ * Your mails and messages in the Workspace — once: a database "Mail" (Outlook, Gmail, an IMAP mailbox, the last 30 days) and one "Chats"
  * (Teams, WhatsApp, Signal, the last 14 days), each a pipeline over its source, shown first by its app (the mail client, the
  * chat — a table without it). Made when a mail or message plugin is installed; gone ones aren't made again.
  */
@@ -33,7 +33,7 @@ export function homeDatabase(kind: "mail" | "message" | "inbox"): number | null 
 export async function ensureMailDatabases(): Promise<void> {
   if (!isInstalled("workspace")) return;
   const made: number[] = [];
-  if (getPref<number | null>(MAIL, null) === null && (isInstalled("outlook-mail") || isInstalled("gmail"))) {
+  if (getPref<number | null>(MAIL, null) === null && (isInstalled("outlook-mail") || isInstalled("gmail") || isInstalled("imap-mail"))) {
     const id = make(t("Mail"), "✉️", { id: newId("s"), kind: "source", from: "mail", mail: { recentDays: 30 } }, { id: "mail", label: t("Mail") });
     setPref(MAIL, id);
     made.push(id);
@@ -52,7 +52,7 @@ export async function ensureMailDatabases(): Promise<void> {
     made.push(id);
   }
   // Both kinds of sources there: the combined inbox too (one list across channels) — made first in the tree's order of use.
-  const mailOn = isInstalled("outlook-mail") || isInstalled("gmail");
+  const mailOn = isInstalled("outlook-mail") || isInstalled("gmail") || isInstalled("imap-mail");
   const chatOn = isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal");
   if (getPref<number | null>(INBOX, null) === null && mailOn && chatOn) {
     const { createSourceDatabase } = await import("./derived");

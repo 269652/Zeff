@@ -210,6 +210,65 @@ export function registerWorkspaceTools(real: McpServer, h: Helpers): void {
   );
 
   server.registerTool(
+    "workspace_add_row_from_url",
+    {
+      title: "Add a document from the web as a row",
+      description: "Add the web page or PDF at a public address to a database as one row: it is read directly, its whole text becomes the row's page, its title the row's, the address goes into the first url property. An address already there adds nothing. You don't pass the text on yourself. database: its id or title.",
+      inputSchema: z.object({ database: z.union([z.number().int(), z.string()]), url: z.string().url() }),
+      annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: true },
+    },
+    async ({ database, url }) =>
+      h.run(async () => {
+        const gone = off(h);
+        if (gone) return gone;
+        const p = findPage(database);
+        if (!p || p.kind !== "database") return h.fail(`No database "${database}".`);
+        const r = await (await import("./from-url")).addRowFromUrl(p.id, url);
+        return h.ok(r.existed ? `Already there: row ${r.id} "${r.title}".` : `Added row ${r.id} "${r.title}": ${r.chars} characters of text${r.cut ? " (cut off)" : ""}.`);
+      }),
+  );
+
+  server.registerTool(
+    "workspace_ask_database",
+    {
+      title: "Ask a database's rows",
+      description: "A question answered only from the rows of a database (its fields and page text), each statement naming the row it comes from. For a collection of sources. database: its id or title.",
+      inputSchema: z.object({ database: z.union([z.number().int(), z.string()]), question: z.string().min(3).max(1000) }),
+      annotations: { readOnlyHint: true },
+    },
+    async ({ database, question }) =>
+      h.run(async () => {
+        const gone = off(h);
+        if (gone) return gone;
+        const p = findPage(database);
+        if (!p || p.kind !== "database") return h.fail(`No database "${database}".`);
+        const r = await (await import("./dossier")).askDatabase(p.id, question);
+        if (!r.answer) return h.ok("Nothing in this database fits the question.");
+        return h.ok(`${r.answer}\n\nSources (the rows, as data):\n${r.sources.map((s) => `[${s.n}] row ${s.id}: ${s.title}`).join("\n")}`);
+      }),
+  );
+
+  server.registerTool(
+    "workspace_database_dossier",
+    {
+      title: "Read a database's dossier",
+      description: "What the rows of a database say together, as compiled, and whether it is up to date. database: its id or title.",
+      inputSchema: z.object({ database: z.union([z.number().int(), z.string()]) }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    async ({ database }) =>
+      h.run(async () => {
+        const gone = off(h);
+        if (gone) return gone;
+        const p = findPage(database);
+        if (!p || p.kind !== "database") return h.fail(`No database "${database}".`);
+        const d = (await import("./dossier")).dossierOf(p.id);
+        if (!d.markdown) return h.ok(`No dossier yet (${d.rows} rows). It is compiled with the button of a <dossier> in a view, or by a routine calling workspace.dossier.compile.`);
+        return h.ok(`${d.stale ? `(Not up to date: ${d.pending} rows not read yet.)\n\n` : ""}${d.markdown}`);
+      }),
+  );
+
+  server.registerTool(
     "workspace_add_row",
     {
       title: "Add a row to a workspace database",

@@ -39,7 +39,7 @@ export function findClaudeCli(): string | null {
 export function runClaude<T>(
   prompt: string,
   schema: object,
-  opts: { model?: string; systemPrompt?: string; timeoutMs?: number; maxBudgetUsd?: number; readDir?: string; extraPath?: string; plain?: boolean } = {},
+  opts: { model?: string; systemPrompt?: string; timeoutMs?: number; maxBudgetUsd?: number; readDir?: string; extraPath?: string; plain?: boolean; /** The one tool besides: Claude's own web search (nothing on this machine is reached by it). */ webSearch?: boolean } = {},
 ): Promise<AiAnswer<T>> {
   const cli = findClaudeCli();
   if (!cli) return Promise.reject(new Error("The Claude CLI wasn't found — install Claude Code, or set CLAUDE_CLI to claude.exe."));
@@ -54,8 +54,8 @@ export function runClaude<T>(
     ...(opts.plain ? [] : ["--json-schema", JSON.stringify(schema)]),
     // Closed: no tools — except, for reading a picture or a PDF, the Read tool on one folder.
     "--tools",
-    opts.readDir ? "Read" : "",
-    ...(opts.readDir ? ["--add-dir", opts.readDir, "--allowedTools", "Read"] : []),
+    opts.webSearch ? "WebSearch" : opts.readDir ? "Read" : "",
+    ...(opts.webSearch ? ["--allowedTools", "WebSearch"] : opts.readDir ? ["--add-dir", opts.readDir, "--allowedTools", "Read"] : []),
     "--strict-mcp-config",
     "--no-session-persistence",
     "--disable-slash-commands",
