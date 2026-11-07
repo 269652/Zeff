@@ -435,12 +435,12 @@ function FillHeight({ className, style, children }: { className: string; style: 
     const fit = () => {
       cancelAnimationFrame(frame);
       frame = requestAnimationFrame(() => {
-        // (In a page — an app there; a database's own page keeps the CSS's height, its row count sits below.)
-        const page = el.closest(".ws-editor");
+        // What lies below the panes in their page — in a page the rest of the editor, on a database's own page its row count —, not
+        // the sidebar beside it. (Phones, print: the CSS's height.)
+        const page = el.closest(".ws-editor") ?? el.closest(".page > :not(.page-aside)");
         if (!page || !window.matchMedia("(min-width: 768px)").matches) return void el.style.removeProperty("height");
         const box = el.getBoundingClientRect();
-        // What its page has below the panes (a frame's padding, a line after the block) — not the sidebar beside it — and the
-        // window's own margin.
+        // (Its bottom with the panes as they are — and the window's own margin.)
         const end = page.getBoundingClientRect().bottom;
         const below = Math.max(0, end - box.bottom) + 16;
         el.style.height = `${Math.max(448, window.innerHeight - box.top - below)}px`;
