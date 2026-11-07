@@ -371,7 +371,7 @@ p a:not([class*="btn"]):not([role]),
     grid-template-columns: var(--panes);
     /* As high as the window leaves: each pane scrolls by itself, the page doesn't. */
     height: calc(100dvh - 13rem);
-    min-height: 28rem;
+    min-height: 15rem;
   }
 }
 

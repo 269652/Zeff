@@ -443,7 +443,11 @@ function FillHeight({ className, style, children }: { className: string; style: 
         // (Its bottom with the panes as they are — and the window's own margin.)
         const end = page.getBoundingClientRect().bottom;
         const below = Math.max(0, end - box.bottom) + 16;
-        el.style.height = `${Math.max(448, window.innerHeight - box.top - below)}px`;
+        // Measured in what scrolls (Zeff's main area, else the window) — as if it stood at its top, so a scrolled one fits too.
+        const scroller = el.closest("main");
+        const frame = scroller ? scroller.getBoundingClientRect() : { top: 0, bottom: window.innerHeight };
+        const top = box.top - frame.top + (scroller?.scrollTop ?? window.scrollY);
+        el.style.height = `${Math.max(240, Math.min(window.innerHeight, frame.bottom) - frame.top - top - below)}px`;
       });
     };
     fit();
