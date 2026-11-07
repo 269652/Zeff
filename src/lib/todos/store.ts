@@ -221,6 +221,9 @@ export const setTodoMailRefs = (picks: Map<number, string[]>) => setRelatedRefs(
 /** The Notiz-Zuordnung's pick (Keep's extension): per todo, the notes it's about (["keep:…"]); its mails stay. */
 export const setTodoNoteRefs = (picks: Map<number, string[]>) => setRelatedRefs(isNoteRef, picks);
 
+/** The Termin-Zuordnung's pick (the Calendar's step): per todo, the appointments it's about (["cal:<id>"]); its mails and notes stay. */
+export const setTodoCalendarRefs = (picks: Map<number, string[]>) => setRelatedRefs((r) => r.startsWith("cal:"), picks);
+
 /** The Dokument-Zuordnung's pick (the Documents plugin's extension): per todo, the documents it's about (["doc:12"]); its mails and notes stay. Documents attached by hand are in its refs — not touched. */
 export const setTodoDocRefs = (picks: Map<number, string[]>) => setRelatedRefs((r) => r.startsWith("doc:"), picks);
 

@@ -42,7 +42,12 @@ export async function syncOutlookWeekStarts(weekStartIsos: string[]): Promise<{ 
 export async function outlookWeeks(shownWeekStartIso?: string): Promise<string[]> {
   const { currentWeek, shiftWeek, weekFromDate } = await import("@/lib/week");
   const { lastAndCurrentMonth } = await import("@/lib/month");
-  const end = shiftWeek(currentWeek(), 1).startIso;
+  // To the end of next week — or as far ahead as the appointments are looked at for todos (Calendar settings), if that is further.
+  const ahead = new Date();
+  ahead.setDate(ahead.getDate() + (await import("@/lib/calendar/todos")).todosDaysAhead());
+  const aheadWeek = weekFromDate(ahead).startIso;
+  const nextWeek = shiftWeek(currentWeek(), 1).startIso;
+  const end = aheadWeek > nextWeek ? aheadWeek : nextWeek;
   const weeks = new Set<string>(shownWeekStartIso ? [shownWeekStartIso] : []);
   for (let w = weekFromDate(lastAndCurrentMonth().last.start); w.startIso <= end; w = shiftWeek(w, 1)) weeks.add(w.startIso);
   return [...weeks].sort();

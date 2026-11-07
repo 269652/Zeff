@@ -13,7 +13,7 @@ import { accountFlag, setAccountFlag } from "@/lib/sync/account-flags";
 import { localDay } from "@/lib/dates";
 
 /** What a run is doing right now — one at a time per account (each runs its own; kept across the server's module copies: lib/sync/account-flags.ts). */
-type BoardRunNow = { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "documents" | "docrelations" | "knowledge" | "people" | "briefingdb" | "autoactions"; since: number; provider: string };
+type BoardRunNow = { id: number; phase: "sync" | "jira" | "ai" | "saving" | "mailtodos" | "mails" | "notetodos" | "notes" | "calendarmatch" | "calendartodos" | "documents" | "docrelations" | "knowledge" | "people" | "briefingdb" | "autoactions"; since: number; provider: string };
 
 /** The run going on in this server, and its step — null when none is. */
 export const boardRunState = () => accountFlag<BoardRunNow>("__zeffBoardRun") ?? null;
@@ -186,6 +186,15 @@ export function startBoardRun(opts: { syncJira?: boolean } = {}): { ok: boolean;
         if (stepAvailable("noterelations")) {
           setAccountFlag("__zeffBoardRun", { id, phase: "notes", since: t0, provider });
           await syncAndWait("noterelations");
+        }
+        // The Calendar's steps: the todos from the appointments of the next days, then which appointments each todo is about.
+        if (stepAvailable("calendartodos")) {
+          setAccountFlag("__zeffBoardRun", { id, phase: "calendartodos", since: t0, provider });
+          await syncAndWait("calendartodos");
+        }
+        if (stepAvailable("calendarrelations")) {
+          setAccountFlag("__zeffBoardRun", { id, phase: "calendarmatch", since: t0, provider });
+          await syncAndWait("calendarrelations");
         }
         // The Documents plugin's extensions (while they're on): the documents gone through for todos, then which
         // documents each todo is about.

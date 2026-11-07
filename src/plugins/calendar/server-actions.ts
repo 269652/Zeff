@@ -58,6 +58,14 @@ export async function updateCalendarAction(id: number, patch: { name?: string; c
   });
 }
 
+/** How many days ahead the appointments of the calendars set to "Todos" are read for todos (1 to 30). */
+export async function saveTodoDaysAction(days: number): Promise<ActionState> {
+  return run(async () => {
+    const n = (await import("@/lib/calendar/todos")).setTodosDaysAhead(days);
+    return t("Saved: appointments are looked at {n} days ahead.", { n });
+  });
+}
+
 /** One of Zeff's own calendars, new. */
 export async function createCalendarAction(name: string, color?: string): Promise<ActionState> {
   return run(async () => {

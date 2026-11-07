@@ -20,7 +20,7 @@ export const syncSettings: PluginSyncSettings = {
       set: (m) => setStepMinutes("calendar", m),
       choices: MINUTE_CHOICES,
       get window() {
-        return driverOf("outlook-calendar") === "api" ? t("always") : t("while the automation Chrome is running");
+        return driverOf("outlook-calendar") !== "cdp" ? t("always") : t("while the automation Chrome is running");
       },
     },
   ],

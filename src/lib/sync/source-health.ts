@@ -18,7 +18,7 @@ const DRIFT = "source-drift";
 const INCIDENTS = "source-health-incidents";
 
 /** The steps that run with the briefing — they aren't stale on their own (the briefing is). */
-const CHAINED = new Set(["mailtodos", "relations", "notetodos", "noterelations", "doctodos", "docrelations", "knowledgerel", "peoplenorm", "tododupes", "autoactions", "boardlage"]);
+const CHAINED = new Set(["mailtodos", "relations", "notetodos", "noterelations", "calendarrelations", "calendartodos", "review", "matching", "doctodos", "docrelations", "knowledgerel", "peoplenorm", "tododupes", "autoactions", "boardlage"]);
 
 /** "2026-10-21 16:27:04 Mitteleuropäische Sommerzeit" (Jira's, local) or ISO → ms (NaN when unreadable). */
 export function parseItemTime(s: string | null | undefined): number {

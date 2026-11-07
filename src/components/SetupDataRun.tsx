@@ -42,7 +42,7 @@ export function SetupDataRun({ next }: { next: string }) {
     });
 
   // The steps "Sync all" runs (the reviews come with the Ticket-Lage).
-  const steps = data?.steps.filter((s) => !["relations", "mailtodos", "autoactions", "boardlage", "knowledgerel", "peoplenorm", "tododupes", "notetodos", "noterelations", "doctodos", "docrelations"].includes(s.key)) ?? [];
+  const steps = data?.steps.filter((s) => !["relations", "mailtodos", "autoactions", "boardlage", "knowledgerel", "peoplenorm", "tododupes", "notetodos", "noterelations", "calendarrelations", "calendartodos", "review", "matching", "doctodos", "docrelations"].includes(s.key)) ?? [];
   const failed = steps.filter((s) => s.lastOk === false);
   const finished = started && !running;
 

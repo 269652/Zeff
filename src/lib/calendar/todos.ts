@@ -78,16 +78,29 @@ async function judge(list: Due[]): Promise<Record<string, Verdict> | null> {
   return all;
 }
 
-/** The todos for today's and tomorrow's appointments that give you something to do (those not made yet). How many were made. */
+const DAYS_PREF = "calendar:todos-days";
+/** How many days ahead appointments are looked at for todos (today and this many more days): 7 unless set, 1 to 30. */
+export const todosDaysAhead = (): number => Math.max(1, Math.min(30, Math.round(Number(getPref<number>(DAYS_PREF, 7))) || 7));
+export const setTodosDaysAhead = (n: number): number => {
+  const days = Math.max(1, Math.min(30, Math.round(Number(n)) || 7));
+  setPref(DAYS_PREF, days);
+  return days;
+};
+
+/** The todos for the appointments of today and the next days (todosDaysAhead) that give you something to do (those not made yet). How many were made. */
 export async function calendarTodos(now = new Date()): Promise<number> {
   const from = dayOf(now);
-  const to = dayOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 2));
+  const to = dayOf(new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1 + todosDaysAhead()));
+  // Now as the appointments' times are kept: local "YYYY-MM-DDTHH:MM".
+  const nowLocal = `${from}T${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
   const due: (Due & { day: string })[] = [];
   for (const e of eventsBetween(from, to)) {
     if (!e.calendar.todos || e.cancelled) continue;
     const day = (e.occurrence ?? e.start).slice(0, 10);
     // One that began before (several days long) had its todo on its first day.
     if (day < from || day >= to) continue;
+    // One that is over already (today, earlier): nothing left to do for it.
+    if (!e.allDay && e.end < nowLocal) continue;
     // Made for a todo (a proposal accepted): that todo is it — it's due then, no second one.
     if (e.todoId) {
       const t = getTodo(e.todoId);
