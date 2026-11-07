@@ -112,7 +112,9 @@ Auch KEINE Todos für: ausdrücklich freiwillige Umfragen und Aufrufe zur Teilna
 Unter „Was ich verworfen habe“ stehen Vorschläge, die ich nicht wollte (mit der Mail, aus der sie kamen): dieselbe Art Mail vom SELBEN Absender ist wieder kein Todo. Mehr schließt du daraus nicht — andere Absender, Pflicht-Mails (⚠) und Menschen beurteilst du wie immer. Unter „Was ich erledigt habe“ stehen Vorschläge, die richtig waren: solche will ich. Fragt mich ein Mensch persönlich etwas, bittet mich um etwas oder wartet auf meine Antwort (in einer Mail oder einem Chat), ist das fast immer ein Todo — das sind die wichtigsten. Im Zweifel legst du das Todo an: ein überflüssiger Vorschlag ist schnell verworfen, eine vergessene Pflicht oder Antwort nicht. Gibt es nichts zu tun, ist die Liste leer.`;
 
 /** Signal's chats (Signal plugin) — told only when its messages are there (the instructions stay as they were). */
-export const SIGNAL_NOTE = "Einträge im Ordner „Signal“ sind ebenfalls keine Mails, sondern Signal-Chats — genauso zu lesen wie die WhatsApp-Chats (Betreff = Chat, Absender = wer schrieb, „Ich“ = ich selbst).";
+export const SIGNAL_NOTE = `Einträge im Ordner „Signal“ sind ebenfalls keine Mails, sondern Signal-Chats — genauso zu lesen wie die WhatsApp-Chats (Betreff = Chat, Absender = wer schrieb, „Ich“ = ich selbst).
+
+Der Chat „Notiz an mich“ (auch „Note to Self“) ist mein eigenes Notizbuch: jede Zeile darin habe ich selbst für mich geschrieben — es ist keine Antwort an jemanden und nichts, das „erledigt“ wäre, weil ich zuletzt schrieb. Mache aus JEDER Zeile, die etwas zu tun, zu besorgen, zu erinnern oder nachzufassen beschreibt, ein Todo (owner me), mit der Kennung der Nachricht unter refs. Es ist fällig an dem Tag, den die Zeile nennt — sonst heute, am Tag der Nachricht (due, JJJJ-MM-TT). Zeilen ohne Aufgabe (reine Gedanken, Links zum Merken, Einkaufsinfos ohne Handlung) bleiben ohne Todo.`;
 
 export type MailTodosResult = { ok: boolean; reviewed: number; added: number; /** New todos that repeated an open one and were merged into it. */ merged?: number; updated?: number; batches: number; error?: string };
 
@@ -451,8 +453,11 @@ export function reviewMailsForTodos(runId: number | null = null): Promise<MailTo
         if (!text || !refs.length) continue;
         const ticket = td.ticket?.trim().toUpperCase() ?? "";
         if (!duplicateTodo({ text, ops: [] }, open) && !refs.some((r) => must.has(r)) && duplicateTodo({ text, ops: [] }, dropped)) continue;
+        // A line of your own notebook ("Notiz an mich" in Signal) is due the day it was written when it names no day itself.
+        const noteLine = batch.find((m) => m.convId === "sg:Notiz an mich" && refs.includes(`mail:${m.key}`));
+        const due = td.due ?? (noteLine ? isoDate(new Date(noteLine.receivedAt)) : null);
         const t = attributed(runId ? `lage:${runId}` : "mail", () =>
-          addMailTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId, due: td.due ?? null }),
+          addMailTodo({ ticket: tickets.includes(ticket) ? ticket : "", text, kind: isTodoKind(td.kind) ? td.kind : "other", owner: td.owner === "other" ? "other" : "me", refs, runId, due }),
         );
         if (!t.outcome) open.push(t);
         counted(t);

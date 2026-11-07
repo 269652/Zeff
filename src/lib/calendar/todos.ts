@@ -35,7 +35,7 @@ const VERDICTS = "calendar:todo-verdicts";
 /** At most this many asked in one go (the next run asks the rest). */
 const BATCH = 40;
 
-type Due = CalendarEventView & { calendar: { name: string } };
+type Due = CalendarEventView & { calendar: { name: string; source: string } };
 // (Its description too: a changed description is judged again.)
 const verdictKey = (e: Due) => `${e.seriesId ?? e.id}|${e.title.trim()}|${e.location.trim()}|${e.description.trim().slice(0, 600)}`;
 
@@ -113,7 +113,8 @@ export async function calendarTodos(now = new Date()): Promise<number> {
   let added = 0;
   for (const e of due) {
     // Which appointment on which day: a series and its moved occurrences share one.
-    const ref = `event:${e.seriesId ?? e.id}@${e.day}`;
+    // (An appointment read from a source — Outlook — by the source's own key: its row is made anew with every sync, its number changes.)
+    const ref = `event:${e.calendar.source === "zeff" ? (e.seriesId ?? e.id) : e.key}@${e.day}`;
     const v = verdicts?.[verdictKey(e)];
     if (verdicts && !v) continue; // not judged yet (beyond this run's batch): the next run
     if (v && !v.todo) {

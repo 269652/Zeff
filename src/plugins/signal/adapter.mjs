@@ -131,7 +131,8 @@ export async function readMessages({ contract, since, maxLoads, maxMessages, cha
     if (found.length !== 1) return { error: found.length ? "ambiguous" : "not-found", candidates: found.slice(0, 12).map(titleOf) };
     convs = found;
   } else {
-    convs = CC.getAll().filter((c) => c.id !== ourId && ["private", "group"].includes(c.get("type")) && !c.get("isArchived") && !c.isBlocked?.() && lastAt(c) >= since);
+    // (Your own chat — "Notiz an mich" / "Note to Self" — is read too: it is your notebook; its lines are tasks and reminders for you.)
+    convs = CC.getAll().filter((c) => ["private", "group"].includes(c.get("type")) && !c.get("isArchived") && !c.isBlocked?.() && lastAt(c) >= since);
   }
   const ids = (c) => store()[c.id]?.messageIds ?? [];
   const msgOf = (id) => lookup()[id];
@@ -180,7 +181,8 @@ export async function readMessages({ contract, since, maxLoads, maxMessages, cha
         if (ids(c).length === before) break;
       }
     }
-    const title = titleOf(c);
+    // Your own chat is called "Notiz an mich" here whatever Signal titles it (your own name, "Note to Self"): the review knows it by that name.
+    const title = c.id === ourId ? "Notiz an mich" : titleOf(c);
     const group = c.get("type") === "group";
     const unreadCount = c.get("unreadCount") || 0;
     const list = ids(c).map(msgOf).filter(Boolean);
@@ -218,9 +220,9 @@ export function readChats({ contract, since }) {
   const CC = window.__zeffProbe.global(contract.globals.conversations).value;
   const ourId = CC.getOurConversationId();
   return CC.getAll()
-    .filter((c) => c.id !== ourId && ["private", "group"].includes(c.get("type")) && !c.get("isArchived") && !c.isBlocked?.() && (c.get("timestamp") || c.get("active_at") || 0) >= since && c.get("lastMessage"))
+    .filter((c) => ["private", "group"].includes(c.get("type")) && !c.get("isArchived") && !c.isBlocked?.() && (c.get("timestamp") || c.get("active_at") || 0) >= since && c.get("lastMessage"))
     .map((c) => ({
-      chat: c.getTitle(),
+      chat: c.id === ourId ? "Notiz an mich" : c.getTitle(),
       group: c.get("type") === "group",
       at: c.get("timestamp") || c.get("active_at"),
       text: String(c.get("lastMessage") || "").slice(0, 2000),
