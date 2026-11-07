@@ -12,6 +12,7 @@ import { currentLocale, formatAgo, formatTime } from "@/lib/format";
 import { useT } from "./I18nProvider";
 import type { T } from "@/lib/i18n/shared";
 import { useDismiss } from "@/components/useDismiss";
+import { RunMachines, canStart, isBusy } from "@/lib/run-state";
 
 /** Now, outside render (the clock isn't a render input). */
 const now = () => Date.now();
@@ -130,8 +131,16 @@ export function SyncMenu() {
   const [error, setError] = useState<string | null>(null);
   const [, setTick] = useState(0);
   const [, start] = useTransition();
-  // What was just clicked, until the server has answered: it shows as running at once ("all" for Sync all), and nothing is clicked twice.
-  const [starting, setStarting] = useState<string | null>(null);
+  // Every step (and "all" for Sync all) in its own state of one strict machine (lib/run-state): a click moves idle → starting at once
+  // (the button is busy and cannot be pressed again), the server's answers move it on — an event that doesn't fit the state is refused.
+  const machines = useRef(new RunMachines());
+  const [, bump] = useState(0);
+  const feed = (d: SyncOverview) => {
+    for (const s of d.steps) machines.current.observe(s.key, s.running);
+    machines.current.observe("all", d.all.running);
+    bump((n) => n + 1);
+  };
+  const stateOf = (key: string) => machines.current.state(key);
   const root = useRef<HTMLDivElement>(null);
   const trigger = useRef<HTMLButtonElement>(null);
   const wasRunning = useRef(false);
@@ -147,7 +156,10 @@ export function SyncMenu() {
     const poll = async () => {
       try {
         const d = await syncOverviewAction();
-        if (alive) setData(d);
+        if (alive) {
+          setData(d);
+          feed(d);
+        }
       } catch {
         // the next poll tries again
       }
@@ -188,16 +200,28 @@ export function SyncMenu() {
     },
   });
 
-  const go = (fn: () => Promise<{ ok?: boolean; error?: string } | null>, key?: string) => {
-    if (key) setStarting(key);
+  /** `key` + "click": a start button; `key` + "stop": a stop button; neither: a plain action. An event the machine refuses does nothing. */
+  const go = (fn: () => Promise<{ ok?: boolean; error?: string } | null>, key?: string, event: "click" | "stop" = "click") => {
+    if (key && !machines.current.send(key, event)) return; // not allowed in this state (already starting, running …): nothing happens
+    if (key) bump((n) => n + 1);
     start(async () => {
       setError(null);
       try {
         const r = await fn();
-        if (r && r.ok === false) setError(r.error ?? t("Couldn't start."));
-        setData(await syncOverviewAction());
-      } finally {
-        setStarting(null);
+        if (r && r.ok === false) {
+          setError(r.error ?? t("Couldn't start."));
+          if (key && event === "click") machines.current.send(key, "refused");
+        } else if (key && event === "click") machines.current.accepted(key);
+      } catch (e) {
+        if (key && event === "click") machines.current.send(key, "refused");
+        setError(e instanceof Error ? e.message : t("Couldn't start."));
+      }
+      try {
+        const d = await syncOverviewAction();
+        setData(d);
+        feed(d);
+      } catch {
+        bump((n) => n + 1);
       }
     });
   };
@@ -223,12 +247,12 @@ export function SyncMenu() {
         <div id="sync-menu" role="dialog" aria-label={t("Sync")} className="absolute right-0 z-50 mt-2 flex max-h-[calc(100dvh-5rem)] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">
           <div className="flex shrink-0 items-center justify-between gap-3 border-b border-zinc-200 px-3 py-2.5 dark:border-zinc-800">
             {data?.all.running ? (
-              <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" onClick={() => go(stopSyncAllAction)} title={t("Cancel the running step and start no more")}>
+              <button type="button" className="btn btn-sm text-red-600 dark:text-red-400" onClick={() => go(stopSyncAllAction, "all", "stop")} title={t("Cancel the running step and start no more")}>
                 <SyncIcon className="size-4 animate-spin" /> {t("Stop")}
               </button>
             ) : (
-              <button type="button" className="btn btn-primary btn-sm" disabled={!data || !!starting} onClick={() => go(runSyncAllAction, "all")}>
-                <SyncIcon className={`size-4 ${starting === "all" ? "animate-spin" : ""}`} /> {starting === "all" ? t("Starting …") : t("Sync all")}
+              <button type="button" className="btn btn-primary btn-sm" disabled={!data || !canStart(stateOf("all")) || machines.current.anyStarting()} onClick={() => go(runSyncAllAction, "all")}>
+                <SyncIcon className={`size-4 ${stateOf("all") === "starting" ? "animate-spin" : ""}`} /> {stateOf("all") === "starting" ? t("Starting …") : t("Sync all")}
               </button>
             )}
             <span className="truncate text-xs text-zinc-500">
@@ -241,7 +265,7 @@ export function SyncMenu() {
           {/* The steps scroll (there are many); the head and the links stay. */}
           <ul className="min-h-0 flex-1 divide-y divide-zinc-100 overflow-y-auto overscroll-contain dark:divide-zinc-900">
             {(data?.steps ?? []).map((s) => (
-              <SyncStepRow key={s.key} s={s} health={healthOf.get(s.key)} running={s.running || starting === s.key} disabled={!!data?.all.running || !!starting} onRun={() => go(() => runSyncAction(s.key), s.key)} onStop={() => go(() => stopSyncAction(s.key))} onNavigate={() => {
+              <SyncStepRow key={s.key} s={s} health={healthOf.get(s.key)} running={s.running || isBusy(stateOf(s.key))} disabled={!!data?.all.running || !canStart(stateOf(s.key)) || machines.current.anyStarting()} onRun={() => go(() => runSyncAction(s.key), s.key)} onStop={() => go(() => stopSyncAction(s.key), s.key, "stop")} onNavigate={() => {
                 setOpen(false);
                 trigger.current?.focus();
               }} />
