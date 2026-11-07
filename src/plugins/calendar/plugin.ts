@@ -13,6 +13,8 @@ export default definePlugin({
   // The calendar is an app of its own (this tab) — with the Workspace it is a database there (in its favorites) and the tab gives way.
   tabs: [{ href: "/kalender", label: "Calendar", short: "Cal.", unless: "workspace" }],
   routes: ["/kalender"],
+  // The step after every briefing that matches appointments to the open todos (Calendar matching).
+  syncSteps: ["calendarrelations", "calendartodos"],
   extensions: [
     { key: "entry-action", for: "auto-actions", name: "Event in the Zeff calendar", description: "Auto actions suggest meetings, time blocks and reminders for todos — in a free slot; one click puts them into your Zeff calendar.", defaultInstalled: true, actions: ["calendar-entry"] },
   ],

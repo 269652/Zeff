@@ -29,7 +29,7 @@ export const contextSteps = (t: T): ContextStep[] => [
       { key: "signal", label: "Signal", plugin: "signal", default: true },
       { key: "keep", label: "Keep", plugin: "keep", default: false },
       { key: "gitlab", label: "GitLab", plugin: "gitlab", default: false },
-      { key: "calendar", label: t("Calendar"), plugin: "outlook-calendar", default: false },
+      { key: "calendar", label: t("Calendar"), what: t("Appointments and their descriptions — the todos from them are made right after"), plugin: "outlook-calendar", default: true },
     ],
     numbers: [{ key: "maxAge", label: t("Only when the last sync is older than"), min: 0, max: 240, default: 0, unit: t("minutes (0: always)") }],
   },

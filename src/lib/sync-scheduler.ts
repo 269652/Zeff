@@ -50,7 +50,7 @@ export function startSyncScheduler(): void {
     // Jira: every 15 minutes (through the sync menu's step, so the menu shows it and records how it went).
     { name: "jira", settings: () => ({ syncMinutes: stepMinutes("jira"), lastSyncAt: jiraLastSyncAt() }), run: async () => startSync("jira") },
     // Outlook's calendar, WhatsApp (read only): as set on the Sync settings page — while the automation Chrome runs.
-    { name: "calendar", settings: () => ({ syncMinutes: stepMinutes("calendar"), lastSyncAt: lastSyncOf("calendar") }), run: async () => ((await import("@/lib/connectors/store")).driverOf("outlook-calendar") === "api" ? startSync("calendar") : whileChromeRuns("calendar")()) },
+    { name: "calendar", settings: () => ({ syncMinutes: stepMinutes("calendar"), lastSyncAt: lastSyncOf("calendar") }), run: async () => ((await import("@/lib/connectors/store")).driverOf("outlook-calendar") !== "cdp" ? startSync("calendar") : whileChromeRuns("calendar")()) },
     { name: "whatsapp", settings: () => ({ syncMinutes: stepMinutes("whatsapp"), lastSyncAt: lastSyncOf("whatsapp") }), run: whileChromeRuns("whatsapp") },
     // Signal: while Signal Desktop runs — without its debug port the sync fails, so the menu tells you.
     { name: "signal", settings: () => ({ syncMinutes: stepMinutes("signal"), lastSyncAt: lastSyncOf("signal") }), run: whileSignalRuns },

@@ -4,4 +4,5 @@ import type { T } from "@/lib/i18n/shared";
 export const CALENDAR_LLM_TASKS = (t: T) =>
   [
     { plugin: "calendar", id: "calendar-todos", label: t("Appointments to todos"), what: t("Decides which of today's and tomorrow's appointments give you something to do — only those become todos (a blocker like “Pause” doesn't).") },
+    { plugin: "calendar", id: "calendar-relations", label: t("Calendar matching"), what: t("Matches the open todos to the appointments they are about (by content).") },
   ] as const;

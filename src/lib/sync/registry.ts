@@ -153,7 +153,74 @@ function mailSourcesText(): string {
   return names.join(", ") || "—";
 }
 
+/**
+ * "Stepped" steps: several similar steps shown, started and recorded as one in the menus — Review (the AI finds todos in
+ * mails and chats, notes, documents, appointments) and Matching (it attaches mails, notes, documents, appointments, people
+ * and knowledge to the open todos). Run, they take their parts one after the other; while one part works the label says
+ * which ("Review · Note review (2/4)"). The parts keep their own keys — the briefing runs them itself, one by one — but
+ * the menus show only the stepped step.
+ */
+type SteppedId = "review" | "matching";
+const STEPPED: Record<SteppedId, { parts: SyncKey[]; label: () => string; what: () => string }> = {
+  review: {
+    parts: ["mailtodos", "notetodos", "doctodos", "calendartodos"],
+    label: () => t("Review"),
+    what: () => t("The AI reads what came in — mails and chats, notes, documents, appointments — and makes todos of what they ask of you (after each briefing)"),
+  },
+  matching: {
+    parts: ["relations", "noterelations", "docrelations", "calendarrelations", "peoplenorm", "knowledgerel"],
+    label: () => t("Matching"),
+    what: () => t("The AI attaches to each open todo what it is about — mails, notes, documents, appointments, people, knowledge (after each briefing)"),
+  },
+};
+const isStepped = (key: string): key is SteppedId => key === "review" || key === "matching";
+const partOfStepped = new Set<string>(Object.values(STEPPED).flatMap((x) => x.parts));
+const steppedParts = (id: SteppedId): SyncKey[] => STEPPED[id].parts.filter((p) => stepAvailable(p));
+const lastOfPart = (p: SyncKey): Last => (STEPS[p].last ? STEPS[p].last!() : recorded(p));
+
+/** The stepped step's label: its name — and, while a part works, which one (and how far: 2/4). */
+function steppedLabel(id: SteppedId): string {
+  const parts = steppedParts(id);
+  const l = live();
+  const at = parts.findIndex((p) => l.running.has(p) || !!STEPS[p].busy?.());
+  return at < 0 ? STEPPED[id].label() : `${STEPPED[id].label()} · ${STEPS[parts[at]].label} (${at + 1}/${parts.length})`;
+}
+
+/** How the parts last went, as one: the latest run, ✗ if any part's last run failed, each part's words. */
+function steppedLast(id: SteppedId): Last {
+  const ran = steppedParts(id).map((p) => ({ p, l: lastOfPart(p) })).filter((x) => x.l.lastAt);
+  if (!ran.length) return { lastAt: null, lastOk: null, lastMessage: null };
+  return {
+    lastAt: ran.map((x) => x.l.lastAt!).sort().at(-1)!,
+    lastOk: ran.every((x) => x.l.lastOk !== false),
+    lastMessage: ran.map((x) => `${STEPS[x.p].label}: ${x.l.lastMessage ?? "—"}`).join(" · "),
+  };
+}
+
+const steppedStep = (id: SteppedId): Step => ({
+  get label() { return steppedLabel(id); },
+  href: "/todos",
+  get what() { return STEPPED[id].what(); },
+  ownRecord: true,
+  run: async () => {
+    const lines: string[] = [];
+    let ok = true;
+    for (const p of steppedParts(id)) {
+      await runStep(p);
+      const l = lastOfPart(p);
+      if (l.lastOk === false) ok = false;
+      lines.push(`${STEPS[p].label}: ${l.lastMessage ?? "—"}`);
+    }
+    return { ok, message: lines.join(" · ") };
+  },
+  busy: () => steppedParts(id).some((p) => live().running.has(p) || !!STEPS[p].busy?.()),
+  last: () => steppedLast(id),
+  schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: steppedLast(id).lastAt, window: t("workdays, with the briefing"), workdays: true }),
+});
+
 const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
+  review: steppedStep("review"),
+  matching: steppedStep("matching"),
   jira: {
     label: "Jira",
     href: "/jira",
@@ -275,7 +342,15 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     run: async () => {
       const { outlookWeeks, syncOutlookWeekStarts } = await import("./pulls");
       const r = await syncOutlookWeekStarts(await outlookWeeks());
-      return { ok: true, message: t("{weeks} weeks from Outlook — {events} events.", { weeks: r.weeks, events: r.events }) };
+      // The appointments' todos right after (not waiting for the scheduler's next round): those with something to do, by the AI.
+      let made = 0;
+      try {
+        (await import("@/lib/calendar/ir")).syncOutlook();
+        made = await (await import("@/lib/calendar/todos")).calendarTodos();
+      } catch (e) {
+        console.warn("[calendar] todos from appointments:", e instanceof Error ? e.message : e);
+      }
+      return { ok: true, message: `${t("{weeks} weeks from Outlook — {events} events.", { weeks: r.weeks, events: r.events })}${made ? ` ${t("{n} new todos", { n: made })}` : ""}` };
     },
     schedule: () => ({ everyMinutes: stepMinutes("calendar"), lastAt: lastSyncOf("calendar"), window: driverOf("outlook-calendar") !== "cdp" ? t("always") : t("while the automation Chrome runs") }),
   },
@@ -299,7 +374,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     // The Lage itself: not while its run syncs first or relates the mails (their own steps show that).
     busy: () => {
       const r = accountFlag<{ phase: string }>("__zeffBoardRun");
-      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "notetodos" && r.phase !== "notes" && r.phase !== "documents" && r.phase !== "docrelations" && r.phase !== "knowledge" && r.phase !== "briefingdb" && r.phase !== "autoactions";
+      return !!r && r.phase !== "sync" && r.phase !== "mailtodos" && r.phase !== "mails" && r.phase !== "notetodos" && r.phase !== "notes" && r.phase !== "calendarmatch" && r.phase !== "calendartodos" && r.phase !== "documents" && r.phase !== "docrelations" && r.phase !== "knowledge" && r.phase !== "briefingdb" && r.phase !== "autoactions";
     },
     last: () => {
       const run = latestRun();
@@ -434,6 +509,36 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     busy: () => flag("__zeffNoteRelations"),
     schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("noterelations").lastAt, window: t("workdays, with the briefing"), workdays: true }),
   },
+  // The Calendar's step for Todos: the appointments of the next days (Calendar settings) that give you something to do.
+  calendartodos: {
+    get label() { return t("Appointment review"); },
+    href: "/calendar",
+    get what() { return t("Todos from appointments — the AI reads their descriptions, only those with something to do become todos (after each briefing)"); },
+    run: async () => {
+      try {
+        (await import("@/lib/calendar/ir")).syncOutlook();
+        const n = await (await import("@/lib/calendar/todos")).calendarTodos();
+        return { ok: true, message: t("{n} new todos", { n }) };
+      } catch (e) {
+        return { ok: false, message: errorMessage(e) };
+      }
+    },
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("calendartodos").lastAt, window: t("workdays, with the briefing"), workdays: true }),
+  },
+  // The Calendar's step for Todos: which appointments each open todo is about.
+  calendarrelations: {
+    get label() { return t("Calendar matching"); },
+    href: "/calendar",
+    get what() { return t("Which appointments each open todo is about — the AI reads them by content (after each briefing)"); },
+    run: async () => {
+      const r = await (await import("@/lib/calendar/relations")).relateAppointments();
+      return r.ok
+        ? { ok: true, message: `${t("{todos} todos, {changed} changed", { todos: r.todos, changed: r.changed })}${r.error ? ` (${r.error})` : ""}` }
+        : { ok: false, message: r.error ?? t("Failed.") };
+    },
+    busy: () => flag("__zeffCalendarRelations"),
+    schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: recorded("calendarrelations").lastAt, window: t("workdays, with the briefing"), workdays: true }),
+  },
   // The Documents plugin's extensions for Todos (there while they're on):
   doctodos: {
     get label() { return t("Document review"); },
@@ -540,7 +645,8 @@ function nextRun(everyMinutes: number, lastAt: string | null, workdaysOnly = fal
 export function syncOverview(): SyncOverview {
   const l = live();
   // Only the steps there are: Zeff's own and the installed plugins'.
-  const steps: SyncView[] = allKeys().filter((key) => stepAvailable(key)).map((key) => {
+  // (The parts of a stepped step are shown only as that step; a stepped step is there while any of its parts is.)
+  const steps: SyncView[] = allKeys().filter((key) => stepAvailable(key) && !partOfStepped.has(key) && (!isStepped(key) || steppedParts(key).length > 0)).map((key) => {
     const s = STEPS[key];
     const sched = s.schedule?.();
     return {
@@ -661,7 +767,7 @@ export function startSyncAllHere(): { ok: boolean; message: string } {
     void (async () => {
       try {
         // The Mail-Durchsicht and -Zuordnung come with the Ticket-Lage (its last steps) — not twice.
-        for (const key of allKeys().filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "peoplenorm" && k !== "tododupes" && k !== "notetodos" && k !== "noterelations" && k !== "doctodos" && k !== "docrelations" && stepAvailable(k))) {
+        for (const key of allKeys().filter((k) => k !== "relations" && k !== "mailtodos" && k !== "autoactions" && k !== "boardlage" && k !== "knowledgerel" && k !== "peoplenorm" && k !== "tododupes" && k !== "notetodos" && k !== "noterelations" && k !== "calendarrelations" && k !== "calendartodos" && k !== "review" && k !== "matching" && k !== "doctodos" && k !== "docrelations" && stepAvailable(k))) {
           if (l.allStopped) break;
           l.all = key;
           await runStep(key);

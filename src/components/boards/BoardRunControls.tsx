@@ -1,6 +1,7 @@
 "use client";
 
 import { LoadingRow } from "@/components/Spinner";
+import { RunMachines, canStart, isBusy } from "@/lib/run-state";
 import { FormError } from "@/components/FormError";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, useTransition } from "react";
@@ -15,7 +16,8 @@ import { useDismiss } from "@/components/useDismiss";
 
 /** What "Jetzt auswerten" does, in order — each a step of its own, as in the Sync menu. */
 /** After the syncs it runs first (the Auswerten settings): the Lage and its steps. */
-const AFTER_STEPS: SyncKey[] = ["boards", "mailtodos", "relations", "notetodos", "noterelations", "doctodos", "docrelations", "knowledgerel", "peoplenorm", "autoactions"];
+// The stepped steps stand for their parts (Review: mails, notes, documents, appointments; Matching: what each todo is about).
+const AFTER_STEPS: SyncKey[] = ["boards", "review", "matching", "autoactions"];
 
 const phases = (t: T): Record<string, string> => ({
   sync: t("syncing first"),
@@ -27,6 +29,8 @@ const phases = (t: T): Record<string, string> => ({
   notetodos: t("finding todos in notes"),
   knowledge: t("matching knowledge to the todos"),
   notes: t("matching notes to the todos"),
+  calendarmatch: t("matching appointments to the todos"),
+  calendartodos: t("finding todos in appointments"),
   documents: t("finding todos in documents"),
   docrelations: t("matching documents to the todos"),
   people: t("finding the people in the todos"),
@@ -79,13 +83,29 @@ export function BoardRunControls({
   };
   const [steps, setSteps] = useState<SyncOverview | null>(null);
   const root = useRef<HTMLDivElement>(null);
+  // The run and each of its steps in one strict state machine (lib/run-state): a click moves idle → starting at once, so nothing is
+  // pressed twice; what the server reports (running or not) moves it on; an event that doesn't fit the state does nothing.
+  const machines = useRef(new RunMachines());
+  const [, bump] = useState(0);
+  const feed = (d: SyncOverview) => {
+    for (const x of d.steps) machines.current.observe(x.key, x.running);
+    bump((n) => n + 1);
+  };
+  const stateOf = (key: string) => machines.current.state(key);
+  useEffect(() => {
+    machines.current.observe("run", running);
+    bump((n) => n + 1);
+  }, [running]);
   useEffect(() => {
     if (!open) return;
     let alive = true;
     const poll = async () => {
       try {
         const d = await syncOverviewAction();
-        if (alive) setSteps(d);
+        if (alive) {
+          setSteps(d);
+          feed(d);
+        }
       } catch {
         // the next poll tries again
       }
@@ -98,14 +118,22 @@ export function BoardRunControls({
     };
   }, [open]);
   useDismiss(root, open, () => setOpen(false));
-  const runStep = (key: SyncKey) =>
+  const runStep = (key: SyncKey) => {
+    if (!machines.current.send(key, "click")) return; // not idle (starting, running …): nothing happens
+    bump((n) => n + 1);
     start(async () => {
       setError(null);
-      const r = await runSyncAction(key);
-      if (r && !r.ok) setError(r.error ?? t("Couldn't start."));
-      setSteps(await syncOverviewAction());
+      const r = await runSyncAction(key).catch(() => null);
+      if (!r || !r.ok) {
+        machines.current.send(key, "refused");
+        setError(r?.error ?? t("Couldn't start."));
+      } else machines.current.accepted(key);
+      const d = await syncOverviewAction();
+      setSteps(d);
+      feed(d);
       router.refresh();
     });
+  };
 
   useEffect(() => {
     if (!running) return;
@@ -153,20 +181,26 @@ export function BoardRunControls({
         <button
           type="button"
           className="btn btn-primary rounded-r-none"
-          disabled={running || pending}
-          onClick={() =>
+          disabled={running || pending || !canStart(stateOf("run"))}
+          onClick={() => {
+            if (!machines.current.send("run", "click")) return; // not idle: nothing happens
+            bump((n) => n + 1);
             start(async () => {
               setError(null);
-              const r = await runBoardAction();
-              if (r && !r.ok) setError(r.error ?? t("Couldn't start."));
+              const r = await runBoardAction().catch(() => null);
+              if (!r || !r.ok) {
+                machines.current.send("run", "refused");
+                setError(r?.error ?? t("Couldn't start."));
+              } else machines.current.accepted("run");
+              bump((n) => n + 1);
               router.refresh();
-            })
-          }
+            });
+          }}
           title={t(
             "First syncs what AI steps → “Sync first” lists, then reads your tickets (with comments and history) and what Zeff knows about them, has the AI from the settings write the briefing and the todos — and then matches each todo with the mails it is about",
           )}
         >
-          {running || pending ? t("Running…") : t("Run now")}
+          {running || pending || isBusy(stateOf("run")) ? t("Running…") : t("Run now")}
         </button>
         <button
           type="button"
@@ -195,7 +229,8 @@ export function BoardRunControls({
                 <SyncStepRow
                   key={s.key}
                   s={s}
-                  disabled={pending || (running && s.key === "boards")}
+                  disabled={pending || (running && s.key === "boards") || !canStart(stateOf(s.key))}
+                  running={s.running || isBusy(stateOf(s.key))}
                   onRun={() => runStep(s.key)}
                   onStop={() =>
                     start(async () => {

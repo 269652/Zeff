@@ -7,7 +7,7 @@ import { useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { CALENDAR_COLORS, SOURCE_LABELS, type CalendarView } from "@/lib/calendar/ir-shared";
-import { createCalendarAction, deleteCalendarAction, saveGoogleCalendarSettingsAction, syncCalendarsAction, updateCalendarAction } from "./server-actions";
+import { createCalendarAction, deleteCalendarAction, saveGoogleCalendarSettingsAction, saveTodoDaysAction, syncCalendarsAction, updateCalendarAction } from "./server-actions";
 
 function Colors({ value, onChange, disabled }: { value: string; onChange: (c: string) => void; disabled?: boolean }) {
   const t = useT();
@@ -36,12 +36,15 @@ export function CalendarSettings({
   google,
   signedIn,
   outlook,
+  todoDays,
 }: {
   calendars: CalendarView[];
   google: { account: string; weeks: number; pastMonths: number } | null;
   /** The Google accounts signed in in the automation Chrome (null: Chrome isn't running). */
   signedIn: { email: string; name: string; number: number }[] | null;
   outlook: boolean;
+  /** How many days ahead the appointments are looked at for todos. */
+  todoDays: number;
 }) {
   const t = useT();
   const router = useRouter();
@@ -49,6 +52,7 @@ export function CalendarSettings({
   const [fresh, setFresh] = useState({ name: "", color: CALENDAR_COLORS[0] });
   const [names, setNames] = useState<Record<number, string>>(() => Object.fromEntries(calendars.map((c) => [c.id, c.name])));
   const [g, setG] = useState(google ?? { account: "0", weeks: 5, pastMonths: 3 });
+  const [days, setDays] = useState(todoDays);
   const done = (r: { ok: boolean; message?: string; error?: string } | null) => {
     toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("That didn't work.")), { tone: r?.ok ? "ok" : "error" });
     if (r?.ok) router.refresh();
@@ -195,6 +199,29 @@ export function CalendarSettings({
           </section>
         );
       })}
+      <section className="space-y-2">
+        <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Todos from appointments")}</h2>
+        <div className="card space-y-2 px-4 py-3 text-sm">
+          <p className="text-zinc-600 dark:text-zinc-300">
+            {t("For the calendars set to “Todos”, the AI reads each appointment's title and description and makes a todo, due on its day, only when it gives you something to do. How many days ahead should it look?")}
+          </p>
+          <label className="flex flex-wrap items-center gap-2">
+            <input
+              type="number"
+              min={1}
+              max={30}
+              className="input w-20"
+              value={days}
+              onChange={(e) => setDays(Number(e.target.value))}
+              aria-label={t("Days ahead")}
+            />
+            <span>{t("days ahead (1–30)")}</span>
+            <button type="button" className="btn" disabled={pending} onClick={() => start(async () => void done(await saveTodoDaysAction(days)))}>
+              {t("Save")}
+            </button>
+          </label>
+        </div>
+      </section>
     </div>
   );
 }
