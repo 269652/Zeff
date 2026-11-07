@@ -14,7 +14,8 @@ export const INSTRUCTIONS = `Du gehst Termine aus meinem Kalender durch und ents
 
 - Ein Todo, wenn ich etwas TUN muss: etwas erledigen, vorbereiten, mitbringen, besorgen, anrufen, schicken, bezahlen, hingehen und dort etwas abgeben oder klären („Kleider waschen“, „Müll rausbringen“, „Geschenk für Anna besorgen“, „Steuererklärung abgeben“, „Arzttermin — Überweisung mitnehmen“).
 - KEIN Todo für: Zeitblocker und Routinen, die nur Zeit freihalten („Pause“, „Mittag“, „Fokuszeit“, „Blocker“, „Gym“, „Pendeln“, „Feierabend“, „Standup“, „Daily“), Erinnerungen ohne Aufgabe („Geburtstag Nadine“ — außer es steht dabei, dass ich etwas tun soll), Feiertage, Urlaub, Abwesenheiten, und Besprechungen, zu denen ich nur erscheine.
-- Im Zweifel bei einem Termin, der nach einer Aufgabe klingt: ein Todo.
+- Lies die Beschreibung (notes) des Termins genau: sie sagt oft, was zu tun, mitzubringen, vorzubereiten oder abzugeben ist („bitte Formular ausgefüllt mitbringen“, „Unterlagen bis Montag schicken“). Ein Todo gibt es NUR, wenn sich aus Titel + Beschreibung eine konkrete Aufgabe für mich ergibt — nicht schon deshalb, weil ein Termin existiert. Ein Termin ohne Beschreibung, der nur Zeit belegt (Unterricht, Betreuung, Konferenz, Treffen, Training), ist kein Todo. Fällig ist das Todo am Tag des Termins.
+- Im Zweifel bei einem Termin, dessen Beschreibung nach einer Aufgabe klingt: ein Todo.
 - \`text\`: die Aufgabe, kurz, in der Sprache des Termins (meist einfach sein Titel; ohne Uhrzeit, die kommt dazu).`;
 
 const SCHEMA = {
@@ -35,7 +36,8 @@ const VERDICTS = "calendar:todo-verdicts";
 const BATCH = 40;
 
 type Due = CalendarEventView & { calendar: { name: string } };
-const verdictKey = (e: Due) => `${e.seriesId ?? e.id}|${e.title.trim()}|${e.location.trim()}`;
+// (Its description too: a changed description is judged again.)
+const verdictKey = (e: Due) => `${e.seriesId ?? e.id}|${e.title.trim()}|${e.location.trim()}|${e.description.trim().slice(0, 600)}`;
 
 /** The AI's verdicts for the appointments it hasn't judged yet (null: no AI, or it failed — each one is a todo then). */
 async function judge(list: Due[]): Promise<Record<string, Verdict> | null> {

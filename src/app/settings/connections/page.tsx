@@ -7,7 +7,8 @@ import { getDb, schema } from "@/db";
 import { t } from "@/lib/i18n/server";
 import { rich } from "@/lib/i18n/rich";
 import { PROVIDERS } from "@/lib/connectors/providers";
-import { apiConnected, clientOf, driverOf, extraOf, getConnector } from "@/lib/connectors/store";
+import { apiConnected, clientOf, comAvailable, driverOf, extraOf, getConnector } from "@/lib/connectors/store";
+import { comExclude } from "@/lib/outlook-com/calendar";
 import { listLogins } from "@/lib/logins";
 import { CheckAllLoginsButton } from "@/components/LoginButtons";
 import { LoginsList } from "@/components/LoginsList";
@@ -56,7 +57,15 @@ export default async function ConnectionsPage({ searchParams }: { searchParams: 
       connected: apiConnected(row),
       account: row.account,
       redirectUri: `${proto}://${host}/api/connectors/${id}/callback`,
-      services: PROVIDERS[id].services.map((s) => ({ service: s.service, label: s.label, driver: driverOf(s.service), installed: isInstalled(s.plugin as PluginId) })),
+      services: PROVIDERS[id].services.map((s) => ({
+        service: s.service,
+        label: s.label,
+        driver: driverOf(s.service),
+        installed: isInstalled(s.plugin as PluginId),
+        // Outlook Calendar can also be read from the Outlook installed on this PC (COM).
+        modes: comAvailable(s.service) ? (["cdp", "api", "com"] as const) : (["cdp", "api"] as const),
+      })),
+      comExclude: id === "microsoft" ? comExclude() : "",
     };
   };
   // (A sign-in's answer comes back with ?provider=… — the error or the "connected" belongs to that card: google, microsoft, drive.)

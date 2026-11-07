@@ -442,6 +442,7 @@ export function fromGraph(e: GraphEvent): EventInput {
     end: e.isAllDay ? day(e.end.dateTime) : e.end.dateTime.slice(0, 16),
     allDay: !!e.isAllDay,
     location: e.location?.displayName ?? "",
+    description: e.bodyPreview ?? "",
     showAs: e.showAs || "busy",
     cancelled: !!e.isCancelled,
     response: e.responseStatus?.response ?? null,

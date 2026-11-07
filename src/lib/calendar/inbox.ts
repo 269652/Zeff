@@ -63,6 +63,7 @@ function sanitize(raw: unknown): GraphEvent | null {
       : undefined,
     location: loc ? { displayName: str(loc.displayName) } : undefined,
     webLink: str(e.webLink),
+    bodyPreview: str(e.bodyPreview),
   };
 }
 

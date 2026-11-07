@@ -9,11 +9,27 @@ import { t } from "@/lib/i18n/server";
 /** Which way a service is reached: through the automation Chrome or through its API. */
 export async function setDriverAction(service: string, driver: string): Promise<ActionState> {
   try {
-    const { API_SERVICES, updateConnector } = await import("@/lib/connectors/store");
+    const { API_SERVICES, updateConnector, comAvailable } = await import("@/lib/connectors/store");
     if (!(API_SERVICES as readonly string[]).includes(service)) return { ok: false, error: t("Unknown service.") };
-    updateConnector(service as (typeof API_SERVICES)[number], { driver: driver === "api" ? "api" : "cdp" });
+    const svc = service as (typeof API_SERVICES)[number];
+    if (driver === "com" && !comAvailable(svc)) return { ok: false, error: t("Outlook on this PC can only be read on Windows, and only for the calendar.") };
+    updateConnector(svc, { driver: driver === "api" ? "api" : driver === "com" ? "com" : "cdp" });
     revalidateAll();
-    return { ok: true, message: driver === "api" ? t("Read through its API now.") : t("Read through the automation Chrome now.") };
+    return {
+      ok: true,
+      message: driver === "api" ? t("Read through its API now.") : driver === "com" ? t("Read from the Outlook on this PC now.") : t("Read through the automation Chrome now."),
+    };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}
+
+/** The Outlook calendars left out when Outlook is read on this PC (words of their names, ";"-separated). */
+export async function saveComExcludeAction(value: string): Promise<ActionState> {
+  try {
+    (await import("@/lib/outlook-com/calendar")).setComExclude(String(value ?? ""));
+    revalidateAll();
+    return { ok: true, message: t("Saved. The next calendar sync leaves these out.") };
   } catch (err) {
     return { ok: false, error: errorMessage(err) };
   }

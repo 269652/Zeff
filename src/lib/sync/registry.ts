@@ -277,7 +277,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
       const r = await syncOutlookWeekStarts(await outlookWeeks());
       return { ok: true, message: t("{weeks} weeks from Outlook — {events} events.", { weeks: r.weeks, events: r.events }) };
     },
-    schedule: () => ({ everyMinutes: stepMinutes("calendar"), lastAt: lastSyncOf("calendar"), window: driverOf("outlook-calendar") === "api" ? t("always") : t("while the automation Chrome runs") }),
+    schedule: () => ({ everyMinutes: stepMinutes("calendar"), lastAt: lastSyncOf("calendar"), window: driverOf("outlook-calendar") !== "cdp" ? t("always") : t("while the automation Chrome runs") }),
   },
   boards: {
     get label() { return t("Briefing"); },

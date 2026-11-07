@@ -17,7 +17,11 @@ export type Provider = "gitlab" | "google" | "microsoft";
 export const API_SERVICES = ["gitlab", "gmail", "gcalendar", "outlook-mail", "outlook-calendar", "teams"] as const;
 export type ApiService = (typeof API_SERVICES)[number];
 export const PROVIDER_OF: Record<ApiService, Provider> = { gitlab: "gitlab", gmail: "google", gcalendar: "google", "outlook-mail": "microsoft", "outlook-calendar": "microsoft", teams: "microsoft" };
-export type DriverMode = "cdp" | "api";
+/** "com": Outlook on this PC read through its own COM interface (classic Outlook, Windows) — only the Outlook calendar offers it. */
+export type DriverMode = "cdp" | "api" | "com";
+/** The services that can be read from the Outlook installed on this PC (COM). */
+export const COM_SERVICES: readonly ApiService[] = ["outlook-calendar"];
+export const comAvailable = (service: ApiService): boolean => process.platform === "win32" && COM_SERVICES.includes(service);
 export type AuthKind = "token" | "oauth";
 
 type Key = ApiService | Provider;
@@ -49,7 +53,10 @@ export function clientOf(provider: Provider): { clientId: string; clientSecret: 
 }
 
 /** How the service is reached now. */
-export const driverOf = (service: ApiService): DriverMode => (getConnector(service).driver === "api" ? "api" : "cdp");
+export const driverOf = (service: ApiService): DriverMode => {
+  const d = getConnector(service).driver;
+  return d === "api" ? "api" : d === "com" && comAvailable(service) ? "com" : "cdp";
+};
 
 /** Signed in for the API: a token, or an OAuth refresh token. */
 export const apiConnected = (r: ConnectorRow): boolean => (r.authKind === "oauth" ? !!r.refreshToken : !!r.token);

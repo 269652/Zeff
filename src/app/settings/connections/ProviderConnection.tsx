@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState, type ReactNode } from "react";
-import { disconnectProviderAction, saveProviderAction, setCalendarWriteAction, setDriverAction, setGmailWriteAction, testProviderAction } from "./actions";
+import { disconnectProviderAction, saveComExcludeAction, saveProviderAction, setCalendarWriteAction, setDriverAction, setGmailWriteAction, testProviderAction } from "./actions";
 import type { ActionState } from "@/app/action-helpers";
 import { Field } from "@/components/Field";
 import { toast } from "@/components/Toaster";
@@ -24,7 +24,9 @@ export type ProviderView = {
   account: string;
   redirectUri: string;
   /** Its services, with how each is reached now and whether its plugin is installed. */
-  services: { service: string; label: string; driver: "cdp" | "api"; installed: boolean }[];
+  services: { service: string; label: string; driver: "cdp" | "api" | "com"; installed: boolean; modes: readonly ("cdp" | "api" | "com")[] }[];
+  /** Microsoft: the Outlook calendars left out when reading Outlook on this PC (words of their names, ";"-separated). */
+  comExclude: string;
 };
 
 // Links in the steps' text: underlined (not told apart by colour alone).
@@ -57,6 +59,7 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
   const [clientId, setClientId] = useState(v.clientId);
   const [secret, setSecret] = useState("");
   const [tenant, setTenant] = useState(v.tenant);
+  const [exclude, setExclude] = useState(v.comExclude);
   const google = v.provider === "google";
   const anyApi = v.services.some((s) => s.driver === "api");
   useEffect(() => {
@@ -99,7 +102,7 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
                 {!s.installed && <span className="ml-1 text-xs font-normal text-zinc-400">{t("not installed")}</span>}
               </span>
               <span className="inline-flex overflow-hidden rounded-md border border-zinc-300 text-xs dark:border-zinc-700" role="group" aria-label={s.label}>
-                {(["cdp", "api"] as const).map((d) => (
+                {s.modes.map((d) => (
                   <button
                     key={d}
                     type="button"
@@ -108,7 +111,7 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
                     className={`px-3 py-1.5 ${s.driver === d ? "bg-zinc-900 font-medium text-white dark:bg-zinc-100 dark:text-zinc-900" : "hover:bg-zinc-100 dark:hover:bg-zinc-800"}`}
                     onClick={() => s.driver !== d && run(() => setDriverAction(s.service, d))}
                   >
-                    {d === "cdp" ? t("Automation Chrome") : t("{provider}'s API", { provider: v.label })}
+                    {d === "cdp" ? t("Automation Chrome") : d === "com" ? t("Outlook on this PC") : t("{provider}'s API", { provider: v.label })}
                   </button>
                 ))}
               </span>
@@ -116,6 +119,19 @@ export function ProviderConnection({ v, error, justConnected }: { v: ProviderVie
           ))}
         </ul>
         {!anyApi && <p className="mt-1 text-xs text-zinc-500">{t("Choose the API for a service to set up its sign-in here.")}</p>}
+        {v.services.some((s) => s.driver === "com") && (
+          <div className="mt-3 space-y-2 rounded-md border border-zinc-200 p-3 text-sm dark:border-zinc-700">
+            <p className="text-zinc-600 dark:text-zinc-300">
+              {t("Outlook on this PC: every calendar of the installed Outlook (its mailboxes' and iCloud / subscribed ones), read directly — no sign-in, nothing is changed in Outlook. Outlook has to be installed here.")}
+            </p>
+            <Field label={t("Calendars left out (words of their names, separated by “;”)")}>
+              {(p) => <input {...p} className="input w-full" value={exclude} onChange={(e) => setExclude(e.target.value)} placeholder="Feiertage;Privat" autoComplete="off" />}
+            </Field>
+            <button type="button" className="btn" disabled={pending} onClick={() => run(() => saveComExcludeAction(exclude))}>
+              {t("Save")}
+            </button>
+          </div>
+        )}
       </div>
 
       {anyApi && (

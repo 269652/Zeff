@@ -18,9 +18,13 @@ export async function callDriver(name: DriverId, tool: string, args: Record<stri
 export async function syncOutlookWeekStarts(weekStartIsos: string[]): Promise<{ weeks: number; events: number }> {
   const weeks = [...new Set(weekStartIsos)].sort();
   let pulled: { weekStartIso: string; events: unknown[] }[];
-  if ((await import("@/lib/connectors/store")).driverOf("outlook-calendar") === "api") {
+  const driver = (await import("@/lib/connectors/store")).driverOf("outlook-calendar");
+  if (driver === "api") {
     // Through Microsoft Graph: no Chrome.
     pulled = await (await import("@/lib/microsoft/calendar-api")).readWeeks(weeks);
+  } else if (driver === "com") {
+    // From the Outlook installed on this PC (COM): every calendar there, no Chrome, no sign-in.
+    pulled = await (await import("@/lib/outlook-com/calendar")).readWeeksCom(weeks);
   } else {
     const raw = await callDriver("outlook", "outlook_events", { weekStartIsos: weeks }, "Outlook sync", 300000);
     try {
