@@ -43,8 +43,27 @@ if (!fs.existsSync(path.join(WT, ".git"))) {
 }
 console.log(git("-C", WT, "log", "--oneline", "-1").slice(0, 100));
 
+// The integrations (integrations/<name>, submodules or links — not in the worktree's checkout): the checkout's, linked.
+const integrations = path.join(ROOT, "integrations");
+if (fs.existsSync(integrations)) {
+  fs.mkdirSync(path.join(WT, "integrations"), { recursive: true });
+  for (const e of fs.readdirSync(integrations, { withFileTypes: true })) {
+    if (e.name.startsWith(".")) continue;
+    const there = path.join(WT, "integrations", e.name);
+    const empty = !fs.existsSync(there) || (fs.statSync(there).isDirectory() && !fs.lstatSync(there).isSymbolicLink() && fs.readdirSync(there).length === 0);
+    if (!empty) continue;
+    if (fs.existsSync(there)) fs.rmdirSync(there);
+    execFileSync("cmd", ["/c", "mklink", "/J", there, path.join(integrations, e.name)], { stdio: "ignore" });
+    console.log(`linked integrations/${e.name}`);
+  }
+}
+
 // 2. The build, into .next-build, at a low priority.
 if (!noBuild) {
+  // What npm's prebuild does: the mounted integrations and the plugin index, generated (not committed).
+  step("Generating the integration mounts and the plugin index");
+  execFileSync(process.execPath, [path.join(WT, "scripts", "integrations.mjs")], { cwd: WT, stdio: "inherit" });
+  execFileSync(process.execPath, [path.join(WT, "node_modules", "tsx", "dist", "cli.mjs"), path.join(WT, "scripts", "plugins-index.mts")], { cwd: WT, stdio: "inherit" });
   step("next build → .next-build (low priority — takes a while)");
   const t0 = Date.now();
   await new Promise((resolve, reject) => {
@@ -73,6 +92,7 @@ if (process.platform === "win32") {
     .filter(Boolean);
   for (const pid of pids) execFileSync("taskkill", ["/PID", pid, "/T", "/F"], { stdio: "ignore" });
   if (pids.length) console.log(`stopped the phone server (pid ${pids.join(", ")})`);
+  globalThis.phoneWasRunning = pids.length > 0;
 }
 await sleep(1500);
 fs.rmSync(path.join(WT, ".next-old"), { recursive: true, force: true });
@@ -85,7 +105,13 @@ fs.renameSync(build, next);
 fs.renameSync(held, marker); // last: now the launcher starts it
 fs.rmSync(path.join(WT, ".next-BUILD_ID.swap"), { force: true });
 
-// 4. Up again, and a few pages answer.
+// 4. Up again, and a few pages answer — when the launcher runs it already (a launcher from before the Phone service
+//    starts it on its next start).
+if (globalThis.phoneWasRunning === false) {
+  console.log(`
+✔ Built ${git("-C", WT, "log", "--oneline", "-1").slice(0, 60)} — no phone server ran: the launcher starts it on its next start.`);
+  process.exit(0);
+}
 step("Waiting for the phone server (the launcher starts it)");
 const base = `http://127.0.0.1:${PORT}`;
 for (let i = 0; i < 90; i++) {
