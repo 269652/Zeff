@@ -97,11 +97,25 @@ export function HoverCard({ card, children, width = 420, className = "", side: s
   const show = () => {
     if (!recentTouch()) later(locate, delay);
   };
+  // Touch: a tap toggles the card — the finger lifted where it went down, soon. A finger that starts a scroll on the
+  // element (moves, or the browser takes it over: pointercancel) opens nothing.
+  const touchStart = useRef<{ x: number; y: number; at: number } | null>(null);
   const onPointerDown = (e: React.PointerEvent) => {
     if (e.pointerType !== "touch" && e.pointerType !== "pen") return;
     touchAt.current = Date.now();
+    touchStart.current = { x: e.clientX, y: e.clientY, at: Date.now() };
+  };
+  const onPointerUp = (e: React.PointerEvent) => {
+    const s = touchStart.current;
+    touchStart.current = null;
+    if (!s || (e.pointerType !== "touch" && e.pointerType !== "pen")) return;
+    touchAt.current = Date.now();
+    if (Math.hypot(e.clientX - s.x, e.clientY - s.y) > 10 || Date.now() - s.at > 600) return;
     if (place) later(() => setPlace(null), 0);
     else later(locate, 0);
+  };
+  const onPointerCancel = () => {
+    touchStart.current = null;
   };
   const hasSide = !!sideProp;
   const api = useMemo(() => ({ setSide, open: () => later(locate, 0), hasSide }), [hasSide]); // eslint-disable-line react-hooks/exhaustive-deps
@@ -113,7 +127,7 @@ export function HoverCard({ card, children, width = 420, className = "", side: s
   const left = place && total ? Math.max(8, Math.min(place.left, window.innerWidth - total - 8)) : 0;
   return (
     <SideCtx.Provider value={api}>
-      <span ref={ref} className={`inline-flex max-w-full min-w-0 ${className}`} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide} onPointerDown={onPointerDown}>
+      <span ref={ref} className={`inline-flex max-w-full min-w-0 ${className}`} onMouseEnter={show} onMouseLeave={hide} onFocus={show} onBlur={hide} onPointerDown={onPointerDown} onPointerUp={onPointerUp} onPointerCancel={onPointerCancel}>
         {children}
         {place &&
           createPortal(

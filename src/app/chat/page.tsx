@@ -10,6 +10,7 @@ import { formatDateTime } from "@/lib/format";
 import { ClaudeSession } from "@/components/work/ClaudeSession";
 import { SessionThread, type SessionTurn } from "@/components/work/SessionThread";
 import { ChatComposer } from "./ChatComposer";
+import { ScrollToEnd } from "./ScrollToEnd";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Chat") };
@@ -40,8 +41,10 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   const live = !!last?.session && last.status === "running";
   const earlier = chats.filter((c) => c.id !== todoId && runs.has(c.id));
   return (
-    <div className="mx-auto flex w-full max-w-2xl flex-col gap-3">
-      <header className="flex items-center gap-2">
+    // A messenger's shape: the page fills the window (MainArea's full-height pages), the conversation scrolls, the
+    // message box stays at the bottom (on a phone above the bottom bar — MainArea leaves its room).
+    <div className="mx-auto flex h-full w-full max-w-2xl flex-col gap-3">
+      <header className="flex shrink-0 items-center gap-2">
         <h1 className="min-w-0 flex-1 truncate text-lg font-semibold">{todo?.text ?? t("Chat")}</h1>
         {earlier.length > 0 && (
           <details className="relative">
@@ -70,13 +73,16 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
 
       {todoId && last ? (
         <>
-          <SessionThread turns={turns} />
-          <div className="sticky bottom-20 z-10 bg-zinc-50/95 pt-1 pb-2 backdrop-blur sm:bottom-0 dark:bg-zinc-950/95">
+          <div id="chat-thread" className="min-h-0 flex-1 overflow-y-auto">
+            <SessionThread turns={turns} />
+          </div>
+          <ScrollToEnd target="chat-thread" />
+          <div className="max-h-[55%] shrink-0 overflow-y-auto border-t border-zinc-200 pt-2 dark:border-zinc-800">
             {live ? <ClaudeSession key={last.id} run={last} /> : <ChatComposer runId={last.id} placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Reply …")} />}
           </div>
         </>
       ) : (
-        <div className="space-y-4">
+        <div className="flex min-h-0 flex-1 flex-col justify-end gap-4">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">
             {t("Talk to Zeff: it makes todos, writes notes, looks things up in your mail, chats and tickets — and asks you here before it does anything outside Zeff.")}
           </p>
