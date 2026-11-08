@@ -387,19 +387,24 @@ export function TodoItem({
                 ) : (
                   <HoverCard
                     card={
-                      <div className="space-y-1.5 rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 text-xs">
-                        <p className="flex items-start gap-1 text-violet-700 dark:text-violet-300">
-                          <SparkIcon className="mt-px size-3.5 shrink-0" />
-                          <span>{t("Suggested: {why}", { why: todo.autoOpsWhy })}</span>
+                      <div className="space-y-2 rounded-lg border border-zinc-200 bg-white p-3 text-xs shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+                        <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
+                          <SparkIcon className="size-3.5 shrink-0 text-violet-600 dark:text-violet-400" />
+                          {t("Actions ({n})", { n: todo.ops.length })}
                         </p>
-                        <ul className="space-y-1">
+                        {/* One line each: what it does — the why once, quiet, under them. */}
+                        <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
                           {todo.ops.map((op, i) => (
-                            <li key={i} className="break-words rounded border border-sky-200 bg-sky-50 px-2 py-1 text-sky-900 dark:border-sky-900 dark:bg-sky-950/50 dark:text-sky-100">
-                              ⚡ {opTitle(op, t)}
+                            <li key={i} className="flex min-w-0 items-center gap-2 py-1.5 first:pt-0 last:pb-0">
+                              <span aria-hidden className="shrink-0 text-violet-500">⚡</span>
+                              <span className="min-w-0 flex-1 truncate font-medium text-zinc-800 dark:text-zinc-100" title={opTitle(op, t)}>
+                                {opTitle(op, t)}
+                              </span>
                             </li>
                           ))}
                         </ul>
-                        <p className="text-zinc-500">{t("Click: review, adjust, run")}</p>
+                        {todo.autoOpsWhy && <p className="line-clamp-2 text-zinc-500 dark:text-zinc-400">{todo.autoOpsWhy}</p>}
+                        <p className="text-[11px] text-zinc-400">{t("Click: review, adjust, run")}</p>
                       </div>
                     }
                   >

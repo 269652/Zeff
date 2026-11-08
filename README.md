@@ -5,13 +5,16 @@
 <h1 align="center">Zeff</h1>
 
 <p align="center">
-  <b>A personal operating system that runs on your machine, reads everything you work with,<br>
-  tells you what's to do — and extends itself while it runs.</b>
+  <b>Everything that reaches you becomes one todo list.<br>
+  Mail, chats, tickets, comments, appointments, letters and bank statements flow in —<br>
+  Zeff derives what is yours to do, tells you why, and puts the button that finishes it right beside it.<br>
+  Locally, on your machine. Nothing leaves it unless you say so.</b>
 </p>
 
 <p align="center">
   <a href="https://getzeff.com">Website</a> ·
   <a href="https://github.com/269652/zeff-alpha/releases">Download (alpha)</a> ·
+  <a href="#features">Features</a> ·
   <a href="docs/plugins/README.md">Write a plugin</a> ·
   <a href="LICENSE">Licence</a> ·
   <a href="mailto:info@getzeff.com">info@getzeff.com</a>
@@ -19,48 +22,191 @@
 
 ---
 
-Your work is spread over a dozen apps: tickets in Jira, mail in Outlook and Gmail, chats in Teams, WhatsApp and
-Signal, notes in Keep, merge requests in GitLab, meetings in two calendars. Zeff reads all of them — **locally,
-through the web apps you are already signed in to** — and turns them into one picture: what happened, what is open,
-who is waiting for you, and what you should do next. Then it puts AI agents to work on it in your own repos.
+Your day is spread over a dozen channels. Tickets in Jira. Mail in Outlook, Gmail and that old T-Online account. Chats
+in Teams, WhatsApp and Signal. Review comments in GitLab. Two calendars. A letter with a file number. A bank statement
+you keep meaning to look at. Somewhere in all of that is the one message you should answer today — and the promise
+you made last Tuesday.
 
-Nothing leaves your PC unless you send it. The data is one SQLite file per account. Zeff never writes anywhere —
-no message, no comment, no booking — unless you click the button.
+**You shouldn't have to turn that into a todo list by hand. Zeff does.** It reads every channel, locally, and derives
+your todos from what actually comes in: who asked you for what, by when, in which message — and what already happened
+since. A reply you sent, a ticket that moved, a payment that arrived: the todo settles itself. What's left is one calm
+list, each item with its sources, its reason and a ready-made action.
 
-## Why Zeff
+```
+  Outlook · Gmail · IMAP/POP3 ───┐
+  Teams · WhatsApp · Signal ─────┤                           ┌────────────────────────────────────┐
+  Jira · GitLab reviews ─────────┼──►  read · understood ───►│  Your todos                        │
+  Calendars · documents · bank ──┤     matched · deduped     │  why · from where · by when · next │
+  Workspace · journal · agents ──┘                           └────────────────────────────────────┘
+```
 
-- **One place for everything that waits.** Todos with their context, due dates and ready-made actions; open loops
-  (what you promised, what was promised to you, questions nobody answered); a *Today* page that is your day on one
-  screen.
-- **Local first, for real.** A Next.js server on `127.0.0.1`, an Electron launcher, SQLite. No cloud account, no
-  OAuth app to approve: connectors read the web apps in an automation browser with *your* sign-ins.
-- **Agents on your todos.** Claude Code, Codex and Copilot CLI run in your repos with live sessions, worktrees,
-  diffs and delivery — started from a todo, steered from the **Work** tab.
-- **It extends itself.** Drop a folder into the plugins folder and Zeff gains rules, `/` commands, views, tools and
-  hooks — no rebuild, no restart. Or ask a worker to write that plugin for you.
-- **Careful by construction.** Automatic steps only read and propose; every write has a fixed list of callers,
-  enforced by a test. Sources and databases carry a sensitivity (open, personal, secret) that every exit — the AI,
-  the knowledge server, agents, MCP — respects.
+Around that list sits everything you need to work it off: a mail client and chat view, a Notion-like workspace, AI
+agents that take todos over in your own repos, and a **Studio** to build whatever else you need.
 
-## What's inside
+- 📥 **Every channel in, one list out.** Todos are a derivation of everything that arrives — not another inbox to
+  feed by hand.
+- 🏠 **Local first, for real.** A server on `127.0.0.1`, a desktop launcher, one SQLite file per account. No cloud
+  account, no OAuth app to approve: connectors read the web apps you are already signed in to.
+- ✋ **It never acts behind your back.** Automatic steps only read and propose; every write — a message, a comment,
+  a booking — happens on your click. A test enforces it.
+- 🤖 **Agents that actually work.** Claude Code, Codex and Copilot run on your todos with live sessions, worktrees,
+  diffs and delivery — and they can ask you when they need a decision.
+- 🔒 **Privacy you can see.** Every source and database carries a sensitivity (open, personal, secret) that the AI,
+  the knowledge server, agents and MCP all respect.
 
-| Area | What you get |
-| --- | --- |
-| **Today & Todos** | The *Lage*: an AI pass over tickets, mail, chats and merge requests that says what happened and what's to do. Todos keep their sources, a cause chain and one-click actions. |
-| **Mail & Chat** | Outlook, Gmail, Teams, WhatsApp and Signal in one inbox with a mail client and a chat view; AI reviews flag what needs you. |
-| **Workspace** | Pages and databases in the spirit of Notion — block editor, backlinks, history, table / board / calendar views, formulas with units — wired into everything else (send a mail to a board, link a row to a todo). |
-| **People** | A profile for everyone who matters: notes, birthdays and reminders, what Zeff knows about them across sources, what they owe you and you them, identity suggestions that merge duplicates. |
-| **Cases & Finances** | One place per matter (a file number in a letter, a mail and a todo hold it together); debts and claims with instalments and the day you are debt-free. |
-| **Time** | Time tracking on jobs and projects, working hours, absences, flex time, week and month reports; agents propose bookings, you take them over. |
-| **Calendar** | Your calendars in Zeff plus Outlook and Google Calendar in one view; meetings become time entries on a click. |
-| **Knowledge** | A second server compiles Confluence, Keep, documents and Zeff's own data into a searchable wiki and graph — ask it in Zeff, or let agents search it over MCP. |
-| **News** | Feeds and searches you pick, scored by your interests, muted words and how you actually read. |
-| **Timeline, Loops, Correlations** | One log of what happened across all sources; what is still open between you and others; what goes with what in your days (computed, not guessed). |
-| **Documents** | Drop PDFs, Office files, pictures or audio — Zeff extracts the text and files it into knowledge. |
-| **Accounts** | Run work and private side by side: each account has its own database, browser profile, knowledge server and plugins. |
+## Features
 
-Everything built in is a plugin too: turn on what you use under **Menu → Plugins**. The UI speaks English, German
-and Spanish.
+### ✅ Todos — derived from everything that comes in
+
+- **Every channel feeds the list** — mail (Outlook, Gmail, any IMAP/POP3 account), chats (Teams, WhatsApp, Signal),
+  Jira tickets and comments, GitLab merge requests and review comments, your calendars, documents and letters, bank
+  statements, Workspace notes and checklists, even Signal's "note to self".
+- **Derived, not typed** — after every sync the AI reads what is new and decides what asks something of *you*. That
+  becomes a todo; everything else stays context. Appointments that need preparing become todos for their day.
+- **Every todo says why** — it keeps the messages it came from (with the quote it rests on), the chain of what caused
+  it, the people involved and a due date where the source names one.
+- **One thread, one todo** — later replies, comments and follow-ups land on the todo they belong to instead of
+  making new ones; a conversation shares its todos, and every mail, note or ticket that flowed into one carries a mark
+  — so nothing is handled twice.
+- **It settles itself** — when the source leaves no doubt it is done: your reply went out, the ticket was resolved,
+  the attachment was sent, the payment showed up on the bank statement. Each settling says what did it, and can be
+  undone.
+- **One-click actions** — for each open todo the AI prepares what would finish it: a reply, a comment, a mail draft,
+  a meeting in a free slot, a hand-over to an agent. You review, adjust, click.
+- **Context at a glance** — hover a todo for its sources, actions and what the knowledge base has on it; open it for
+  the whole story.
+- **Hand it to an agent** — a todo can go to Claude Code, Codex or Copilot in the right repo; its run, diff and
+  delivery come back to the same todo.
+
+### ☀️ Today — your day on one screen
+
+- **The briefing ("Lage")** — an AI pass over your tickets, mail, chats and merge requests that says what happened and
+  what is yours to do, ticket by ticket, with flags and suggested next steps.
+- **Open loops** — what you promised ("I'll send it tomorrow"), what was promised to you, questions nobody answered,
+  review and signature requests. Loops close by themselves when the source leaves no doubt.
+- **Timeline** — one log of everything across all sources, tied to the people, tickets, cases and projects it
+  concerns, with a marker for what is new since you last looked.
+- **Reminders that matter** — birthdays and anniversaries, deadlines, instalments, the overdue promise — on the Today
+  page and as desktop notifications.
+
+### 📬 Every inbox, one place
+
+- **All your mail accounts side by side** — Outlook (web or Microsoft's API), Gmail, and any IMAP or POP3 account
+  (T-Online, GMX, WEB.DE, Gmail, Outlook …). Reply and write new mail from Zeff, really sent over the account's SMTP.
+- **Chats too** — Microsoft Teams mentions and chats, WhatsApp Web and Signal Desktop *(both experimental)* — read without
+  opening a chat, so nothing is marked as read and no blue ticks appear.
+- **A real mail client and chat view** — folders, list and reading pane; conversations with a reply box that stays at
+  the bottom; channel logos as tabs; "archive read" that tidies the IMAP inbox on the server too.
+- **AI reviews** — the mail and message review flags what needs you and turns it into todos, with the quote it is
+  based on.
+
+### 🗂️ Workspace — Notion, wired into everything
+
+- **Pages and databases** — a block editor (`/` for blocks: headings, lists, checklists, tables, callouts, toggles,
+  code, pictures), a page tree with backlinks, history and a trash.
+- **Every view you need** — table, board, list, gallery, calendar, timeline and chart; filters, sorts, relations,
+  rollups and formulas **with units** (`3 h × 85 €/h`).
+- **Views of your own design** — describe a view or write it in Zeff's template language: dashboards, galleries,
+  two-pane apps, an inbox. Edit it in a **drag & drop builder** with a kit of ~40 elements, or in a code editor with
+  syntax highlighting and completion — with a live preview either way.
+- **Detail pages for any database** — the page a row opens as, designed like a view: its fields, its lifecycle
+  buttons, data a flow loads.
+- **Lookups** — type a title and pick a suggestion: films and series (TMDB), books (Open Library, Google Books),
+  Wikipedia articles, the Knowledge Graph, web results — and its data becomes a row, poster and all.
+- **Checklists that are todos** — a note's checkboxes are Zeff todos, ticked from anywhere.
+- **@-mentions** of people, todos and tickets; forms that fill databases; templates for a journal, an agenda and more.
+- **AI built in** — it writes and summarises, turns a page into todos, fills AI fields per row, answers questions from
+  a database (each statement naming its row), and compiles a dossier of what a database says.
+
+### 🧱 Studio — build your own apps *(beta)*
+
+- **Flows from blocks** — web requests, lookups, AI extraction, rows read and written, branches, loops, parallel
+  steps, error handling, sub-flows and JavaScript in a sandbox. Drawn as a canvas; every node's input and output in the
+  run console; dry runs that write nothing.
+- **Ask me** — a block that asks *you* a question (a 1–10 scale, a choice, yes/no, a number, a text) and waits for the
+  answer — on any page of Zeff, as a card in the corner. An hourly check-in that lands in your journal is three
+  blocks: *ask → make sure of the database → write the row*.
+- **Triggers** — by hand, from a button in a view, on a schedule with hours and weekdays ("every hour from 8 to 22,
+  Monday to Friday"), when a row changes, on a lifecycle transition or a signal.
+- **Lambdas** — real Node.js functions with their own npm packages, each in a sandboxed process (no files, no
+  processes, network only to the domains it declares, through Zeff). Their output is checked against what they
+  promise. All lookup sources are lambdas you can read, test and change.
+- **A web IDE** — the editor of VS Code in the browser: files, tabs, highlighting, completion with the types of the
+  lambda's event, context and installed packages, a test panel, full screen.
+- **Lifecycles** — turn a status field into a state machine: transitions, conditions, required fields, a history per
+  row, flows on entering and leaving a state, and a strict mode where a card only moves the way it may.
+- **Apps in one click** — a web search that keeps what you find, a film catalogue, a tracker, or an empty app — each a
+  database with its own screens, detail page and flows. Or just *describe it* and let the assistant build it from the
+  same blocks.
+- **Permissions you grant** — a flow reaches only the web domains, databases, AI and sending you allow; what the AI
+  asks for waits for your OK. Secrets (API keys) never show in a log.
+
+### 🤖 Agents & AI
+
+- **Bring your AI** — Claude Code, OpenAI's Codex (your ChatGPT account) or GitHub Copilot as the backend, each task
+  with its own model; your instructions and context go with every call.
+- **Code tab** — workers on your todos with live sessions you can steer, branches and worktrees, diffs, pushes, merge
+  requests and replies to review comments on a click. Admin sessions for system work on Windows *(beta)*.
+- **Workspace agents** — scheduled agents that write reviews, clean up an inbox, fill databases — with a scope, tool
+  groups you switch on and off, and a log of every run. Each agent sees the data beside it: drop a database into
+  your journal and the weekly review reads it.
+- **They ask when they need you** — an agent can ask you a question mid-run (`zeff_ask`), wait for the answer and go
+  on with it.
+- **MCP for every agent** — Zeff's tools over MCP: todos, time, knowledge, the Workspace, flows, lookups, open loops,
+  the timeline, correlations, web search and an automated browser *(beta)*.
+
+### 👥 People, cases & money
+
+- **People** — a profile for everyone who matters: notes, dates with reminders, what Zeff knows about them across
+  sources, their latest messages, the todos they appear in, what they owe you and you them. Duplicates are found and
+  merged everywhere at once.
+- **Organisations, projects & places** — known under every name your sources use, each gathering its people,
+  tickets, mails, money, hours and appointments.
+- **Cases** — one place per matter: the file number in a letter, a mail and a todo holds it together; the other party,
+  what is owed, the next instalment or deadline and a GiroCode to pay.
+- **Finances** — whom you owe what and who owes you, payment plans, the months ahead as a chart, the day you are
+  debt-free; bank statements (Revolut and other CSVs) settle payments by themselves.
+
+### 🕐 Time & calendar
+
+- **One calendar** — your own calendars plus Outlook and Google Calendar in one week view; free slots for meeting
+  suggestions; meetings become time entries on a click.
+- **Time tracking** — jobs and projects, working hours, absences, flex time, weekly and monthly reports; agents
+  propose bookings, you take them over.
+
+### 🧠 Knowledge & insight
+
+- **A knowledge server** — Confluence, documents and Zeff's own data compiled into a searchable wiki and graph:
+  summaries, concepts, entities, relations. Ask it in Zeff, or let agents search it.
+- **What you should know right now** — before a meeting, beside a mail, a ticket or a person.
+- **Questions about your own numbers** — "how much did I spend on repairs this year?", "when did I last talk to …?" —
+  answered from your data, with the rows behind the answer.
+- **Documents** — drop PDFs, Office files, pictures or audio; Zeff extracts the text (scans and audio too) and files it.
+- **Correlations** — what goes with what in your days (your mood and energy against meetings, hours, messages,
+  spending), computed with real statistics and only told when it holds.
+
+### 🌱 Life
+
+- **Journal** — a diary with mood, energy and tags, weekly and monthly reviews written by the AI, and check-ins that
+  ask you during the day.
+- **Agenda** — notes on a timeline in projects, on the agenda, pinned, with reminders and today's calendar events.
+- **News** — the feeds you pick plus a search per interest, scored by what you care about and how you read; muted
+  words, trusted sources, a daily overview.
+
+### 🛡️ Safe by construction
+
+- **Accounts** — work and private side by side, each with its own database, browser profile, knowledge server, AI
+  backends and plugins.
+- **Encrypted backups** — daily ZIPs, AES-256 with your password, daily/weekly/monthly rotation, restore in one click;
+  optionally a copy in your own Google Drive *(beta)*.
+- **Sensitivity everywhere** — mark a source or database personal or secret and every exit respects it.
+- **Writes only on a click** — enforced by a test, not a promise.
+
+### 🧩 Make it yours
+
+- **Plugins** — everything in Zeff is a plugin you turn on or off; drop a folder into the plugins folder to add rules,
+  `/` commands, views, MCP servers, hooks and API calls — no rebuild, no restart.
+- **Three languages** — English, German and Spanish, with dates and numbers in your format.
 
 ## Get it
 

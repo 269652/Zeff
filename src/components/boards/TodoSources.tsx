@@ -5,7 +5,8 @@ import { mergeJiraNotes, sourceKey, todoRef, type SyncedComment, type TodoSource
 import { NoteBadge, NoteRow } from "./NoteBadge";
 import { DismissButton } from "../DismissButton";
 import { SourceBadge, SourceDetails } from "../SourceBadge";
-import { entityWhoWhen } from "@/lib/entities-shared";
+import { entityHeadline, entityText, entityWhoWhen } from "@/lib/entities-shared";
+import { formatAgo } from "@/lib/format";
 import { groupOfKind, sourceKindOf, type ContextSummary } from "@/lib/context-summary";
 import { HoverCard } from "../HoverCard";
 import { CollapseIcon, ExpandIcon, NoteIcon, SparkIcon } from "../icons";
@@ -119,6 +120,30 @@ export function AreaToggle({ open, onToggle, label, tone = "indigo", title, chil
   );
 }
 
+/** A context item in the hovercard: its kind's icon, a headline cut to one line, how long ago — and one quiet line of its text. */
+function PreviewRow({ it }: { it: Item }) {
+  const t = useT();
+  const { kind, at } = itemKind(it);
+  const icon = CONTEXT_GROUPS.find((g) => g.group === groupOf(kind))?.icon;
+  const head = "n" in it ? (it.n.by ? t("AI report") : t("Your note")) : entityHeadline(it.s);
+  const body = ("n" in it ? it.n.text : entityText(it.s)).replace(/\s+/g, " ").trim();
+  const when = at && !Number.isNaN(Date.parse(normal(at))) ? formatAgo(normal(at)) : "";
+  return (
+    <li className="flex min-w-0 gap-2 py-1.5 first:pt-0 last:pb-0">
+      <span className="mt-0.5 shrink-0" aria-hidden>
+        {icon}
+      </span>
+      <span className="min-w-0 flex-1">
+        <span className="flex min-w-0 items-baseline gap-2">
+          <span className="min-w-0 flex-1 truncate font-medium text-zinc-800 dark:text-zinc-100">{head}</span>
+          {when && <span className="shrink-0 text-[11px] text-zinc-400">{when}</span>}
+        </span>
+        {body && body !== head && <span className="line-clamp-1 text-zinc-500 dark:text-zinc-400">{body}</span>}
+      </span>
+    </li>
+  );
+}
+
 /**
  * What a closed context holds, at a glance (the toggle's hovercard): the newest few, the rest counted.
  * `group`: only that kind (the icon under the pointer — Mail, WhatsApp …); none: all of it.
@@ -129,8 +154,8 @@ function ContextPreview({ items, unread, group }: { items: Item[]; unread: numbe
   items = kind ? items.filter((it) => groupOf(itemKind(it).kind) === kind.group) : items;
   const shown = items.slice(0, kind ? 8 : 6);
   return (
-    <div className="space-y-1.5 overflow-hidden rounded-lg border border-zinc-200 bg-white p-3 shadow-sm dark:border-zinc-800 dark:bg-zinc-900 text-xs">
-      <p className="flex items-center gap-1.5 font-medium text-zinc-600 dark:text-zinc-300">
+    <div className="space-y-2 overflow-hidden rounded-lg border border-zinc-200 bg-white p-3 text-xs shadow-sm dark:border-zinc-800 dark:bg-zinc-900">
+      <p className="flex items-center gap-1.5 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase dark:text-zinc-400">
         {kind?.icon}
         <span>
           {kind
@@ -143,9 +168,12 @@ function ContextPreview({ items, unread, group }: { items: Item[]; unread: numbe
           {!kind && unread > 0 && `, ${t("{n} new", { n: unread })}`}
         </span>
       </p>
-      <span className="flex min-w-0 flex-col items-stretch gap-1">
-        {shown.map((it) => ("n" in it ? <NoteBadge key={`note:${it.n.from ?? ""}:${it.n.at}`} n={it.n} className="max-w-full min-w-0" /> : <SourceBadge key={sourceKey(it.s)} entity={it.s} className="max-w-full min-w-0" />))}
-      </span>
+      {/* One compact line each — the kind, who or what, how long ago, a line of it — not the whole cards (a click opens them). */}
+      <ul className="divide-y divide-zinc-100 dark:divide-zinc-800">
+        {shown.map((it) => (
+          <PreviewRow key={"n" in it ? `note:${it.n.from ?? ""}:${it.n.at}` : sourceKey(it.s)} it={it} />
+        ))}
+      </ul>
       {items.length > shown.length && <p className="text-zinc-500">{kind ? t("… and {n} more — click for the whole context", { n: items.length - shown.length }) : t("… and {n} more — click for all", { n: items.length - shown.length })}</p>}
     </div>
   );
