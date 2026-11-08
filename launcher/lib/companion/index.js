@@ -36,7 +36,7 @@ class Companion {
   /**
    * `zeffUrl`: Zeff's own server (http://127.0.0.1:9333); `dir`: where the companion keeps its files; `ndc`: node-datachannel.
    */
-  constructor({ ndc, dir, port, zeffUrl, appUrl, log = () => {}, onChange = () => {} }) {
+  constructor({ ndc, dir, port, zeffUrl, proxyUrl, appUrl, log = () => {}, onChange = () => {} }) {
     this.ndc = ndc;
     this.dir = dir;
     this.port = port;
@@ -49,7 +49,8 @@ class Companion {
     this.events = null;
     this.pushTimer = null;
     this.prefixes = new Map(); // account id → its route in Zeff ("/privat"), from Zeff's answers
-    this.proxy = new CompanionProxy({ zeffUrl: this.zeffUrl, log }); // the whole of Zeff through the connection
+    // The whole of Zeff through the connection — from proxyUrl() (the phone's own server, when it runs), else Zeff's.
+    this.proxy = new CompanionProxy({ zeffUrl: proxyUrl ?? (() => this.zeffUrl), log });
   }
 
   devices() {

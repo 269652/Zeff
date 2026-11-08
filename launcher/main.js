@@ -431,11 +431,29 @@ async function start() {
     const e =
       cfg.syncHost && fs.existsSync(syncMarker)
         ? { ...env, ZEFF_ROLE: "web", ZEFF_SYNC_HOST: `http://127.0.0.1:${cfg.syncPort}`, ZEFF_SYNC_TOKEN: syncToken }
-        : { ...env };
+        : // (The token also lets the phone's server hand it the syncs and runs — see the Phone service below.)
+          { ...env, ZEFF_SYNC_TOKEN: syncToken };
     // next dev refuses cross-origin dev assets and the HMR socket, and the browser's origin is https://zeff.
     return state.dev ? { ...e, NODE_ENV: "development", ZEFF_DEV_ORIGINS: cfg.hostsNames.join(",") } : e;
   };
   add(new Service(zeffSpec));
+  // The phone's own Zeff server: a production build of the committed code (scripts/phone-deploy.mjs builds it in the
+  // checkout's sibling "<app>-phone", a git worktree whose data and node_modules are this checkout's), fast through the
+  // companion's connection while this one stays `next dev` for you here. It hands the syncs and runs to Zeff's server
+  // above (ZEFF_ROLE web — they run once); the companion's proxy asks it while it runs (lib/companion).
+  const phoneDir = cfg.phoneDir ? path.resolve(paths.app, cfg.phoneDir) : `${paths.app}-phone`;
+  const phoneNext = path.join(phoneDir, "node_modules", "next", "dist", "bin", "next");
+  if (cfg.companion !== false && cfg.phoneServer !== false && fs.existsSync(phoneNext)) {
+    state.phoneService = add(
+      new Service({
+        ...spec("Phone", null, cfg.phonePort),
+        args: [phoneNext, "start", "-H", "127.0.0.1", "-p", String(cfg.phonePort)],
+        cwd: phoneDir,
+        env: { ...env, ZEFF_ROLE: "web", ZEFF_SYNC_HOST: `http://127.0.0.1:${cfg.zeffPort}`, ZEFF_SYNC_TOKEN: syncToken },
+        buildMarker: path.join(phoneDir, ".next", "BUILD_ID"),
+      }),
+    );
+  }
   if (cfg.syncHost) {
     const hostSpec = spec("Sync", null, cfg.syncPort);
     add(new Service({ ...hostSpec, env: { ...env, ZEFF_ROLE: "sync", ZEFF_SYNC_TOKEN: syncToken, ZEFF_DIST_DIR: syncDist }, buildMarker: syncMarker }));
@@ -572,6 +590,8 @@ function startCompanion() {
       dir: path.join(paths.state, "companion"),
       port: cfg.companionPort,
       zeffUrl: `http://127.0.0.1:${cfg.zeffPort}`,
+      // All of Zeff for the phone: from the phone's own production server while it runs, else from Zeff's server.
+      proxyUrl: () => (state.phoneService?.status === "running" ? `http://127.0.0.1:${cfg.phonePort}` : `http://127.0.0.1:${cfg.zeffPort}`),
       appUrl: cfg.companionApp,
       log,
       onChange: () => companionState().then((s) => win?.webContents.send("companion", s)),

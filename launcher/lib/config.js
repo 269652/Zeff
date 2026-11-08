@@ -43,6 +43,13 @@ const DEFAULTS = {
   companion: true,
   companionPort: 9341,
   companionApp: "https://app.getzeff.com/",
+  /**
+   * The phone's own Zeff server (a production build in phoneDir — default: the app folder's sibling "<app>-phone", made by
+   * `npm run phone:deploy`), asked by the companion's proxy while it runs. Off, or no build there: Zeff's server answers.
+   */
+  phoneServer: true,
+  phonePort: 9337,
+  phoneDir: null,
   /** Manage the knowledge server too (and route https://knowledge.<host> to it). */
   knowledge: true,
   /** HTTPS ports on 127.0.0.1. 443 is best effort — something else may hold it (Linux: root only). */

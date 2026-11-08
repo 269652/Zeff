@@ -66,8 +66,9 @@ async function* gzipped(source) {
 }
 
 class CompanionProxy {
+  /** `zeffUrl`: the server to ask — a string, or a function asked per request (the phone's server comes and goes). */
   constructor({ zeffUrl, log = () => {} }) {
-    this.zeffUrl = zeffUrl.replace(/\/+$/, "");
+    this.base = typeof zeffUrl === "function" ? zeffUrl : () => zeffUrl;
     this.log = log;
     this.open = new Map(); // `${session id}:${request id}` → AbortController
   }
@@ -109,6 +110,7 @@ class CompanionProxy {
     if (typeof msg.path !== "string" || !msg.path.startsWith("/") || msg.path.startsWith("//")) return fail("bad path", 400);
     const ctl = new AbortController();
     this.open.set(key, ctl);
+    const zeffUrl = this.base().replace(/\/+$/, "");
     try {
       const headers = new Headers();
       let have = null;
@@ -117,21 +119,21 @@ class CompanionProxy {
         if (typeof v !== "string") continue;
         if (name === "x-zc-have") have = v;
         if (DROP_REQUEST.has(name)) continue;
-        if (name === "origin") headers.set("origin", this.zeffUrl);
+        if (name === "origin") headers.set("origin", zeffUrl);
         else if (name === "referer") {
           try {
             const r = new URL(v);
-            headers.set("referer", `${this.zeffUrl}${r.pathname}${r.search}`);
+            headers.set("referer", `${zeffUrl}${r.pathname}${r.search}`);
           } catch {}
         } else headers.set(name, v);
       }
       const method = String(msg.method ?? "GET").toUpperCase();
       const body = msg.body && method !== "GET" && method !== "HEAD" ? Buffer.from(msg.body, "base64") : undefined;
-      const res = await fetch(`${this.zeffUrl}${msg.path}`, { method, headers, body, redirect: "manual", signal: ctl.signal });
+      const res = await fetch(`${zeffUrl}${msg.path}`, { method, headers, body, redirect: "manual", signal: ctl.signal });
       const out = [];
       res.headers.forEach((v, k) => {
         if (DROP_RESPONSE.has(k)) return;
-        if (k === "location") out.push([k, v.startsWith(this.zeffUrl) ? v.slice(this.zeffUrl.length) || "/" : v]);
+        if (k === "location") out.push([k, v.startsWith(zeffUrl) ? v.slice(zeffUrl.length) || "/" : v]);
         else if (k === "content-security-policy") out.push([k, v.replace(/frame-ancestors[^;]*/i, "frame-ancestors 'self'")]);
         else out.push([k, v]);
       });
