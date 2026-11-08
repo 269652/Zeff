@@ -24,6 +24,10 @@ function db() {
     create table if not exists learn_cards (id integer primary key autoincrement, course_id integer not null references learn_courses(id) on delete cascade, node_key text, front text not null, back text not null, reps integer not null default 0, lapses integer not null default 0, ease real not null default 2.5, interval integer not null default 0, due text not null, last text, created_at text not null);
     create index if not exists learn_cards_due on learn_cards (course_id, due);
   `);
+  // Added later: a course's study times (schedule.ts) and the todo its reviews due are in.
+  const cols = (d.prepare("pragma table_info(learn_courses)").all() as { name: string }[]).map((c) => c.name);
+  if (!cols.includes("slots")) d.exec("alter table learn_courses add column slots text not null default '[]'");
+  if (!cols.includes("review_todo_id")) d.exec("alter table learn_courses add column review_todo_id integer");
   return d;
 }
 
@@ -42,6 +46,8 @@ const json = <T>(s: string | null | undefined, fallback: T): T => {
 // ---------------------------------------------------------------------------------------------------------------------
 
 export type CourseStatus = "researching" | "ready" | "failed";
+import type { StudySlot } from "./schedule-shared";
+export type { StudySlot };
 export type Course = {
   id: number;
   topic: string;
@@ -62,6 +68,8 @@ export type Course = {
   today: string | null;
   todayXp: number;
   badges: BadgeId[];
+  slots: StudySlot[];
+  reviewTodoId: number | null;
   createdAt: string;
 };
 type CourseRow = Record<string, unknown> & { id: number };
@@ -86,6 +94,8 @@ const toCourse = (r: CourseRow): Course => ({
   today: (r.today as string | null) ?? null,
   todayXp: Number(r.today_xp ?? 0),
   badges: json<BadgeId[]>(r.badges as string, []),
+  slots: json<StudySlot[]>(r.slots as string, []),
+  reviewTodoId: (r.review_todo_id as number | null) ?? null,
   createdAt: String(r.created_at),
 });
 
@@ -159,6 +169,15 @@ export function setInterests(id: number, weights: Record<string, number>): void 
   const clean = Object.fromEntries(Object.entries(weights).filter(([k, v]) => k.trim() && Number.isFinite(v) && v >= 0).map(([k, v]) => [k.trim().slice(0, 80), Math.min(10, v)]));
   db().prepare("update learn_courses set interests = ?, updated_at = ? where id = ?").run(JSON.stringify(clean), nowIso(), id);
   changed();
+}
+
+export function setCourseSlots(id: number, slots: StudySlot[]): void {
+  db().prepare("update learn_courses set slots = ?, updated_at = ? where id = ?").run(JSON.stringify(slots), nowIso(), id);
+  changed();
+}
+
+export function setReviewTodo(id: number, todoId: number | null): void {
+  db().prepare("update learn_courses set review_todo_id = ? where id = ?").run(todoId, id);
 }
 
 export function setDailyGoal(id: number, xp: number): void {
