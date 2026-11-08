@@ -38,13 +38,13 @@ test("messages from a widget: a result is read, clamped and checked — anything
     total: 4,
     note: "Ableitung sitzt",
   });
-  assert.equal(parseWidgetMessage({ zeffWidget: 1, type: "result", score: 7 })?.score, 1, "clamped to 1");
-  assert.equal(parseWidgetMessage({ zeffWidget: 1, type: "result", correct: 2, total: 4 })?.score, 0.5, "the score from correct/total");
+  assert.equal((parseWidgetMessage({ zeffWidget: 1, type: "result", score: 7 }) as { score?: number } | null)?.score, 1, "clamped to 1");
+  assert.equal((parseWidgetMessage({ zeffWidget: 1, type: "result", correct: 2, total: 4 }) as { score?: number } | null)?.score, 0.5, "the score from correct/total");
   assert.equal(parseWidgetMessage({ zeffWidget: 1, type: "result" }), null, "no score at all");
   assert.equal(parseWidgetMessage({ type: "result", score: 1 }), null, "not ours");
   assert.equal(parseWidgetMessage("result"), null);
   assert.deepEqual(parseWidgetMessage({ zeffWidget: 1, type: "resize", height: 640 }), { type: "resize", height: 640 });
-  assert.equal(parseWidgetMessage({ zeffWidget: 1, type: "resize", height: 99999 })?.height, 4000, "capped");
+  assert.equal((parseWidgetMessage({ zeffWidget: 1, type: "resize", height: 99999 }) as { height?: number } | null)?.height, 4000, "capped");
   const long = parseWidgetMessage({ zeffWidget: 1, type: "result", score: 1, note: "n".repeat(5000) });
   assert.equal(long?.type === "result" && long.note?.length, 500);
 });

@@ -3,7 +3,7 @@ import { definePlugin } from "../define";
 /** Learn: what it is and what it brings (its manifest). */
 export default definePlugin({
   id: "learn",
-  order: 270,
+  order: 272,
   name: "Learn",
   description:
     "A learning platform: pick a topic (differential geometry, French …) and Claude researches it — scholarly sources from OpenAlex, Semantic Scholar and arXiv, curricula on the web — and writes a plan over years, phases, skills and small steps. It becomes a skill tree you work through path by path, the way that interests you most, with experience, levels, a streak and badges. Each step is a lesson with Claude as your teacher in a chat, with interactive widgets it builds on the fly (quizzes, plots with sliders, 3D surfaces, formulas). Cards to review come back in good time as a todo; study times go into a calendar.",

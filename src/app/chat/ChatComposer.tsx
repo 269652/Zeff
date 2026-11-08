@@ -10,7 +10,7 @@ import { chatSendAction } from "./actions";
  * The chat's message box: a new chat (no `runId`) or the next message in one. Enter sends on a computer (Shift+Enter: a
  * new line); on a phone the send button does. `suggestions`: a few to start with, one tap each.
  */
-export function ChatComposer({ runId, placeholder, suggestions = [] }: { runId?: number; placeholder?: string; suggestions?: string[] }) {
+export function ChatComposer({ runId, placeholder, suggestions = [], stay = false }: { runId?: number; placeholder?: string; suggestions?: string[]; /** Stay on this page after sending (a lesson) instead of going to the chat's. */ stay?: boolean }) {
   const t = useT();
   const router = useRouter();
   const [text, setText] = useState("");
@@ -23,7 +23,7 @@ export function ChatComposer({ runId, placeholder, suggestions = [] }: { runId?:
       const r = await chatSendAction({ text: v, runId });
       if (!r.ok) return void toast(r.error, { tone: "error" });
       setText("");
-      router.push(`/chat?run=${r.runId}`);
+      if (!stay) router.push(`/chat?run=${r.runId}`);
       router.refresh();
     });
   };

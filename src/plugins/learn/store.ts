@@ -9,7 +9,7 @@ import { checkWidgetHtml, xpForResult, WIDGET_LIBS, type WidgetMessage } from "@
 import { badgesFor, nextStreak, type BadgeId } from "./game";
 import { normalizePlan } from "./plan";
 import { review, newCard, type Grade } from "./srs";
-import { computeTree, nextSteps, type Tree, type TreeInput, type TreeNode } from "./tree";
+import { computeTree, layers, nextSteps, type Tree, type TreeInput, type TreeNode } from "./tree";
 import type { NodeKind, PlanSource } from "./shared";
 
 function db() {
@@ -237,6 +237,9 @@ export function courseTree(courseId: number): { nodes: CourseNode[]; tree: Tree 
   const nodes = courseNodes(courseId);
   return { nodes, tree: computeTree(treeInput(nodes)) };
 }
+
+/** The tree's columns (src/plugins/learn/tree.ts layers) for these nodes of a course. */
+export const nodeLayers = (nodes: CourseNode[]): Map<string, number> => layers(treeInput(nodes));
 
 export function nextCourseSteps(courseId: number, limit = 8): CourseNode[] {
   const nodes = courseNodes(courseId);
