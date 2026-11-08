@@ -547,7 +547,7 @@ export function Sidebar({ appNav = {}, items: treeItems, favorites, badges = noB
   return (
     // The header and the search in the flow; only the tree (the explorer) below them scrolls — in its own box, the sidebar as
     // high as the window.
-    <div className="flex flex-col gap-3 text-sm lg:h-[calc(100dvh-7rem)]">
+    <div className="flex flex-col gap-3 text-sm lg:h-[calc(100cqh-3rem)]">
       {templates && (
         <Modal title={t("Templates")} onClose={() => setTemplates(null)} wide>
           <TemplateGallery

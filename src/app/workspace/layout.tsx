@@ -54,12 +54,13 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
   ]);
   return (
     <div className="page">
-      <div className="page-aside ws-aside">
+      <div className="page-aside ws-aside lg:top-3 lg:max-h-none lg:pb-0">
         <MobileAside>
           <Sidebar builtins={builtins} templateItems={templateTree()} appNav={appNav} items={tree()} favorites={favorites()} badges={badges} channels={channels} extSources={extSources} />
         </MobileAside>
       </div>
-      <div className="min-w-0">{children}</div>
+      {/* Room below the last card: the main area itself only leaves 12 px on a desktop. */}
+      <div className="min-w-0 pb-6">{children}</div>
     </div>
   );
 }

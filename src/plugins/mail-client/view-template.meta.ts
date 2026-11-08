@@ -100,10 +100,15 @@ const inboxTemplate = (t: T) => `<state name="selected" value="{{ app.first }}"/
 <state name="channel" value=""/>
 <panes>
 <pane title="${t("Inbox")}" aside="{{ app.unreadCount ? app.unreadCount + ' ' + ${q(t("unread"))} : '' }}" width=420>
-  <toolbar><tabs bind="channel" options=":logo-all ${t("All")}{{ app.unreadCount ? ':' + app.unreadCount : '' }}, {{ app.channelTabs }}"/></toolbar>
+  <toolbar>
+    <tabs bind="channel" options=":logo-all ${t("All")}{{ app.unreadCount ? ':' + app.unreadCount : '' }}, {{ app.channelTabs }}"/>
+    <grow/>
+    <menu tip="${t("Filter")}">
+      <toggle bind="unread" label="${t("Unread only")}"/>
+      {{#if app.snoozedToggle}}<toggle bind="snoozed" label="💤 ${t("Snoozed")} ({{ app.snoozed }})"/>{{/if}}
+    </menu>
+  </toolbar>
   <row gap=3>
-    <toggle bind="unread" label="${t("Unread only")}"/>
-    {{#if app.snoozedToggle}}<toggle bind="snoozed" label="💤 ${t("Snoozed")} ({{ app.snoozed }})"/>{{/if}}
     <grow/>
     <part name="inbox.archive-read"/>
     <part name="mail.new-inbox" type="mail"/>

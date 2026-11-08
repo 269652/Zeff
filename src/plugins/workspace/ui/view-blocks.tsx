@@ -4,6 +4,7 @@ import { useEffect, useRef, useState, type CSSProperties, type DragEvent, type F
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { TITLE } from "../model";
+import { Dropdown } from "./kit";
 import type { VNode } from "../view-template";
 import type { AppViewProps } from "./app-view";
 
@@ -259,6 +260,16 @@ function RowForm({ a, env }: { a: Record<string, string>; env: BlockEnv }) {
   );
 }
 
+/** <menu>: a ⋯ button, its children (toggles, buttons used now and then) in the dropdown under it, one per line. */
+function MenuBlock({ a, kids }: { a: Record<string, string>; kids: () => ReactNode }) {
+  const t = useT();
+  return (
+    <Dropdown label={a.label || "⋯"} align="right" title={a.tip} ariaLabel={a.tip || t("More")} wrapClassName="relative ml-auto inline-block print:hidden">
+      {() => <div className="flex flex-col gap-0.5 [&>*]:rounded-md [&>*]:px-2 [&>*]:py-1.5 [&>label:hover]:bg-zinc-100 dark:[&>label:hover]:bg-zinc-800">{kids()}</div>}
+    </Dropdown>
+  );
+}
+
 /** A node of the bigger blocks drawn — undefined: not one of them. */
 export function viewBlock(n: Node, key: string | number, kids: Kids, env: BlockEnv): ReactNode | undefined {
   const a = n.a;
@@ -282,6 +293,8 @@ export function viewBlock(n: Node, key: string | number, kids: Kids, env: BlockE
           {kids(n.c)}
         </div>
       );
+    case "menu":
+      return <MenuBlock key={key} a={a} kids={() => kids(n.c)} />;
     case "panes": {
       const list = items(n);
       const columns = list.map((p) => (Number(p.a.width) > 0 ? `${Math.min(640, Number(p.a.width))}px` : "minmax(0,1fr)")).join(" ");
