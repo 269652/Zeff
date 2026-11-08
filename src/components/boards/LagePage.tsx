@@ -185,7 +185,8 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
 /** The Todos tab's views: the Ticket-Lage, the same per ticket (Tickets plugin), and the recap of what you did on a day. */
 function ViewTabs({ view }: { view: "lage" | "tickets" | "recap" }) {
   return (
-    <nav className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" aria-label={t("Todos")}>
+    // (Not on a phone: there the Todos page is the list — the Briefing's text and the Recap stay on a computer.)
+    <nav className="flex gap-1 border-b border-zinc-200 max-sm:hidden dark:border-zinc-800" aria-label={t("Todos")}>
       {(
         [
           ["lage", t("Briefing"), "/todos"],
