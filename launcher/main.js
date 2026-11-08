@@ -200,7 +200,9 @@ function nightlyTick() {
 function buildMenu() {
   return Menu.buildFromTemplate([
     { label: "Open Zeff", click: () => shell.openExternal(state.url) },
-    { label: "Status…", click: showWindow },
+    { label: "Status…", click: () => showWindow() },
+    // The phone companion: straight to its QR code (the status window's Phone tab, a new pairing shown at once).
+    ...(companion ? [{ label: "Pair a phone…", click: () => showWindow({ tab: "phone", pair: true }) }] : []),
     { type: "separator" },
     serviceMenu(zeff()),
     ...state.services.filter((s) => s.name === "Work" || s.name === "Sync" || s.name === "Claude").map((w) => serviceMenu(w)),
@@ -227,10 +229,12 @@ function openPluginsFolder() {
   shell.openPath(dir);
 }
 
-function showWindow() {
+/** The status window — on a tab ({ tab: "phone", pair: true }: the Phone tab with a new pairing's QR code). */
+function showWindow(open = {}) {
   if (win) {
     win.show();
     win.focus();
+    if (open.tab) win.webContents.send("open", open);
     return;
   }
   win = new BrowserWindow({
@@ -246,7 +250,7 @@ function showWindow() {
     webPreferences: { preload: path.join(__dirname, "preload.js"), contextIsolation: true, sandbox: true },
   });
   win.removeMenu();
-  win.loadFile(path.join(__dirname, "status.html"));
+  win.loadFile(path.join(__dirname, "status.html"), { query: { ...(open.tab ? { tab: open.tab } : {}), ...(open.pair ? { pair: "1" } : {}) } });
   win.on("closed", () => (win = null));
   // Links open in the browser, never inside the launcher.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -527,7 +531,7 @@ async function start() {
   refreshUrl();
   state.autostart = await autostart.enabled();
   tray = new Tray(trayIcon());
-  tray.on("click", showWindow);
+  tray.on("click", () => showWindow());
   refresh();
   log(`serving ${state.url} (zeff:${cfg.zeffPort} knowledge:${cfg.knowledgePort})`);
 

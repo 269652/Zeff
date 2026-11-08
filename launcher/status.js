@@ -147,10 +147,7 @@ function showTab(name) {
   } catch {}
 }
 for (const t of document.querySelectorAll(".tab")) t.onclick = () => showTab(t.dataset.tab);
-try {
-  const kept = sessionStorage.getItem("tab");
-  showTab(kept === "docker" || kept === "phone" ? kept : "status");
-} catch {}
+// (The tab to start on is chosen at the end, once everything it needs is defined.)
 // ---------------------------------------------------------------------------------------------------------------------
 // The phone companion: pair a phone (its QR code), the paired ones, unpair
 // ---------------------------------------------------------------------------------------------------------------------
@@ -216,3 +213,19 @@ window.zeff.onState(render);
 window.zeff.state().then(render);
 loadModes();
 loadDocker();
+
+// The tab to start on: the one asked for (the tray's "Pair a phone…": the Phone tab, a new pairing's QR code at once),
+// else the one kept while the window lives.
+const asked = new URLSearchParams(location.search);
+let startTab = asked.get("tab");
+if (!startTab) {
+  try {
+    startTab = sessionStorage.getItem("tab");
+  } catch {}
+}
+showTab(["docker", "phone"].includes(startTab) ? startTab : "status");
+if (asked.get("pair") === "1") $("pair").click();
+window.zeff.onOpen?.((o) => {
+  if (o.tab) showTab(o.tab);
+  if (o.pair) $("pair").click();
+});
