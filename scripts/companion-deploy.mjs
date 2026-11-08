@@ -50,6 +50,8 @@ try {
   for (const f of fs.readdirSync(tmp)) if (f !== ".git") fs.rmSync(path.join(tmp, f), { recursive: true, force: true });
   fs.cpSync(APP, tmp, { recursive: true });
   fs.writeFileSync(path.join(tmp, ".nojekyll"), "");
+  // Any address (app.getzeff.com/todos, /chat …) is the app — on a first visit, before its service worker is there.
+  fs.copyFileSync(path.join(APP, "index.html"), path.join(tmp, "404.html"));
   if (DOMAIN) fs.writeFileSync(path.join(tmp, "CNAME"), `${DOMAIN}\n`);
   for (const f of ["LICENSE"]) if (fs.existsSync(path.join(ROOT, f))) fs.copyFileSync(path.join(ROOT, f), path.join(tmp, `${f}.txt`));
   run("git", ["-C", tmp, "add", "-A"]);

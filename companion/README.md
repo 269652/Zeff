@@ -17,6 +17,37 @@ not even for setting up the connection.
   PC?" card says what to check (PC on and Zeff running, same Wi-Fi, firewall, pair again) and repeats the install
   steps. It's open while the phone has never reached Zeff, and folded once it has todos to show.
 
+## All of Zeff, at app.getzeff.com
+
+While the device is connected, app.getzeff.com shows **Zeff itself** in a frame that fills the screen. On a phone,
+Zeff's bottom bar shows its two main screens (Todos, Chat) and More (every other page).
+
+- The frame's address is Zeff's own path (app.getzeff.com/todos, /chat …).
+- **The service worker** (`app/sw.js`) hands every request of the frame to the app's page.
+- **The page** (`app/_zc/app.js`) sends the requests through the WebRTC connection as `http` messages.
+- **The launcher** (`launcher/lib/companion/proxy.js`) asks Zeff's server for them like a browser on the PC would,
+  and streams the answer back:
+  - Origin, Referer and Location are rewritten to Zeff's own address.
+  - Sec-Fetch-* is set, so Zeff's lock still guards locked accounts.
+  - Cookies are kept by the app's page.
+- **Zeff's dev live-reload socket** can't go through the connection. `app/_zc/frame.js`, put first into every Zeff
+  page, gives it a quiet stand-in.
+- **When the connection drops**, the app shows its own offline view of the todos, with the queue.
+- **The launcher's Phone tab** pairs this computer's browser too ("Open on this computer").
+
+The app's own files live under `/_zc/`, so they don't collide with Zeff's paths. GitHub Pages serves `404.html` (a
+copy of `index.html`, made by the deploy) for any other address on a first visit.
+
+## The chat
+
+`/chat` (in Zeff) is a live Claude session that works only in Zeff (`src/lib/chat.ts`):
+
+- **Tools:** Zeff's tools, through Zeff's MCP server. No shell and no file editing.
+- **Asks first:** what acts outside Zeff (GitLab replies, Gmail changes, archiving, routines, the browser) needs your
+  OK on the phone.
+- **Clearance:** your own, since it's you asking.
+- **Underneath:** a Work session on a todo with source `Zeff-Chat`, kept out of Work's list.
+
 ## Pairing
 
 The launcher's status window → **Phone** → **Pair a phone…** shows a QR code. Scan it with the phone's camera and

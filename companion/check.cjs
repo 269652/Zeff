@@ -55,8 +55,8 @@ async function until(what, fn, ms = 15000) {
 
 const srv = http.createServer((req, res) => {
   const p = new URL(req.url, "http://x").pathname;
-  const file = path.join(APP, p === "/" ? "index.html" : p.slice(1));
-  if (!file.startsWith(APP) || !fs.existsSync(file)) return res.writeHead(404).end();
+  let file = path.join(APP, p === "/" ? "index.html" : p.slice(1));
+  if (!file.startsWith(APP) || !fs.existsSync(file) || fs.statSync(file).isDirectory()) file = path.join(APP, "index.html"); // like GitHub's 404.html
   res.writeHead(200, { "content-type": TYPES[path.extname(file)] ?? "application/octet-stream" }).end(fs.readFileSync(file));
 });
 
@@ -69,6 +69,8 @@ srv.listen(0, "127.0.0.1", async () => {
   // With Chromium's coming rule switched on (a page may not rewrite its ICE ufrag/password — the old handshake broke on it).
   const browser = await chromium.launch({ executablePath: CHROME, headless: true, args: ["--force-fieldtrials=WebRTC-NoSdpMangleUfrag/Enabled/"] });
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, isMobile: true, hasTouch: true, locale: "de-DE" });
+  // The app's own view of the todos even while connected (else Zeff fills the screen): this checks the protocol, the queue.
+  await ctx.addInitScript(() => localStorage.setItem("zeff.liteOnly", "true"));
   const page = await ctx.newPage();
   page.on("console", (m) => m.type() === "error" && console.log("  [page error]", m.text()));
   page.on("pageerror", (e) => console.log("  [page exception]", e.message));

@@ -13,6 +13,7 @@ contextBridge.exposeInMainWorld("zeff", {
   companion: () => ipcRenderer.invoke("companion"),
   companionPair: (name) => ipcRenderer.invoke("companionPair", name),
   companionUnpair: (id) => ipcRenderer.invoke("companionUnpair", id),
+  companionOpen: (url) => ipcRenderer.invoke("companionOpen", url),
   companionFirewall: () => ipcRenderer.invoke("companionFirewall"),
   companionPrivate: (index) => ipcRenderer.invoke("companionPrivate", index),
   onCompanion: (cb) => ipcRenderer.on("companion", (_e, s) => cb(s)),

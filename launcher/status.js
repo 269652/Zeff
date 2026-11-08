@@ -211,11 +211,12 @@ $("fwAllow").onclick = async () => {
   renderPhone(r.state);
 };
 $("pair").onclick = async () => {
-  const name = `Phone ${new Date().toLocaleDateString()}`;
+  const name = `Device ${new Date().toLocaleDateString()}`;
   const r = await window.zeff.companionPair(name);
   const svg = new DOMParser().parseFromString(r.svg, "image/svg+xml").documentElement;
   $("qr").replaceChildren(svg);
   $("pairing").hidden = false;
+  $("pairHere").onclick = () => window.zeff.companionOpen(r.url);
   loadPhone();
 };
 $("pairDone").onclick = () => {

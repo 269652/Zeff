@@ -82,6 +82,15 @@ class Session extends EventEmitter {
     this.device = device;
     this.remote = remote;
     this.open = true;
+    this.key = crypto.randomBytes(6).toString("hex"); // tells this connection's requests from another's
+  }
+  /** Bytes waiting in the data channel (a long answer waits while it's full). */
+  bufferedAmount() {
+    try {
+      return this.dc.bufferedAmount();
+    } catch {
+      return 0;
+    }
   }
   send(msg) {
     if (!this.open) return false;

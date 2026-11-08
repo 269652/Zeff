@@ -447,20 +447,38 @@ export function SiteHeader({
         </div>
       </header>
 
-      {/* On a phone: the tabs as a bar at the bottom, a thumb away — as an app has them. */}
-      {!bare && tabs.length > 0 && (
+      {/* On a phone: an app's bar at the bottom, a thumb away — the two main screens (your todos, the chat with Zeff's
+          agent) and "More" for everything else (the menu drawer: every page, as the header's ☰ opens it). */}
+      {!bare && (
         <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-zinc-200 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur sm:hidden dark:border-zinc-800 dark:bg-zinc-950/90" aria-label={t("Main")}>
-          {tabs.map((tab) => {
-            const under = (base: string) => pathname === base || pathname.startsWith(base.endsWith("/") ? base : `${base}/`);
-            const current = (tab.href === "/" ? pathname === "/" : under(tab.href)) || (tab.also ?? []).some(under);
+          {[
+            { href: "/todos", label: t("Todos"), icon: "M5 10.5l3 3 7-7" },
+            { href: "/chat", label: t("Chat"), icon: "M4 5.5h12v7.5H9l-3.5 3v-3H4z" },
+          ].map((tab) => {
+            const current = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
             return (
-              <Link key={tab.href} href={tab.href} aria-current={current ? "page" : undefined} className={`relative flex min-w-0 flex-1 flex-col items-center justify-center px-1 py-2.5 text-xs font-medium ${current ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-500 dark:text-zinc-400"}`}>
+              <Link key={tab.href} href={tab.href} aria-current={current ? "page" : undefined} className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-xs font-medium ${current ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-600 dark:text-zinc-400"}`}>
                 {current && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-indigo-600 dark:bg-indigo-400" aria-hidden />}
+                <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                  <path d={tab.icon} />
+                </svg>
                 <span className="max-w-full truncate">{tab.label}</span>
-                {tab.href === "/todos" && <TodosTabBadge open={openTodos?.open ?? 0} late={openTodos?.late ?? 0} ids={activityIds} className="absolute top-1.5 left-[calc(50%+1.25rem)]" />}
+                {tab.href === "/todos" && <TodosTabBadge open={openTodos?.open ?? 0} late={openTodos?.late ?? 0} ids={activityIds} className="absolute top-1 left-[calc(50%+0.75rem)]" />}
               </Link>
             );
           })}
+          <button
+            type="button"
+            onClick={() => setOpen(true)}
+            aria-expanded={open}
+            aria-controls="site-menu"
+            className={`relative flex min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-xs font-medium ${open ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-600 dark:text-zinc-400"}`}
+          >
+            <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+              <path d="M4 6h12M4 10h12M4 14h12" />
+            </svg>
+            <span>{t("More")}</span>
+          </button>
         </nav>
       )}
       {!bare && <Search pages={palettePages} />}

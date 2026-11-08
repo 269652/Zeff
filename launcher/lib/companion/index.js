@@ -13,6 +13,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { ensureCert } = require("./cert");
 const { CompanionHost } = require("./host");
+const { CompanionProxy } = require("./proxy");
 
 /** The PC's addresses a phone on the same network can reach: private IPv4s first (home Wi-Fi), then the rest (a VPN such as Tailscale). */
 function lanAddresses() {
@@ -48,6 +49,7 @@ class Companion {
     this.events = null;
     this.pushTimer = null;
     this.prefixes = new Map(); // account id → its route in Zeff ("/privat"), from Zeff's answers
+    this.proxy = new CompanionProxy({ zeffUrl: this.zeffUrl, log }); // the whole of Zeff through the connection
   }
 
   devices() {
@@ -153,6 +155,7 @@ class Companion {
     this.follow();
     this.onChange();
     s.on("close", () => {
+      this.proxy.closeAll(s);
       this.sessions.delete(s);
       this.touch(s.device);
       this.log(`companion: phone ${s.device.slice(0, 8)} left`);
@@ -162,7 +165,7 @@ class Companion {
       }
       this.onChange();
     });
-    s.on("message", (msg) => this.handle(s, msg).catch((err) => s.send({ t: "error", re: msg?.t, message: err.message })));
+    s.on("message", (msg) => this.proxy.handle(s, msg) || this.handle(s, msg).catch((err) => s.send({ t: "error", re: msg?.t, message: err.message })));
   }
 
   touch(id) {

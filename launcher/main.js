@@ -698,6 +698,10 @@ ipcMain.handle("companionPair", async (_e, name) => {
   const svg = await require("qrcode").toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 1 });
   return { url, device, svg };
 });
+// The app opened in this computer's browser — paired like a phone (only the companion's own app address).
+ipcMain.handle("companionOpen", (_e, url) => {
+  if (typeof url === "string" && url.startsWith(state.cfg.companionApp)) shell.openExternal(url);
+});
 ipcMain.handle("companionUnpair", (_e, id) => {
   companion?.unpair(String(id));
   return companionState();

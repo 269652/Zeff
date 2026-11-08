@@ -1,3 +1,4 @@
+import { isChatTodo } from "@/lib/chat";
 import { listTodos, todosByIds } from "@/lib/todos/store";
 import { getTicketCards } from "@/lib/jira/store";
 import type { WorkRunView } from "./shared";
@@ -49,6 +50,8 @@ export function sessionTickets(opts: { archived?: boolean } = {}): SessionTicket
   const newest = new Map<number, WorkRunView>();
   for (const r of runs) if ((newest.get(r.todoId)?.id ?? 0) < r.id) newest.set(r.todoId, r);
   for (const r of newest.values()) {
+    // The chats have their own page (/chat) — not Work's list.
+    if (isChatTodo(todos.get(r.todoId))) continue;
     const archived = put.has(r.todoId);
     if (archived && !opts.archived) continue;
     const t = of(r.ticket);

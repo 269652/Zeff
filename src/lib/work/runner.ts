@@ -42,6 +42,7 @@ import { approvedToolsFor, grantTools } from "./approved-tools";
 import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOptions, type WorkResult, type WorkRunView } from "./shared";
 import { lastJson } from "@/lib/ai/json";
+import { CHAT_ALLOWED_TOOLS, CHAT_DISALLOWED_TOOLS, chatRules, isChatTodo } from "@/lib/chat";
 
 /** Zeff's own booking tools — a worker never books: Zeff books its runs (Weekly report). (complete_todo is allowed: it only marks a todo "done by the worker".) */
 const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "create_job"].map((tool) => `mcp__zeff__${tool}`);
@@ -256,7 +257,10 @@ export function dispatchTodo(
     repo: resume ? resume.repo : (waitFor?.repo ?? repoDir),
     // (A conversation goes on where it worked; a new run starts where you chose.)
     ...(resume ? { workspace: resume.workspace } : { workspace: repoDir && (opts.workspace ?? null), ...(opts.branch ? { base: opts.branch } : {}) }),
-    prompt: resume || waitFor
+    // A chat (src/lib/chat.ts): just your words, no brief — it isn't a task on a ticket.
+    prompt: isChatTodo(todo)
+      ? (instruction ?? "")
+      : resume || waitFor
       ? `## Deine Anweisung (vom Nutzer — sie geht vor)\n${instruction}`
       : instruction
         ? `${briefFor(todo)}
@@ -333,7 +337,7 @@ async function start(id: number): Promise<void> {
         id,
         resumable
           ? { afterRun: null, sessionId: before.sessionId, cwd: before.cwd, branch: before.branch, base: before.base, baseSha: before.baseSha, repo: before.repo ?? r.repo }
-          : { afterRun: null, prompt: todo ? `${briefFor(todo)}\n\n${r.prompt}` : r.prompt },
+          : { afterRun: null, prompt: todo && !isChatTodo(todo) ? `${briefFor(todo)}\n\n${r.prompt}` : r.prompt },
       ) ?? r;
   }
   const startedAt = now();
@@ -401,7 +405,9 @@ async function start(id: number): Promise<void> {
       newBranch: newBranchName(todo),
       branchKnowledge: namingBlock(todo),
     });
-    const prompt = resume && so ? r.prompt : `${r.prompt}\n\n${task}${sessionTodoNote(todo)}${so && !so.conversation ? tail : ""}`;
+    // A chat: your words as they are (the chat's rules say the rest).
+    const chat = isChatTodo(todo);
+    const prompt = resume && so ? r.prompt : chat ? r.prompt : `${r.prompt}\n\n${task}${sessionTodoNote(todo)}${so && !so.conversation ? tail : ""}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });
 
     const driver = so ? liveDriverFor(r.provider) : undefined;
@@ -421,11 +427,12 @@ async function start(id: number): Promise<void> {
           allowBypass: cs.allowBypass,
           askTimeoutMin: cs.askTimeoutMin,
           cwd,
-          rules,
+          rules: chat ? chatRules(llmPreamble()) : rules,
           prompt,
-          name: `Zeff ${workRef(id)} · ${r.ticket || "session"}`,
-          disallowedTools: [...ZEFF_TOOLS, ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])],
-          allowedTools: [...TODO_TOOLS, ...approvedToolsFor(id)],
+          name: `Zeff ${workRef(id)} · ${chat ? "Chat" : r.ticket || "session"}`,
+          // A chat works in Zeff only: Zeff's tools, without asking for those that stay inside Zeff (src/lib/chat.ts).
+          disallowedTools: chat ? [...ZEFF_TOOLS, ...CHAT_DISALLOWED_TOOLS] : [...ZEFF_TOOLS, ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])],
+          allowedTools: chat ? [...CHAT_ALLOWED_TOOLS, ...approvedToolsFor(id)] : [...TODO_TOOLS, ...approvedToolsFor(id)],
           resumeSession: resume ? sessionId : null,
           newSessionId: resume ? null : sessionId,
         })

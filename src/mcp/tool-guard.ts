@@ -3,6 +3,19 @@ import { allows, sourceLabel, refusal, TOOL_SOURCES, withClearance, type Clearan
 import { toolsAllowed } from "@/plugins/workspace/agent-tools";
 import { getRoutine, routineOfWorkRun } from "@/plugins/workspace/routines";
 import { callerRunId } from "./caller";
+import { getRun } from "@/lib/work/store";
+import { getTodo } from "@/lib/todos/store";
+import { isChatTodo } from "@/lib/chat";
+
+/** Whether a Zeff run is a chat's (its todo is a chat's). */
+function chatRun(runId: number): boolean {
+  try {
+    const r = getRun(runId);
+    return !!r && isChatTodo(getTodo(r.todoId));
+  } catch {
+    return false;
+  }
+}
 
 /**
  * Wraps the server's tools: the worker of an agent routine may use a tool only when its permissions allow the tool's group
@@ -23,7 +36,8 @@ export function guardTools(server: McpServer): void {
       if (routine && routine.kind === "agent" && !toolsAllowed(routine.permissions, name)) {
         return { content: [{ type: "text", text: `This agent may not use ${name}: its permissions (the Permissions tab of its page) don't allow it.` }], isError: true };
       }
-      const clearance: Clearance = !run || (routine?.kind === "agent" && routine.permissions.personal === true) ? "personal" : "open";
+      // (A chat — /chat, src/lib/chat.ts — is you talking to Zeff: your clearance, like a session of your own.)
+      const clearance: Clearance = !run || (routine?.kind === "agent" && routine.permissions.personal === true) || chatRun(run) ? "personal" : "open";
       const source = TOOL_SOURCES[name];
       const label = source ? sourceLabel(source) : "open";
       if (!allows(clearance, label)) return { content: [{ type: "text", text: refusal(label, `What ${name} reads`) }], isError: true };
