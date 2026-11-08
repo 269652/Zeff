@@ -2,6 +2,7 @@
   "name": "zeff",
   "version": "0.1.4",
   "private": true,
+  "license": "AGPL-3.0-only",
   "scripts": {
     "integrations": "node scripts/integrations.mjs",
     "predev": "node scripts/integrations.mjs && tsx scripts/plugins-index.mts",

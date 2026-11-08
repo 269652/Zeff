@@ -3,6 +3,7 @@
   "productName": "Zeff",
   "version": "0.1.4",
   "private": true,
+  "license": "AGPL-3.0-only",
   "description": "Runs Zeff and its knowledge server and serves them on https://zeff",
   "main": "main.js",
   "scripts": {

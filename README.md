@@ -361,9 +361,26 @@ tests/  e2e/      node:test + tsx; Playwright smoke suite
 Zeff is **alpha**. It is used every day, on Windows first; Linux builds are checked, macOS builds are not published
 yet. Expect rough edges, migrations and the occasional breaking change.
 
+## Disclaimer
+
+**Zeff is provided "as is", without any warranty and without any liability.** You use it entirely at your own risk.
+It can contain errors, lose or corrupt data, send or fail to send messages, miss or misread a todo, a deadline or a
+payment, and stop working when a service it reads changes. Zeff is no substitute for your own checks: what it derives,
+summarises or suggests — including anything the AI writes — may be wrong. Connectors that read third-party services
+(WhatsApp, Signal, Teams, Outlook and others) may break those services' terms of use and can lead to your account being
+restricted; using them, and getting the permission of your employer or IT department where needed, is your
+responsibility. Keep backups.
+
+To the extent permitted by applicable law, the author accepts no liability whatsoever for any damage arising from the
+use of or the inability to use Zeff. Mandatory liability that cannot be excluded by law (under German law: for intent,
+gross negligence and injury to life, body or health) remains unaffected. See sections 15 and 16 of the [AGPL](LICENSE).
+
 ## Licence
 
-Free for personal, non-commercial use during alpha and beta (versions below 1.0); commercial use needs a licence, and
-from 1.0 on Zeff is paid. The terms are in [LICENSE](LICENSE). Questions and commercial licences:
+Zeff is free software under the [GNU AGPL-3.0](LICENSE): use it, at home or at work, change it and share it, as long
+as what you pass on (or offer over a network) stays under the AGPL with its source. If that doesn't fit, for a closed
+product, a hosted service without publishing your changes or a company that can't use AGPL software, there is a
+[commercial licence](COMMERCIAL-LICENSE.md). How the two fit together is in [LICENSING.md](LICENSING.md);
+contributions need the short agreement in [CONTRIBUTING.md](CONTRIBUTING.md). Commercial licences and questions:
 [info@getzeff.com](mailto:info@getzeff.com). The landing page lives in [site/](site) and is published to
 [getzeff.com](https://getzeff.com).
