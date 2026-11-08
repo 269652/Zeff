@@ -38,7 +38,8 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
     label: "",
   }));
   const last = conversation[conversation.length - 1];
-  const live = !!last?.session && last.status === "running";
+  // A live session still running takes the next message (never a second run queued behind it, waiting for its worker).
+  const liveRun = [...conversation].reverse().find((r) => !!r.session && r.status === "running");
   const earlier = chats.filter((c) => c.id !== todoId && runs.has(c.id));
   return (
     // A messenger's shape: the page fills the window (MainArea's full-height pages), the conversation scrolls, the
@@ -78,7 +79,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
           </div>
           <ScrollToEnd target="chat-thread" />
           <div className="max-h-[55%] shrink-0 overflow-y-auto border-t border-zinc-200 pt-2 dark:border-zinc-800">
-            {live ? <ClaudeSession key={last.id} run={last} /> : <ChatComposer runId={last.id} placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Reply …")} />}
+            {liveRun ? <ClaudeSession key={liveRun.id} run={liveRun} /> : <ChatComposer runId={last.id} placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Reply …")} />}
           </div>
         </>
       ) : (
