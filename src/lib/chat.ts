@@ -12,7 +12,26 @@ import type { TodoView } from "@/lib/todos/shared";
 /** The source of a chat's own todo — what makes a Work session a chat. */
 export const CHAT_SOURCE = "Zeff-Chat";
 
-export const isChatTodo = (todo: Pick<TodoView, "source"> | null | undefined): boolean => todo?.source === CHAT_SOURCE;
+/** A plugin's kind of chat (the Learn plugin's lessons: "learn") — its todos' source. */
+export const chatSource = (kind: string) => `${CHAT_SOURCE}:${kind}`;
+
+/** Whether a todo is a chat's: the plain chat's, or a plugin's kind of chat (its own rules and tools: registerChatProfile). */
+export const isChatTodo = (todo: Pick<TodoView, "source"> | null | undefined): boolean => !!todo?.source && (todo.source === CHAT_SOURCE || todo.source.startsWith(`${CHAT_SOURCE}:`));
+
+/** What a chat's agent is told and may use. */
+export type ChatProfile = { rules: string; allowedTools: string[]; disallowedTools: string[] };
+type ProfileFn = (todo: Pick<TodoView, "id" | "source" | "text">, preamble: string) => ChatProfile;
+const profiles = ((globalThis as { __zeffChatProfiles?: Map<string, ProfileFn> }).__zeffChatProfiles ??= new Map<string, ProfileFn>());
+
+/** A plugin's kind of chat: its rules and tools (registered from its server.ts). */
+export const registerChatProfile = (kind: string, fn: ProfileFn) => void profiles.set(kind, fn);
+
+/** A chat's profile: its kind's (a plugin's), else the plain chat's. `preamble`: your own instructions for every agent. */
+export function chatProfileFor(todo: Pick<TodoView, "id" | "source" | "text">, preamble: string): ChatProfile {
+  const kind = todo.source?.startsWith(`${CHAT_SOURCE}:`) ? todo.source.slice(CHAT_SOURCE.length + 1) : "";
+  const fn = kind ? profiles.get(kind) : undefined;
+  return fn ? fn(todo, preamble) : { rules: chatRules(preamble), allowedTools: CHAT_ALLOWED_TOOLS, disallowedTools: CHAT_DISALLOWED_TOOLS };
+}
 
 const zeff = (names: string[]) => names.map((n) => `mcp__zeff__${n}`);
 

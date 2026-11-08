@@ -42,7 +42,7 @@ import { approvedToolsFor, grantTools } from "./approved-tools";
 import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOptions, type WorkResult, type WorkRunView } from "./shared";
 import { lastJson } from "@/lib/ai/json";
-import { CHAT_ALLOWED_TOOLS, CHAT_DISALLOWED_TOOLS, chatRules, isChatTodo } from "@/lib/chat";
+import { chatProfileFor, isChatTodo } from "@/lib/chat";
 
 /** Zeff's own booking tools — a worker never books: Zeff books its runs (Weekly report). (complete_todo is allowed: it only marks a todo "done by the worker".) */
 const ZEFF_TOOLS = ["report_time", "update_time_entry", "delete_time_entry", "create_job"].map((tool) => `mcp__zeff__${tool}`);
@@ -407,6 +407,9 @@ async function start(id: number): Promise<void> {
     });
     // A chat: your words as they are (the chat's rules say the rest).
     const chat = isChatTodo(todo);
+    // Its rules and tools: the plain chat's, or a plugin's kind of chat (registered from the plugins' server modules).
+    if (chat) await import("@/plugins/contributions");
+    const profile = chat ? chatProfileFor(todo, llmPreamble()) : null;
     const prompt = resume && so ? r.prompt : chat ? r.prompt : `${r.prompt}\n\n${task}${sessionTodoNote(todo)}${so && !so.conversation ? tail : ""}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });
 
@@ -427,12 +430,12 @@ async function start(id: number): Promise<void> {
           allowBypass: cs.allowBypass,
           askTimeoutMin: cs.askTimeoutMin,
           cwd,
-          rules: chat ? chatRules(llmPreamble()) : rules,
+          rules: profile ? profile.rules : rules,
           prompt,
           name: `Zeff ${workRef(id)} · ${chat ? "Chat" : r.ticket || "session"}`,
           // A chat works in Zeff only: Zeff's tools, without asking for those that stay inside Zeff (src/lib/chat.ts).
-          disallowedTools: chat ? [...ZEFF_TOOLS, ...CHAT_DISALLOWED_TOOLS] : [...ZEFF_TOOLS, ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])],
-          allowedTools: chat ? [...CHAT_ALLOWED_TOOLS, ...approvedToolsFor(id)] : [...TODO_TOOLS, ...approvedToolsFor(id)],
+          disallowedTools: profile ? [...ZEFF_TOOLS, ...profile.disallowedTools] : [...ZEFF_TOOLS, ...(codeLike(mode) ? [] : ["Edit", "Write", "MultiEdit", "NotebookEdit"])],
+          allowedTools: profile ? [...profile.allowedTools, ...approvedToolsFor(id)] : [...TODO_TOOLS, ...approvedToolsFor(id)],
           resumeSession: resume ? sessionId : null,
           newSessionId: resume ? null : sessionId,
         })
