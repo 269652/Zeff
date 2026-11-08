@@ -1,7 +1,7 @@
 {
   "name": "zeff-launcher",
   "productName": "Zeff",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "private": true,
   "license": "AGPL-3.0-only",
   "description": "Runs Zeff and its knowledge server and serves them on https://zeff",
