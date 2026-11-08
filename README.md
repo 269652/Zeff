@@ -20,6 +20,10 @@
   <a href="mailto:info@getzeff.com">info@getzeff.com</a>
 </p>
 
+<p align="center">
+  <img src="docs/screenshots/todos.png" width="900" alt="Zeff's todo list: each todo with where it came from, its kind, when it's due, its context and a ready action — one opened to show the mail it came from">
+</p>
+
 ---
 
 Your day is spread over a dozen channels. Tickets in Jira. Mail in Outlook, Gmail and that old T-Online account. Chats
@@ -53,6 +57,25 @@ agents that take todos over in your own repos, and a **Studio** to build whateve
   diffs and delivery — and they can ask you when they need a decision.
 - 🔒 **Privacy you can see.** Every source and database carries a sensitivity (open, personal, secret) that the AI,
   the knowledge server, agents and MCP all respect.
+
+## Screenshots
+
+*Sample data — people, mails and chats made up for the demo.*
+
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/today.png" alt="Today: where to start, who waits for your answer, what waits for your yes or no, and suggested actions with one click each"><br><b>Today</b> — where to start, who's waiting for you, the actions ready to go.</td>
+    <td width="50%"><img src="docs/screenshots/inbox.png" alt="The inbox: Gmail and WhatsApp in one list, a tab per channel"><br><b>Every inbox, one place</b> — mail and chats in one list, a tab per channel.</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="33%"><img src="docs/screenshots/phone-todos.png" alt="Zeff on a phone: the todo list with a bottom bar for Todos, Chat and More"></td>
+    <td width="33%"><img src="docs/screenshots/phone-chat.png" alt="The chat on a phone: ask Zeff, with suggestions to start from and the message box at the bottom"></td>
+    <td width="34%"><b>On your phone</b><br><br>All of Zeff at <a href="https://app.getzeff.com">app.getzeff.com</a>, straight from your PC over an encrypted peer-to-peer connection — no cloud in between. Pair it with a QR code from the launcher, tick todos offline, and talk to Zeff in the chat: it makes todos, writes notes and looks things up for you.</td>
+  </tr>
+</table>
 
 ## Features
 
