@@ -10,7 +10,7 @@
 export const WIDGET_LIBS: Record<string, { js?: string[]; css?: string[]; what: string }> = {
   katex: { js: ["katex/katex.min.js", "katex/contrib/auto-render.min.js"], css: ["katex/katex.min.css"], what: "math formulas (katex.render, renderMathInElement)" },
   jsxgraph: { js: ["jsxgraph/jsxgraphcore.js"], css: ["jsxgraph/jsxgraph.css"], what: "interactive geometry, function plots with sliders (JXG.JSXGraph.initBoard)" },
-  three: { js: ["three/three.min.js"], what: "3D (window.THREE): surfaces, curves in space" },
+  three: { js: ["three/three.min.js"], what: "3D (window.THREE, r159): surfaces, curves in space" },
   chart: { js: ["chart/chart.umd.js"], what: "charts (window.Chart)" },
 };
 

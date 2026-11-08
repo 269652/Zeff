@@ -103,6 +103,8 @@ export function proxy(req: NextRequest) {
       return NextResponse.json({ error: "signed out" }, { status: 401, headers: closed });
     }
   }
+  // The widget libraries (public open-source files a sandboxed widget loads — it has no session to show): never locked.
+  if (path.startsWith("/api/widgets/lib/")) return next();
   const cfg = readConfig();
   if (!cfg) return next();
   // The private account is not locked (see lockOpenFor): the lock guards the others — the account of this request.
