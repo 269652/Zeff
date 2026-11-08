@@ -24,7 +24,7 @@ export function StuckRun({ runId }: { runId: number }) {
         onClick={() =>
           start(async () => {
             const r = await cancelWorkAction(runId);
-            if (!r.ok) return void toast(r.error ?? "", { tone: "error" });
+            if (r && !r.ok) return void toast(r.error ?? "", { tone: "error" });
             router.refresh();
           })
         }
