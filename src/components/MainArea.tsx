@@ -4,7 +4,7 @@ import { usePagePathname } from "@/lib/use-page-pathname";
 import type { ReactNode } from "react";
 
 /** Pages that fill the window's height exactly (a Kanban board's columns side by side, the chat, the todos); the others scroll here. */
-const WIDE = [/^\/kanban\/(?!settings)[^/]+/, /^\/knowledge/, /^\/todos/, /^\/tickets/, /^\/work/, /^\/chat/];
+const WIDE = [/^\/kanban\/(?!settings)[^/]+/, /^\/knowledge/, /^\/todos/, /^\/tickets/, /^\/work/, /^\/chat/, /^\/learn\/[^/]+\/step\//];
 
 export function MainArea({ children }: { children: ReactNode }) {
   const path = usePagePathname();

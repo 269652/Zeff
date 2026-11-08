@@ -54,24 +54,52 @@ export default async function StepPage({ params }: Props) {
   const last = conversation[conversation.length - 1];
   const live = !!last?.session && last.status === "running";
 
+  const chat = (
+    <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2" aria-label={t("Lesson chat")}>
+      {!last ? (
+        <div className="card space-y-3 p-4">
+          <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("Claude teaches this step in a chat — explaining, asking, and building exercises right here. When you've got it, it marks the step mastered.")}</p>
+          <LessonButton courseId={courseId} stepKey={node.key} />
+        </div>
+      ) : (
+        <>
+          <div id="lesson-thread" className="min-h-0 flex-1 overflow-y-auto">
+            <SessionThread turns={turns} />
+          </div>
+          <ScrollToEnd target="lesson-thread" />
+          <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-zinc-200 pt-2 dark:border-zinc-800">
+            {live ? <ClaudeSession key={last.id} run={last} /> : <ChatComposer runId={last.id} stay placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Answer the teacher …")} />}
+          </div>
+        </>
+      )}
+    </section>
+  );
+
   return (
-    <div className="mx-auto w-full max-w-6xl space-y-4">
-      <Link href={`/learn/${courseId}`} className="text-sm text-zinc-500 hover:underline">
-        ← {course.title}
-      </Link>
-      <header className="space-y-1">
-        {parent && <p className="text-xs text-zinc-500">{parent.title}</p>}
+    // Like the chat, the lesson fills the window (MainArea's full-height pages): the conversation scrolls, the message box
+    // stays at the bottom. With exercises they stand beside the chat (above it on a phone); without, the chat has it all.
+    <div className={`mx-auto flex h-full w-full flex-col gap-3 ${widgets.length ? "max-w-7xl" : "max-w-3xl"}`}>
+      <header className="shrink-0 space-y-0.5">
+        <Link href={`/learn/${courseId}`} className="text-sm text-zinc-500 hover:underline">
+          ← {course.title}
+        </Link>
         <h1 className="text-lg font-semibold">
+          {parent && <span className="font-normal text-zinc-500">{parent.title} · </span>}
           {node.title}
           {status === "mastered" && <span className="ml-2 text-sm font-normal text-emerald-700 dark:text-emerald-400">✓ {t("mastered")}</span>}
         </h1>
-        {node.summary && <p className="max-w-[75ch] text-sm text-zinc-600 dark:text-zinc-400">{node.summary}</p>}
-        {node.objectives.length > 0 && (
-          <ul className="list-disc pl-5 text-sm text-zinc-600 dark:text-zinc-400" aria-label={t("Goals")}>
-            {node.objectives.map((o, i) => (
-              <li key={i}>{o}</li>
-            ))}
-          </ul>
+        {(node.summary || node.objectives.length > 0) && (
+          <details className="text-sm text-zinc-600 dark:text-zinc-400">
+            <summary className="cursor-pointer">{t("Goals")}</summary>
+            {node.summary && <p className="mt-1 max-w-[75ch]">{node.summary}</p>}
+            {node.objectives.length > 0 && (
+              <ul className="mt-1 list-disc pl-5">
+                {node.objectives.map((o, i) => (
+                  <li key={i}>{o}</li>
+                ))}
+              </ul>
+            )}
+          </details>
         )}
       </header>
 
@@ -90,30 +118,15 @@ export default async function StepPage({ params }: Props) {
             </ul>
           )}
         </div>
-      ) : (
-        <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
-          <div className="min-w-0">
-            {widgets.length > 0 ? <LessonWidgets widgets={widgets} /> : <p className="card p-4 text-sm text-zinc-500">{t("The exercises the teacher builds appear here.")}</p>}
+      ) : widgets.length > 0 ? (
+        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
+          <div className="max-h-[45%] min-w-0 shrink-0 overflow-y-auto lg:max-h-none lg:flex-[3]">
+            <LessonWidgets widgets={widgets} />
           </div>
-          <section className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-2 lg:max-h-[calc(100dvh-6rem)]" aria-label={t("Lesson chat")}>
-            {!last ? (
-              <div className="card space-y-3 p-4">
-                <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("Claude teaches this step in a chat — explaining, asking, and building exercises right here. When you've got it, it marks the step mastered.")}</p>
-                <LessonButton courseId={courseId} stepKey={node.key} />
-              </div>
-            ) : (
-              <>
-              <div id="lesson-thread" className="max-h-[60vh] min-h-0 flex-1 overflow-y-auto lg:max-h-none">
-                <SessionThread turns={turns} />
-              </div>
-              <ScrollToEnd target="lesson-thread" />
-              <div className="shrink-0 border-t border-zinc-200 pt-2 dark:border-zinc-800">
-                {live ? <ClaudeSession key={last.id} run={last} /> : <ChatComposer runId={last.id} stay placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Answer the teacher …")} />}
-              </div>
-              </>
-            )}
-          </section>
+          <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-[2]">{chat}</div>
         </div>
+      ) : (
+        chat
       )}
     </div>
   );

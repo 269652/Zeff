@@ -2,6 +2,7 @@ import { Fragment } from "react";
 import { parseMarkdown, type MdBlock, type MdInline } from "@/lib/markdown";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
+import { MathTex } from "@/components/MathTex";
 
 /**
  * A context message's Markdown as elements (no raw HTML, so pasted content can't run
@@ -64,6 +65,8 @@ function block(b: MdBlock, img: (target: string) => string | null, t: T) {
           </table>
         </div>
       );
+    case "math":
+      return <MathTex tex={b.v} display />;
     case "hr":
       return <hr className="border-zinc-200 dark:border-zinc-700" />;
   }
@@ -84,6 +87,8 @@ function inline(c: MdInline[], img: (target: string) => string | null, t: T): Re
         return <del key={i}>{inline(n.c, img, t)}</del>;
       case "code":
         return <code key={i} className="rounded bg-zinc-100 px-1 font-mono text-[0.85em] dark:bg-zinc-800">{n.v}</code>;
+      case "math":
+        return <MathTex key={i} tex={n.v} />;
       case "link":
         return (
           <a key={i} href={n.href} target="_blank" rel="noreferrer" className="text-indigo-600 underline decoration-indigo-300 hover:decoration-indigo-600 dark:text-indigo-400">

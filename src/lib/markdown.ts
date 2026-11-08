@@ -14,6 +14,8 @@ export type MdInline =
   | { t: "br" }
   | { t: "strong" | "em" | "del"; c: MdInline[] }
   | { t: "code"; v: string }
+  /** TeX: $…$ or \(…\) (rendered with KaTeX). */
+  | { t: "math"; v: string; display: boolean }
   | { t: "link"; href: string; c: MdInline[] }
   | { t: "img"; src: string; alt: string };
 
@@ -25,6 +27,8 @@ export type MdBlock =
   | { t: "quote"; c: MdBlock[] }
   | { t: "list"; ordered: boolean; items: MdListItem[] }
   | { t: "code"; v: string }
+  /** A displayed formula: $$…$$ or \[…\], on lines of their own. */
+  | { t: "math"; v: string }
   | { t: "table"; head: MdInline[][]; rows: MdInline[][][] }
   | { t: "hr" };
 
@@ -49,6 +53,20 @@ export function parseMarkdown(md: string): MdBlock[] {
       while (i < lines.length && !/^\s*```/.test(lines[i])) body.push(lines[i++]);
       i++;
       blocks.push({ t: "code", v: body.join("\n") });
+      continue;
+    }
+    // $$ … $$ or \[ … \] — a formula of its own (one line or several)
+    const open = /^\s*(\$\$|\\\[)/.exec(line);
+    if (open) {
+      const close = open[1] === "$$" ? "$$" : "\\]";
+      let body = line.trim().slice(2);
+      let end = body.indexOf(close);
+      while (end < 0 && i + 1 < lines.length) {
+        body += "\n" + lines[++i];
+        end = body.indexOf(close);
+      }
+      i++;
+      blocks.push({ t: "math", v: (end < 0 ? body : body.slice(0, end)).trim() });
       continue;
     }
     const h = /^\s{0,3}(#{1,6})\s+(.*?)\s*#*\s*$/.exec(line);
@@ -153,7 +171,15 @@ export function parseInline(s: string): MdInline[] {
   while (i < s.length) {
     const rest = s.slice(i);
     let m: RegExpExecArray | null;
-    if (rest[0] === "\\" && /[\\`*_{}[\]()#+\-.!|~>]/.test(rest[1] ?? "")) {
+    if ((m = /^\\\(([\s\S]+?)\\\)/.exec(rest))) {
+      flush();
+      out.push({ t: "math", v: m[1].trim(), display: false });
+      i += m[0].length;
+    } else if ((m = /^\$(?![\s$])((?:[^$\\]|\\.)+?)(?<!\s)\$(?!\d)/.exec(rest))) {
+      flush();
+      out.push({ t: "math", v: m[1], display: false });
+      i += m[0].length;
+    } else if (rest[0] === "\\" && /[\\`*_{}[\]()#+\-.!|~>]/.test(rest[1] ?? "")) {
       text += rest[1];
       i += 2;
     } else if ((m = /^`([^`]+)`/.exec(rest))) {
@@ -200,7 +226,7 @@ export function parseInline(s: string): MdInline[] {
 /** Inline content as plain text (images dropped). */
 function inlineText(c: MdInline[]): string {
   return c
-    .map((n) => (n.t === "text" || n.t === "code" ? n.v : n.t === "br" ? " " : n.t === "img" ? "" : inlineText(n.c)))
+    .map((n) => (n.t === "text" || n.t === "code" || n.t === "math" ? n.v : n.t === "br" ? " " : n.t === "img" ? "" : inlineText(n.c)))
     .join("");
 }
 
@@ -211,7 +237,7 @@ export function markdownToPlain(md: string): string {
     for (const b of blocks) {
       if (b.t === "p" || b.t === "h") lines.push(prefix + inlineText(b.c));
       else if (b.t === "quote") walk(b.c, prefix);
-      else if (b.t === "code") lines.push(...b.v.split("\n"));
+      else if (b.t === "code" || b.t === "math") lines.push(...b.v.split("\n"));
       else if (b.t === "list") for (const it of b.items) {
         lines.push(prefix + inlineText(it.c));
         walk(it.sub, prefix);
