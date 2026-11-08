@@ -54,3 +54,16 @@ test("xp for a widget's result: a few points, more for a better score, none for 
   assert.equal(xpForResult({ type: "result", score: 1 }), 5);
   assert.ok(xpForResult({ type: "result", score: 0.5 }) >= 2 && xpForResult({ type: "result", score: 0.5 }) <= 3);
 });
+
+test("inline: the libraries' code put into the page itself (a sandboxed frame loads nothing — on the phone it couldn't reach Zeff)", () => {
+  const doc = buildSrcdoc("<p id=x></p>", { inline: { js: ["window.LIB=1;"], css: [".k{color:red}"] } });
+  const csp = /<meta http-equiv="Content-Security-Policy" content="([^"]+)"/.exec(doc)?.[1] ?? "";
+  assert.match(csp, /script-src 'unsafe-inline';/);
+  assert.match(csp, /font-src data:/);
+  assert.ok(!/https?:/.test(csp), "nothing to load from anywhere");
+  assert.ok(doc.includes("window.LIB=1;"));
+  assert.ok(doc.includes(".k{color:red}"));
+  assert.ok(doc.indexOf("window.zeff") < doc.indexOf("window.LIB=1;"), "the bridge first");
+  const evil = buildSrcdoc("<p></p>", { inline: { js: ["</script><script>alert(1)"], css: ["</style><script>x</script>"] } });
+  assert.ok(!evil.includes("</script><script>alert(1)"), "a library's text can't close its tag");
+});

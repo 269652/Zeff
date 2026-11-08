@@ -43,23 +43,35 @@ const BRIDGE = `<script>
 
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/"/g, "&quot;").replace(/</g, "&lt;");
 
-/** The document the frame shows (srcdoc): our rules, the bridge, the libraries asked for, then the widget. */
-export function buildSrcdoc(html: string, opts: { libs?: string[]; libBase: string; dark?: boolean }): string {
-  const base = opts.libBase.replace(/\/+$/, "");
-  const libs = [...new Set(opts.libs ?? [])].filter((l) => Object.prototype.hasOwnProperty.call(WIDGET_LIBS, l));
+/** A library's text inside its tag: it can't close the tag early. */
+const inScript = (code: string) => code.replace(/<\/(script)/gi, "<\\/$1");
+const inStyle = (css: string) => css.replace(/<\/(style)/gi, "<\\/$1");
+
+/**
+ * The document the frame shows (srcdoc): our rules, the bridge, the libraries, then the widget. The libraries either
+ * by address (`libs` + `libBase`) or — what the page does, so it works on the phone too — `inline`: their code put in
+ * (the page fetched it: /api/widgets/bundle), then the frame loads nothing at all.
+ */
+export function buildSrcdoc(html: string, opts: ({ libs?: string[]; libBase: string } | { inline: { js: string[]; css: string[] } }) & { dark?: boolean }): string {
+  const inline = "inline" in opts ? opts.inline : null;
+  const base = "libBase" in opts ? opts.libBase.replace(/\/+$/, "") : "";
+  const libs = "libs" in opts ? [...new Set(opts.libs ?? [])].filter((l) => Object.prototype.hasOwnProperty.call(WIDGET_LIBS, l)) : [];
+  const from = inline ? "" : ` ${base}/`;
   const csp = [
     "default-src 'none'",
-    `script-src 'unsafe-inline' ${base}/`,
-    `style-src 'unsafe-inline' ${base}/`,
-    `font-src ${base}/ data:`,
+    `script-src 'unsafe-inline'${from}`,
+    `style-src 'unsafe-inline'${from}`,
+    `font-src${from} data:`,
     "img-src data: blob:",
     "media-src data: blob:",
     "connect-src 'none'",
     "form-action 'none'",
     "frame-src 'none'",
   ].join("; ");
-  const css = libs.flatMap((l) => WIDGET_LIBS[l].css ?? []).map((f) => `<link rel="stylesheet" href="${esc(`${base}/${f}`)}">`);
-  const js = libs.flatMap((l) => WIDGET_LIBS[l].js ?? []).map((f) => `<script src="${esc(`${base}/${f}`)}"></script>`);
+  const css = inline
+    ? inline.css.map((c) => `<style>${inStyle(c)}</style>`)
+    : libs.flatMap((l) => WIDGET_LIBS[l].css ?? []).map((f) => `<link rel="stylesheet" href="${esc(`${base}/${f}`)}">`);
+  const js = inline ? inline.js.map((c) => `<script>${inScript(c)}</script>`) : libs.flatMap((l) => WIDGET_LIBS[l].js ?? []).map((f) => `<script src="${esc(`${base}/${f}`)}"></script>`);
   const theme = `<style>:root{color-scheme:${opts.dark ? "dark" : "light"}}html,body{margin:0;padding:12px;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:${opts.dark ? "#18181b" : "#fff"};color:${opts.dark ? "#ececf1" : "#18181b"}}button{font:inherit}</style>`;
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${esc(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1">${theme}${css.join("")}${BRIDGE}${js.join("")}</head><body>${html}</body></html>`;
 }

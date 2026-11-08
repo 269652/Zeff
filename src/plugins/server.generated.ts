@@ -9,6 +9,7 @@ import "./finances/server";
 import "./gitlab/server";
 import "./jira/server";
 import "./keep/server";
+import "./learn/server";
 import "./llm/server";
 import "./lookups/server";
 import "./loops/server";

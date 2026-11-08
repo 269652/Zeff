@@ -12,6 +12,7 @@ import { registerQuestionTools } from "@/plugins/questions/mcp";
 import { registerTimelineTools } from "@/plugins/timeline/mcp";
 import { registerKnowTools } from "@/plugins/know/mcp";
 import { registerLoopTools } from "@/plugins/loops/mcp";
+import { registerLearnTools } from "@/plugins/learn/mcp";
 import type { McpServer } from "@modelcontextprotocol/server";
 import { registerReportTimeTool, registerBookingTools } from "./tools/time";
 import { registerKnowledgeTools, registerAddKnowledgeTool } from "./tools/knowledge";
@@ -96,4 +97,5 @@ export function registerZeffTools(server: McpServer): void {
   registerKnowTools(server, { run, ok, fail } as never);
   // What is owed, by whom: promises, unanswered questions, requests (the Open loops plugin).
   registerLoopTools(server, { run, ok, fail } as never);
+  registerLearnTools(server, { run, ok, fail } as never);
 }
