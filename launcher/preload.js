@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld("zeff", {
   companionPair: (name) => ipcRenderer.invoke("companionPair", name),
   companionUnpair: (id) => ipcRenderer.invoke("companionUnpair", id),
   companionFirewall: () => ipcRenderer.invoke("companionFirewall"),
+  companionPrivate: (index) => ipcRenderer.invoke("companionPrivate", index),
   onCompanion: (cb) => ipcRenderer.on("companion", (_e, s) => cb(s)),
   // The tray asks for a tab ({ tab, pair }) while the window is open.
   onOpen: (cb) => ipcRenderer.on("open", (_e, o) => cb(o)),

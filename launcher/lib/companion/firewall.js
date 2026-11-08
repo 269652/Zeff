@@ -29,4 +29,34 @@ async function allow(port) {
   return (await allowed(port)) ? "done" : "failed";
 }
 
-module.exports = { allowed, allow, RULE };
+/**
+ * The networks Windows calls "public" that a phone would come in on: [{ alias, name, index, addresses }]. Our rule
+ * is for private networks only, so on these Windows keeps phones out. Home Wi-Fi is often marked public, as the
+ * FRITZ!Box was on 2026-11-08: the phone couldn't connect.
+ */
+async function publicNetworks() {
+  if (!WIN) return [];
+  const r = await ps.command(
+    "Get-NetConnectionProfile | Where-Object { $_.NetworkCategory -eq 'Public' } | ForEach-Object { [pscustomobject]@{ alias = $_.InterfaceAlias; name = $_.Name; index = $_.InterfaceIndex; addresses = @((Get-NetIPAddress -InterfaceIndex $_.InterfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue).IPAddress) } } | ConvertTo-Json -Compress",
+  );
+  if (r.code !== 0 || !r.stdout.trim()) return [];
+  try {
+    const v = JSON.parse(r.stdout);
+    return (Array.isArray(v) ? v : [v]).map((n) => ({ alias: n.alias, name: n.name, index: n.index, addresses: [].concat(n.addresses ?? []) }));
+  } catch {
+    return [];
+  }
+}
+
+/** Mark a network private (its interface index), elevated: "done" | "declined" | "failed". */
+async function makePrivate(index) {
+  if (!WIN) return "done";
+  const inner = `Set-NetConnectionProfile -InterfaceIndex ${Number(index)} -NetworkCategory Private`;
+  const r = await ps.command(
+    `try { $p = Start-Process -FilePath powershell.exe -Verb RunAs -WindowStyle Hidden -Wait -PassThru -ArgumentList '-NoProfile','-Command',${ps.quote(inner)}; exit $p.ExitCode } catch { exit 1223 }`,
+  );
+  if (r.code === 1223) return "declined";
+  return (await publicNetworks()).some((n) => n.index === Number(index)) ? "failed" : "done";
+}
+
+module.exports = { allowed, allow, publicNetworks, makePrivate, RULE };

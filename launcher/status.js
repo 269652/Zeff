@@ -168,6 +168,26 @@ function renderPhone(st) {
   // Windows Firewall: false → our rule is missing (null: no Windows Firewall, or it couldn't be read).
   $("firewall").hidden = st.firewall !== false;
   $("fwPort").textContent = String(st.port);
+  // A network Windows calls public: phones are kept out there (the rule is for private networks) — offer to make it private.
+  $("publicNets").replaceChildren(
+    ...(st.publicNetworks ?? []).map((n) =>
+      el(
+        "div",
+        { className: "check" },
+        el("span", { className: "no", textContent: "!" }),
+        el("span", { style: "flex: 1", textContent: `Windows treats “${n.name}” (${n.alias}) as a public network, so phones can't reach this computer there. At home, make it private.` }),
+        el("button", {
+          textContent: "Make private…",
+          onclick: async (e) => {
+            e.target.disabled = true;
+            const r = await window.zeff.companionPrivate(n.index);
+            if (r.result === "failed") $("phoneNote").textContent = "The network couldn't be made private — see the launcher's log.";
+            renderPhone(r.state);
+          },
+        }),
+      ),
+    ),
+  );
   const list = st.devices.map((d) =>
     el(
       "div",

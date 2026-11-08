@@ -586,8 +586,12 @@ function startCompanion() {
 
 async function companionState() {
   if (!companion) return { enabled: false, error: companionError, devices: [], addresses: [] };
-  const firewall = await require("./lib/companion/firewall").allowed(state.cfg.companionPort).catch(() => null);
-  return { enabled: true, firewall, ...companion.status() };
+  const fw = require("./lib/companion/firewall");
+  const [firewall, publicNets] = await Promise.all([fw.allowed(state.cfg.companionPort).catch(() => null), fw.publicNetworks().catch(() => [])]);
+  const status = companion.status();
+  // A network Windows calls public, that a phone would come in on (one of the addresses the QR code carries): phones are kept out there.
+  const publicNetworks = publicNets.filter((n) => n.addresses.some((a) => status.addresses.includes(a)));
+  return { enabled: true, firewall, publicNetworks, ...status };
 }
 
 /**
@@ -697,6 +701,12 @@ ipcMain.handle("companionPair", async (_e, name) => {
 ipcMain.handle("companionUnpair", (_e, id) => {
   companion?.unpair(String(id));
   return companionState();
+});
+// Mark a network private (Windows keeps phones out on public ones) — one UAC prompt.
+ipcMain.handle("companionPrivate", async (_e, index) => {
+  const r = await require("./lib/companion/firewall").makePrivate(index);
+  log(`companion: network ${index} private — ${r}`);
+  return { result: r, state: await companionState() };
 });
 // Let phones through the Windows Firewall (our own rule: UDP companionPort, private networks only) — one UAC prompt.
 ipcMain.handle("companionFirewall", async () => {
