@@ -86,7 +86,9 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
         <>
           <WorkFollow active={busy.length > 0} />
           <ViewTabs view={part === "tickets" ? "tickets" : "lage"} />
-          <div className="space-y-2">
+          {/* The heading and "Run now" in one row (no line of its own for the button — room for the todos on a phone). */}
+          <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0 space-y-2">
           <h1 className="text-xl font-semibold tracking-tight">{part === "tickets" ? t("Tickets") : t("Todos")}</h1>
           {shown && (
             <>
@@ -103,7 +105,10 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
             </>
           )}
           </div>
-          <BoardRunControls running={running} phase={live?.phase ?? null} since={live?.since ?? null} provider={live?.provider ?? aiLabel} presync={presync} />
+          <div className="shrink-0">
+            <BoardRunControls running={running} phase={live?.phase ?? null} since={live?.since ?? null} provider={live?.provider ?? aiLabel} presync={presync} />
+          </div>
+          </div>
           {/* The Lage's filter chips (from the tickets beside it) and its lede. */}
           {part === "tickets" && <div id="todos-filter-slot" />}
           {/* The briefing's text: on the Tickets tab only — the todos speak for themselves. */}

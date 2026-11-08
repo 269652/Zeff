@@ -233,16 +233,32 @@ function ContextSource({ s, todoId }: { s: TodoSource; todoId?: number }) {
   );
 }
 
-/** How many columns the context cards stand in. */
-const CONTEXT_COLUMNS = 4;
+/**
+ * How many columns the context cards stand in: one on a phone, two from md (768 px), four from lg (1024 px) — the
+ * page's own breakpoints (the server draws four; the browser settles it at once).
+ */
+const COLUMN_QUERIES: [string, number][] = [
+  ["(min-width: 1024px)", 4],
+  ["(min-width: 768px)", 2],
+];
+const columnsNow = () => COLUMN_QUERIES.find(([q]) => window.matchMedia(q).matches)?.[1] ?? 1;
+const onColumnsChange = (fn: () => void) => {
+  const lists = COLUMN_QUERIES.map(([q]) => window.matchMedia(q));
+  for (const l of lists) l.addEventListener("change", fn);
+  return () => {
+    for (const l of lists) l.removeEventListener("change", fn);
+  };
+};
+const useContextColumns = () => useSyncExternalStore(onColumnsChange, columnsNow, () => 4);
 
 export function ContextList({ items, todoId }: { items: Item[]; todoId?: number }) {
   const t = useT();
   const [all, setAll] = useState(false);
   const { shown, hidden } = latestPerKind(items, itemKind, all);
+  const CONTEXT_COLUMNS = useContextColumns();
   return (
     <span className="flex w-full flex-col items-start gap-2">
-      {/* Four columns in a row across the whole width (each a column of cards, dealt out in turn), 20% smaller than the page (text, padding, pictures). */}
+      {/* Columns in a row across the whole width (1 on a phone, 2 from md, 4 from lg — each a column of cards, dealt out in turn), 20% smaller than the page (text, padding, pictures). */}
       <ScaledBox className="w-full">
         <div className="flex w-full items-start gap-3">
           {Array.from({ length: CONTEXT_COLUMNS }, (_, c) => (

@@ -614,8 +614,9 @@ export function BoardView({
 
       {part !== "todos" && !filterSlot && chips}
 
+      {/* On a phone no panel (border, background, its padding): the todos use the whole width — their rows have padding of their own. */}
       {part !== "tickets" && (
-      <section className="card space-y-3 p-4">
+      <section className="card space-y-3 p-4 max-sm:-mx-2 max-sm:rounded-none max-sm:border-0 max-sm:bg-transparent max-sm:p-0 max-sm:shadow-none max-sm:dark:bg-transparent">
         <div
           className="inline-flex flex-wrap items-center gap-0.5 rounded-lg bg-zinc-100 p-0.5 dark:bg-zinc-800/70"
           role="tablist"
