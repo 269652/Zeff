@@ -515,6 +515,10 @@ export function SiteHeader({
               </button>
             </div>
             <nav className="flex-1 overflow-y-auto p-2" aria-label={t("More pages")}>
+              {/* On a phone the header's tabs aren't shown: they come first here (the menu lists only the apps not in the header). */}
+              {!editing && tabs.length > 0 && (
+                <ul className="mb-2 space-y-0.5 border-b border-zinc-200 pb-2 sm:hidden dark:border-zinc-800">{tabs.map((tab) => item({ href: tab.href, label: tab.label, hint: "" }))}</ul>
+              )}
               <ul className="space-y-0.5">
                 {heading(t("Apps"), "/apps")}
                 {editing
