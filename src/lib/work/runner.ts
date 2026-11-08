@@ -39,7 +39,7 @@ import { errPath, logPath, readErrors, readLog, readOutput, workDir } from "./lo
 import { applyOutcome, normalizeResult } from "./outcome";
 import { ensureActions } from "./ensure-actions";
 import { approvedToolsFor, grantTools } from "./approved-tools";
-import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, toRunView, updateRun } from "./store";
+import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, runsForTodos, toRunView, updateRun } from "./store";
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOptions, type WorkResult, type WorkRunView } from "./shared";
 import { lastJson } from "@/lib/ai/json";
 import { chatProfileFor, isChatTodo } from "@/lib/chat";
@@ -238,7 +238,11 @@ export function dispatchTodo(
   if (provider === "codex" && !live) {
     throw new ValidationError(t("ChatGPT workers need Live sessions — switch them on in the Code settings (Claude sessions)."));
   }
-  const resume = prev && !waitFor && resumes(provider, prev) && fs.existsSync(/*turbopackIgnore: true*/ prev.cwd!) ? prev : undefined;
+  // (A message that never ran — taken out of the queue — has no session of its own: the conversation goes on from the
+  // newest run of the todo that has one.)
+  const earlier = prev && !prev.sessionId ? runsForTodos([todoId]).get(todoId)?.find((r) => r.id < prev.id && r.sessionId && r.provider === provider) : undefined;
+  const from = (earlier && getRun(earlier.id)) || prev;
+  const resume = from && !waitFor && resumes(provider, from) && fs.existsSync(/*turbopackIgnore: true*/ from.cwd!) ? from : undefined;
   const modes = driver?.modes({ allowBypass: cs.allowBypass }) ?? [];
   // (Claude's from the Code settings — yours or Zeff's own runs; another provider's: its first.)
   const liveMode = so.permissionMode ?? (provider === "claude" ? (opts.conversation || prev ? cs.mode : cs.autoMode) : (modes[0]?.id ?? ""));
