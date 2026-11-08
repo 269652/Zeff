@@ -15,6 +15,7 @@ import { TabSplit } from "./TabSplit";
 import { LastTabLink } from "./LastTabLink";
 import { LinkPending } from "./LinkPending";
 import { AccountSwitcher, type AccountChip } from "@/plugins/accounts/AccountSwitcher";
+import { InstallAppButton } from "./InstallAppButton";
 import { useT } from "@/components/I18nProvider";
 import type { T } from "@/lib/i18n/shared";
 
@@ -428,6 +429,8 @@ export function SiteHeader({
                   );
                 })}
               </nav>
+              {/* "+": Zeff on the home screen, while the browser offers it (the phone app's, or this window's). */}
+              <InstallAppButton />
               <button
                 type="button"
                 className="inline-flex shrink-0 cursor-pointer items-center gap-1.5 rounded-md px-2 py-1.5 text-sm text-zinc-600 transition hover:bg-zinc-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-indigo-500/40 dark:text-zinc-300 dark:hover:bg-zinc-800"
