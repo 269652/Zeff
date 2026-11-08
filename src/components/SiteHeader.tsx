@@ -460,8 +460,8 @@ export function SiteHeader({
           ].map((tab) => {
             const current = pathname === tab.href || pathname.startsWith(`${tab.href}/`);
             return (
-              <Link key={tab.href} href={tab.href} aria-current={current ? "page" : undefined} className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-xs font-medium ${current ? "text-zinc-950 dark:text-white" : "text-zinc-500 dark:text-zinc-400"}`}>
-                {current && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-zinc-950 dark:bg-white" aria-hidden />}
+              <Link key={tab.href} href={tab.href} aria-current={current ? "page" : undefined} className={`relative flex min-w-0 flex-1 flex-col items-center justify-center gap-0.5 px-1 py-2 text-xs font-medium ${current ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-600 dark:text-zinc-400"}`}>
+                {current && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-indigo-600 dark:bg-indigo-400" aria-hidden />}
                 <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
                   <path d={tab.icon} />
                 </svg>
@@ -475,7 +475,7 @@ export function SiteHeader({
             onClick={() => setOpen(true)}
             aria-expanded={open}
             aria-controls="site-menu"
-            className={`relative flex min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-xs font-medium ${open ? "text-zinc-950 dark:text-white" : "text-zinc-500 dark:text-zinc-400"}`}
+            className={`relative flex min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-xs font-medium ${open ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-600 dark:text-zinc-400"}`}
           >
             <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
               <path d="M4 6h12M4 10h12M4 14h12" />
