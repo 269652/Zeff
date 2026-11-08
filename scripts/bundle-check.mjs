@@ -78,13 +78,25 @@ const pkg = JSON.parse(read("package.json"));
 // ---------------------------------------------------------------------------
 section("modules (production dependencies only)");
 const require = createRequire(path.join(root, "package.json"));
+/** A package with no entry Node would load (no main, no exports) — the pages' own (an editor, a renderer). */
+const browserOnly = (pj) => {
+  try {
+    const p = JSON.parse(fs.readFileSync(pj, "utf8"));
+    return !p.main && !p.exports;
+  } catch {
+    return false;
+  }
+};
 for (const dep of Object.keys(pkg.dependencies ?? {})) {
   try {
     import.meta.resolve(dep); // from this file: app/node_modules
     ok(dep);
   } catch (e) {
     // A package of sub-paths only (@tiptap/pm: "@tiptap/pm/state" …) has no root to resolve: it's there if it is installed.
-    if (e?.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" && fs.existsSync(path.join(root, "node_modules", dep, "package.json"))) ok(`${dep} (sub-paths only)`);
+    const pj = path.join(root, "node_modules", dep, "package.json");
+    if (e?.code === "ERR_PACKAGE_PATH_NOT_EXPORTED" && fs.existsSync(pj)) ok(`${dep} (sub-paths only)`);
+    // A package for the browser only (monaco-editor: no main, no exports — loaded by the pages, never by Node): installed is enough.
+    else if (e?.code === "ERR_MODULE_NOT_FOUND" && fs.existsSync(pj) && browserOnly(pj)) ok(`${dep} (browser only)`);
     else bad(`${dep}: ${String(e?.message ?? e).split(String.fromCharCode(10))[0]}`);
   }
 }
