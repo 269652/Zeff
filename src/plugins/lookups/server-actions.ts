@@ -5,7 +5,6 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { redirect } from "@/lib/redirect";
 import { saveLookupConfig } from "./config";
-import { TMDB_SOURCES } from "./tmdb";
 
 const key = (fd: FormData, k: string) => (typeof fd.get(k) === "string" && String(fd.get(k)).trim() ? String(fd.get(k)) : undefined);
 
@@ -21,7 +20,8 @@ export async function testTmdbAction(): Promise<void> {
   let msg: string;
   let ok = true;
   try {
-    const hits = await TMDB_SOURCES[0].search("Dune", "de-DE");
+    const { lookupSearch } = await import("@/plugins/workspace/lambdas/run");
+    const hits = await lookupSearch("tmdb.movies", "Dune", "de-DE");
     msg = hits.length ? `${t("It works")}: ${hits.slice(0, 3).map((h) => h.title).join(" · ")}` : t("No results — the key works, the search found nothing.");
   } catch (e) {
     ok = false;

@@ -15,7 +15,7 @@ import { addRow, createPage, getDatabase, getPage, isProtectedPage, rawRows, set
 const lower = (s: string) => s.trim().toLowerCase();
 
 /** A database by its id or its name (exact, else the one name that contains it). */
-function findDatabase(v: string): number | null {
+export function findDatabase(v: string): number | null {
   const id = Number(v);
   if (Number.isInteger(id) && id > 0 && getDatabase(id)) return id;
   const dbs = tree().filter((p) => p.kind === "database" && !p.system);
@@ -28,7 +28,7 @@ function findDatabase(v: string): number | null {
 }
 
 /** A row of a database by its id or its title (exact, else the one that contains it). */
-function findRow(dbId: number, v: string): number | null {
+export function findRow(dbId: number, v: string): number | null {
   const id = Number(v);
   const rows = rawRows(dbId);
   if (Number.isInteger(id) && rows.some((r) => r.id === id)) return id;

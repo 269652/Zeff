@@ -124,6 +124,8 @@ export function startSyncScheduler(): void {
           if ((await import("@/plugins/state")).isInstalled("workspace")) {
             await (await import("@/plugins/workspace/routine-triggers")).runDueRoutines();
             (await import("@/plugins/workspace/routine-agent")).syncAgentRuns();
+            // The flows with a clock, and the runs whose wait is over.
+            await (await import("@/plugins/workspace/flows/engine")).runDueFlows();
           }
         } catch (e) {
           console.error("[routines]", e);

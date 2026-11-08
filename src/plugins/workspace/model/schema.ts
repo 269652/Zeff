@@ -189,7 +189,52 @@ export type DbSchema = {
   hiddenRows?: number[];
   /** Its rows' own page (a person's, a case's) as a view template of yours — none: the plugin's. */
   rowTemplate?: string;
+  /** Its rows' lifecycle: a status (or select) field's values as states, the transitions between them (flows/lifecycle.ts). */
+  lifecycle?: Lifecycle;
 };
+
+/**
+ * A transition of a lifecycle: from these states (option ids; none: from any) to one, taken by its name. `guard`: an expression
+ * over the row that must hold (row.Amount < 1000); `require`: fields that must be filled first; `flow`: a flow run after it, with
+ * the row; `confirm`: asked before.
+ */
+export type Transition = { id: string; name: string; from: string[]; to: string; guard?: string; require?: string[]; flow?: string; confirm?: string };
+
+/**
+ * A lifecycle: `field` the status or select whose values are the states; `strict`: its value changes only by a transition (a card
+ * dragged on the board too — one with no transition between the two is refused); `enter` / `leave`: a flow run when a row comes into
+ * a state / leaves it (option id → flow name).
+ */
+export type Lifecycle = { field: string; transitions: Transition[]; strict?: boolean; enter?: Record<string, string>; leave?: Record<string, string> };
+
+function lifecycleOf(raw: unknown, props: Property[]): Lifecycle | undefined {
+  if (!raw || typeof raw !== "object") return undefined;
+  const o = raw as Record<string, unknown>;
+  const field = props.find((p) => p.id === o.field && (p.type === "status" || p.type === "select"));
+  if (!field) return undefined;
+  const opts = new Set((field.options ?? []).map((x) => x.id));
+  const str = (v: unknown) => (typeof v === "string" ? v.trim() : "");
+  const flows = (v: unknown): Record<string, string> | undefined => {
+    const m = Object.entries(v && typeof v === "object" ? (v as Record<string, unknown>) : {}).filter(([k, f]) => opts.has(k) && str(f));
+    return m.length ? Object.fromEntries(m.map(([k, f]) => [k, str(f)])) : undefined;
+  };
+  const seen = new Set<string>();
+  const transitions = (Array.isArray(o.transitions) ? o.transitions : []).flatMap((x): Transition[] => {
+    const t = (x && typeof x === "object" ? x : {}) as Record<string, unknown>;
+    const name = str(t.name);
+    const to = str(t.to);
+    if (!name || !opts.has(to)) return [];
+    let id = str(t.id) || name.toLowerCase().replace(/[^\p{L}\p{N}]+/gu, "-");
+    while (seen.has(id)) id += "-";
+    seen.add(id);
+    const from = (Array.isArray(t.from) ? t.from : []).map(str).filter((f) => opts.has(f));
+    const require = (Array.isArray(t.require) ? t.require : []).map(str).filter((r) => props.some((p) => p.id === r));
+    return [{ id, name, from, to, ...(str(t.guard) ? { guard: str(t.guard) } : {}), ...(require.length ? { require } : {}), ...(str(t.flow) ? { flow: str(t.flow) } : {}), ...(str(t.confirm) ? { confirm: str(t.confirm) } : {}) }];
+  });
+  const enter = flows(o.enter);
+  const leave = flows(o.leave);
+  return { field: field.id, transitions, ...(o.strict === true ? { strict: true } : {}), ...(enter ? { enter } : {}), ...(leave ? { leave } : {}) };
+}
 
 /** The schema with these rows hidden (`hide`) or shown again — each id once; none left: no key. */
 export function hideRows(schema: DbSchema, ids: number[], hide: boolean): DbSchema {
@@ -390,7 +435,7 @@ export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [], card: typeof v.card === "string" && v.card.trim() ? v.card.slice(0, 8000) : undefined, nav: (v.nav === "workspace" || v.nav === "off") && v.app ? v.nav : undefined, navHidden: Array.isArray(v.navHidden) && v.navHidden.length ? v.navHidden.filter((x): x is string => typeof x === "string").slice(0, 100) : undefined }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(Number.isInteger(o.entryForm) && o.entryForm! > 0 ? { entryForm: o.entryForm } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}), ...(shareOf(o.share) ? { share: shareOf(o.share)! } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(Number.isInteger(o.entryForm) && o.entryForm! > 0 ? { entryForm: o.entryForm } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(lifecycleOf(o.lifecycle, props) ? { lifecycle: lifecycleOf(o.lifecycle, props) } : {}),...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}), ...(shareOf(o.share) ? { share: shareOf(o.share)! } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

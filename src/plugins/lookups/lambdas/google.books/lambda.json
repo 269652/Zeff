@@ -1,0 +1,30 @@
+{
+  "name": "google.books",
+  "label": "Google Books",
+  "what": "Books at Google Books.",
+  "kind": "lookup",
+  "secrets": [
+    "GOOGLE_KEY"
+  ],
+  "requires": [
+    "GOOGLE_KEY"
+  ],
+  "web": [
+    "www.googleapis.com"
+  ],
+  "fields": {
+    "title": "the title",
+    "subtitle": "its subtitle",
+    "authors": "a list",
+    "publisher": "the publisher",
+    "date": "published, as given",
+    "year": "a number",
+    "pages": "a number",
+    "categories": "a list",
+    "language": "a code",
+    "description": "what it is about",
+    "isbn": "ISBN-13: a good `unique`",
+    "cover": "the cover's address",
+    "url": "its page"
+  }
+}

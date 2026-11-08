@@ -1,0 +1,19 @@
+{
+  "name": "openlibrary",
+  "label": "Open Library",
+  "what": "Books at Open Library.",
+  "kind": "lookup",
+  "web": [
+    "openlibrary.org"
+  ],
+  "fields": {
+    "title": "the title",
+    "authors": "a list",
+    "year": "first published (a number)",
+    "pages": "a number",
+    "subjects": "a list",
+    "description": "what it is about",
+    "cover": "the cover's address",
+    "url": "its page"
+  }
+}

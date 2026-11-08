@@ -5,7 +5,7 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { t } from "@/lib/i18n/server";
 import { getLookupConfig } from "@/plugins/lookups/config";
 import { saveLookupsAction, testTmdbAction } from "@/plugins/lookups/server-actions";
-import { TMDB_CREDIT } from "@/plugins/lookups/tmdb";
+import { TMDB_CREDIT } from "@/plugins/lookups/config";
 import { isInstalled } from "@/plugins/state";
 import { lookupSources } from "@/plugins/workspace/lookups";
 

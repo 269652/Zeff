@@ -1,38 +1,32 @@
 "use client";
 
 import { confirmAction } from "@/components/confirm";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import type { View } from "../model";
 import type { ViewAppMeta } from "../view-apps";
 import { viewTemplateAiAction, type ViewChatTurn } from "../view-template-actions";
 import { viewReference, type TplError } from "../view-template";
+import { TemplateEditor } from "./template-editor";
+import { ViewBuilder } from "./view-builder";
+import { templateToTree, treeToTemplate } from "../view-tree";
 
 /**
  * A view's template as code (the view drawn from it shows below, live): written by hand — with its errors by line and the language's
  * reference — or by the AI in a chat ("put the fixed costs on top"); saved for the view, or as a new view; back to the app's default.
  */
-export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, onNewView, onClose, rowId }: { view: View; dbId: number; meta: ViewAppMeta; draft: string; setDraft: (s: string) => void; errors: TplError[]; onSave: (template: string | null) => void; /** None: no new view from here (a row's own page). */ onNewView?: (template: string, name: string) => void; onClose: () => void; /** A row's own page: the row it is about. */ rowId?: number }) {
+export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, onNewView, onClose, rowId, fields, head }: { view: View; dbId: number; meta: ViewAppMeta; draft: string; setDraft: (s: string) => void; errors: TplError[]; onSave: (template: string | null) => void; /** None: no new view from here (a row's own page). */ onNewView?: (template: string, name: string) => void; onClose: () => void; /** A row's own page: the row it is about. */ rowId?: number; /** The database's fields (the editor completes them). */ fields?: string[]; /** What its header starts with instead of its title (the Studio's: the app, its buttons). */ head?: React.ReactNode }) {
   const t = useT();
-  const area = useRef<HTMLTextAreaElement>(null);
-  const gutter = useRef<HTMLDivElement>(null);
   const [help, setHelp] = useState(false);
   const [chat, setChat] = useState<ViewChatTurn[]>([]);
   const [ask, setAsk] = useState("");
   const [asNew, setAsNew] = useState(false);
   const [busy, setBusy] = useState(false);
+  const [tab, setTab] = useState<"code" | "visual">("visual");
   const changed = draft !== (view.template ?? meta.defaultTemplate(t));
   const lines = draft.split("\n").length;
-  const bad = new Set(errors.map((e) => e.line));
 
-  const goTo = (line: number) => {
-    const el = area.current;
-    if (!el) return;
-    const at = draft.split("\n").slice(0, line - 1).join("\n").length + (line > 1 ? 1 : 0);
-    el.focus();
-    el.setSelectionRange(at, at + (draft.split("\n")[line - 1]?.length ?? 0));
-  };
 
   const send = async () => {
     const request = ask.trim();
@@ -55,10 +49,14 @@ export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, on
   };
 
   return (
-    <div className="space-y-3 rounded-xl border border-indigo-200 bg-indigo-50/30 p-3 print:hidden dark:border-indigo-900 dark:bg-indigo-950/20">
+    <div className="space-y-3 print:hidden">
       <div className="flex flex-wrap items-center gap-2">
-        <span className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300">&lt;/&gt;</span>
-        <span className="text-sm font-medium">{t("The view “{name}” as code", { name: view.name })}</span>
+        {head ?? (
+          <>
+            <span className="font-mono text-sm font-semibold text-indigo-700 dark:text-indigo-300">&lt;/&gt;</span>
+            <span className="text-sm font-medium">{t("The view “{name}” as code", { name: view.name })}</span>
+          </>
+        )}
         <span className="text-xs text-zinc-500">{view.template ? t("changed by you") : t("the default")}</span>
         <span className="flex-1" />
         <button type="button" className={`btn btn-sm ${help ? "bg-zinc-100 dark:bg-zinc-800" : ""}`} aria-pressed={help} onClick={() => setHelp(!help)}>
@@ -69,55 +67,46 @@ export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, on
             ↺ {t("Reset to default")}
           </button>
         )}
-        <button type="button" className="btn btn-sm" onClick={onClose}>
-          {t("Close")}
-        </button>
+        {!head && (
+          <button type="button" className="btn btn-sm" onClick={onClose}>
+            {t("Close")}
+          </button>
+        )}
         <button type="button" className="btn btn-primary btn-sm" disabled={!changed || errors.length > 0} title={errors.length ? t("Fix the errors first") : undefined} onClick={() => onSave(draft.trim() === meta.defaultTemplate(t).trim() ? null : draft)}>
           {t("Save")}
         </button>
       </div>
 
-      <div className="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
+      <div className="flex gap-1 border-b border-zinc-200 dark:border-zinc-800" role="tablist">
+        {(
+          [
+            ["visual", `✥ ${t("Drag & drop")}`],
+            ["code", `</> ${t("Code & AI")}`],
+          ] as const
+        ).map(([id, label]) => (
+          <button key={id} type="button" role="tab" aria-selected={tab === id} className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${tab === id ? "border-indigo-600 font-medium text-indigo-700 dark:text-indigo-300" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`} onClick={() => setTab(id)}>
+            {label}
+          </button>
+        ))}
+      </div>
+
+      {tab === "visual" && <ViewBuilder value={draft} onChange={setDraft} />}
+      {tab === "code" && (
+        <div className="-mt-1 flex justify-end">
+          <button type="button" className="btn btn-sm" disabled={errors.length > 0 || templateToTree(draft).errors.length > 0} title={t("Each element on a line of its own, indented")} onClick={() => setDraft(treeToTemplate(templateToTree(draft).nodes))}>
+            ⇥ {t("Format")}
+          </button>
+        </div>
+      )}
+
+      <div className="grid gap-3 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]" hidden={tab !== "code"}>
         <div className="space-y-2">
-          <div className="flex max-h-[28rem] min-h-48 overflow-hidden rounded-lg border border-zinc-300 bg-white focus-within:border-indigo-400 dark:border-zinc-700 dark:bg-zinc-950">
-            <div ref={gutter} aria-hidden className="shrink-0 overflow-hidden border-r border-zinc-200 bg-zinc-50 py-2 text-right font-mono text-[12px] leading-5 text-zinc-400 select-none dark:border-zinc-800 dark:bg-zinc-900">
-              {Array.from({ length: lines }, (_, i) => (
-                <div key={i} className={`px-2 ${bad.has(i + 1) ? "bg-red-100 text-red-600 dark:bg-red-950 dark:text-red-400" : ""}`}>
-                  {i + 1}
-                </div>
-              ))}
-            </div>
-            <textarea
-              ref={area}
-              value={draft}
-              spellCheck={false}
-              wrap="off"
-              aria-label={t("Template")}
-              className="min-w-0 flex-1 resize-none overflow-auto bg-transparent px-2.5 py-2 font-mono text-[12px] leading-5 outline-none"
-              onChange={(e) => setDraft(e.target.value)}
-              onScroll={(e) => gutter.current && (gutter.current.scrollTop = e.currentTarget.scrollTop)}
-              onKeyDown={(e) => {
-                if (e.key === "Tab") {
-                  e.preventDefault();
-                  const el = e.currentTarget;
-                  const s = el.selectionStart;
-                  setDraft(draft.slice(0, s) + "  " + draft.slice(el.selectionEnd));
-                  requestAnimationFrame(() => el.setSelectionRange(s + 2, s + 2));
-                }
-                if (e.key === "s" && (e.ctrlKey || e.metaKey)) {
-                  e.preventDefault();
-                  if (changed && !errors.length) onSave(draft);
-                }
-              }}
-            />
-          </div>
+          <TemplateEditor value={draft} onChange={setDraft} errors={errors} fields={fields ?? []} parts={meta.parts} actions={meta.actions} onSave={() => changed && !errors.length && onSave(draft)} />
           {errors.length > 0 ? (
             <ul className="space-y-0.5 text-xs text-red-600 dark:text-red-400">
               {errors.slice(0, 8).map((e, i) => (
                 <li key={i}>
-                  <button type="button" className="text-left hover:underline" onClick={() => goTo(e.line)}>
-                    {t("Line {n}", { n: e.line })}: {e.message}
-                  </button>
+                  {t("Line {n}", { n: e.line })}: {e.message}
                 </li>
               ))}
             </ul>

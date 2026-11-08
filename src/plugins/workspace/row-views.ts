@@ -19,15 +19,21 @@ export const ROW_VIEWS: RowView[] = [
   { id: "case", plugin: "cases", dataType: "cases", label: "Case" },
 ];
 
+/** Any database's own detail page: its template written in the Studio or the code panel (schema.rowTemplate) — no plugin's. */
+export const DETAIL_VIEW: RowView = { id: "detail", plugin: "workspace", dataType: "detail" as DataType, label: "Detail page" };
+
 /** The custom view the rows of a database of this type have now (its plugin installed). */
 export const rowViewOf = (dataType: DataType | undefined): RowView | undefined => (dataType ? ROW_VIEWS.find((v) => v.dataType === dataType && isInstalled(v.plugin)) : undefined);
+
+/** The custom view of a database's rows: its plugin's, else its own detail page when it has a template for one. */
+export const rowViewFor = (schema: { dataType?: DataType; rowTemplate?: string } | undefined): RowView | undefined => rowViewOf(schema?.dataType) ?? (schema?.rowTemplate ? DETAIL_VIEW : undefined);
 
 const has = (doc: Doc): boolean => (doc.content ?? []).some((n) => n.type === "rowView");
 
 const blank = (n: DocNode): boolean => n.type === "paragraph" && !n.content?.length;
 const viewOfRow = (row: ReturnType<typeof getPage>): RowView | undefined => {
   const db = row?.dbId && !row.archivedAt ? getDatabase(row.dbId) : null;
-  return db ? rowViewOf(db.schema.dataType) : undefined;
+  return db ? rowViewFor(db.schema) : undefined;
 };
 
 /**

@@ -46,5 +46,15 @@ const ALL: ViewAppMeta[] = [TEMPLATE_VIEW, AGENDA_VIEW, DEBTS_VIEW, CASES_VIEW, 
 export const viewAppMeta = (app: string): ViewAppMeta | undefined => ALL.find((m) => m.app === app);
 
 /** The rows' own pages drawn from a template (a person's, a case's) — by the row view's id (row-views.ts). */
-const PAGES: ViewAppMeta[] = [PERSON_PAGE, CASE_PAGE];
+/** Any database's own detail page (its rowTemplate): the row as its page's top — its fields, its lifecycle. */
+export const DETAIL_PAGE: ViewAppMeta = {
+  app: "detail",
+  label: "Detail page",
+  parts: [],
+  actions: [],
+  appData: "",
+  defaultTemplate: () => '<header title="{{ title }}"/>\n<transitions history=true/>',
+};
+
+const PAGES: ViewAppMeta[] = [PERSON_PAGE, CASE_PAGE, DETAIL_PAGE];
 export const rowViewMeta = (id: string): ViewAppMeta | undefined => PAGES.find((m) => m.app === id);

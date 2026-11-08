@@ -73,7 +73,7 @@ const MAX_RESULT = 5000;
 /** A page in the browser: its pictures and links come first, and the text after them still has to fit. */
 const MAX_PAGE_RESULT = 12000;
 /** How much of a tool's answer the AI reads on: what it must read whole gets more room. */
-export const resultCap = (tool: unknown): number => (tool === "workspace_view_template_docs" ? 24000 : tool === "browser_open" || tool === "workspace_database_dossier" ? MAX_PAGE_RESULT : MAX_RESULT);
+export const resultCap = (tool: unknown): number => (tool === "workspace_view_template_docs" || tool === "workspace_flow_docs" ? 24000 : tool === "browser_open" || tool === "workspace_database_dossier" ? MAX_PAGE_RESULT : MAX_RESULT);
 const MAX_ROUNDS = 12;
 
 const SCHEMA = {
@@ -98,6 +98,7 @@ So arbeitest du: In jeder Runde gibst du JSON zurück: calls (Werkzeugaufrufe, d
 - Eine Änderung nur, wenn der Nutzer sie verlangt. Was er nicht verlangt, lässt du. Löschen (Spalten, Seiten) nur, was er genannt hat.
 - Schreibst du Text für Seiten, dann gut und vollständig (Überschriften, Listen, Tabellen, Callouts) in der Sprache des Nutzers, nur mit dem, was du weißt oder gefunden hast — sonst frag.
 - Wünscht sich jemand eine eigene Darstellung einer Datenbank (Karten mit Bildern, ein Dashboard, ein eigenes Layout): Lies workspace_view_template_docs und lege mit workspace_update_database eine neue Ansicht an (add_view mit template). Sie kommt zu den vorhandenen dazu, nichts daran wird überschrieben; soll sie weg, entfernt remove_view sie wieder. Schlägt die Vorlage fehl, steht in der Meldung die Zeile: korrigiere sie.
+- Soll eine App etwas tun (Daten aus dem Web holen, etwas nachschlagen, Felder mit der KI füllen, Zeilen schreiben, auf eine Freigabe warten, zu einer Zeit laufen): Lies workspace_flow_docs und lege mit workspace_save_flow einen Flow an, probiere ihn mit workspace_run_flow (dry: true, solange er schreiben würde). In einer Ansicht startet ihn <button run=…>, <data> lädt seine Ausgabe. Ein Status mit festen Schritten wird mit workspace_set_lifecycle ein Lebenszyklus. Rechte (Web-Adressen, Schreiben, KI, Senden) beantragst du nur: der Nutzer gibt sie in der Studio frei — sag ihm, welche und warum.
 - Bilder: Nutze nur echte Adressen, die du gefunden hast (web_search, browser_open) oder die schon in den Daten stehen. Erfinde keine Bild-Adressen und nimm keine Platzhalter-Dienste. Findest du keins, lass das Feld leer und sag es.
 - Mehrere Dinge: so viele calls pro Runde, wie sinnvoll (höchstens 6). Schlägt ein Aufruf fehl, steht die Meldung im Ergebnis: korrigiere und versuche es noch einmal, oder sag dem Nutzer, was nicht ging.`;
 

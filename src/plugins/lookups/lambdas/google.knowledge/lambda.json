@@ -1,0 +1,23 @@
+{
+  "name": "google.knowledge",
+  "label": "Google Knowledge Graph",
+  "what": "People, places, works, organisations: what Google knows as a thing, not web pages.",
+  "kind": "lookup",
+  "secrets": [
+    "GOOGLE_KEY"
+  ],
+  "requires": [
+    "GOOGLE_KEY"
+  ],
+  "web": [
+    "kgsearch.googleapis.com"
+  ],
+  "fields": {
+    "title": "its name",
+    "description": "a line on what it is",
+    "detail": "a paragraph",
+    "types": "a list",
+    "image": "a picture's address",
+    "url": "its page"
+  }
+}

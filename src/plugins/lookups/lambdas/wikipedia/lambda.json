@@ -1,0 +1,17 @@
+{
+  "name": "wikipedia",
+  "label": "Wikipedia",
+  "what": "Articles of Wikipedia, in the user's language.",
+  "kind": "lookup",
+  "credit": "Text from Wikipedia, CC BY-SA.",
+  "web": [
+    "*.wikipedia.org"
+  ],
+  "fields": {
+    "title": "the article's title",
+    "description": "a line on what it is",
+    "summary": "its first paragraph",
+    "image": "the article's picture",
+    "url": "the article"
+  }
+}

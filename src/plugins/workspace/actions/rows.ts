@@ -206,7 +206,7 @@ export async function rowViewAction(rowId: number) {
   return run(async () => {
     const row = store.getPage(Number(rowId));
     const db = row?.dbId ? store.getDatabase(row.dbId) : null;
-    const view = (await import("../row-views")).rowViewOf(db?.schema.dataType);
+    const view = (await import("../row-views")).rowViewFor(db?.schema);
     // What its page's template is drawn of: the row (computed, as its database's views see it), the database's schema, its own template.
     const data = view && row?.dbId ? store.rowsOf(row.dbId) : null;
     const current = data?.rows.find((r) => r.id === Number(rowId)) ?? null;

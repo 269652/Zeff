@@ -4,12 +4,14 @@ import { LOOKUP_PAGE, workspaceLookups, type LookupHit, type LookupSource, type 
 import { markdownToDoc } from "./doc";
 import { valuesToCells } from "./mcp-db";
 import * as store from "./store";
+import { flowLookupSources } from "./flows/recipes";
+import { lambdaLookupSources } from "./lambdas/sources";
 
 /** What a view's <lookup> asks: the installed plugins' sources, a search, and the hit picked as a row. Server only. */
 
 const MAX_HITS = 8;
 
-export const lookupSources = (): LookupSource[] => workspaceLookups.list().flatMap((c) => c.impl);
+export const lookupSources = (): LookupSource[] => [...workspaceLookups.list().flatMap((c) => c.impl), ...lambdaLookupSources(), ...flowLookupSources()];
 
 function sourceOf(id: string): LookupSource {
   const all = lookupSources();

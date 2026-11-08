@@ -90,6 +90,7 @@ const headerAccount = () => {
   return { current: chip(currentAccount()), list: listAccounts().map(chip) };
 };
 import { Toaster } from "@/components/Toaster";
+import { FlowAsks } from "@/plugins/workspace/ui/flow-asks";
 import { LockWatcher } from "@/components/LockWatcher";
 import { lockEnabled } from "@/lib/lock/shared";
 import { SetupGate } from "@/components/SetupGate";
@@ -175,6 +176,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <LockWatcher enabled={lockEnabled()} />
           <HashHighlight />
           <Toaster />
+          {/* What flows ask you (a check-in, an approval): a card on every page. */}
+          {!setupPending && installedPlugins().has("workspace") && <FlowAsks />}
         </I18nProvider>
       </body>
     </html>

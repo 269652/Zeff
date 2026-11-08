@@ -34,6 +34,8 @@ export type ViewData = {
   state: Record<string, string>;
   /** What the app loaded (figures, lists of objects). */
   app: Record<string, unknown>;
+  /** What flows gave: a <data name="x">'s output, a button's into="x" — data.x; data.x_status "loading" | "ok" | "error", data.x_error. */
+  data?: Record<string, unknown>;
   db: { id: number; title: string };
   now?: Date;
   labels?: Labels;
@@ -102,6 +104,8 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   // The bigger blocks (ui/view-blocks.tsx).
   header: T({ title: "text", subtitle: "text", icon: "text" }),
   toolbar: T({}),
+  // A ⋯ button whose dropdown holds the children (toggles, buttons used now and then).
+  menu: T({ label: "text", tip: "text" }),
   // A channel's mark (Gmail, Outlook, Teams, WhatsApp, Signal, any mailbox): ui ChannelLogo.
   logo: T({ name: "text", size: { oneOf: ["sm", "lg"] } }, true),
   // In a row: whether it flowed into todos — a dot for one, a badge with their number for several (ui TodoMark).
@@ -130,7 +134,11 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   table: T({ source: "list", columns: "text", sum: "text", empty: "text" }, true),
   chart: T({ source: "list", kind: { oneOf: ["bar", "column", "line", "pie"] }, group: "text", value: "text", calc: { oneOf: ["count", "sum", "avg"] } }, true),
   selected: T({ empty: "text" }),
-  button: T({ action: "text", label: "text", icon: "text", request: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text" }, true),
+  button: T({ action: "text", label: "text", icon: "text", request: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text", run: "text", with: "text", into: "text", done: "text", then: "text", transition: "text", note: { oneOf: ["true", "false"] } }, true),
+  // A flow's output loaded into data.<name> — again whenever what it is called with changes (flows/).
+  data: T({ name: "text", flow: "text", with: "text", when: "text", debounce: "int" }, true),
+  // A row's lifecycle: its transitions as buttons (only those it can take now enabled) and its way so far.
+  transitions: T({ history: { oneOf: ["true", "false"] } }, true),
   search: T({ bind: "text", placeholder: "text" }, true),
   // A field that finds things elsewhere: the one picked becomes a row (lookup-point.ts).
   // A database as a body of knowledge (dossier.ts): a question to its rows, what they say together.
@@ -196,6 +204,7 @@ function resolve(ctx: Ctx, path: string): { found: boolean; value: unknown } {
   if (h === "rows" && !rest.length) return { found: true, value: new RowList(ctx.data.rows) };
   if (h === "state") return { found: true, value: rest.length ? (ctx.state[rest.join(".")] ?? null) : ctx.state };
   if (h === "app") return { found: true, value: walk(ctx.data.app, rest) ?? null };
+  if (h === "data") return { found: true, value: walk(ctx.data.data ?? {}, rest) ?? null };
   if (h === "db") return { found: true, value: walk(ctx.data.db, rest) ?? null };
   if (h === "now") return { found: true, value: localDay(ctx.data.now ?? new Date()) };
   if (h === "this") return { found: true, value: ctx.item ? walk(ctx.item, rest) : ctx.row ? (rest.length ? fieldOf(ctx, ctx.row, rest.join(".")) : ctx.row.title) : null };
@@ -384,6 +393,9 @@ const LIST_FILTERS: Record<string, (v: unknown, a: (string | number)[], ctx: Ctx
   euro: (v, a, ctx) => (numOf(plain(v)) === null ? "" : money(numOf(plain(v))!, ctx.data.locale ?? "de-DE", typeof a[0] === "number" ? a[0] : undefined)),
   number: (v, a, ctx) => (numOf(plain(v)) === null ? "" : numOf(plain(v))!.toLocaleString(ctx.data.locale ?? "de-DE", { maximumFractionDigits: typeof a[0] === "number" ? a[0] : 2 })),
 };
+
+/** The filters a view's values and collections take (the editor's completion). */
+export const viewFilterNames = (): string[] => [...new Set([...Object.keys(LIST_FILTERS), ...Object.keys(CARD_FILTERS)])].sort();
 
 function pipe(src: string, ctx: Ctx, line: number): unknown {
   let parts: string[];
@@ -724,6 +736,15 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       return [{ t: "selected", a: { row: String(row.id) }, c: drawList(n.kids, withRow(ctx, row)) }];
     }
     case "button": {
+      // A flow run (run="name") or a lifecycle's transition (transition="name") instead of an action.
+      if (a.run || a.transition) {
+        if (a.action) return (err("A button runs an action, a flow (run=) or a transition (transition=) — one of them."), []);
+        if (a.transition && !ctx.row && !a.row) return (err("“transition” moves a row on — put the button in a list's item, an {{#each rows}} or <selected>."), []);
+        if (a.into && !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(a.into)) return (err(`into="${a.into}": a name (data.${a.into} holds the output).`), []);
+        const out: Record<string, string> = { ...a, action: a.run ? "run" : "transition" };
+        if (ctx.row && !a.row) out.row = String(ctx.row.id);
+        return [{ t: "button", a: out, c: [] }];
+      }
       const action = a.action ?? "";
       const known = ACTIONS[action];
       if (!known && !ctx.actions.has(action)) return (err(`There is no action “${action}” — there are ${[...Object.keys(ACTIONS), ...ctx.actions].join(", ")}.`), []);
@@ -759,6 +780,13 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       if (!a.name || !ctx.parts.has(a.name)) return (err(`There is no part “${a.name ?? ""}” — this view has ${[...ctx.parts].join(", ") || "none"}.`), []);
       return [{ t: "part", a: { ...a, ...(ctx.row ? { row: String(ctx.row.id) } : {}) }, c: kids() }];
     }
+    case "data":
+      if (!a.name || !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(a.name)) return (err('<data> needs name="…" (a name: data.<name> holds the output).'), []);
+      if (!a.flow) return (err('<data> needs flow="…" (the flow whose output it loads).'), []);
+      return [{ t: "data", a, c: [] }];
+    case "transitions":
+      if (!ctx.row) return (err("<transitions/> shows a row's lifecycle — put it in <selected> or a row's own page."), []);
+      return [{ t: "transitions", a: { ...a, row: String(ctx.row.id) }, c: [] }];
     case "todomark":
       if (!ctx.row) return (err("<todomark/> marks a row — put it in a list's item, a timeline or <selected>."), []);
       return [{ t: "todomark", a: { row: String(ctx.row.id) }, c: [] }];
@@ -860,7 +888,7 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     "DATA: <list source=\"rows | …\" select=true open=true spacing=roomy empty=\"…\">item template</list>, <cards source=\"…\" cols=3>item template</cards>, <table source=\"rows | …\" columns=\"title, Status, [Due]\" sum=\"Amount\" empty=\"…\"/>, <chart kind=bar|column|line|pie source=\"rows\" group=\"Status\" value=\"Amount\" calc=count|sum|avg/>, <selected empty=\"…\">template of the row picked (a list with select=true picks)</selected>, <field name=\"Status\"/> (a row's property, editable), <datatable source=\"app.list | …\" empty=\"…\"><column label=\"…\" align=right nowrap=true foot=\"{{ … }}\">cell template (the item's fields by name)</column>…</datatable> (a table of any list).",
     "STATE: <state name=\"dir\" value=\"owe\"/> (a default), <tabs bind=\"dir\" options=\"owe:Label, owed:Label:3\"/> (:3 — a count beside the label), <select bind=… options=… label=…/>, <search bind=\"q\" placeholder=…/> (use it: rows | search(state.q)), <toggle bind=\"done\" label=…/> (state.done is \"true\"/\"\").",
     "PANES: <panes><pane title=\"…\" aside=\"3\" width=300>…</pane><pane title=\"…\" flush=true><ask/></pane><pane title=\"…\" width=360>…</pane></panes> — an app's screen: columns as high as the window, each scrolling by itself, one under the other on a phone. width: pixels, without it a column takes the room left. flush: no padding, for what fills its pane (<ask>).",
-    "PAGE: <header title=\"…\" subtitle=\"…\" icon=\"📓\">buttons on its right</header> (a view's top, instead of <heading>), <toolbar>search, filters, buttons</toolbar> (a line with a rule under it), <cover src= h=200 title= subtitle=/> (a wide picture), <callout tone=info|good|warn|bad title=\"…\" icon=\"…\">text</callout>, <empty icon=\"📭\" title=\"…\" text=\"…\">a button</empty> (nothing here yet: what to do), <kv min=200><pair label=\"…\">value</pair>…</kv> (facts, label over value), <steps><step title=\"…\" state=done|active|todo>text</step>…</steps>, <quote cite=\"…\">text</quote>, <divider label=\"…\"/>, <avatar src= name=\"…\" size=32/> (initials without a picture), <logo name=\"{{ Channel }}\" size=sm|lg/> (a channel's mark: Gmail, Outlook, Teams, WhatsApp, Signal, E-Mail; in <tabs> a label \"logo-gmail Gmail\" shows the mark alone), <todomark/> (in a row: a dot when it flowed into a todo, a badge ☑ n for several), <progress value= max= label=\"…\" tone= show=true/> (show: the percent), <sparkline values=\"1,4,2\" wide=true/>. <tile> also takes icon=\"📈\" trend=\"+12 %\" spark=\"1,4,2\"; <button> also icon=\"➕\".",
+    "PAGE: <header title=\"…\" subtitle=\"…\" icon=\"📓\">buttons on its right</header> (a view's top, instead of <heading>), <toolbar>search, filters, buttons</toolbar> (a line with a rule under it), <menu label=\"⋯\" tip=\"…\">toggles, buttons</menu> (what is used now and then, behind one button: a dropdown),<cover src= h=200 title= subtitle=/> (a wide picture), <callout tone=info|good|warn|bad title=\"…\" icon=\"…\">text</callout>, <empty icon=\"📭\" title=\"…\" text=\"…\">a button</empty> (nothing here yet: what to do), <kv min=200><pair label=\"…\">value</pair>…</kv> (facts, label over value), <steps><step title=\"…\" state=done|active|todo>text</step>…</steps>, <quote cite=\"…\">text</quote>, <divider label=\"…\"/>, <avatar src= name=\"…\" size=32/> (initials without a picture), <logo name=\"{{ Channel }}\" size=sm|lg/> (a channel's mark: Gmail, Outlook, Teams, WhatsApp, Signal, E-Mail; in <tabs> a label \"logo-gmail Gmail\" shows the mark alone), <todomark/> (in a row: a dot when it flowed into a todo, a badge ☑ n for several), <progress value= max= label=\"…\" tone= show=true/> (show: the percent), <sparkline values=\"1,4,2\" wide=true/>. <tile> also takes icon=\"📈\" trend=\"+12 %\" spark=\"1,4,2\"; <button> also icon=\"➕\".",
     "COLLECTIONS: <gallery source=\"rows\" image=\"{{ Poster }}\" alt=\"{{ title }}\" ratio=2:3|1:1|16:9|3:2 min=150 empty=\"…\">caption</gallery> (a click opens the row), <timeline source=\"rows | sort('Date', 'desc')\" date=\"{{ Date | date }}\" empty=\"…\">item</timeline>, <board source=\"rows\" group=\"Status\" none=\"…\">card</board> (columns by a select or status; a dragged card takes the column's value), <groups source=\"rows\" by=\"Status\"><section title=\"{{ group }}\" aside=\"{{ rows | count }}\"><list source=\"rows\">…</list></section></groups> (what is inside repeats per value: rows is that group's, group its name). page=20 more=\"Show more\" on list, cards, gallery, timeline: that many, and a button for the next.",
     "ENTRY: <facets bind=\"s\" field=\"Status\" all=\"All\"/> (filter pills with counts; narrow with rows | only('Status', state.s)), <quickadd placeholder=\"…\" values=\"Status=Open\"/> (a line: Enter adds a row by its title), <form fields=\"title, Status, Due\" title=\"…\" label=\"Add\" done=\"…\"/> (several fields at once).",
     "LOOKUP: <lookup source=\"tmdb.movies\" placeholder=\"…\" map=\"Poster=poster, Year=year, title=title\" unique=\"TMDB ID\" open=false language=\"de-DE\"/> — a field that searches elsewhere with suggestions; the one picked becomes a row, its fields into the properties of map (Property=field; the properties must exist; title: the row's title, by default its title). unique: a property that tells it is there already, so it isn't added twice. open=true: opens the row. The sources are listed with the language for the AI, and under Settings → Lookups.",
@@ -868,6 +896,7 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     `BUTTONS: <button action=… label=\"…\" row=\"{{ id }}\" (the row it acts on, outside a row) variant=primary|plain|quiet|danger|link confirm=\"…\" print=true (also on paper) disabled=\"{{ … }}\" wide=true keys=\"N\" (its key, shown in the tooltip)/> — actions: ${Object.entries(ACTIONS)
       .map(([k, v]) => `${k} (${v.what}${v.row ? "; in a row" : ""})`)
       .join(", ")}${actions.length ? `, ${actions.map((x) => `${x.name} (${x.description})`).join(", ")}` : ""}.`,
+    'FLOWS (what the app does on the server — a web request, a lookup, the AI, rows written; built in the Studio or with workspace_save_flow): <button run="flow.name" with="q={{ state.q }}, n=5" into="result" done="Saved." then="state=value" label="…"/> runs a flow (in a row: the row is its `row`), its output in data.result; <data name="films" flow="movie.search" with="query={{ state.q }}" when="{{ state.q }}" debounce=400/> loads a flow\'s output into data.films, again whenever with= changes (when=: only while it is filled) — data.films_status is loading|ok|error, data.films_error the error. Show it: {{#each data.films.hits}}…{{/each}}, <datatable source="data.films.hits">. LIFECYCLE (a database whose status follows transitions): <button transition="Approve" label="…" note=true/> in a row moves it on (its guard and required fields checked on the server), <transitions history=true/> in <selected>: the row\'s transitions as buttons and its way so far.',
     "FILTERS for collections: where(\"Field\", \"value\") or where(\"Field\", \">\", 5) (=, !=, >, <, >=, <=, contains, empty, filled), only(\"Field\", state.s) (where, or all while nothing is picked), sort(\"Field\", \"desc\"), limit(5), search(state.q), count, sum(\"Field\"), avg(\"Field\"), min(\"Field\"), max(\"Field\"), pluck(\"Field\").",
     "FILTERS for values: host (an address's site), euro (euro(0): whole euros), number(2), percent, hours, date, relative, chip, upper, lower, truncate(40), clamp(3), default(\"—\"), join(\", \"), first, last, count, check, bold, muted, small, code, link, img(80), bar(max), initials.",
     "NAV: <nav title=\"…\"><entry label=\"…\" icon=\"📥\" state=\"scope\" value=\"inbox\" n=\"{{ … }}\" group=\"…\"/>…</nav> — the view's sidebar (beside the view, or — its setting — in the Workspace tree under the database); an entry sets the view's state, opens a row (row=\"{{ id }}\" — in {{#each}} the row by itself) or goes to an address (href). E.g. the newest five: {{#each rows | sort('Date', 'desc') | limit(5)}}<entry label=\"{{ title }}\" group=\"Newest\"/>{{/each}}.",

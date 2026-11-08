@@ -44,7 +44,7 @@ const noSubscribe = () => () => {};
 
 /** A database on a page: its views (table, board, list, gallery, calendar), filters, sorts, groups, and the rows in place. */
 
-export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }: { initial: DatabaseData | null; dbId: number; viewId?: string; onView?: (id: string) => void; embedded?: boolean }) {
+export function DatabaseView({ initial, dbId, viewId, onView, embedded = false, openCode = false, bare = false, codeHead }: { initial: DatabaseData | null; dbId: number; viewId?: string; onView?: (id: string) => void; embedded?: boolean; /** Without its bar of views, search, filter and sort (the Studio lists the views itself). */ bare?: boolean; /** The code panel's header start (the Studio's title and buttons). */ codeHead?: React.ReactNode; /** An app view opens with its code (the Studio): closed, it stays closed for that view. */ openCode?: boolean }) {
   const t = useT();
   const router = useRouter();
   const api = useDatabase(initial, dbId);
@@ -134,7 +134,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const hiddenCount = data?.schema.hiddenRows?.length ? data.rows.filter((r) => data.schema.hiddenRows!.includes(r.id)).length : 0;
 
   // An app's view as code (its template being written — the view shows the draft), and what is wrong with the draft.
-  const [code, setCode] = useState<{ viewId: string; draft: string } | null>(null);
+  const [code, setCodeRaw] = useState<{ viewId: string; draft: string } | null>(null);
+  const [dismissed, setDismissed] = useState<string | null>(null);
   const [codeErrors, setCodeErrors] = useState<TplError[]>([]);
   // The row New just made and opened (with the cells it got): closed again untouched, it goes — New leaves no empty rows behind.
   const fresh = useRef<{ id: number; madeWith: string[] } | null>(null);
@@ -144,6 +145,12 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   if (api.error && !data) return <p className="alert-error text-sm">{api.error}</p>;
   if (!data || !view) return <p className="py-6 text-sm text-zinc-500">{t("Loading …")}</p>;
 
+  // (openCode: the app view picked starts with its code open — until it is closed.)
+  const opened = code?.viewId === view.id ? code : openCode && view.type === "app" && dismissed !== view.id ? { viewId: view.id, draft: view.template ?? viewAppMeta(view.app ?? "")?.defaultTemplate(t) ?? "" } : code;
+  const setCode = (c: { viewId: string; draft: string } | null) => {
+    if (!c) setDismissed(opened?.viewId ?? null);
+    setCodeRaw(c);
+  };
   const schema = data.schema;
   // A day list (day-lists.ts): its own tabs first — Today unless a view was picked.
   const dayTab: DayTab | null = isDayList(schema) ? (isDayTab(current) ? current : current && schema.views.some((v) => v.id === current) ? null : "day:today") : null;
@@ -369,7 +376,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
   const appScreen = view.type === "app" && /<panes\b/.test(view.template ?? "");
   return (
     <div className="space-y-2">
-      <div ref={setBar} className={`flex items-center gap-1 ${narrow ? "flex-nowrap" : "flex-wrap"}`}>
+      <div ref={setBar} className={`${bare ? "hidden" : "flex"} items-center gap-1 ${narrow ? "flex-nowrap" : "flex-wrap"}`}>
         {/* Narrow (a phone): one row — the views scroll sideways instead of wrapping into rows of their own. */}
         <div className={`flex min-w-0 items-center gap-0.5 ${narrow ? "flex-1 flex-nowrap overflow-x-auto [scrollbar-width:none]" : "flex-wrap"}`}>
           {/* The views are the tabs; "+" beside them is no tab. */}
@@ -481,8 +488,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           narrow={narrow}
           hiddenCount={hiddenCount}
           hasPerson={!!personProp}
-          codeOpen={code?.viewId === view.id}
-          toggleCode={() => setCode(code?.viewId === view.id ? null : { viewId: view.id, draft: view.template ?? viewAppMeta(view.app!)?.defaultTemplate(t) ?? "" })}
+          codeOpen={opened?.viewId === view.id}
+          toggleCode={() => setCode(opened?.viewId === view.id ? null : { viewId: view.id, draft: view.template ?? viewAppMeta(view.app!)?.defaultTemplate(t) ?? "" })}
           resetTemplate={() => (setView({ ...view, template: undefined }), setCode(null))}
           open={(d) => ({ card: setCardOpen, schema: setSchemaOpen, form: setFormOpen, repeat: setRepeatOpen, protect: setProtectOpen, share: setShareOpen, pipeline: setPipelineOpen, receive: setReceiveOpen, agents: setAgentsOpen })[d](true)}
           setView={setView}
@@ -557,18 +564,20 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
       <PipelineSummaries pipeline={schema.pipeline} />
       <DatabaseAgents dbId={dbId} />
       {dayTab && <DayListTab tab={dayTab} dbId={dbId} data={data} set={api.set} saved={api.saved} reload={api.reload} logView={(logId) => <DatabaseView initial={null} dbId={logId} embedded />} />}
-      {!dayTab && view.type === "app" && code?.viewId === view.id && (
+      {!dayTab && view.type === "app" && opened?.viewId === view.id && (
         <ViewCode
           view={view}
           dbId={dbId}
+          head={codeHead}
+          fields={[schema.titleName, ...schema.properties.filter((p) => !p.id.startsWith("src")).map((p) => p.name)]}
           meta={viewAppMeta(view.app ?? "") ?? TEMPLATE_VIEW}
-          draft={code.draft}
+          draft={opened.draft}
           setDraft={(draft) => setCode({ viewId: view.id, draft })}
           errors={codeErrors}
           onClose={() => setCode(null)}
           onSave={(template) => {
             setView({ ...view, template: template ?? undefined });
-            setCode(null);
+            setCodeRaw(null);
             toast(template ? t("The view is saved.") : t("The view is back to its default."), { tone: "ok" });
           }}
           onNewView={(template, name) => {
@@ -579,7 +588,7 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false }
           }}
         />
       )}
-      {!dayTab && view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} onNew={setAppNew} ctx={ctx} rowOps={rowOps} src={code?.viewId === view.id ? code.draft : undefined} onErrors={code?.viewId === view.id ? setCodeErrors : undefined} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
+      {!dayTab && view.type === "app" && <AppViewHost view={view} data={data} rows={rows} openRow={openRow} reload={() => void api.reload()} onNew={setAppNew} ctx={ctx} rowOps={rowOps} src={opened?.viewId === view.id ? opened.draft : undefined} onErrors={opened?.viewId === view.id ? setCodeErrors : undefined} fallback={<TableView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />} />}
       {!dayTab && view.type === "table" && picked.size > 0 && <BulkBar ids={[...picked]} schema={schema} dbId={dbId} onChanged={() => void api.reload()} onClear={() => setPicked(new Set())} onHide={(hide) => (api.changeSchema((s) => hideRows(s, [...picked], hide)), setPicked(new Set()))} />}
       {!dayTab && view.type === "table" && <TableView count={countInTable ? countText : undefined} onForm={onForm} fill={!embedded} sel={selection} view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} setView={setView} onSchema={() => setSchemaOpen(true)} justAdded={justAdded} onEdited={() => setJustAdded(null)} />}
       {!dayTab && view.type === "board" && <BoardView view={view} rows={rows} visible={visible} schema={schema} ctx={ctx} api={api} labels={labels} openRow={openRow} newRow={newRow} onForm={onForm} />}

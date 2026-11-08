@@ -13,6 +13,7 @@ import { asAgent } from "./agent-scope";
 import * as store from "./store";
 import { registerWorkspaceDbTools, valuesToCells } from "./mcp-db";
 import { registerMetricTools } from "./mcp-metrics";
+import { registerFlowTools } from "./flows/mcp";
 import { mayRead, refusal } from "@/lib/boundaries";
 import { labelResolver, pageLabel } from "./sensitivity";
 
@@ -355,6 +356,7 @@ export function registerWorkspaceTools(real: McpServer, h: Helpers): void {
   );
 
   registerWorkspaceDbTools(server, h);
+  registerFlowTools(server, h);
   // The Kennzahlen (named numbers) — read, and made from a formula.
   registerMetricTools(server, h);
 }

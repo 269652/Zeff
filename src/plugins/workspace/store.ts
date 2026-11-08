@@ -24,6 +24,7 @@ import { dayLogIds, followListRename, isDayList, startDayIfNew, writeDayLog } fr
 import { evalAuto, followRenames, withStamps } from "./auto-fill";
 import { cellFormula, cellText, coerceCellValue, computeRows, defaultSchema, formulaKey, isComputed, isFormulaInput, shareOf, SYSTEM_PROPS, newProperty, normalizeSchema, pageKind, propById, takesCellFormula, TITLE, type DbSchema, type PageKind, type Labels, type Property, type Row } from "./model";
 import { checkFormula } from "./formula";
+import { afterLifecycleChange, lifecycleGate, transitionNote } from "./flows/lifecycle";
 import { localDay, monthKey } from "@/lib/dates";
 
 function db() {
@@ -910,6 +911,9 @@ export function setCell(rowId: number, propId: string, value: unknown, opts: { q
   const v = formula ? null : coerceCell(p, value);
   const textOf = (x: unknown) => formula ?? cellText(p, x);
   protectCheck(row.dbId, "set", { [p.id]: textOf(v) }, rowId);
+  // A lifecycle's field: only along its transitions (a strict one refuses any other change — flows/lifecycle.ts).
+  const transition = schema.lifecycle ? lifecycleGate(schema, { id: rowId, title: row.title, cells: props }, propId, v) : null;
+  const stateWas = schema.lifecycle?.field === propId ? ((props[propId] as string | undefined) ?? null) : undefined;
   const was = cellFormula({ cells: props }, propId) ?? cellText(p, props[propId]);
   if (v === null) delete props[propId];
   else props[propId] = v;
@@ -923,6 +927,7 @@ export function setCell(rowId: number, propId: string, value: unknown, opts: { q
   syncLinkedFrom(rowId); // (its copies in other databases follow — links.ts)
   afterJobChange(rowId, propId); // (a card moved into Ready: the agents take it — jobs.ts)
   emitRowEvent("row.changed", { db: row.dbId, row: rowId, field: p.name, value: cellText(p, v) });
+  if (stateWas !== undefined && schema.lifecycle && stateWas !== v) afterLifecycleChange({ dbId: row.dbId, rowId, lifecycle: schema.lifecycle, transition, from: stateWas, to: typeof v === "string" ? v : null, ...transitionNote() });
   afterTodoRowChange(rowId);
   // The fields filled by themselves that watch this one (auto-fill.ts) — a timed tick's time among them.
   if (was !== cellText(p, v)) fillAuto(row.dbId, rowId, propId, opts.depth ?? 0);

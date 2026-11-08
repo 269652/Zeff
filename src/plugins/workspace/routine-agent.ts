@@ -8,7 +8,7 @@ import { addAgentGuard } from "./agent-scope";
 import { docToMarkdown } from "./doc";
 import { recordOfRow } from "./automation";
 import { finishRun, getRoutine, routineOfWorkRun, runningAgentRuns, setWorkRun, startRun, type Scope, type Trigger } from "./routines";
-import { getPage, tree } from "./store";
+import { getPage, rowsOf, tree } from "./store";
 
 /**
  * Agents: a page whose blocks are the instructions of an LLM run. It runs as a worker on a todo of its own (so it shows in the Code
@@ -34,6 +34,23 @@ const triggerText = (tr: Trigger): string => {
 };
 
 /** What the agent is told: its instructions (the blocks of its page), where it is placed, what started it, what it may do. */
+/**
+ * The databases beside an agent (its siblings, and under its parent's other pages one level down): each with its fields, how many rows
+ * and its newest date — what it can draw on without being told (the journal's reviews read the check-ins put in the journal).
+ */
+function dataNear(pageId: number, parentId: number | null): string[] {
+  const all = tree();
+  const near = all.filter((x) => x.kind === "database" && !x.system && x.id !== pageId && (x.parentId === parentId || (parentId !== null && all.some((p) => p.id === x.parentId && p.parentId === parentId && p.kind !== "database"))));
+  return near.slice(0, 15).flatMap((x) => {
+    const d = rowsOf(x.id);
+    if (!d) return [];
+    const dates = d.schema.properties.filter((p) => p.type === "date");
+    const newest = dates.length ? d.rows.map((r) => String(r.cells[dates[0].id] ?? "")).filter(Boolean).sort().at(-1) : d.rows.map((r) => r.createdAt).sort().at(-1);
+    const fields = d.schema.properties.filter((p) => !p.id.startsWith("src") && !["created_time", "updated_time", "button"].includes(p.type)).slice(0, 12).map((p) => `${p.name} (${p.type})`).join(", ");
+    return [`- „${x.title || "Untitled"}“ (Datenbank ${x.id}): ${d.rows.length} Zeilen${newest ? `, jüngste ${String(newest).slice(0, 16)}` : ""}${fields ? ` — Felder: ${fields}` : ""}`];
+  });
+}
+
 export function buildAgentPrompt(pageId: number, trigger: Trigger, ctx: { row?: number; payload?: Record<string, string> } = {}): string {
   const page = getPage(pageId);
   const routine = getRoutine(pageId);
@@ -62,6 +79,7 @@ export function buildAgentPrompt(pageId: number, trigger: Trigger, ctx: { row?: 
     parent ? `Eltern-Seite: ${line(parent, 400).slice(2)}` : "Du stehst auf oberster Ebene.",
     ...(siblings.length ? ["Geschwister-Seiten:", ...siblings.map((s) => line(s, 200))] : []),
     ...(children.length ? ["Unterseiten von dir:", ...children.map((s) => line(s, 200))] : []),
+    ...((near) => (near.length ? ["", "## Daten neben dir", "Diese Datenbanken stehen neben dir. Was davon zu deiner Aufgabe passt (z. B. Check-ins, Messungen, Protokolle des Zeitraums), lies mit workspace_query_database und nimm es in deine Arbeit auf, auch wenn deine Anweisungen es nicht eigens nennen:", ...near] : []))(dataNear(pageId, page.parentId)),
     "",
     "## Was dich gestartet hat",
     triggerText(trigger),
@@ -74,7 +92,7 @@ export function buildAgentPrompt(pageId: number, trigger: Trigger, ctx: { row?: 
     routine.permissions.personal
       ? "Persönliche Daten (als „persönlich“ markierte Quellen und Datenbanken: WhatsApp, Signal, Journal …) darfst du lesen; als „geheim“ markierte nie."
       : "Als „persönlich“ oder „geheim“ markierte Quellen und Datenbanken (WhatsApp, Signal, Journal …) kannst du nicht lesen — sie werden dir verweigert.",
-    "Den Workspace erreichst du über die Zeff-MCP-Tools workspace_* (workspace_tree, workspace_search, workspace_read_page, workspace_write_page, workspace_update_row …). Lies zuerst, was du brauchst; erfinde nichts. Schließ mit einer kurzen Zusammenfassung ab, was du getan hast.",
+    "Den Workspace erreichst du über die Zeff-MCP-Tools workspace_* (workspace_tree, workspace_search, workspace_read_page, workspace_write_page, workspace_update_row …). Lies zuerst, was du brauchst; erfinde nichts. Fehlt dir etwas, das nur der Nutzer weiß (eine Entscheidung, eine Angabe), frag ihn mit zeff_ask — es wartet auf die Antwort, du machst mit ihr weiter. Schließ mit einer kurzen Zusammenfassung ab, was du getan hast.",
   ].join("\n");
 }
 

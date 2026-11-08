@@ -19,6 +19,7 @@ import { Cell } from "./cells";
 import { EmptyState, Sparkline, viewBlock } from "./view-blocks";
 import { LookupField } from "./view-lookup";
 import { AskBox, DossierBox } from "./view-notebook";
+import { FlowData, runFlowButton, transitionButton, TransitionsBlock } from "./view-flows";
 import { WidgetBlock } from "./widget-node";
 
 /**
@@ -55,13 +56,16 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
   const state = useMemo(() => ({ ...defaults, ...own, ...fromTree }), [defaults, own, fromTree]);
   const setState = useCallback((name: string, value: string) => setOwn((s) => ({ ...s, [name]: value })), []);
   const app = module.useAppData(props, state);
+  // What flows gave (a <data>'s output, a button's into=): data.<name>.
+  const [flowData, setFlowData] = useState<Record<string, unknown>>({});
+  const setData = useCallback((_name: string, patch: Record<string, unknown>) => setFlowData((d) => ({ ...d, ...patch })), []);
   const labels: Labels = useMemo(() => ({ person: (id) => props.data.labels.people[id] ?? `#${id}`, page: (id) => props.data.labels.pages[id]?.title ?? `#${id}`, todo: (id) => props.data.labels.todos[id] ?? `T-${id}` }), [props.data.labels]);
   // What the rows' pages say (their first lines — a task ticked or not, a list's bullet): `text` in a row.
   const previews = props.data.extras?.previews;
   const texts = useMemo(() => Object.fromEntries(Object.entries(previews ?? {}).map(([id, lines]) => [id, lines.map((l) => (l.kind === "task" ? `${l.checked ? "☑" : "☐"} ${l.text}` : l.text)).join("\n")])), [previews]);
   const r = useMemo(
-    () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE", current, texts }, { parts: meta.parts, actions: meta.actions }),
-    [src, props.rows, schema, state, app.data, props.data.id, props.data.title, labels, meta, current, texts],
+    () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, data: flowData, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE", current, texts }, { parts: meta.parts, actions: meta.actions }),
+    [src, props.rows, schema, state, app.data, flowData, props.data.id, props.data.title, labels, meta, current, texts],
   );
   // Its sidebar (a <nav>): beside the view — or, the view's setting, in the Workspace tree, whose entry picked (?nav=) sets the state.
   const nav = useMemo(() => navOf(r.nodes), [r.nodes]);
@@ -132,6 +136,10 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
           app.reload();
           return toast(r.ok ? r.reply || t("Done.") : r.error, { tone: r.ok ? "ok" : "error" });
         }
+        case "run":
+          return await runFlowButton(a, { row: rowId, setData, setState, reload: () => (props.reload(), app.reload()), t });
+        case "transition":
+          return await transitionButton(a, { row: rowId, reload: () => (props.reload(), app.reload()), t });
         case "print":
           return window.print();
         case "reload":
@@ -276,6 +284,10 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         );
       case "todomark":
         return <TodoMark key={key} mark={props.data.extras?.todoMarks?.[Number(a.row)]} />;
+      case "data":
+        return <FlowData key={key} a={a} setData={setData} row={current?.id} />;
+      case "transitions":
+        return <TransitionsBlock key={key} row={Number(a.row)} history={a.history === "true"} reload={props.reload} />;
       case "task": {
         // A box of a row's checklist: the n-th task of its page, ticked there.
         const rowId = Number(a.row);

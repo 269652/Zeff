@@ -6,7 +6,7 @@
  */
 export { newId } from "./model/util";
 export { PROP_TYPES, PROP_LABELS, COLORS, ROLLUP_FNS, CALC_FNS, VIEW_TYPES, WIDTH_MIN, WIDTH_MAX, FIT_MIN, FIT_MAX, DEFAULT_COLUMN, withWidths, fitWidth, hideRows, shownRows, todoColumns, DETAIL_MODULES, PAGE_KINDS, pageKind, kindIcon, TITLE, CREATED, UPDATED, columnOrder, moveBefore, hasDependents, removeProperty, emptyFilter, isFilter, isComputed, defaultOptions, retype, newProperty, newView, defaultSchema, choiceColor, normalizeSchema, propById, isDayList, SYSTEM_PROPS, panelProperties, shareOf } from "./model/schema";
-export type { PropType, Option, RollupFn, CalcFn, Property, Cond, Rule, Filter, Sort, ViewType, View, AgentsConfig, DbSchema, TodoListSpec, Protect, DetailModule, Row, PageKind } from "./model/schema";
+export type { PropType, Option, RollupFn, CalcFn, Property, Cond, Rule, Filter, Sort, ViewType, View, AgentsConfig, DbSchema, TodoListSpec, Protect, DetailModule, Row, PageKind, Lifecycle, Transition } from "./model/schema";
 export { PIPELINE_SOURCES, DATA_TYPES, MAIL_ACCOUNTS, MESSAGE_CHANNELS, FILTER_OPS, normalizePipeline } from "./model/pipeline";
 export type { DataType, MailCriteria, MessageCriteria, KnowledgeCriteria, PipelineSource, JiraCriteria, PipelineStep, Pipeline, FilterRule } from "./model/pipeline";
 export { dateRange, coerceCellValue, dropBetween, formulaKey, takesCellFormula, isFormulaInput, cellFormula, columnUnit, hasCellFormulas, sheetColumns, sheetRef, withCell, isEmptyValue, noLabels, cellText, formatNumber } from "./model/values";

@@ -1,0 +1,39 @@
+{
+  "name": "tmdb.tv",
+  "label": "TMDB: series",
+  "what": "TV series: from TMDB with a key, from TVmaze without one (no key needed; then in English, and no tmdb_id).",
+  "kind": "lookup",
+  "credit": "This product uses the TMDB API but is not endorsed or certified by TMDB. Without a key: data from TVmaze (CC BY-SA).",
+  "secrets": [
+    "TMDB_KEY"
+  ],
+  "web": [
+    "api.themoviedb.org",
+    "api.tvmaze.com"
+  ],
+  "fields": {
+    "title": "the title in the language asked for",
+    "original_title": "the original title",
+    "overview": "what it is about",
+    "tagline": "its tagline",
+    "year": "the year it came out (a number)",
+    "rating": "TMDB's rating, 0–10 (a number)",
+    "genres": "a list",
+    "cast": "the first actors, a list",
+    "language": "the original language, a code",
+    "poster": "the poster's address (w500)",
+    "backdrop": "a wide picture's address",
+    "tmdb_id": "TMDB's id: a good `unique`",
+    "id": "the same as tmdb_id",
+    "url": "its page at TMDB",
+    "imdb_url": "its page at IMDb",
+    "first_air_date": "YYYY-MM-DD",
+    "status": "running or ended, in words",
+    "seasons": "a number",
+    "episodes": "a number",
+    "runtime": "an episode's minutes (a number)",
+    "creators": "a list",
+    "networks": "a list"
+  },
+  "timeoutMs": 30000
+}

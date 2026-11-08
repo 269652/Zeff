@@ -25,4 +25,6 @@ export const isViaSource = (): boolean => sourceScope.getStore() === true;
 export function emitRowEvent(event: RowEvent, info: RowEventInfo): void {
   if (isQuiet()) return;
   void import("./routine-triggers").then((m) => m.fireRoutineEvent(event, info)).catch(() => undefined);
+  // (The flows that listen too — flows/engine.ts.)
+  void import("./flows/engine").then((m) => m.fireFlowEvent({ event, db: info.db, row: info.row, field: info.field, value: info.value })).catch(() => undefined);
 }

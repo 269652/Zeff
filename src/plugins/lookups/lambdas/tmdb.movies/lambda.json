@@ -1,0 +1,31 @@
+{
+  "name": "tmdb.movies",
+  "label": "TMDB: films",
+  "what": "Films, in the user's language: from TMDB with a key, from Wikidata and Wikipedia without one (no key needed; then no rating).",
+  "kind": "lookup",
+  "credit": "This product uses the TMDB API but is not endorsed or certified by TMDB. Without a key: data from Wikidata and Wikipedia.",
+  "secrets": ["TMDB_KEY"],
+  "web": ["api.themoviedb.org", "www.wikidata.org", "*.wikipedia.org"],
+  "fields": {
+    "title": "the title in the language asked for",
+    "original_title": "the original title",
+    "overview": "what it is about",
+    "tagline": "its tagline",
+    "year": "the year it came out (a number)",
+    "rating": "TMDB's rating, 0–10 (a number)",
+    "genres": "a list",
+    "cast": "the first actors, a list",
+    "language": "the original language, a code",
+    "poster": "the poster's address (w500)",
+    "backdrop": "a wide picture's address",
+    "tmdb_id": "TMDB's id: a good `unique`",
+    "id": "the same as tmdb_id",
+    "url": "its page at TMDB",
+    "imdb_url": "its page at IMDb",
+    "release_date": "YYYY-MM-DD",
+    "runtime": "minutes (a number)",
+    "director": "a list",
+    "countries": "a list"
+  },
+  "timeoutMs": 30000
+}

@@ -1,0 +1,20 @@
+{
+  "name": "web.search",
+  "label": "Web search",
+  "what": "Pages and PDFs of the web, through the Web search plugin; the document's whole text becomes the row's page.",
+  "kind": "lookup",
+  "slow": true,
+  "web": [
+    "*"
+  ],
+  "zeff": [
+    "web.search",
+    "web.read"
+  ],
+  "fields": {
+    "title": "the page's title",
+    "snippet": "a few lines from it",
+    "url": "its address"
+  },
+  "timeoutMs": 120000
+}
