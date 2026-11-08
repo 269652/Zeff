@@ -95,3 +95,40 @@ test("not a plan at all: an empty plan and a problem", () => {
   assert.equal(plan.nodes.length, 0);
   assert.ok(problems.length > 0);
 });
+
+const chainPlan = {
+  title: "T",
+  years: 1,
+  nodes: [
+    { key: "y1", kind: "year", parent: null, title: "Y" },
+    { key: "p1", kind: "phase", parent: "y1", title: "P1" },
+    { key: "a", kind: "skill", parent: "p1", title: "A", path: "Grundlagen" },
+    { key: "b", kind: "skill", parent: "p1", title: "B", path: "Grundlagen", requires: ["a"] },
+    { key: "c", kind: "skill", parent: "p1", title: "C", path: "Grundlagen", requires: ["b"] },
+    { key: "p2", kind: "phase", parent: "y1", title: "P2", requires: ["p1"] },
+    { key: "d", kind: "skill", parent: "p2", title: "D", path: "Grundlagen" },
+    { key: "e", kind: "skill", parent: "p2", title: "E", path: "Grundlagen", requires: ["d"] },
+  ],
+};
+
+test("a plan's shape: a chain of skills on one path is linear", async () => {
+  const { normalizePlan, planShape } = await import("@/plugins/learn/plan");
+  const s = planShape(normalizePlan(chainPlan).plan);
+  assert.equal(s.paths, 1);
+  assert.deepEqual(s.widths, [1, 1]);
+  assert.equal(s.linear, true);
+});
+
+test("a plan's shape: parallel skills on several paths branch", async () => {
+  const { normalizePlan, planShape } = await import("@/plugins/learn/plan");
+  const branching = {
+    ...chainPlan,
+    nodes: chainPlan.nodes.map((n) =>
+      n.key === "b" ? { ...n, path: "Anschauung" } : n.key === "c" ? { ...n, requires: ["a"], path: "Rechnen" } : n.key === "e" ? { ...n, requires: [], path: "Physik" } : n,
+    ),
+  };
+  const s = planShape(normalizePlan(branching).plan);
+  assert.equal(s.paths, 4);
+  assert.deepEqual(s.widths, [2, 2], "b and c both follow a; d and e side by side");
+  assert.equal(s.linear, false);
+});

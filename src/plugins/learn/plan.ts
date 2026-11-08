@@ -124,3 +124,36 @@ export function normalizePlan(raw: unknown): { plan: Plan; problems: string[] } 
     problems,
   };
 }
+
+/**
+ * How a plan branches: its skills' paths, and per phase the most skills side by side (the widest layer of its skills by
+ * their requirements inside the phase). Linear: fewer than two paths, or most phases a single chain of skills.
+ */
+export function planShape(plan: Plan): { paths: number; widths: number[]; linear: boolean } {
+  const skills = plan.nodes.filter((n) => n.kind === "skill");
+  const paths = new Set(skills.map((s) => s.path).filter(Boolean)).size;
+  const widths: number[] = [];
+  for (const phase of plan.nodes.filter((n) => n.kind === "phase")) {
+    const inPhase = skills.filter((s) => s.parent === phase.key);
+    if (!inPhase.length) continue;
+    const keys = new Set(inPhase.map((s) => s.key));
+    const depth = new Map<string, number>();
+    const depthOf = (key: string, seen: Set<string>): number => {
+      if (depth.has(key)) return depth.get(key)!;
+      if (seen.has(key)) return 0;
+      seen.add(key);
+      const s = inPhase.find((x) => x.key === key)!;
+      const d = (s.requires ?? []).filter((r) => keys.has(r)).reduce((m, r) => Math.max(m, depthOf(r, seen) + 1), 0);
+      depth.set(key, d);
+      return d;
+    };
+    const count = new Map<number, number>();
+    for (const s of inPhase) {
+      const d = depthOf(s.key, new Set());
+      count.set(d, (count.get(d) ?? 0) + 1);
+    }
+    widths.push(Math.max(...count.values()));
+  }
+  const branching = widths.filter((w) => w >= 2).length;
+  return { paths, widths, linear: paths < 2 || branching * 2 < widths.length };
+}

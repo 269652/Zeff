@@ -6,6 +6,7 @@
  */
 import { failResearch, getCourse, savePlan, setResearching } from "./store";
 import { fetchSources, type FoundSource } from "./sources";
+import { normalizePlan, planShape } from "./plan";
 import type { Plan } from "./shared";
 
 /** The plan's shape for the AI (shared.ts's Plan). */
@@ -63,13 +64,27 @@ Baue daraus einen hierarchischen, mehrjährigen Plan:
 - "year" → "phase" → "skill" → "step". Ein Step ist ein kleiner Trittstein (eine Lerneinheit von etwa 15–45 Minuten mit einem klaren, prüfbaren Lernziel). Jede Skill hat 3–8 Steps.
 - Plane realistisch für jemanden, der neben dem Beruf lernt (etwa 3–5 Stunden pro Woche); setze "years" entsprechend (1–5).
 - "requires": was vorher sitzen muss (Keys anderer Knoten — keine Zyklen). Was eine Phase voraussetzt, gilt für alles in ihr.
-- "path": Gib den Skills Pfade — Richtungen, zwischen denen man wählen kann (z. B. "Grundlagen", "Riemannsche Geometrie", "Anwendungen in der Physik"; bei Sprachen "Konversation", "Grammatik", "Lesen"). So entsteht ein Skill-Tree mit Verzweigungen, kein linearer Kurs.
+- "path": Gib den Skills Pfade — Richtungen, zwischen denen man wählen kann (z. B. "Grundlagen", "Riemannsche Geometrie", "Anwendungen in der Physik"; bei Sprachen "Konversation", "Grammatik", "Lesen"). Mindestens 3 Pfade im ganzen Plan, "Grundlagen" nur für das wirklich Gemeinsame.
+- Der Plan ist ein Skill-Tree, ein Graph mit Breite — keine Kette: Jede Phase hat 4–8 Skills, davon stehen mehrere parallel (sie setzen dasselbe voraus, nicht einander). Ein Skill setzt nur voraus, was er wirklich braucht — oft 2 Skills aus verschiedenen Pfaden (Zusammenführung), manchmal keinen aus seiner Phase. Verzweigungen, Zusammenführungen und Wahlpfade (Vertiefungen, die man auslassen kann) sind erwünscht; "requires" von Skill zu Skill nur, wenn es fachlich nötig ist.
+- Auch Steps eines Skills dürfen parallel stehen (nicht jeder Step braucht den vorigen).
 - "objectives": 1–3 konkrete, prüfbare Lernziele je Knoten ("die Gaußkrümmung einer Rotationsfläche berechnen").
 - "sources": Ids der passenden Quellen je Knoten. "minutes" je Step. "xp" kannst du weglassen.
 - Keys sind kurz und eindeutig (y1, y1.p1, y1.p1.s1, y1.p1.s1.a …).
 - Titel und Texte auf Deutsch (Fachbegriffe dürfen bleiben).
 
 Antworte nur mit dem Plan im verlangten JSON-Format.`;
+}
+
+/** The plan sent back once because it came out as a chain: branch it out, keep its content. */
+export function reworkPrompt(raw: unknown): string {
+  return `Der folgende Lernplan ist zu linear: Seine Skills bilden fast eine Kette auf einem Pfad. Baue ihn zu einem echten Skill-Tree um — behalte Inhalte, Keys, Steps und Quellen, ändere vor allem "requires" und "path" (und teile Skills, wo es hilft):
+- mindestens 3 Pfade, "Grundlagen" nur für das wirklich Gemeinsame;
+- in jeder Phase mehrere Skills parallel (sie setzen dasselbe voraus, nicht einander), Zusammenführungen (ein Skill braucht 2 aus verschiedenen Pfaden) und Wahlpfade;
+- "requires" nur, wo es fachlich nötig ist — keine Kette.
+
+Antworte nur mit dem ganzen umgebauten Plan im verlangten JSON-Format.
+
+${JSON.stringify(raw)}`;
 }
 
 type Deps = { fetch?: typeof fetch; ask?: (prompt: string) => Promise<unknown> };
@@ -87,8 +102,15 @@ export async function runResearch(courseId: number, deps: Deps = {}): Promise<vo
   setResearching(courseId);
   try {
     const found = await fetchSources(c.topic, { fetch: deps.fetch });
-    const raw = (await (deps.ask ?? askClaude)(researchPrompt(c, found))) as Partial<Plan> | null;
+    const ask = deps.ask ?? askClaude;
+    let raw = (await ask(researchPrompt(c, found))) as Partial<Plan> | null;
     if (!raw || typeof raw !== "object") throw new Error("The research answered no plan.");
+    // A chain isn't a skill tree: sent back once to branch out; kept as it is when the rework fails or isn't better.
+    const shape = planShape(normalizePlan(raw).plan);
+    if (shape.linear) {
+      const again = (await ask(reworkPrompt(raw)).catch(() => null)) as Partial<Plan> | null;
+      if (again && typeof again === "object" && Array.isArray(again.nodes) && !planShape(normalizePlan(again).plan).linear) raw = { ...again, sources: [...(raw.sources ?? []), ...(again.sources ?? [])] };
+    }
     // The sources: what the services found (those the plan names first), and what the AI added.
     const named = new Set((raw.nodes ?? []).flatMap((n) => n.sources ?? []));
     const own = (raw.sources ?? []).filter((s) => s && !found.some((f) => f.id === s.id));

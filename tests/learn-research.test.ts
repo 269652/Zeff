@@ -75,7 +75,7 @@ test("research: sources found, the plan asked for with them, stored — the cour
   await runResearch(id, {
     fetch: (async (u: string | URL) => new Response(String(u).includes("openalex") ? JSON.stringify(OPENALEX) : String(u).includes("arxiv") ? ARXIV : JSON.stringify(S2))) as typeof fetch,
     ask: async (p: string) => {
-      prompt = p;
+      prompt ||= p; // (the first: a one-skill plan is also sent back once to branch out)
       return PLAN;
     },
   });
@@ -100,4 +100,57 @@ test("research failing: the course says why; no sources is no reason to stop", a
   await runResearch(id2, { fetch: (async () => new Response("{}")) as typeof fetch, ask: async () => Promise.reject(new Error("The AI didn't answer.")) });
   assert.equal(store.getCourse(id2)?.status, "failed");
   assert.match(store.getCourse(id2)?.error ?? "", /didn't answer/);
+});
+
+const LINEAR = {
+  title: "Kette",
+  summary: "",
+  years: 1,
+  nodes: [
+    { key: "y1", kind: "year", parent: null, title: "Y" },
+    { key: "p1", kind: "phase", parent: "y1", title: "P" },
+    { key: "a", kind: "skill", parent: "p1", title: "A", path: "Grundlagen" },
+    { key: "a1", kind: "step", parent: "a", title: "A1" },
+    { key: "b", kind: "skill", parent: "p1", title: "B", path: "Grundlagen", requires: ["a"] },
+    { key: "b1", kind: "step", parent: "b", title: "B1" },
+  ],
+};
+const BRANCHED = {
+  ...LINEAR,
+  title: "Baum",
+  nodes: [...LINEAR.nodes.map((n) => (n.key === "b" ? { ...n, requires: [], path: "Anwendungen" } : n)), { key: "c", kind: "skill", parent: "p1", title: "C", path: "Theorie", requires: ["a", "b"] }, { key: "c1", kind: "step", parent: "c", title: "C1" }],
+};
+
+test("research: a linear plan is sent back once to branch out — the branched one is kept", async () => {
+  const store = await import("@/plugins/learn/store");
+  const { runResearch } = await import("@/plugins/learn/research");
+  const id = store.createCourse({ topic: "Differentialgeometrie", goal: "", level: "" });
+  const prompts: string[] = [];
+  await runResearch(id, { fetch: (async () => new Response("{}")) as typeof fetch, ask: async (p: string) => (prompts.push(p), prompts.length === 1 ? LINEAR : BRANCHED) });
+  assert.equal(prompts.length, 2);
+  assert.match(prompts[1], /zu linear/);
+  assert.match(prompts[1], /"Kette"/, "the first plan goes along to be reworked");
+  assert.equal(store.getCourse(id)?.title, "Baum");
+});
+
+test("research: when the rework fails or is no better, the first plan stays", async () => {
+  const store = await import("@/plugins/learn/store");
+  const { runResearch } = await import("@/plugins/learn/research");
+  const id = store.createCourse({ topic: "x", goal: "", level: "" });
+  let n = 0;
+  await runResearch(id, { fetch: (async () => new Response("{}")) as typeof fetch, ask: async () => (++n === 1 ? LINEAR : Promise.reject(new Error("timeout"))) });
+  assert.equal(store.getCourse(id)?.status, "ready");
+  assert.equal(store.getCourse(id)?.title, "Kette");
+  const id2 = store.createCourse({ topic: "y", goal: "", level: "" });
+  let m = 0;
+  await runResearch(id2, { fetch: (async () => new Response("{}")) as typeof fetch, ask: async () => (++m, LINEAR) });
+  assert.equal(m, 2, "asked once more, not in a loop");
+  assert.equal(store.getCourse(id2)?.title, "Kette");
+});
+
+test("the research prompt asks for breadth: parallel skills, several paths, a graph", async () => {
+  const { researchPrompt } = await import("@/plugins/learn/research");
+  const p = researchPrompt({ topic: "Französisch", goal: "", level: "" }, []);
+  assert.match(p, /parallel/i);
+  assert.match(p, /keine Kette/i);
 });

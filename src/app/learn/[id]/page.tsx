@@ -6,8 +6,10 @@ import { t } from "@/lib/i18n/server";
 import { localDay } from "@/lib/dates";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { SkillTree, type SkillTreeSkill } from "@/components/skill-tree/SkillTree";
+import { SkillMap, type SkillMapNode } from "@/components/skill-tree/SkillMap";
+import { skillGraph } from "@/plugins/learn/map";
 import { isInstalled } from "@/plugins/state";
-import { DailyGoal, DeleteCourse, InterestsEditor, RetryResearch, StudySlots } from "@/plugins/learn/ui/CourseControls";
+import { DailyGoal, DeleteCourse, InterestsEditor, ReplanCourse, RetryResearch, StudySlots } from "@/plugins/learn/ui/CourseControls";
 import { badgeLabel } from "@/plugins/learn/ui/badges";
 
 type Props = { params: Promise<{ id: string }> };
@@ -54,6 +56,7 @@ export default async function CoursePage({ params }: Props) {
             <RetryResearch id={id} label={t("Try again")} />
           </div>
         )}
+        <ReplanCourse id={id} />
         <DeleteCourse id={id} />
       </div>
     );
@@ -86,6 +89,21 @@ export default async function CoursePage({ params }: Props) {
     });
   };
   const years = nodes.filter((n) => n.kind === "year");
+  const byKey = new Map(nodes.map((n) => [n.key, n]));
+  const mapNodes: SkillMapNode[] = skillGraph(nodes).map((g) => {
+    const s = byKey.get(g.key)!;
+    return {
+      key: s.key,
+      title: s.title,
+      status: status(s.key),
+      path: s.path,
+      group: g.phase,
+      after: g.after,
+      summary: s.summary,
+      steps: (kids.get(s.key) ?? []).filter((n) => n.kind === "step").map((st) => ({ key: st.key, title: st.title, status: status(st.key), href: stepHref(st.key), minutes: st.minutes })),
+    };
+  });
+  const mapGroups = nodes.filter((n) => n.kind === "phase").map((p) => ({ key: p.key, title: p.title }));
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -165,29 +183,37 @@ export default async function CoursePage({ params }: Props) {
         </section>
       )}
 
+      <section className="space-y-2">
+        <h2 className="text-base font-semibold">{t("Skill map")}</h2>
+        <SkillMap nodes={mapNodes} groups={mapGroups} label={t("Skill map: {course}", { course: course.title })} />
+      </section>
+
+      <details className="space-y-3">
+        <summary className="cursor-pointer text-sm font-medium text-zinc-600 dark:text-zinc-400">{t("By phase, as a list")}</summary>
       {years.map((y) => (
-        <section key={y.key} className="space-y-3">
-          <h2 className="text-base font-semibold">
-            {y.title} <span className="text-sm font-normal text-zinc-500">· {status(y.key) === "mastered" ? t("mastered") : status(y.key) === "locked" ? t("locked") : t("open")}</span>
-          </h2>
-          {(kids.get(y.key) ?? [])
-            .filter((p) => p.kind === "phase")
-            .map((p) => {
-              const st = status(p.key);
-              return (
-                <details key={p.key} className="card p-3" open={st === "active" || st === "available"}>
-                  <summary className="cursor-pointer font-medium">
-                    {p.title} <span className="text-sm font-normal text-zinc-500">· {st === "mastered" ? t("mastered") : st === "locked" ? t("locked") : st === "active" ? t("in progress") : t("open")}</span>
-                  </summary>
-                  {p.summary && <p className="mt-1 max-w-[75ch] text-sm text-zinc-500">{p.summary}</p>}
-                  <div className="mt-3">
-                    <SkillTree skills={skillsOf(p.key)} label={t("Skill tree: {phase}", { phase: p.title })} />
-                  </div>
-                </details>
-              );
-            })}
-        </section>
-      ))}
+          <section key={y.key} className="space-y-3">
+            <h2 className="text-base font-semibold">
+              {y.title} <span className="text-sm font-normal text-zinc-500">· {status(y.key) === "mastered" ? t("mastered") : status(y.key) === "locked" ? t("locked") : t("open")}</span>
+            </h2>
+            {(kids.get(y.key) ?? [])
+              .filter((p) => p.kind === "phase")
+              .map((p) => {
+                const st = status(p.key);
+                return (
+                  <details key={p.key} className="card p-3" open={st === "active" || st === "available"}>
+                    <summary className="cursor-pointer font-medium">
+                      {p.title} <span className="text-sm font-normal text-zinc-500">· {st === "mastered" ? t("mastered") : st === "locked" ? t("locked") : st === "active" ? t("in progress") : t("open")}</span>
+                    </summary>
+                    {p.summary && <p className="mt-1 max-w-[75ch] text-sm text-zinc-500">{p.summary}</p>}
+                    <div className="mt-3">
+                      <SkillTree skills={skillsOf(p.key)} label={t("Skill tree: {phase}", { phase: p.title })} />
+                    </div>
+                  </details>
+                );
+              })}
+          </section>
+        ))}
+      </details>
 
       <div className="grid gap-4 lg:grid-cols-2">
         {tree.paths.size > 0 && (
@@ -235,6 +261,7 @@ export default async function CoursePage({ params }: Props) {
         </details>
       )}
       <div className="flex flex-wrap gap-2 border-t border-zinc-200 pt-4 dark:border-zinc-800">
+        <ReplanCourse id={id} />
         <DeleteCourse id={id} />
       </div>
     </div>

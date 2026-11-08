@@ -29,6 +29,24 @@ export function RetryResearch({ id, label }: { id: number; label: string }) {
   );
 }
 
+/** Research and plan the course anew (a new plan: its progress, exercises and cards start over). */
+export function ReplanCourse({ id }: { id: number }) {
+  const t = useT();
+  const [pending, run] = useRun();
+  return (
+    <button
+      type="button"
+      className="btn btn-sm"
+      disabled={pending}
+      onClick={() => {
+        if (confirm(t("Plan the course anew? Claude researches it again and writes a new plan — the progress so far starts over."))) run(() => retryResearchAction(id));
+      }}
+    >
+      {t("Plan anew")}
+    </button>
+  );
+}
+
 /** How much each path interests you (0 skips it in the suggestions, 3 puts it first). */
 export function InterestsEditor({ id, paths, weights }: { id: number; paths: string[]; weights: Record<string, number> }) {
   const t = useT();
