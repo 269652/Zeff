@@ -11,6 +11,7 @@ import { ClaudeSession } from "@/components/work/ClaudeSession";
 import { SessionThread, type SessionTurn } from "@/components/work/SessionThread";
 import { ChatComposer } from "./ChatComposer";
 import { ScrollToEnd } from "./ScrollToEnd";
+import { StuckRun } from "./StuckRun";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Chat") };
@@ -40,6 +41,8 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
   const last = conversation[conversation.length - 1];
   // A live session still running takes the next message (never a second run queued behind it, waiting for its worker).
   const liveRun = [...conversation].reverse().find((r) => !!r.session && r.status === "running");
+  // Running, but no live session answers (Zeff lost it): what comes after would wait for it forever.
+  const stuck = liveRun ? undefined : conversation.find((r) => r.status === "running" && !r.session && !r.live);
   const earlier = chats.filter((c) => c.id !== todoId && runs.has(c.id));
   return (
     // A messenger's shape: the page fills the window (MainArea's full-height pages), the conversation scrolls, the
@@ -79,6 +82,7 @@ export default async function ChatPage({ searchParams }: { searchParams: Promise
           </div>
           <ScrollToEnd target="chat-thread" />
           <div className="max-h-[55%] shrink-0 overflow-y-auto border-t border-zinc-200 pt-2 dark:border-zinc-800">
+            {stuck && <StuckRun runId={stuck.id} />}
             {liveRun ? <ClaudeSession key={liveRun.id} run={liveRun} /> : <ChatComposer runId={last.id} placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Reply …")} />}
           </div>
         </>

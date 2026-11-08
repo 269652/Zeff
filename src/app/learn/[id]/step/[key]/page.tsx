@@ -12,6 +12,7 @@ import { ClaudeSession } from "@/components/work/ClaudeSession";
 import { SessionThread, type SessionTurn } from "@/components/work/SessionThread";
 import { ChatComposer } from "@/app/chat/ChatComposer";
 import { ScrollToEnd } from "@/app/chat/ScrollToEnd";
+import { StuckRun } from "@/app/chat/StuckRun";
 import { LessonButton } from "@/plugins/learn/ui/LessonButton";
 import { LessonWidgets } from "@/plugins/learn/ui/LessonWidgets";
 
@@ -54,6 +55,8 @@ export default async function StepPage({ params }: Props) {
   const last = conversation[conversation.length - 1];
   // A live session still running takes the next message (never a second run queued behind it, waiting for its worker).
   const liveRun = [...conversation].reverse().find((r) => !!r.session && r.status === "running");
+  // Running, but no live session answers (Zeff lost it): what comes after would wait for it forever.
+  const stuck = liveRun ? undefined : conversation.find((r) => r.status === "running" && !r.session && !r.live);
 
   const chat = (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2" aria-label={t("Lesson chat")}>
@@ -69,6 +72,7 @@ export default async function StepPage({ params }: Props) {
           </div>
           <ScrollToEnd target="lesson-thread" />
           <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-zinc-200 pt-2 dark:border-zinc-800">
+            {stuck && <StuckRun runId={stuck.id} />}
             {liveRun ? <ClaudeSession key={liveRun.id} run={liveRun} /> : <ChatComposer runId={last.id} stay placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Answer the teacher …")} />}
           </div>
         </>
