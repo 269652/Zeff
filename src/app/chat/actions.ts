@@ -16,7 +16,8 @@ export async function chatSendAction(v: { text: string; runId?: number }): Promi
     const { startSessionAction } = await import("@/plugins/work/server-actions");
     const session = { permissionMode: "default" };
     let r;
-    if (v.runId) r = await startSessionAction({ instruction: text, continueRunId: Number(v.runId), provider: "claude", session });
+    // (No provider when going on: naming one makes a new run queued behind a running session instead of a message into it.)
+    if (v.runId) r = await startSessionAction({ instruction: text, continueRunId: Number(v.runId), session });
     else {
       const { addChatTodo } = await import("@/lib/chat");
       r = await startSessionAction({ instruction: text, todoId: addChatTodo(text), provider: "claude", session });
