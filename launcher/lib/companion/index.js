@@ -47,6 +47,7 @@ class Companion {
     this.sessions = new Set();
     this.events = null;
     this.pushTimer = null;
+    this.prefixes = new Map(); // account id → its route in Zeff ("/privat"), from Zeff's answers
   }
 
   devices() {
@@ -117,15 +118,32 @@ class Companion {
     };
   }
 
-  async zeff(method, body) {
-    const res = await fetch(`${this.zeffUrl}/api/companion`, {
+  /**
+   * Zeff's /api/companion for an account, under its route ("/privat/api/companion"; null: whichever account Zeff serves
+   * unprefixed — the one in use on the PC). → { status, data }. The routes are learned from Zeff's answers (`accounts`).
+   */
+  async zeff(method, body, account = null) {
+    if (account && !this.prefixes.has(account)) await this.zeff("GET").catch(() => {});
+    if (account && !this.prefixes.has(account)) return { status: 404, data: { error: "unknown account" } };
+    const prefix = account ? this.prefixes.get(account) : "";
+    const res = await fetch(`${this.zeffUrl}${prefix}/api/companion`, {
       method,
       headers: body ? { "content-type": "application/json" } : {},
       body: body ? JSON.stringify(body) : undefined,
       signal: AbortSignal.timeout(30000),
     });
-    if (!res.ok) throw new Error(`Zeff answered ${res.status}`);
-    return res.json();
+    const data = await res.json().catch(() => ({}));
+    if (Array.isArray(data.accounts)) this.prefixes = new Map(data.accounts.map((a) => [a.id, a.prefix]));
+    if (!res.ok && res.status !== 423) throw new Error(data.message ?? data.error ?? `Zeff answered ${res.status}`);
+    return { status: res.status, data };
+  }
+
+  /** What a phone is sent for an account: its todos, or — when the lock guards it — that it's locked (and the accounts). */
+  async snapshotFor(account) {
+    const { status, data } = await this.zeff("GET", null, account);
+    if (status === 423) return { t: "locked", account, accounts: data.accounts ?? [] };
+    if (status !== 200) return { t: "error", re: "sync", message: data.error ?? `Zeff answered ${status}` };
+    return { t: "snapshot", ...data };
   }
 
   attach(s) {
@@ -155,13 +173,22 @@ class Companion {
     this.saveDevices(list);
   }
 
+  /**
+   * A phone's messages. Each session has its account (`s.account`; null until the phone picks one: the PC's own).
+   *   sync {account?}           → snapshot | locked
+   *   account {id}              → switch, then snapshot | locked
+   *   ops {account?, ops}       → applied {account, results} (in that account — a queue made in another account goes there)
+   */
   async handle(s, msg) {
-    if (msg.t === "sync") {
-      s.send({ t: "snapshot", ...(await this.zeff("GET")) });
+    if (msg.t === "sync" || msg.t === "account") {
+      const id = msg.t === "account" ? msg.id : msg.account;
+      if (typeof id === "string" && id) s.account = id;
+      s.send(await this.snapshotFor(s.account ?? null));
     } else if (msg.t === "ops" && Array.isArray(msg.ops)) {
-      const { results } = await this.zeff("POST", { ops: msg.ops });
-      s.send({ t: "applied", results });
-      // The others (and this phone) see the result — Zeff's change event would bring it too, a little later.
+      const account = typeof msg.account === "string" && msg.account ? msg.account : null;
+      const { status, data } = await this.zeff("POST", { ops: msg.ops }, account);
+      s.send({ t: "applied", account, results: data.results ?? [], ...(status === 423 ? { locked: true } : {}) });
+      // The phones see the result — Zeff's change event would bring it too, a little later.
       this.pushSoon(0);
     }
   }
@@ -198,16 +225,19 @@ class Companion {
     void run();
   }
 
-  /** Send the todos to every connected phone, once for a burst of changes. */
+  /** Send the todos to every connected phone (each its account's), once for a burst of changes. */
   pushSoon(ms = 300) {
     clearTimeout(this.pushTimer);
     this.pushTimer = setTimeout(async () => {
-      if (!this.sessions.size) return;
-      try {
-        const snap = await this.zeff("GET");
-        for (const s of this.sessions) s.send({ t: "snapshot", ...snap });
-      } catch (err) {
-        this.log(`companion: todos for the phones failed: ${err.message}`);
+      const byAccount = new Map();
+      for (const s of this.sessions) byAccount.set(s.account ?? null, [...(byAccount.get(s.account ?? null) ?? []), s]);
+      for (const [account, sessions] of byAccount) {
+        try {
+          const msg = await this.snapshotFor(account);
+          for (const s of sessions) if (s.account === account || (s.account == null && account === null)) s.send(msg);
+        } catch (err) {
+          this.log(`companion: todos for the phones failed: ${err.message}`);
+        }
       }
     }, ms);
   }

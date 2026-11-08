@@ -168,6 +168,9 @@ function renderPhone(st) {
     return $("devices").replaceChildren();
   }
   $("pair").disabled = false;
+  // Windows Firewall: false → our rule is missing (null: no Windows Firewall, or it couldn't be read).
+  $("firewall").hidden = st.firewall !== false;
+  $("fwPort").textContent = String(st.port);
   const list = st.devices.map((d) =>
     el(
       "div",
@@ -183,6 +186,13 @@ function renderPhone(st) {
 }
 
 const loadPhone = () => window.zeff.companion().then(renderPhone);
+$("fwAllow").onclick = async () => {
+  $("fwAllow").disabled = true;
+  const r = await window.zeff.companionFirewall();
+  $("fwAllow").disabled = false;
+  if (r.result === "failed") $("phoneNote").textContent = "The firewall rule couldn't be added — see the launcher's log.";
+  renderPhone(r.state);
+};
 $("pair").onclick = async () => {
   const name = `Phone ${new Date().toLocaleDateString()}`;
   const r = await window.zeff.companionPair(name);

@@ -1,21 +1,17 @@
 // The phone's end of the WebRTC connection to Zeff on the PC — no signaling server: the pairing (from the
 // QR code) has the PC's address, its UDP port and its certificate's fingerprint, so we write the PC's
-// answer ourselves. Our offer's ICE ufrag and password are one random string the PC reads off our first
-// STUN check (see launcher/lib/companion/host.js). The browser checks the PC's certificate against the
-// fingerprint; we prove ourselves with an HMAC of the PC's challenge and our device secret.
+// answer ourselves. Our offer stays as the browser made it (browsers no longer let a page rewrite its ICE
+// ufrag and password); the PC learns our password from the ufrag we give it — "zeff2<our password>" — which
+// our first STUN check carries (libp2p's WebRTC Direct v2; see launcher/lib/companion/host.js). The browser
+// checks the PC's certificate against the fingerprint; we prove ourselves with an HMAC of the PC's challenge
+// and our device secret.
 
-const UFRAG_PREFIX = "zeff1";
+const UFRAG_PREFIX = "zeff2";
 const PART = 60 * 1024;
 const MAX_MESSAGE = 256 * 1024;
 
-function randomUfrag() {
-  const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-  const bytes = crypto.getRandomValues(new Uint8Array(32));
-  return UFRAG_PREFIX + Array.from(bytes, (b) => abc[b % abc.length]).join("");
-}
-
-/** The PC's answer, as it will be: ICE ufrag = password = ours, its fingerprint, it the DTLS server. */
-function pcAnswer({ host, port, fingerprint }, ufrag) {
+/** The PC's answer, as it will be: ufrag "zeff2<our password>", our password as its own, its fingerprint, it the DTLS server. */
+function pcAnswer({ host, port, fingerprint }, ourPwd) {
   const ip = host.includes(":") ? "IP6" : "IP4";
   return [
     "v=0",
@@ -27,8 +23,8 @@ function pcAnswer({ host, port, fingerprint }, ufrag) {
     `m=application ${port} UDP/DTLS/SCTP webrtc-datachannel`,
     "a=mid:0",
     "a=setup:passive",
-    `a=ice-ufrag:${ufrag}`,
-    `a=ice-pwd:${ufrag}`,
+    `a=ice-ufrag:${UFRAG_PREFIX}${ourPwd}`,
+    `a=ice-pwd:${ourPwd}`,
     `a=fingerprint:sha-256 ${fingerprint}`,
     "a=sctp-port:5000",
     `a=max-message-size:${MAX_MESSAGE}`,
@@ -75,11 +71,12 @@ function assembler() {
 export async function connectTo(pairing, host, timeoutMs = 8000) {
   const pc = new RTCPeerConnection({ iceServers: [] });
   const dc = pc.createDataChannel("zeff", { negotiated: true, id: 0 });
-  const ufrag = randomUfrag();
   const offer = await pc.createOffer();
-  const sdp = offer.sdp.replace(/a=ice-ufrag:[^\r\n]*/g, `a=ice-ufrag:${ufrag}`).replace(/a=ice-pwd:[^\r\n]*/g, `a=ice-pwd:${ufrag}`);
-  await pc.setLocalDescription({ type: "offer", sdp });
-  await pc.setRemoteDescription({ type: "answer", sdp: pcAnswer({ host, port: pairing.port, fingerprint: pairing.fingerprint }, ufrag) });
+  await pc.setLocalDescription(offer);
+  const ufrag = /a=ice-ufrag:([^\r\n]+)/.exec(offer.sdp)?.[1];
+  const pwd = /a=ice-pwd:([^\r\n]+)/.exec(offer.sdp)?.[1];
+  if (!ufrag || !pwd) throw new Error("no ICE credentials in the offer");
+  await pc.setRemoteDescription({ type: "answer", sdp: pcAnswer({ host, port: pairing.port, fingerprint: pairing.fingerprint }, pwd) });
 
   const read = assembler();
   const listeners = { message: [], close: [] };

@@ -16,10 +16,22 @@ const el = (tag, props = {}, ...kids) => {
 
 const DE = navigator.language?.toLowerCase().startsWith("de");
 const WORDS = {
-  "Pair your phone": ["Pair your phone", "Handy koppeln"],
-  welcome1: ["Zeff on your phone: your todos, ticked off here — straight to your PC over your Wi-Fi, with no server in between.", "Zeff auf dem Handy: deine Todos, hier abgehakt — direkt über dein WLAN zum PC, ohne Server dazwischen."],
-  welcome2: ["On the PC: the Zeff icon in the tray → Phone → Pair a phone.", "Am PC: das Zeff-Symbol in der Taskleiste → Phone → Pair a phone."],
-  welcome3: ["Scan the code with this phone's camera and open the link.", "Den Code mit der Kamera dieses Handys scannen und den Link öffnen."],
+  "Zeff on your phone": ["Zeff on your phone", "Zeff auf dem Handy"],
+  welcome1: ["Your todos, ticked off here — straight to Zeff on your PC over your Wi-Fi, with no server in between.", "Deine Todos, hier abgehakt — direkt über dein WLAN zu Zeff auf deinem PC, ohne Server dazwischen."],
+  setupNew: ["Set up Zeff on your PC", "Zeff auf dem PC einrichten"],
+  setupHelp: ["Can't reach Zeff on your PC?", "Zeff auf dem PC nicht erreichbar?"],
+  checksIntro: ["This phone looks for Zeff on your PC over the Wi-Fi. Check:", "Dieses Handy sucht Zeff auf deinem PC über das WLAN. Prüfe:"],
+  check1: ["The PC is on and Zeff is running (the Zeff icon in the taskbar's tray).", "Der PC ist an und Zeff läuft (das Zeff-Symbol unten rechts in der Taskleiste)."],
+  check2: ["This phone is on the same Wi-Fi as the PC (not on mobile data).", "Dieses Handy ist im selben WLAN wie der PC (nicht im Mobilfunk)."],
+  check3: ["Windows lets phones in: Zeff icon → Phone → “Allow…”, if it shows there.", "Windows lässt Handys herein: Zeff-Symbol → Phone → „Allow…“, falls es dort steht."],
+  check4: ["Still nothing: pair again (Zeff icon → Phone → Pair a phone) — the PC's address may have changed.", "Immer noch nichts: neu koppeln (Zeff-Symbol → Phone → Pair a phone) — die Adresse des PCs kann sich geändert haben."],
+  "No Zeff on your PC yet?": ["No Zeff on your PC yet?", "Noch kein Zeff auf dem PC?"],
+  install1: ["On your PC (Windows or Linux), download Zeff from getzeff.com.", "Lade Zeff auf deinem PC (Windows oder Linux) von getzeff.com herunter."],
+  "Download page": ["Download page", "Zum Download"],
+  "Send the link to my PC": ["Send the link to my PC", "Link an meinen PC schicken"],
+  linkCopied: ["Link copied", "Link kopiert"],
+  install2: ["Unzip it and start Zeff (Zeff.exe on Windows). No other installation is needed; the Zeff icon appears in the taskbar's tray.", "Entpacken und Zeff starten (unter Windows Zeff.exe). Sonst ist nichts zu installieren; das Zeff-Symbol erscheint unten rechts in der Taskleiste."],
+  install3: ["Click the Zeff icon → Phone → Pair a phone, and scan the code with this phone's camera.", "Auf das Zeff-Symbol klicken → Phone → Pair a phone, und den Code mit der Kamera dieses Handys scannen."],
   welcome4: ["Phone and PC need to be on the same Wi-Fi to connect. What you tick while away is sent when you're back home.", "Handy und PC müssen im selben WLAN sein. Was du unterwegs abhakst, wird gesendet, sobald du wieder zu Hause bist."],
   live: ["Live", "Verbunden"],
   connecting: ["Connecting …", "Verbinde …"],
@@ -33,6 +45,8 @@ const WORDS = {
   "Flag important": ["Flag important", "Als wichtig markieren"],
   "will be sent": ["will be sent at home", "wird zu Hause gesendet"],
   due: ["due {d}", "fällig {d}"],
+  Account: ["Account", "Konto"],
+  locked: ["This account is locked on the PC (Zeff's lock) — its todos stay there.", "Dieses Konto ist am PC gesperrt (Zeffs Sperre) — seine Todos bleiben dort."],
 };
 const tr = (key, vars = {}) => (WORDS[key]?.[DE ? 1 : 0] ?? key).replace(/\{(\w+)\}/g, (_, k) => vars[k] ?? "");
 document.documentElement.lang = DE ? "de" : "en";
@@ -70,7 +84,15 @@ if (fromLink) {
 navigator.storage?.persist?.().catch(() => {});
 
 let pairing = store.get("pairing", null);
-let snapshot = store.get("snapshot", { at: null, todos: [] });
+// Zeff's accounts: the one shown (null until the PC named one: the PC's own), the list for the switcher, which ones
+// Zeff's lock guards. Each account's todos are kept apart ("snapshot:<id>"); the queue holds every account's
+// changes, each with its account.
+let account = store.get("account", null);
+let accounts = store.get("accounts", []);
+const lockedAccounts = new Set();
+const EMPTY = { at: null, todos: [] };
+const snapshotOf = (id) => (id ? store.get(`snapshot:${id}`, EMPTY) : EMPTY);
+let snapshot = snapshotOf(account);
 let outbox = store.get("outbox", []);
 let conn = null;
 let state = pairing ? "away" : "none";
@@ -81,6 +103,7 @@ const newId = () => crypto.randomUUID?.() ?? `${Date.now().toString(36)}-${Math.
 function view() {
   const todos = new Map(snapshot.todos.map((t) => [t.id, { ...t }]));
   for (const op of outbox) {
+    if ((op.account ?? null) !== account) continue;
     const t = todos.get(op.todoId);
     if (!t) continue;
     t.pending = true;
@@ -94,14 +117,28 @@ function view() {
 
 /** A change of yours: on the phone at once, to the PC now (live) or later (queued). */
 function change(op) {
-  outbox.push({ id: newId(), at: new Date().toISOString(), ...op });
+  outbox.push({ id: newId(), at: new Date().toISOString(), account, ...op });
   store.set("outbox", outbox);
   render();
   flush();
 }
 
+/** The queue to the PC: one message per account (each goes to its own account in Zeff). */
 function flush() {
-  if (conn && outbox.length) conn.send({ t: "ops", ops: outbox });
+  if (!conn || !outbox.length) return;
+  const byAccount = new Map();
+  for (const op of outbox) byAccount.set(op.account ?? null, [...(byAccount.get(op.account ?? null) ?? []), op]);
+  for (const [id, ops] of byAccount) conn.send({ t: "ops", account: id, ops });
+}
+
+/** Show another account: its todos as kept on the phone at once, the PC's fresh ones when connected. */
+function switchTo(id) {
+  if (id === account) return;
+  account = id;
+  store.set("account", id);
+  snapshot = snapshotOf(id);
+  render();
+  conn?.send({ t: "account", id });
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -139,16 +176,21 @@ function render() {
   $("statusText").textContent = state === "none" ? tr("away") : tr(state) + waiting;
   s.hidden = state === "none";
   $("welcome").hidden = !!pairing && state !== "denied";
+  renderSetup();
   $("list").hidden = !pairing;
+  renderAccounts();
   if (!pairing) return;
-  const all = view();
+  const locked = account !== null && lockedAccounts.has(account);
+  $("lockedNote").hidden = !locked;
+  $("lockedNote").textContent = tr("locked");
+  const all = locked ? [] : view();
   // Yours first; the flagged on top, then by when they're due, then the newest.
   const order = (a, b) => (b.flagged - a.flagged) || (a.due ?? "9999").localeCompare(b.due ?? "9999") || b.id - a.id;
   const open = all.filter((t) => t.status === "open" && t.owner !== "other").sort(order);
   const waitingFor = all.filter((t) => t.status === "open" && t.owner === "other").sort(order);
   const done = all.filter((t) => t.status !== "open").sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? ""));
   $("open").replaceChildren(...[...open, ...waitingFor].map(todoItem));
-  $("empty").hidden = open.length + waitingFor.length > 0;
+  $("empty").hidden = locked || !snapshot.at || open.length + waitingFor.length > 0;
   $("empty").textContent = tr("Nothing open.");
   $("doneBox").hidden = !done.length;
   $("doneTitle").textContent = tr("closed", { n: done.length });
@@ -157,6 +199,51 @@ function render() {
     ? `${pairing.name} · ${tr("synced", { time: new Date(snapshot.at).toLocaleString(undefined, { dateStyle: "short", timeStyle: "short" }) })}`
     : tr("never");
 }
+
+/**
+ * Getting to Zeff: with no PC paired, how to get Zeff (download, start, pair) — open. Paired but the PC doesn't answer:
+ * what to check, and the same steps — open while the phone has never reached Zeff (nothing to show), folded once it
+ * has (away from home is normal: the todos are there, ticks wait). Hidden while connected or still trying.
+ */
+let setupMode = null;
+function renderSetup() {
+  const box = $("setup");
+  const mode = !pairing ? "new" : state === "away" ? "help" : null;
+  box.hidden = !mode;
+  if (!mode) return void (setupMode = null);
+  $("setupTitle").textContent = tr(mode === "new" ? "setupNew" : "setupHelp");
+  $("checks").hidden = mode !== "help";
+  // Opened or folded when the situation changes — not over your own click on it.
+  if (mode !== setupMode) box.open = mode === "new" || (!snapshot.at && !accounts.some((a) => snapshotOf(a.id).at));
+  setupMode = mode;
+}
+
+// The download link to the PC: the phone's share sheet (mail, a messenger, nearby sharing) — else the clipboard.
+const DOWNLOAD = "https://getzeff.com/#download";
+$("shareLink").hidden = !navigator.share && !navigator.clipboard;
+$("shareLink").onclick = async () => {
+  try {
+    if (navigator.share) await navigator.share({ title: "Zeff", url: DOWNLOAD });
+    else {
+      await navigator.clipboard.writeText(DOWNLOAD);
+      $("shareLink").textContent = tr("linkCopied");
+    }
+  } catch {
+    // the share sheet was closed
+  }
+};
+
+/** The switcher: only with more than one account; each with its colour, a lock where Zeff's lock guards it. */
+const COLORS = { indigo: "#6366f1", emerald: "#10b981", amber: "#f59e0b", rose: "#f43f5e", sky: "#0ea5e9", violet: "#8b5cf6" };
+function renderAccounts() {
+  const box = $("accountBox");
+  box.hidden = !pairing || accounts.length < 2;
+  if (box.hidden) return;
+  const sel = $("account");
+  sel.replaceChildren(...accounts.map((a) => el("option", { value: a.id, textContent: `${a.locked ? "🔒 " : ""}${a.name}`, selected: a.id === account })));
+  $("accountDot").style.background = COLORS[accounts.find((a) => a.id === account)?.color] ?? "var(--muted)";
+}
+$("account").onchange = (e) => switchTo(e.target.value);
 
 // ---------------------------------------------------------------------------------------------------------------------
 // The connection: tried when the page opens, comes back to the front, the network changes — and every 20 s
@@ -181,7 +268,7 @@ async function tryConnect() {
       render();
     });
     flush();
-    c.send({ t: "sync" });
+    c.send({ t: "sync", account });
   } catch (err) {
     state = err.message === "denied" ? "denied" : "away";
     if (state === "denied") {
@@ -194,19 +281,56 @@ async function tryConnect() {
   }
 }
 
+function setAccounts(list) {
+  if (!Array.isArray(list) || !list.length) return;
+  accounts = list.map(({ id, name, color, locked }) => ({ id, name, color, locked }));
+  store.set("accounts", accounts);
+  lockedAccounts.clear();
+  for (const a of list) if (a.locked) lockedAccounts.add(a.id);
+  // The account shown is gone (deleted on the PC): back to the PC's own.
+  if (account && !accounts.some((a) => a.id === account)) switchTo(list.find((a) => a.current)?.id ?? accounts[0].id);
+}
+
 function onMessage(msg) {
   if (msg.t === "snapshot" && Array.isArray(msg.todos)) {
-    snapshot = { at: msg.at, todos: msg.todos };
-    store.set("snapshot", snapshot);
+    setAccounts(msg.accounts);
+    // The first answer names the account (the PC's own) when the phone hadn't picked one.
+    if (account === null && msg.account) {
+      account = msg.account;
+      store.set("account", account);
+      // Changes queued before any account was known are this one's.
+      for (const op of outbox) op.account ??= account;
+      store.set("outbox", outbox);
+    }
+    store.set(`snapshot:${msg.account}`, { at: msg.at, todos: msg.todos });
+    if (msg.account === account) snapshot = { at: msg.at, todos: msg.todos };
+    render();
+  } else if (msg.t === "locked") {
+    setAccounts(msg.accounts);
+    if (msg.account) lockedAccounts.add(msg.account);
     render();
   } else if (msg.t === "applied" && Array.isArray(msg.results)) {
-    // Done (or no longer needed) on the PC: off the queue. One that failed stays and goes again next time.
+    // Done (or no longer needed) on the PC: off the queue. One that failed (or whose account is locked) stays for next time.
     const settled = new Set(msg.results.filter((r) => r.ok).map((r) => r.id));
     outbox = outbox.filter((op) => !settled.has(op.id));
     store.set("outbox", outbox);
     render();
   }
 }
+
+// A pairing link opened while the app is open (only the #… changes — no new page): take it as at the start.
+addEventListener("hashchange", () => {
+  const p = parsePairing(location.hash);
+  if (!p) return;
+  store.set("pairing", p);
+  history.replaceState(null, "", location.pathname + location.search);
+  pairing = p;
+  conn?.close();
+  conn = null;
+  state = "away";
+  render();
+  tryConnect();
+});
 
 $("status").onclick = () => {
   if (conn) conn.send({ t: "sync" });

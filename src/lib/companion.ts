@@ -30,6 +30,30 @@ export type CompanionOp =
 
 export type CompanionResult = { id: string; ok: boolean; skipped?: string; error?: string };
 
+/**
+ * An account the phone can switch to: `prefix` is the route the launcher asks it under ("/privat"; "" without the
+ * Accounts plugin). `locked`: Zeff's lock guards it (Settings → Lock) — the phone sees that it's there, not its todos.
+ */
+export type CompanionAccount = { id: string; name: string; color: string; prefix: string; locked: boolean; current: boolean };
+
+/** The accounts for the phone's switcher (not the demo). */
+export async function companionAccounts(): Promise<CompanionAccount[]> {
+  const { listAccounts, accountsInstalled, currentAccountId } = await import("@/db/accounts");
+  const { slugOf } = await import("@/lib/account-routes");
+  const { readConfig, lockOpenFor } = await import("@/lib/lock/shared");
+  const lock = readConfig();
+  const installed = accountsInstalled();
+  const current = currentAccountId();
+  return listAccounts()
+    .filter((a) => !a.demo && (installed || a.id === current))
+    .map((a) => ({ id: a.id, name: a.name, color: a.color, prefix: installed ? `/${slugOf(a)}` : "", locked: !!lock && !lockOpenFor(lock, a.id), current: a.id === current }));
+}
+
+/** Whether the lock guards the account this request is for (then the companion shows nothing of it and changes nothing). */
+export async function companionLocked(): Promise<boolean> {
+  return (await companionAccounts()).find((a) => a.current)?.locked ?? false;
+}
+
 const APPLIED_KEY = "companion:applied";
 const KEEP_APPLIED = 5000;
 
@@ -48,11 +72,13 @@ const toCompanion = (t: TodoView): CompanionTodo => ({
 });
 
 /** Your todos for the phone: the open ones and those closed in the last `days` days (so a tick stays visible). Not the workers'. */
-export async function companionSnapshot(days = 3): Promise<{ at: string; todos: CompanionTodo[] }> {
+export async function companionSnapshot(days = 3): Promise<{ at: string; account: string; accounts: CompanionAccount[]; todos: CompanionTodo[] }> {
+  const accounts = await companionAccounts();
+  const account = accounts.find((a) => a.current)?.id ?? "default";
   const { listTodos } = await import("@/lib/todos/store");
   const since = new Date(Date.now() - days * 24 * 3600 * 1000).toISOString().slice(0, 10);
   const todos = listTodos({ status: "all", openOrDoneSince: since, byWorker: false }).filter((t) => t.status !== "dismissed" || (t.doneAt ?? "") >= since);
-  return { at: new Date().toISOString(), todos: todos.map(toCompanion) };
+  return { at: new Date().toISOString(), account, accounts, todos: todos.map(toCompanion) };
 }
 
 /** Whether a value is a change we know (the phone's data is checked like any other request's). */

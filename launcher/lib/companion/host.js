@@ -1,11 +1,12 @@
 // The companion's WebRTC end on the PC: phones connect without any signaling server.
 //
-// How (the same trick as libp2p's "WebRTC Direct"): the pairing QR code carries this PC's LAN address,
-// the UDP port and the certificate's fingerprint. From that alone the phone writes our answer itself
-// (no answer has to travel back), using a random ICE username fragment as both its ufrag and its
-// password (it rewrites its own offer to match). Its first STUN check arrives on our one UDP port; the
-// port mux hands us the unknown ufrag, and we build the phone's offer from it in turn — same ufrag and
-// password, its address learned from the check. We don't check the phone's certificate (we can't know
+// How (libp2p's "WebRTC Direct", its v2 handshake — specs#715): the pairing QR code carries this PC's LAN
+// address, the UDP port and the certificate's fingerprint. From that alone the phone writes our answer itself
+// (no answer has to travel back). It leaves its own offer as the browser made it (browsers are ending the
+// rewriting of the ICE ufrag and password — Chromium's WebRTC-NoSdpMangleUfrag) and gives us, in the answer it
+// writes, the ufrag "zeff2<its ICE password>" and its password as ours. Its first STUN check arrives on our one
+// UDP port with the username "<our ufrag>:<its ufrag>": the port mux hands us both, and we build the phone's
+// offer from them — its ufrag, its password (out of our ufrag), its address learned from the check. We don't check the phone's certificate (we can't know
 // it beforehand); the phone proves itself on the data channel instead: an HMAC of our challenge with the
 // device secret the QR code gave it. The phone does check ours (the fingerprint), so nobody in between
 // can read along.
@@ -14,15 +15,15 @@
 const crypto = require("node:crypto");
 const { EventEmitter } = require("node:events");
 
-/** The ufrag phones of this protocol use (ICE allows [A-Za-z0-9+/]), and how long the random part is. */
-const UFRAG_PREFIX = "zeff1";
+/** Our ufrag as the phone writes it: this prefix, then the phone's ICE password (ICE allows [A-Za-z0-9+/]). */
+const UFRAG_PREFIX = "zeff2";
 const PART = 60 * 1024;
 const MAX_MESSAGE = 256 * 1024;
 
 const FAKE_FINGERPRINT = Array.from({ length: 32 }, () => "00").join(":");
 
-/** The phone's offer as we must see it: its ufrag doubles as its password; it's the DTLS client (setup:active). */
-function phoneOffer(ufrag, host, port) {
+/** The phone's offer as we must see it: its ufrag and password; it's the DTLS client (setup:active). */
+function phoneOffer(ufrag, pwd, host, port) {
   const ip = host.includes(":") ? "IP6" : "IP4";
   return [
     "v=0",
@@ -35,7 +36,7 @@ function phoneOffer(ufrag, host, port) {
     "a=mid:0",
     "a=setup:active",
     `a=ice-ufrag:${ufrag}`,
-    `a=ice-pwd:${ufrag}`,
+    `a=ice-pwd:${pwd}`,
     `a=fingerprint:sha-256 ${FAKE_FINGERPRINT}`,
     "a=sctp-port:5000",
     `a=max-message-size:${MAX_MESSAGE}`,
@@ -145,8 +146,11 @@ class CompanionHost extends EventEmitter {
     this.listener = null;
   }
 
-  accept({ ufrag, host, port }) {
-    if (!ufrag.startsWith(UFRAG_PREFIX) || this.pending.has(ufrag)) return;
+  accept({ ufrag, localUfrag, host, port }) {
+    // ufrag: the phone's; localUfrag: ours as the phone wrote it — "zeff2" + the phone's password (22–256 ICE chars).
+    if (!localUfrag?.startsWith(UFRAG_PREFIX) || !ufrag || this.pending.has(ufrag)) return;
+    const pwd = localUfrag.slice(UFRAG_PREFIX.length);
+    if (!/^[A-Za-z0-9+/]{22,256}$/.test(pwd)) return;
     if (this.pending.size > 16) return; // a burst of strangers: don't open connections for all of them
     const pc = new this.ndc.PeerConnection(`companion-${ufrag.slice(-6)}`, {
       iceServers: [],
@@ -180,8 +184,8 @@ class CompanionHost extends EventEmitter {
       }
     });
     const dc = pc.createDataChannel("zeff", { negotiated: true, id: 0 });
-    pc.setRemoteDescription(phoneOffer(ufrag, host, port), "offer");
-    pc.setLocalDescription("answer", { iceUfrag: ufrag, icePwd: ufrag });
+    pc.setRemoteDescription(phoneOffer(ufrag, pwd, host, port), "offer");
+    pc.setLocalDescription("answer", { iceUfrag: localUfrag, icePwd: pwd });
 
     const nonce = crypto.randomBytes(32).toString("base64");
     const read = assembler();

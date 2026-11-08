@@ -570,7 +570,7 @@ function startCompanion() {
       zeffUrl: `http://127.0.0.1:${cfg.zeffPort}`,
       appUrl: cfg.companionApp,
       log,
-      onChange: () => win?.webContents.send("companion", companionState()),
+      onChange: () => companionState().then((s) => win?.webContents.send("companion", s)),
     });
     companion.start();
   } catch (e) {
@@ -580,9 +580,10 @@ function startCompanion() {
   }
 }
 
-function companionState() {
+async function companionState() {
   if (!companion) return { enabled: false, error: companionError, devices: [], addresses: [] };
-  return { enabled: true, ...companion.status() };
+  const firewall = await require("./lib/companion/firewall").allowed(state.cfg.companionPort).catch(() => null);
+  return { enabled: true, firewall, ...companion.status() };
 }
 
 /**
@@ -692,6 +693,12 @@ ipcMain.handle("companionPair", async (_e, name) => {
 ipcMain.handle("companionUnpair", (_e, id) => {
   companion?.unpair(String(id));
   return companionState();
+});
+// Let phones through the Windows Firewall (our own rule: UDP companionPort, private networks only) — one UAC prompt.
+ipcMain.handle("companionFirewall", async () => {
+  const r = await require("./lib/companion/firewall").allow(state.cfg.companionPort);
+  log(`companion: firewall rule — ${r}`);
+  return { result: r, state: await companionState() };
 });
 ipcMain.handle("do", async (_e, action, name) => {
   const s = state.services.find((x) => x.name === name);
