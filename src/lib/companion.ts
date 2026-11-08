@@ -45,7 +45,8 @@ export async function companionAccounts(): Promise<CompanionAccount[]> {
   const installed = accountsInstalled();
   const current = currentAccountId();
   return listAccounts()
-    .filter((a) => !a.demo && (installed || a.id === current))
+    // (`demo`: the demo account, where there is one — read loosely, an Account may not have the field.)
+    .filter((a) => !(a as { demo?: boolean }).demo && (installed || a.id === current))
     .map((a) => ({ id: a.id, name: a.name, color: a.color, prefix: installed ? `/${slugOf(a)}` : "", locked: !!lock && !lockOpenFor(lock, a.id), current: a.id === current }));
 }
 
