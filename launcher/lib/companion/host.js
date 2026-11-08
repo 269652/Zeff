@@ -238,7 +238,10 @@ class CompanionHost extends EventEmitter {
       session = new Session(pc, dc, msg.device, `${host}:${port}`);
       dc.onClosed(() => session.close());
       pc.onStateChange((s) => {
-        if (s === "disconnected" || s === "failed" || s === "closed") session.close();
+        // "disconnected" is often a moment only (a busy channel, the phone's Wi-Fi napping): ended only when it lasts.
+        clearTimeout(session.graceTimer);
+        if (s === "failed" || s === "closed") session.close();
+        else if (s === "disconnected") session.graceTimer = setTimeout(() => pc.state?.() !== "connected" && session.close(), 15000);
       });
       // What this launcher can do: "proxy" — all of Zeff through the connection (lib/companion/proxy.js). An app that
       // meets an older launcher (no "proxy") stays on its own view of the todos.
