@@ -21,7 +21,8 @@ import { checkFields, checkHits, checkSchema, type FieldValue, type LookupHitOut
 
 export type LambdaRun = { ok: true; result: unknown; logs: string[]; ms: number } | { ok: false; error: string; problems?: string[]; stack?: string; logs: string[]; ms: number };
 
-const RUNNER = () => path.join(process.cwd(), "src", "plugins", "workspace", "lambdas", "runner.mjs");
+// (turbopackIgnore: a file run at runtime, not a module of the build — the production build fails to resolve it otherwise.)
+const RUNNER = () => path.join(/*turbopackIgnore: true*/ process.cwd(), "src", "plugins", "workspace", "lambdas", "runner.mjs");
 const MAX_BODY = 5_000_000;
 const PARALLEL = 4;
 let running = 0;
@@ -139,7 +140,7 @@ export async function runLambda(l: Lambda, event: unknown, opts: { resolve?: (ho
   try {
     return await new Promise<LambdaRun>((resolve) => {
       const runner = RUNNER();
-      const child = fork(runner, [], {
+      const child = fork(/*turbopackIgnore: true*/ runner, [], {
         execPath: process.execPath,
         execArgv: ["--permission", `--allow-fs-read=${dir}${path.sep}`, `--allow-fs-read=${runner}`, `--max-old-space-size=${l.manifest.memoryMb ?? 128}`, "--disallow-code-generation-from-strings"],
         cwd: dir,
