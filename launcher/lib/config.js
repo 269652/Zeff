@@ -36,6 +36,13 @@ const DEFAULTS = {
    */
   syncHost: true,
   syncPort: 9336,
+  /**
+   * The phone companion (lib/companion): phones on the same Wi-Fi connect over WebRTC to this UDP port, paired by a QR code
+   * that opens companionApp. Off: no port is opened.
+   */
+  companion: true,
+  companionPort: 9341,
+  companionApp: "https://app.getzeff.com/",
   /** Manage the knowledge server too (and route https://knowledge.<host> to it). */
   knowledge: true,
   /** HTTPS ports on 127.0.0.1. 443 is best effort — something else may hold it (Linux: root only). */

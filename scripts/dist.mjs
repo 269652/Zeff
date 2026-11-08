@@ -390,7 +390,14 @@ async function packLauncher() {
   for (const f of ["package.json", "main.js", "preload.js", "status.html", "status.js", "icon.ico", "icon.png", "lib", "ps"]) {
     fs.cpSync(path.join(launcher, f), path.join(code, f), { recursive: true });
   }
-  if (release) await minify(fs.readdirSync(code, { recursive: true }).filter((f) => /\.(js|cjs|mjs)$/.test(f)).map((f) => path.join(code, f)));
+  // The launcher's own dependencies (the phone companion's: node-datachannel — native, its prebuilt binary for this
+  // platform is a package of its own — and qrcode): the checkout's launcher/node_modules, without Electron and the dev ones.
+  const launcherDeps = spawnSync(WIN ? "npm.cmd" : "npm", ["ls", "--omit=dev", "--all", "--parseable"], { cwd: electronFrom, encoding: "utf8", shell: true })
+    .stdout.split(/\r?\n/)
+    .filter((p) => p && path.resolve(p) !== path.resolve(electronFrom));
+  if (!launcherDeps.some((p) => p.includes("node-datachannel"))) throw new Error("launcher/node_modules lacks node-datachannel — run npm ci in launcher/");
+  for (const p of launcherDeps) copyDir(p, path.join(code, path.relative(electronFrom, p)));
+  if (release) await minify(fs.readdirSync(code, { recursive: true }).filter((f) => /\.(js|cjs|mjs)$/.test(f) && !f.split(/[\\/]/).includes("node_modules")).map((f) => path.join(code, f)));
   console.log(`Electron ${electronVersion} → ${path.basename(out)}, launcher → ${path.relative(out, code)}`);
 
   fs.writeFileSync(path.join(top, "README.txt"), readme());

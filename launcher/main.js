@@ -547,7 +547,42 @@ async function start() {
     stateDir: paths.state,
     icon: windowIcon,
   });
+  startCompanion();
   if (!flag("--background")) shell.openExternal(state.url);
+}
+
+/**
+ * The phone companion (lib/companion): phones on the same Wi-Fi reach Zeff's todos over WebRTC on UDP companionPort.
+ * node-datachannel is a native module — when it can't load (missing, or taken away by an antivirus), the rest of the
+ * launcher runs on and the Phone tab says why.
+ */
+let companion = null;
+let companionError = null;
+function startCompanion() {
+  const { cfg, paths } = state;
+  if (cfg.companion === false) return;
+  try {
+    const { Companion } = require("./lib/companion");
+    companion = new Companion({
+      ndc: require("node-datachannel"),
+      dir: path.join(paths.state, "companion"),
+      port: cfg.companionPort,
+      zeffUrl: `http://127.0.0.1:${cfg.zeffPort}`,
+      appUrl: cfg.companionApp,
+      log,
+      onChange: () => win?.webContents.send("companion", companionState()),
+    });
+    companion.start();
+  } catch (e) {
+    companion = null;
+    companionError = e.message;
+    log(`companion: not started — ${e.message}`);
+  }
+}
+
+function companionState() {
+  if (!companion) return { enabled: false, error: companionError, devices: [], addresses: [] };
+  return { enabled: true, ...companion.status() };
 }
 
 /**
@@ -646,6 +681,18 @@ ipcMain.handle("setModes", (_e, next) => {
 });
 // The containers Docker has (Zeff's marked).
 ipcMain.handle("docker", () => dockerLib.list());
+// The phone companion: its paired phones, a new pairing (its link and the QR code as SVG), unpairing.
+ipcMain.handle("companion", () => companionState());
+ipcMain.handle("companionPair", async (_e, name) => {
+  if (!companion) throw new Error(companionError ?? "The phone companion is off.");
+  const { url, device } = companion.pair(String(name ?? "Phone").slice(0, 60));
+  const svg = await require("qrcode").toString(url, { type: "svg", errorCorrectionLevel: "M", margin: 1 });
+  return { url, device, svg };
+});
+ipcMain.handle("companionUnpair", (_e, id) => {
+  companion?.unpair(String(id));
+  return companionState();
+});
 ipcMain.handle("do", async (_e, action, name) => {
   const s = state.services.find((x) => x.name === name);
   switch (action) {
@@ -692,6 +739,7 @@ app.on("before-quit", (e) => {
   e.preventDefault();
   quitting = true;
   log("quitting");
+  companion?.stop();
   Promise.all(state.services.map((s) => s.stop()))
     .catch(() => {})
     .finally(() => {

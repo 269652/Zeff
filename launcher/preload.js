@@ -9,4 +9,9 @@ contextBridge.exposeInMainWorld("zeff", {
   modes: () => ipcRenderer.invoke("modes"),
   setModes: (m) => ipcRenderer.invoke("setModes", m),
   docker: () => ipcRenderer.invoke("docker"),
+  // The phone companion: its state, a new pairing ({ url, svg }: the QR code), unpairing; its changes (a phone connects).
+  companion: () => ipcRenderer.invoke("companion"),
+  companionPair: (name) => ipcRenderer.invoke("companionPair", name),
+  companionUnpair: (id) => ipcRenderer.invoke("companionUnpair", id),
+  onCompanion: (cb) => ipcRenderer.on("companion", (_e, s) => cb(s)),
 });

@@ -69,6 +69,8 @@
       .tab.on { border-bottom-color: var(--accent); font-weight: 600; }
       [hidden] { display: none !important; }
       .note { color: var(--muted); font-size: 12px; margin-top: 6px; }
+      .qr { background: #fff; padding: 12px; border-radius: 8px; width: 264px; margin: 10px auto 0; }
+      .qr svg { display: block; width: 240px; height: 240px; }
     </style>
   </head>
   <body>
@@ -77,6 +79,7 @@
     <div class="tabs" role="tablist">
       <button class="tab on" data-tab="status" role="tab">Status</button>
       <button class="tab" data-tab="docker" role="tab">Docker</button>
+      <button class="tab" data-tab="phone" role="tab">Phone</button>
     </div>
     <section id="tab-status">
     <div id="services"></div>
@@ -97,6 +100,17 @@
     <div class="card">
       <div class="row"><h2 style="flex: 1; margin: 0">Docker</h2><span class="empty" id="dockerState"></span><button id="dockerRefresh">Refresh</button></div>
       <div id="containers" style="margin-top: 8px"></div>
+    </div>
+    </section>
+    <section id="tab-phone" hidden>
+    <div class="card">
+      <div class="row"><h2 style="flex: 1; margin: 0">Phone companion</h2><button id="pair">Pair a phone…</button></div>
+      <p class="note" id="phoneNote">Your todos on your phone, over your Wi-Fi straight to this computer — no server in between. Scan the code with the phone's camera. Ticks made away from home are sent when the phone is back on the Wi-Fi.</p>
+      <div id="pairing" hidden>
+        <div id="qr" class="qr"></div>
+        <p class="note">Scan with the phone's camera, then open the link. The code holds the phone's own key — show it only to your phone. <a id="pairDone">Done</a></p>
+      </div>
+      <div id="devices" style="margin-top: 8px"></div>
     </div>
     </section>
     <footer>

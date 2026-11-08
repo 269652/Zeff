@@ -140,15 +140,63 @@ setInterval(() => document.visibilityState === "visible" && loadDocker(), 5000);
 // The tabs: Status (the services) and Docker (where each part runs, the containers); the chosen one is kept while the window lives.
 function showTab(name) {
   for (const t of document.querySelectorAll(".tab")) t.classList.toggle("on", t.dataset.tab === name);
-  for (const id of ["status", "docker"]) $(`tab-${id}`).hidden = id !== name;
+  for (const id of ["status", "docker", "phone"]) $(`tab-${id}`).hidden = id !== name;
+  if (name === "phone") loadPhone();
   try {
     sessionStorage.setItem("tab", name);
   } catch {}
 }
 for (const t of document.querySelectorAll(".tab")) t.onclick = () => showTab(t.dataset.tab);
 try {
-  showTab(sessionStorage.getItem("tab") === "docker" ? "docker" : "status");
+  const kept = sessionStorage.getItem("tab");
+  showTab(kept === "docker" || kept === "phone" ? kept : "status");
 } catch {}
+// ---------------------------------------------------------------------------------------------------------------------
+// The phone companion: pair a phone (its QR code), the paired ones, unpair
+// ---------------------------------------------------------------------------------------------------------------------
+
+const ago = (iso) => {
+  if (!iso) return "never";
+  const min = Math.round((Date.now() - Date.parse(iso)) / 60000);
+  return min < 1 ? "just now" : min < 60 ? `${min} min ago` : min < 1440 ? `${Math.round(min / 60)} h ago` : new Date(iso).toLocaleDateString();
+};
+
+function renderPhone(st) {
+  if (!st.enabled) {
+    $("pair").disabled = true;
+    $("phoneNote").textContent = st.error ? `The phone companion couldn't start: ${st.error}` : "The phone companion is switched off (zeff-launcher.json: companion).";
+    return $("devices").replaceChildren();
+  }
+  $("pair").disabled = false;
+  const list = st.devices.map((d) =>
+    el(
+      "div",
+      { className: "ctr" },
+      el("span", { className: `dot ${d.connected ? "running" : "stopped"}` }),
+      el("span", {}, el("b", { textContent: d.name })),
+      el("button", { textContent: "Unpair", onclick: () => window.zeff.companionUnpair(d.id).then(renderPhone) }),
+      el("span", { className: "sub2", textContent: d.connected ? "connected" : `last seen ${ago(d.lastSeen)}` }),
+    ),
+  );
+  const where = st.addresses.length ? `Phones find this computer at ${st.addresses.join(", ")} (UDP ${st.port}).` : "No network found — connect this computer to your Wi-Fi.";
+  $("devices").replaceChildren(...(list.length ? list : [el("div", { className: "empty", textContent: "No phone paired yet." })]), el("div", { className: "note", textContent: where }));
+}
+
+const loadPhone = () => window.zeff.companion().then(renderPhone);
+$("pair").onclick = async () => {
+  const name = `Phone ${new Date().toLocaleDateString()}`;
+  const r = await window.zeff.companionPair(name);
+  const svg = new DOMParser().parseFromString(r.svg, "image/svg+xml").documentElement;
+  $("qr").replaceChildren(svg);
+  $("pairing").hidden = false;
+  loadPhone();
+};
+$("pairDone").onclick = () => {
+  $("pairing").hidden = true;
+  $("qr").replaceChildren();
+};
+window.zeff.onCompanion?.(renderPhone);
+
 $("setup").onclick = () => act("setup");
 $("autostart").onchange = () => act("autostart");
 $("data").onclick = () => act("data");

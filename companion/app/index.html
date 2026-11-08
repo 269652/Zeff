@@ -1,0 +1,42 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#6d28d9" />
+    <meta name="referrer" content="no-referrer" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; img-src 'self' data:" />
+    <title>Zeff</title>
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="icon" href="icon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" href="apple-touch-icon.png" />
+    <link rel="stylesheet" href="app.css" />
+  </head>
+  <body>
+    <header>
+      <h1>Zeff</h1>
+      <button id="status" class="status" type="button" aria-live="polite"><span class="dot"></span><span id="statusText"></span></button>
+    </header>
+    <main>
+      <section id="welcome" hidden>
+        <h2 data-t="Pair your phone"></h2>
+        <p data-t="welcome1"></p>
+        <ol>
+          <li data-t="welcome2"></li>
+          <li data-t="welcome3"></li>
+        </ol>
+        <p class="muted" data-t="welcome4"></p>
+      </section>
+      <section id="list" hidden>
+        <ul id="open" class="todos"></ul>
+        <p id="empty" class="muted" hidden></p>
+        <details id="doneBox">
+          <summary id="doneTitle"></summary>
+          <ul id="done" class="todos"></ul>
+        </details>
+      </section>
+    </main>
+    <footer id="foot" class="muted"></footer>
+    <script type="module" src="app.js"></script>
+  </body>
+</html>

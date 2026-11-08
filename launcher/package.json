@@ -11,5 +11,9 @@
   },
   "devDependencies": {
     "electron": "^44.7.0"
+  },
+  "dependencies": {
+    "node-datachannel": "^0.33.6",
+    "qrcode": "^1.5.4"
   }
 }
