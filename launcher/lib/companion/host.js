@@ -148,6 +148,13 @@ class CompanionHost extends EventEmitter {
 
   accept({ ufrag, localUfrag, host, port }) {
     // ufrag: the phone's; localUfrag: ours as the phone wrote it — "zeff2" + the phone's password (22–256 ICE chars).
+    // What reaches the port at all (once a minute per sender): tells "nothing arrives" (Wi-Fi, firewall) from a failed handshake.
+    const seenKey = `${host}|${String(localUfrag).slice(0, 5)}`;
+    this.seen ??= new Map();
+    if (!this.seen.has(seenKey) || Date.now() - this.seen.get(seenKey) > 60000) {
+      this.seen.set(seenKey, Date.now());
+      this.log(`companion: STUN check from ${host}:${port} (ufrag ${String(localUfrag).slice(0, 5)}…)`);
+    }
     if (!localUfrag?.startsWith(UFRAG_PREFIX) || !ufrag || this.pending.has(ufrag)) return;
     const pwd = localUfrag.slice(UFRAG_PREFIX.length);
     if (!/^[A-Za-z0-9+/]{22,256}$/.test(pwd)) return;
