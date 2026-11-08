@@ -102,7 +102,7 @@ export default async function CoursePage({ params }: Props) {
             </Link>
           )}
         </div>
-        <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
           <div className="card space-y-1 p-3">
             <p className="text-xs text-zinc-500">{t("Level {n}", { n: lv.level })}</p>
             <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800" role="progressbar" aria-label={t("To the next level")} aria-valuemin={0} aria-valuemax={lv.need} aria-valuenow={lv.into}>
@@ -119,7 +119,8 @@ export default async function CoursePage({ params }: Props) {
           </div>
           <div className="card p-3">
             <p className="text-xs text-zinc-500">{t("Streak")}</p>
-            <p className="text-lg font-semibold">🔥 {t("{n} days", { n: course.streak })}</p>
+            <p className="text-lg font-semibold">🔥 {course.streak}</p>
+            <p className="text-xs text-zinc-500">{t("days in a row")}</p>
           </div>
           <div className="card p-3">
             <p className="text-xs text-zinc-500">{t("Progress")}</p>

@@ -47,7 +47,7 @@ export default async function LearnPage() {
                       </div>
                       <p className="flex flex-wrap gap-x-3 text-xs text-zinc-500">
                         <span>{t("{done} of {total} steps", { done: progress.mastered, total: progress.steps })}</span>
-                        {c.streak > 0 && <span>🔥 {t("{n} days", { n: c.streak })}</span>}
+                        {c.streak > 0 && <span title={t("days in a row")}>🔥 {c.streak}</span>}
                         {(due.get(c.id) ?? 0) > 0 && <span>🃏 {t("{n} cards due", { n: due.get(c.id) ?? 0 })}</span>}
                       </p>
                     </>

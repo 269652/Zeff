@@ -90,24 +90,28 @@ export default async function StepPage({ params }: Props) {
             </ul>
           )}
         </div>
-      ) : !last ? (
-        <div className="card space-y-3 p-4">
-          <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("Claude teaches this step in a chat — explaining, asking, and building exercises right here. When you've got it, it marks the step mastered.")}</p>
-          <LessonButton courseId={courseId} stepKey={node.key} />
-        </div>
       ) : (
         <div className="grid gap-4 lg:grid-cols-[minmax(0,3fr)_minmax(0,2fr)]">
           <div className="min-w-0">
             {widgets.length > 0 ? <LessonWidgets widgets={widgets} /> : <p className="card p-4 text-sm text-zinc-500">{t("The exercises the teacher builds appear here.")}</p>}
           </div>
           <section className="flex min-w-0 flex-col gap-2 lg:sticky lg:top-2 lg:max-h-[calc(100dvh-6rem)]" aria-label={t("Lesson chat")}>
-            <div id="lesson-thread" className="max-h-[60vh] min-h-0 flex-1 overflow-y-auto lg:max-h-none">
-              <SessionThread turns={turns} />
-            </div>
-            <ScrollToEnd target="lesson-thread" />
-            <div className="shrink-0 border-t border-zinc-200 pt-2 dark:border-zinc-800">
-              {live ? <ClaudeSession key={last.id} run={last} /> : <ChatComposer runId={last.id} stay placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Answer the teacher …")} />}
-            </div>
+            {!last ? (
+              <div className="card space-y-3 p-4">
+                <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("Claude teaches this step in a chat — explaining, asking, and building exercises right here. When you've got it, it marks the step mastered.")}</p>
+                <LessonButton courseId={courseId} stepKey={node.key} />
+              </div>
+            ) : (
+              <>
+              <div id="lesson-thread" className="max-h-[60vh] min-h-0 flex-1 overflow-y-auto lg:max-h-none">
+                <SessionThread turns={turns} />
+              </div>
+              <ScrollToEnd target="lesson-thread" />
+              <div className="shrink-0 border-t border-zinc-200 pt-2 dark:border-zinc-800">
+                {live ? <ClaudeSession key={last.id} run={last} /> : <ChatComposer runId={last.id} stay placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Answer the teacher …")} />}
+              </div>
+              </>
+            )}
           </section>
         </div>
       )}
