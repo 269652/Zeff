@@ -240,7 +240,9 @@ class CompanionHost extends EventEmitter {
       pc.onStateChange((s) => {
         if (s === "disconnected" || s === "failed" || s === "closed") session.close();
       });
-      session.send({ t: "welcome" });
+      // What this launcher can do: "proxy" — all of Zeff through the connection (lib/companion/proxy.js). An app that
+      // meets an older launcher (no "proxy") stays on its own view of the todos.
+      session.send({ t: "welcome", proxy: true });
       this.emit("session", session);
     });
   }
