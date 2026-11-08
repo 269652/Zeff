@@ -6,11 +6,64 @@
 // Rewritten on the way: Origin and Referer name Zeff's own address (its Server Actions and API routes accept only
 // their own pages; the account follows the Referer's prefix), Location back to a path. Kept: Sec-Fetch-Site/Dest as a
 // browser sends them — so Zeff's lock still guards the accounts it locks. Only paths of Zeff's own server are asked.
+//
+// Fast enough for a phone (Zeff's development server sends many megabytes of scripts per page):
+// - text (pages, scripts, data, the live events) goes gzipped — "zgz" in the head; flushed per piece, so a stream
+//   such as the live events still arrives as it happens;
+// - Zeff's own files (/_next/…) carry their SHA-1 ("hash" in the head); the phone keeps them and asks with the one it
+//   has ("x-zc-have") — the same one is answered "same" without its body: it's fetched here (fast), not sent there.
+const crypto = require("node:crypto");
+const zlib = require("node:zlib");
+
 const CHUNK = 32 * 1024; // raw bytes per "http-body" (base64 in JSON stays below the 60 KB parts)
 const HIGH_WATER = 1024 * 1024; // bytes waiting in the data channel before a stream waits
 
-const DROP_REQUEST = new Set(["host", "connection", "content-length", "accept-encoding", "transfer-encoding", "upgrade", "keep-alive", "te", "trailer", "proxy-authorization", "authorization"]);
-const DROP_RESPONSE = new Set(["content-encoding", "content-length", "transfer-encoding", "connection", "keep-alive", "set-cookie", "x-frame-options", "strict-transport-security", "alt-svc"]);
+const DROP_REQUEST = new Set(["host", "connection", "content-length", "accept-encoding", "transfer-encoding", "upgrade", "keep-alive", "te", "trailer", "proxy-authorization", "authorization", "x-zc-have"]);
+const DROP_RESPONSE = new Set(["content-encoding", "content-length", "transfer-encoding", "connection", "keep-alive", "set-cookie", "x-frame-options", "strict-transport-security", "alt-svc", "etag"]);
+const COMPRESSIBLE = /^(text\/|application\/(javascript|json|xml|manifest\+json)|image\/svg|text\/x-component)/i;
+
+/** Pieces of a stream, gzipped as they come (each flushed: a slow stream arrives in time). */
+async function* gzipped(source) {
+  const gz = zlib.createGzip({ level: 5 });
+  const out = [];
+  let ended = false;
+  let failed = null;
+  let wake = null;
+  gz.on("data", (c) => {
+    out.push(c);
+    wake?.();
+  });
+  gz.on("end", () => {
+    ended = true;
+    wake?.();
+  });
+  gz.on("error", (e) => {
+    failed = e;
+    wake?.();
+  });
+  const pump = (async () => {
+    try {
+      for await (const v of source) {
+        gz.write(v);
+        await new Promise((r) => gz.flush(zlib.constants.Z_SYNC_FLUSH, r));
+      }
+    } catch (e) {
+      failed = e;
+    }
+    gz.end();
+  })();
+  for (;;) {
+    if (out.length) {
+      yield out.shift();
+      continue;
+    }
+    if (failed) throw failed;
+    if (ended) break;
+    await new Promise((r) => (wake = r));
+    wake = null;
+  }
+  await pump;
+}
 
 class CompanionProxy {
   constructor({ zeffUrl, log = () => {} }) {
@@ -37,6 +90,18 @@ class CompanionProxy {
     for (const [k, ctl] of this.open) if (k.startsWith(`${s.key}:`)) ctl.abort();
   }
 
+  /** The body's pieces to the phone, at the channel's pace. */
+  async send(s, id, ctl, pieces) {
+    for await (const value of pieces) {
+      for (let at = 0; at < value.length; at += CHUNK) {
+        // The phone reads slower than Zeff writes: wait while the channel is full.
+        while (s.bufferedAmount() > HIGH_WATER && s.open && !ctl.signal.aborted) await new Promise((r) => setTimeout(r, 10));
+        if (!s.open || ctl.signal.aborted) throw new Error("aborted");
+        s.send({ t: "http-body", id, d: Buffer.from(value.subarray(at, at + CHUNK)).toString("base64") });
+      }
+    }
+  }
+
   async request(s, msg) {
     const id = msg.id;
     const key = `${s.key}:${id}`;
@@ -46,9 +111,12 @@ class CompanionProxy {
     this.open.set(key, ctl);
     try {
       const headers = new Headers();
+      let have = null;
       for (const [k, v] of Object.entries(msg.headers ?? {})) {
         const name = k.toLowerCase();
-        if (DROP_REQUEST.has(name) || typeof v !== "string") continue;
+        if (typeof v !== "string") continue;
+        if (name === "x-zc-have") have = v;
+        if (DROP_REQUEST.has(name)) continue;
         if (name === "origin") headers.set("origin", this.zeffUrl);
         else if (name === "referer") {
           try {
@@ -63,25 +131,26 @@ class CompanionProxy {
       const out = [];
       res.headers.forEach((v, k) => {
         if (DROP_RESPONSE.has(k)) return;
-        if (k === "location") {
-          // Back to a path of the app (Zeff answers with its own address).
-          out.push([k, v.startsWith(this.zeffUrl) ? v.slice(this.zeffUrl.length) || "/" : v]);
-        } else if (k === "content-security-policy") out.push([k, v.replace(/frame-ancestors[^;]*/i, "frame-ancestors 'self'")]);
+        if (k === "location") out.push([k, v.startsWith(this.zeffUrl) ? v.slice(this.zeffUrl.length) || "/" : v]);
+        else if (k === "content-security-policy") out.push([k, v.replace(/frame-ancestors[^;]*/i, "frame-ancestors 'self'")]);
         else out.push([k, v]);
       });
-      s.send({ t: "http-head", id, status: res.status, statusText: res.statusText, headers: out, cookies: res.headers.getSetCookie?.() ?? [] });
-      if (res.body) {
-        const reader = res.body.getReader();
-        for (;;) {
-          const { value, done } = await reader.read();
-          if (done) break;
-          for (let at = 0; at < value.length; at += CHUNK) {
-            // The phone reads slower than Zeff writes (a page's scripts): wait while the channel is full.
-            while (s.bufferedAmount() > HIGH_WATER && s.open && !ctl.signal.aborted) await new Promise((r) => setTimeout(r, 15));
-            if (!s.open || ctl.signal.aborted) throw new Error("aborted");
-            s.send({ t: "http-body", id, d: Buffer.from(value.subarray(at, at + CHUNK)).toString("base64") });
-          }
+      const cookies = res.headers.getSetCookie?.() ?? [];
+      const type = res.headers.get("content-type") ?? "";
+      const zgz = !!res.body && COMPRESSIBLE.test(type) && ![204, 304].includes(res.status);
+      // Zeff's own files: whole (it's local), hashed — the same as the phone's is answered without its body.
+      if (method === "GET" && msg.path.startsWith("/_next/") && res.status === 200 && res.body) {
+        const buf = Buffer.from(await res.arrayBuffer());
+        const hash = crypto.createHash("sha1").update(buf).digest("hex");
+        if (have && have === hash) {
+          s.send({ t: "http-head", id, status: 200, statusText: "OK", headers: out, cookies, same: true, hash });
+        } else {
+          s.send({ t: "http-head", id, status: 200, statusText: "OK", headers: out, cookies, zgz, hash });
+          await this.send(s, id, ctl, zgz ? gzipped([buf]) : [buf]);
         }
+      } else {
+        s.send({ t: "http-head", id, status: res.status, statusText: res.statusText, headers: out, cookies, zgz });
+        if (res.body) await this.send(s, id, ctl, zgz ? gzipped(res.body) : res.body);
       }
       s.send({ t: "http-end", id });
     } catch (err) {
@@ -92,4 +161,4 @@ class CompanionProxy {
   }
 }
 
-module.exports = { CompanionProxy };
+module.exports = { CompanionProxy, gzipped };
