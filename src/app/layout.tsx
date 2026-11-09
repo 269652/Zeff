@@ -39,7 +39,7 @@ import { installedPlugins } from "@/plugins/state";
 import { allApps, appTabs, getMenuPrefs } from "@/plugins/tabs";
 import { inOrder } from "@/lib/layout-shared";
 import { tabsWithMenu } from "@/plugins/tab-menus";
-import { currentAccount, listAccounts } from "@/db/accounts";
+import { currentAccount, isDemoAccount, listAccounts } from "@/db/accounts";
 
 /** Settings in the menu: its overview, then the areas the Settings hub lists — named alike (lib/settings-areas.ts). */
 const settingsGroup = (): MenuGroup => {
@@ -90,10 +90,12 @@ const headerAccount = () => {
   return { current: chip(currentAccount()), list: listAccounts().map(chip) };
 };
 import { Toaster } from "@/components/Toaster";
+import { StalePageGuard } from "@/components/StalePageGuard";
 import { FlowAsks } from "@/plugins/workspace/ui/flow-asks";
 import { LockWatcher } from "@/components/LockWatcher";
 import { lockEnabled } from "@/lib/lock/shared";
 import { SetupGate } from "@/components/SetupGate";
+import { DemoBar } from "@/components/DemoBar";
 import { getAppSettings } from "@/lib/ai";
 import { MainArea } from "@/components/MainArea";
 import { PluginFlagsProvider } from "@/components/PluginFlags";
@@ -159,6 +161,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             account={headerAccount()}
             bare={setupPending}
           />
+          {isDemoAccount() && <DemoBar />}
           {!setupPending && <AttentionBar items={attention} />}
           <MainArea>
             <PluginFlagsProvider installed={[...installedPlugins()]} off={getTodoDisplayOff()} grants={setupPending ? [] : googleGrants()}>
@@ -176,6 +179,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <LockWatcher enabled={lockEnabled()} />
           <HashHighlight />
           <Toaster />
+          <StalePageGuard />
           {/* What flows ask you (a check-in, an approval): a card on every page. */}
           {!setupPending && installedPlugins().has("workspace") && <FlowAsks />}
         </I18nProvider>

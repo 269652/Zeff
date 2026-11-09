@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePagePathname } from "@/lib/use-page-pathname";
 import { useT } from "@/components/I18nProvider";
+import { DemoButton } from "./DemoButton";
 
 /**
  * A Zeff (or account) not set up yet: nothing but a way into the setup assistant — except on the
@@ -21,9 +22,13 @@ export function SetupGate({ pending, allowed, account, children }: { pending: bo
             "The setup assistant walks you through plugins, settings and sign-ins — and at the end fetches all data and runs the AI steps on it for the first time.",
           )}
         </p>
-        <Link href="/setup" className="btn btn-primary">
-          {t("Start setup")}
-        </Link>
+        <div className="flex flex-wrap items-center justify-center gap-2">
+          <Link href="/setup" className="btn btn-primary">
+            {t("Start setup")}
+          </Link>
+          <DemoButton to="demo" label={t("Look around with sample data first")} className="btn" />
+        </div>
+        <p className="text-xs text-zinc-500">{t("The demo is an account of its own: sample mails, chats and the todos Zeff derives from them. Nothing of yours goes in, nothing leaves it.")}</p>
       </section>
     </div>
   );

@@ -1,7 +1,7 @@
 "use client";
 
 import Link from "next/link";
-import { useEffect, useRef, useSyncExternalStore, useTransition } from "react";
+import { useEffect, useRef, useState, useSyncExternalStore, useTransition } from "react";
 import { dismissAttentionAction, openServiceLoginAction, retryServiceAction, runSyncAction } from "@/app/actions";
 import type { Attention } from "@/lib/attention";
 import { toast } from "./Toaster";
@@ -68,7 +68,7 @@ export function AttentionBar({ items }: { items: Attention[] }) {
       toast(a.title, {
         tone: "error",
         ms: 20000,
-        action: { label: t("Open sign-in"), run: () => void openServiceLoginAction(a.service!).then((r) => toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" })) },
+        action: { label: t("Open sign-in"), run: () => void runSaid(t, t("Opening the sign-in on the computer (automation Chrome) …"), () => openServiceLoginAction(a.service!)) },
       });
     }
   }, [items, t]);
@@ -92,7 +92,7 @@ export function AttentionBar({ items }: { items: Attention[] }) {
         ms: 20000,
         action:
           action.kind === "sync"
-            ? { label: t("Sync now"), run: () => void runSyncAction(action.step).then((r) => toast(r?.ok ? (r.message ?? t("Done.")) : (r?.error ?? t("Didn't work.")), { tone: r?.ok ? "ok" : "error" })) }
+            ? { label: t("Sync now"), run: () => void runSaid(t, t("Syncing — this can take a minute …"), () => runSyncAction(action.step)) }
             : { label: t("Details"), run: () => void (window.location.href = "/diagnostics#sources") },
       });
     }
@@ -123,38 +123,55 @@ export function AttentionBar({ items }: { items: Attention[] }) {
   );
 }
 
+type Result = { ok: boolean; error?: string; message?: string } | null | undefined;
+
+/**
+ * A button's action, said at once ("Opening … on the computer") — it runs on the PC (Chrome brought up, a sync) and takes
+ * a while; on a phone nothing else would show till it's done — then its answer.
+ */
+export function runSaid(t: (s: string, v?: Record<string, string | number>) => string, note: string, fn: () => Promise<Result>): Promise<void> {
+  if (note) toast(note, { ms: 6000 });
+  return fn().then(
+    (r) => (!r?.ok ? toast(r?.error ?? t("Didn't work."), { tone: "error" }) : toast(r.message ?? t("Done."))),
+    () => toast(t("Didn't work."), { tone: "error" }),
+  );
+}
+
 function AttentionRow({ a }: { a: Attention }) {
   const t = useT();
   const [pending, start] = useTransition();
-  const act = (fn: () => Promise<{ ok: boolean; error?: string; message?: string } | null | undefined>) =>
-    start(async () => {
-      const r = await fn();
-      if (!r?.ok) toast(r?.error ?? t("Didn't work."), { tone: "error" });
-      else if (r.message) toast(r.message);
-    });
+  const [which, setWhich] = useState("");
+  const act = (id: string, note: string, fn: () => Promise<Result>) => {
+    setWhich(id);
+    start(() => runSaid(t, note, fn));
+  };
+  const label = (id: string, text: string) => (pending && which === id ? `${text} …` : text);
   return (
-    <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="alert">
-      <span className="min-w-0 flex-1">
+    // The text on top, its actions in a row of their own below (not squeezed beside it).
+    <div className="flex flex-col gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-950 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-100" role="alert">
+      <div className="min-w-0">
         <strong>{a.kind === "question" ? "❗ " : "🔑 "}{a.title}</strong>
-        <span className="ml-2 text-xs opacity-80">{a.body}</span>
-      </span>
+        {a.body && <div className="text-xs">{a.body}</div>}
+      </div>
       {a.kind === "login" && a.service && (
-        <span className="flex shrink-0 gap-1.5">
-          <button type="button" className="btn btn-sm btn-primary" disabled={pending} onClick={() => act(() => openServiceLoginAction(a.service!))} title={t("Bring the page to the front in the automation Chrome (or open it) — you sign in there yourself")}>
-            {t("Open sign-in")}
+        <div className="flex flex-wrap gap-1.5">
+          <button type="button" className="btn btn-sm btn-primary" disabled={pending} onClick={() => act("open", t("Opening the sign-in on the computer (automation Chrome) …"), () => openServiceLoginAction(a.service!))} title={t("Bring the page to the front in the automation Chrome (or open it) — you sign in there yourself")}>
+            {label("open", t("Open sign-in"))}
           </button>
-          <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act(() => retryServiceAction(a.service!))} title={t("Signed in? Then try again now")}>
-            {pending ? "…" : t("Check again")}
+          <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act("retry", t("Checking again — this can take a minute …"), () => retryServiceAction(a.service!))} title={t("Signed in? Then try again now")}>
+            {label("retry", t("Check again"))}
           </button>
-          <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act(() => dismissAttentionAction(a.key))} title={t("Hide until the service asks again")}>
-            {t("Later")}
+          <button type="button" className="btn btn-sm" disabled={pending} onClick={() => act("later", "", () => dismissAttentionAction(a.key).then((r) => (r?.ok ? { ok: true, message: t("Hidden until it asks again.") } : r)))} title={t("Hide until the service asks again")}>
+            {label("later", t("Later"))}
           </button>
-        </span>
+        </div>
       )}
       {a.kind === "question" && a.href && (
-        <Link href={a.href} className="btn btn-sm btn-primary shrink-0">
-          {t("View")}
-        </Link>
+        <div className="flex">
+          <Link href={a.href} className="btn btn-sm btn-primary">
+            {t("View")}
+          </Link>
+        </div>
       )}
     </div>
   );

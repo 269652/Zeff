@@ -18,9 +18,9 @@ export type WorkSettingsData = {
 /** What the Work section of the Settings page shows: the workers' settings, the provider's models, the repos. */
 export function workSettingsData(copilot: string[] = []): WorkSettingsData {
   const app = getAppSettings();
-  // (ChatGPT has no workers yet: then Claude, else Copilot.)
+  // (ChatGPT and the local AI have no workers: then Claude, else Copilot.)
   const chosen = aiChoice().provider;
-  const preferred: "claude" | "copilot" = chosen === "codex" ? (aiProviders().some((p) => p.id === "claude") ? "claude" : "copilot") : chosen;
+  const preferred: "claude" | "copilot" = chosen === "codex" || chosen === "local" ?(aiProviders().some((p) => p.id === "claude") ? "claude" : "copilot") : chosen;
   return {
     settings: getWorkSettings(),
     preferred,

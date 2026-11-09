@@ -10,20 +10,7 @@ const guard = () => {
   if (!isInstalled("learn")) throw new Error(t("The Learn plugin is not installed."));
 };
 
-/** A new course: made, and its research started in the background (the course page follows it). */
-export async function createCourseAction(v: { topic: string; goal: string; level: string }): Promise<Ok<{ id: number }>> {
-  try {
-    guard();
-    const store = await import("@/plugins/learn/store");
-    const { startResearch } = await import("@/plugins/learn/research");
-    const id = store.createCourse({ topic: String(v.topic ?? ""), goal: String(v.goal ?? ""), level: String(v.level ?? "") });
-    startResearch(id);
-    revalidatePath("/learn");
-    return { ok: true, id };
-  } catch (e) {
-    return { ok: false, error: errorMessage(e) };
-  }
-}
+// A new course: POST /api/learn/courses (a route — a page older than the server still reaches it).
 
 export async function retryResearchAction(id: number): Promise<Ok> {
   try {

@@ -68,28 +68,33 @@ export function Toaster() {
           onMouseLeave={() => item.tone === "ok" && arm(item.id, 4000)}
           onFocus={() => hold(item.id)}
           onBlur={() => item.tone === "ok" && arm(item.id, 4000)}
-          className={`pointer-events-auto flex max-w-full items-center gap-2 rounded-lg px-3 py-2 text-[13px] leading-snug shadow-lg sm:gap-3 sm:px-4 sm:py-2.5 sm:text-sm ${i < list.length - 3 ? "max-sm:hidden" : ""} ${
+          className={`pointer-events-auto flex max-w-full flex-col gap-1 rounded-lg px-3 py-2 text-[13px] leading-snug shadow-lg sm:px-4 sm:py-2.5 sm:text-sm ${i < list.length - 3 ? "max-sm:hidden" : ""} ${
             item.tone === "error" ? "bg-red-700 text-white" : "bg-zinc-900 text-zinc-100 dark:bg-zinc-100 dark:text-zinc-900"
           }`}
         >
-          <span className="line-clamp-2 min-w-0 sm:line-clamp-none" title={item.text}>
-            {item.text}
-          </span>
-          {item.action && (
-            <button
-              type="button"
-              className={`shrink-0 rounded px-2 py-0.5 font-semibold ${item.tone === "error" ? "text-white underline hover:bg-white/10" : "text-indigo-300 hover:bg-white/10 dark:text-indigo-700 dark:hover:bg-black/10"}`}
-              onClick={() => {
-                dismiss(item.id);
-                item.action!.run();
-              }}
-            >
-              {item.action.label}
+          {/* The text and its ×; the action in a row of its own below. */}
+          <div className="flex items-start gap-2 sm:gap-3">
+            <span className="line-clamp-2 min-w-0 flex-1 sm:line-clamp-none" title={item.text}>
+              {item.text}
+            </span>
+            <button type="button" className={`shrink-0 rounded px-2 py-0.5 ${item.tone === "error" ? "text-red-50 hover:text-white" : "text-zinc-300 hover:text-white dark:text-zinc-600 dark:hover:text-zinc-900"}`} onClick={() => dismiss(item.id)} aria-label={t("Close")}>
+              ×
             </button>
+          </div>
+          {item.action && (
+            <div className="flex">
+              <button
+                type="button"
+                className={`-ml-2 rounded px-2 py-0.5 font-semibold ${item.tone === "error" ? "text-white underline hover:bg-white/10" : "text-indigo-300 hover:bg-white/10 dark:text-indigo-700 dark:hover:bg-black/10"}`}
+                onClick={() => {
+                  dismiss(item.id);
+                  item.action!.run();
+                }}
+              >
+                {item.action.label}
+              </button>
+            </div>
           )}
-          <button type="button" className={`shrink-0 rounded px-2 py-0.5 ${item.tone === "error" ? "text-red-50 hover:text-white" : "text-zinc-300 hover:text-white dark:text-zinc-600 dark:hover:text-zinc-900"}`} onClick={() => dismiss(item.id)} aria-label={t("Close")}>
-            ×
-          </button>
         </div>
       ))}
     </div>

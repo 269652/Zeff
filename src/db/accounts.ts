@@ -39,6 +39,11 @@ export type Account = {
    * (your settings', the folder's). Unset: the first account yes, the others no — a private worker sees nothing of work's.
    */
   workerSetup?: boolean;
+  /**
+   * The demo: sample data to look around in (src/lib/demo). Nothing syncs in it (no Chrome, no sign-ins) and no action
+   * leaves it — "Send" there only says what it would have sent.
+   */
+  demo?: boolean;
 };
 
 /** The first account's automation Chrome (as it always was); the others' from 9231 up. */
@@ -138,6 +143,9 @@ export const reloadAccounts = (): void => {
 
 export const accountById = (id: string): Account | undefined => read().accounts.find((a) => a.id === id);
 
+/** Whether this account (the one this runs for) is the demo — nothing synced, nothing sent. */
+export const isDemoAccount = (id = currentAccountId()): boolean => !!accountById(id)?.demo;
+
 /** Whether the Accounts plugin is installed — kept here, for all accounts alike (not in one's database). */
 export const accountsInstalled = () => read().installed;
 export function setAccountsInstalled(installed: boolean): void {
@@ -218,7 +226,7 @@ const slug = (name: string) =>
     .replace(/backup|config/g, (w) => w.slice(0, 3)) // backup files are named after it: zeff-konto-<id>-backup-…
     .slice(0, 32) || "konto";
 
-export function addAccount(name: string, color: string, chromeFrom?: string): Account {
+export function addAccount(name: string, color: string, chromeFrom?: string, opts: { demo?: boolean } = {}): Account {
   const r = fresh();
   const n = name.trim().slice(0, 60);
   if (!n) throw new Error(t("A name, please."));
@@ -233,6 +241,7 @@ export function addAccount(name: string, color: string, chromeFrom?: string): Ac
     chromePort: freePort(r.accounts.map((x) => x.chromePort)),
     knowledgePort: freePort(r.accounts.map((x) => x.knowledgePort), KNOWLEDGE_PORT_FROM),
     ...(chromeFrom && r.accounts.some((x) => x.id === chromeFrom) ? { chromeFrom } : {}),
+    ...(opts.demo ? { demo: true } : {}),
   };
   fs.mkdirSync(accountDir(id), { recursive: true });
   write({ ...r, accounts: [...r.accounts, a] });

@@ -49,7 +49,7 @@ export async function saveLlmSettingsAction(v: { instructions: string; context: 
     saveLlmSettings({
       instructions: String(v?.instructions ?? ""),
       context: String(v?.context ?? ""),
-      tasks: Object.fromEntries(Object.entries(v?.tasks ?? {}).map(([k, x]) => [k, { provider: x?.provider === "copilot" || x?.provider === "claude" || x?.provider === "codex" ? x.provider : "", model: String(x?.model ?? "") }])),
+      tasks: Object.fromEntries(Object.entries(v?.tasks ?? {}).map(([k, x]) => [k, { provider: x?.provider === "copilot" || x?.provider === "claude" || x?.provider === "codex" || x?.provider === "local" ? x.provider : "", model: String(x?.model ?? "") }])),
     });
     // "Context about you" is About me (lib/about-me.ts): its prompt page follows, so every place shows the same.
     await (await import("@/lib/prompts")).writePromptPage("llm-context", String(v?.context ?? "").trim());

@@ -11,9 +11,12 @@ import { RUNNERS } from "@/plugins/actions/run";
 import type { NextTodo } from "@/plugins/actions/run-types";
 import { runJiraOps, type JiraOp } from "@/plugins/jira/run";
 import { opAvailable } from "@/plugins/ops";
-import { currentAccountId } from "@/db/accounts";
+import { currentAccountId, isDemoAccount } from "@/db/accounts";
 
 export type { NextTodo };
+
+/** What an action did in the demo: nothing — it says what it would have done. */
+const demoDone = (op: TodoOp) => t("Demo — not really done: {action}", { action: opTitle(op, t) });
 
 /**
  * Run a todo's operations, in order — each by the plugin that contributes it (Jira's in a row in
@@ -62,6 +65,14 @@ export async function runTodoOps(
   try {
     while (left.length) {
       const op = left[0];
+      // The demo: nothing leaves it — the action is taken off the todo as done, saying what it would have done.
+      if (isDemoAccount()) {
+        left.shift();
+        ranOps.push(op);
+        done.push(demoDone(op));
+        note(`[Zeff] ✓ ${opLabel(op)} (demo)`);
+        continue;
+      }
       // An action needs its plugin installed.
       if (!opAvailable(op.type)) throw new Error(t("{action}: not installed (Menu → Plugins).", { action: opTitle(op, t) }));
       note(`[Zeff] ${opLabel(op)} …`);
@@ -160,6 +171,7 @@ export async function runTodoOpsNow(todoId: number, opts: { only?: number[] } = 
 export async function runRowOp(rowId: number, raw: Record<string, unknown>, mode?: "send" | "draft"): Promise<{ href?: string; what?: string }> {
   const { checkRowAction, rowMailConv } = await import("@/plugins/workspace/row-actions");
   const { op, href } = await checkRowAction(rowId, raw);
+  if (isDemoAccount()) return { what: demoDone(op as unknown as TodoOp) };
   if (mode && op.type === "gmail-compose") {
     const conv = rowMailConv(rowId);
     const { runGmailCompose } = await import("@/plugins/gmail/run");
@@ -191,6 +203,7 @@ export async function runConvOp(conv: string, mailKey: string, raw: Record<strin
   const { checkAction } = await import("@/plugins/workspace/row-actions");
   const { op, href } = await checkAction(raw);
   if (op.type !== type) throw new Error(t("Unknown action."));
+  if (isDemoAccount()) return { what: demoDone(op as unknown as TodoOp) };
   if (mode && op.type === "gmail-compose") {
     const { runGmailCompose } = await import("@/plugins/gmail/run");
     const r = await runGmailCompose(op as unknown as Extract<TodoOp, { type: "gmail-compose" }>, { mode: mode === "draft" ? "draft" : "send", thread: conv.startsWith("gmail:") ? conv : null, refs: mailKey ? [`mail:${mailKey}`] : [] });

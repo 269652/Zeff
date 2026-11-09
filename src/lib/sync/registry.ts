@@ -11,7 +11,7 @@ import { getMailSettings } from "@/lib/mail/store";
 import { SYNC_KEYS, type SyncKey, type SyncOverview, type SyncView } from "./shared";
 import { isInstalled, stepAvailable } from "@/plugins/state";
 import { mailAccounts, mailboxName } from "@/plugins/imap-mail/config";
-import { currentAccountId, inThisAccount } from "@/db/accounts";
+import { currentAccountId, inThisAccount, isDemoAccount } from "@/db/accounts";
 import { ABORTED, sleep, withAbort } from "@/lib/abort";
 import { emitChange } from "@/lib/events";
 import { noteSyncResult } from "./health";
@@ -42,6 +42,8 @@ const stops = () => (live().stops ??= new Map());
  * an AI CLI — ends with it. The scheduler's syncs and the pages' buttons run through here too.
  */
 export async function runStoppable<T>(key: string, fn: () => Promise<T>): Promise<T> {
+  // The demo's sample data: nothing is read from anywhere (no Chrome, no sign-ins, no AI run).
+  if (isDemoAccount()) throw new Error(t("This is the demo: nothing is synced here. Set up your own Zeff to read your mail and chats."));
   const c = new AbortController();
   stops().set(key, c);
   try {
@@ -685,8 +687,8 @@ export function syncOverview(): SyncOverview {
 /** Run one step to the end, keeping how it went. */
 async function runStep(key: SyncKey): Promise<void> {
   const l = live();
-  // A plugin's step while it isn't installed: nothing.
-  if (!stepAvailable(key)) return;
+  // A plugin's step while it isn't installed: nothing (nor in the demo).
+  if (!stepAvailable(key) || isDemoAccount()) return;
   // Nothing for it (no local folders set up): not run, so never a failure either.
   if (STEPS[key].inUse?.() === false) return;
   if (l.running.has(key) || STEPS[key].busy?.()) return;
@@ -762,6 +764,7 @@ export function startSyncHere(key: SyncKey): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
     if (!stepAvailable(key)) return { ok: false, message: t("{step}: not installed (Menu → Plugins).", { step: STEPS[key].label }) };
+    if (isDemoAccount()) return { ok: false, message: t("This is the demo: nothing is synced here. Set up your own Zeff to read your mail and chats.") };
     if (live().running.has(key) || STEPS[key].busy?.()) return { ok: false, message: t("{step} is already syncing.", { step: STEPS[key].label }) };
     void runStep(key);
     return { ok: true, message: t("{step} is syncing.", { step: STEPS[key].label }) };
@@ -780,6 +783,7 @@ export function startSyncAllHere(): { ok: boolean; message: string } {
   // Kept in the account it was started in — whichever is switched to while it runs.
   return inThisAccount(() => {
     const l = live();
+    if (isDemoAccount()) return { ok: false, message: t("This is the demo: nothing is synced here. Set up your own Zeff to read your mail and chats.") };
     if (l.all !== undefined) return { ok: false, message: t("Already syncing all.") };
     l.all = null;
     l.allStopped = false;

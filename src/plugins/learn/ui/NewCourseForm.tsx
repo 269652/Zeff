@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { createCourseAction } from "@/app/learn/actions";
+import { postJson } from "@/lib/post-json";
 
 /** A new course: what to learn, the goal, what you know already — Claude researches it and writes the plan. */
 export function NewCourseForm() {
@@ -21,8 +21,12 @@ export function NewCourseForm() {
       onSubmit={(e) => {
         e.preventDefault();
         start(async () => {
-          const r = await createCourseAction({ topic, goal, level });
-          if (!r.ok) return void toast(r.error, { tone: "error" });
+          // Through a route (not a Server Action): it answers even from a page opened before Zeff was rebuilt — and
+          // whatever goes wrong (no connection to the PC, a server error) is said, never swallowed.
+          const r = await postJson<{ ok: true; id: number } | { ok: false; error: string }>("/api/learn/courses", { topic, goal, level }).catch(
+            (e: unknown) => ({ ok: false as const, error: `${t("Couldn't reach Zeff — check the connection and try again.")} (${e instanceof Error ? e.message : String(e)})` }),
+          );
+          if (!r || !r.ok) return void toast(r?.error ?? t("Didn't work."), { tone: "error" });
           router.push(`/learn/${r.id}`);
         });
       }}

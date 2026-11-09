@@ -9,7 +9,7 @@ export type AiUsage = { input: number; output: number; cacheRead: number; cacheW
 
 export type AiAnswer<T> = { output: T; model: string | null; costUsd: number | null; durationMs: number | null; usage?: AiUsage };
 
-export const AI_PROVIDERS = ["claude", "copilot", "codex"] as const;
+export const AI_PROVIDERS = ["claude", "copilot", "codex", "local"] as const;
 export type AiProvider = (typeof AI_PROVIDERS)[number];
 
 export const isAiProvider = (v: unknown): v is AiProvider => (AI_PROVIDERS as readonly unknown[]).includes(v);
@@ -30,6 +30,11 @@ export const aiProviderInfo = (t: Translate): Record<AiProvider, { label: string
     label: "ChatGPT (Codex CLI)",
     signIn: t("Signed in with your ChatGPT account (codex login)."),
     install: t("npm install -g @openai/codex — then run codex login once."),
+  },
+  local: {
+    label: "Local AI",
+    signIn: t("No sign-in: the model runs on this computer (Ollama, LM Studio)."),
+    install: t("Install Ollama (ollama.com), then ollama pull qwen3:8b — or start LM Studio's server."),
   },
 });
 /** In English (the labels are names; use aiProviderInfo(t) for the texts). */

@@ -1,6 +1,10 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { buildSrcdoc, parseWidgetMessage, xpForResult, WIDGET_LIBS, checkWidgetHtml } from "@/lib/widgets/sandbox";
+import { setupTempData } from "./helpers";
+
+// Its own throwaway database (it makes courses) — never the real data folder.
+setupTempData();
 
 test("the page a widget runs in: no network, only the shipped libraries, the bridge first", () => {
   const doc = buildSrcdoc("<div id=app></div><script>zeff.report({ score: 1 })</script>", { libs: ["katex"], libBase: "http://127.0.0.1:9333/api/widgets/lib" });

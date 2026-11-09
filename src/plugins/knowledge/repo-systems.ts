@@ -42,7 +42,7 @@ function identityOf(r: RepoView): string {
 type Source = { id: string; title: string; space: string; url: string; summary: string | null; lines: string[] };
 
 /** The prompt budget: Copilot takes its prompt on stdin like the others, but keeps to the same shorter limit as the reviews. */
-const budgetOf = () => (aiChoice().provider === "copilot" ? COPILOT_MAX_PROMPT : 3 * COPILOT_MAX_PROMPT) - 9000;
+const budgetOf = () => (aiChoice().provider === "copilot" || aiChoice().provider === "local" ? COPILOT_MAX_PROMPT : 3 * COPILOT_MAX_PROMPT) - 9000;
 
 /** What the AI is told about the project and its neighbours (the same in both stages). */
 const headOf = (r: RepoView, repos: RepoView[]): string =>

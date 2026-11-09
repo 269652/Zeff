@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { FormError } from "@/components/FormError";
 import { useActionState, useState, useTransition } from "react";
 import { saveAiSettingsAction, testAiAction } from "@/plugins/llm/server-actions";
@@ -161,6 +162,15 @@ export function AiSettingsForm({
             ) : (
               <input name="codexModel" aria-label={t("Model")} className="input font-mono text-xs" defaultValue={codexModel} placeholder={t("empty: ChatGPT's default")} />
             )}
+          </span>,
+        )}
+        {installed.includes("local") && card(
+          "local",
+          <span className="block min-w-48 text-xs text-zinc-600 dark:text-zinc-400">
+            {/* Address, model and what goes there: on its own page (it asks the server for its models). */}
+            <Link href="/settings/local-ai" className="text-indigo-700 hover:underline dark:text-indigo-300">
+              {t("Address, model and what goes to it →")}
+            </Link>
           </span>,
         )}
       </div>

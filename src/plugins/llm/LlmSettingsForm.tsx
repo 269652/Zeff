@@ -6,6 +6,7 @@ import { saveLlmSettingsAction } from "@/plugins/llm/server-actions";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { llmTasks, type LlmSettings, type LlmTaskSetting } from "./tasks";
+import type { AiProvider } from "@/lib/ai/shared";
 
 /**
  * The LLM plugin's settings: your instructions and context (with every prompt, every worker and
@@ -19,7 +20,7 @@ export function LlmSettingsForm({
 }: {
   initial: LlmSettings;
   /** The installed backends. */
-  providers: { id: "copilot" | "claude" | "codex"; label: string }[];
+  providers: { id: AiProvider; label: string }[];
   /** What each task runs with now. */
   effective: Record<string, { provider: string; model: string }>;
   /** The instructions and the context as pages of the Workspace (System → Prompts) — changed there. */
@@ -123,7 +124,7 @@ export function LlmSettingsForm({
                     />
                   </td>
                   <td className="text-xs text-zinc-500">
-                    {effective[task.id]?.provider === "claude" ? "Claude CLI" : effective[task.id]?.provider === "codex" ? "ChatGPT" : "Copilot CLI"}
+                    {effective[task.id]?.provider === "claude" ? "Claude CLI" : effective[task.id]?.provider === "codex" ? "ChatGPT" : effective[task.id]?.provider === "local" ? t("Local AI") : "Copilot CLI"}
                     {effective[task.id]?.model ? ` · ${effective[task.id].model}` : ""}
                   </td>
                 </tr>

@@ -314,6 +314,14 @@ ${(await import("./lookups")).lookupReference()}`)),
       const d = r?.dbId ? store.getDatabase(r.dbId) : null;
       if (!r || !d) return h.fail(`No row ${row}.`);
       const c = await valuesToCells(d.schema, values ?? {});
+      // A job whose worker is still at work: its status stays — Zeff moves it (to "Zur Prüfung") when the run ends.
+      if (d.schema.jobs && "job_status" in c.cells) {
+        const held = await (await import("./jobs")).jobHeldBy(r.id);
+        if (held) {
+          delete c.cells.job_status;
+          c.notes.push(`Status — worker ${held} is still at work; Zeff sets the status when its run ends`);
+        }
+      }
       if (c.schema !== d.schema) store.updateSchema(d.page.id, c.schema);
       for (const [k, v] of Object.entries(c.cells)) store.setCell(r.id, k, v);
       if (title !== undefined) store.updatePage(r.id, { title });

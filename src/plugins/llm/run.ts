@@ -21,6 +21,11 @@ import { recordUsage } from "@/lib/ai/usage";
 import { countRedactions, recordReceipt } from "@/lib/ai/receipts";
 import { guardPrompt } from "@/lib/boundaries";
 import { getLlmSettings } from "./settings";
+import { localAiConfig } from "@/plugins/local-ai/config";
+import { runLocal } from "@/plugins/local-ai/client";
+
+/** Whether a prompt with secret lines goes whole to the local AI (its plugin installed, and set so on its page). */
+const keepsSecretsLocal = (): boolean => providerAvailable("local") && isInstalled("local-ai") && localAiConfig().secretLocal;
 import { IDEMPOTENT_TASKS, LLM_PREAMBLE_MAX, type LlmTaskId } from "./tasks";
 
 /** At most this many CLIs at once, from every job and loop together. */
@@ -57,6 +62,8 @@ export function llmChoice(task: LlmTaskId): { provider: AiProvider; model: strin
   let provider: AiProvider = own?.provider && providerAvailable(own.provider) ? own.provider : aiChoice().provider;
   // ChatGPT's workers are live sessions only: without those (Code settings → Live sessions) the first other backend installed.
   if (task === "worker" && provider === "codex" && !liveWorkersOn("codex")) provider = (["claude", "copilot"] as const).find((p) => providerAvailable(p)) ?? "copilot";
+  // The local AI answers prompts — it doesn't work in a repo: a worker goes to a CLI.
+  if (task === "worker" && provider === "local") provider = (["claude", "copilot", "codex"] as const).find((p) => providerAvailable(p)) ?? "copilot";
   return { provider, model: (own?.model && own.provider === provider ? own.model : "") || defaultModelOf(provider) };
 }
 
@@ -87,21 +94,31 @@ export function llmPreamble(): string {
 export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { provider?: AiProvider; timeoutMs?: number; maxBudgetUsd?: number; fresh?: boolean } = {}): Promise<AiAnswer<T>> {
   if (!isInstalled("llm")) return Promise.reject(new ValidationError(t("The LLM plugin is not installed (Menu → Plugins) — no AI tasks.")));
   const choice = llmChoice(task);
-  const provider = opts.provider ?? choice.provider;
+  let provider = opts.provider ?? choice.provider;
   if (!providerAvailable(provider)) return Promise.reject(new ValidationError(t("{provider}: the plugin is not installed (Menu → Plugins).", { provider: AI_PROVIDER_INFO[provider].label })));
-  const model = (opts.provider && opts.provider !== choice.provider ? defaultModelOf(provider) : choice.model) || undefined;
+  let model = (opts.provider && opts.provider !== choice.provider ? defaultModelOf(provider) : choice.model) || undefined;
   const preamble = llmPreamble();
   // Last: what comes last weighs most — the user's word over the task's own rules.
   // What is marked secret never goes out (lib/boundaries): its lines are left out of the prompt.
   const raw = preamble ? `${prompt}\n\n---\n\n${preamble}` : prompt;
-  const full = guardPrompt(raw);
-  const redacted = countRedactions(raw, full);
+  let full = guardPrompt(raw);
+  let redacted = countRedactions(raw, full);
+  // Secret lines in it, and a local AI that may read them (its page: "secret only to the local AI"): the whole prompt goes
+  // there — to this computer — instead of to a cloud AI without them.
+  if (full !== raw && provider !== "local" && keepsSecretsLocal()) {
+    provider = "local";
+    model = defaultModelOf("local") || undefined;
+    full = raw;
+    redacted = 0;
+  }
   // Only Claude takes a budget.
   if (opts.maxBudgetUsd !== undefined && provider !== "claude") console.warn(`[llm] ${task}: maxBudgetUsd is ignored by ${provider}.`);
   // Each time it goes out (a second try too): a receipt of what went (lib/ai/receipts.ts — Privacy → What went to the AI).
   const attempt = () => (recordReceipt({ task, provider, model, text: full, redacted }), send());
   const send = () =>
-    provider === "copilot"
+    provider === "local"
+      ? runLocal<T>(full, schema, { model, timeoutMs: opts.timeoutMs })
+      : provider === "copilot"
       ? runCopilot<T>(full, schema, { model, timeoutMs: opts.timeoutMs })
       : provider === "codex"
         ? runCodex<T>(full, schema, { model, timeoutMs: opts.timeoutMs })

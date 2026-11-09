@@ -3,6 +3,7 @@ import type { AppSettings } from "@/db/schema";
 import { findClaudeCli } from "@/plugins/claude-cli/cli";
 import { findCodexCli } from "@/plugins/codex-cli/cli";
 import { findCopilotCli } from "@/plugins/copilot-cli/cli";
+import { localAiConfig } from "@/plugins/local-ai/config";
 import type { LlmTaskId } from "@/plugins/llm/tasks";
 import { AI_PROVIDER_INFO, AI_PROVIDERS, type AiAnswer, type AiProvider } from "./shared";
 import { providerAvailable } from "@/plugins/state";
@@ -30,7 +31,8 @@ export function aiProviders(): { id: AiProvider; label: string; found: string | 
   return AI_PROVIDERS.filter((id) => providerAvailable(id)).map((id) => ({
     id,
     label: AI_PROVIDER_INFO[id].label,
-    found: id === "claude" ? findClaudeCli() : id === "codex" ? (findCodexCli()?.where ?? null) : (findCopilotCli()?.where ?? null),
+    // (The local AI: its address — whether it answers is the settings page's check.)
+    found: id === "claude" ? findClaudeCli() : id === "codex" ? (findCodexCli()?.where ?? null) : id === "local" ? localAiUrl() : (findCopilotCli()?.where ?? null),
   }));
 }
 
@@ -45,7 +47,11 @@ export function aiChoice(): { provider: AiProvider; model: string; maxPrompt: nu
 
 /** A provider's own default model, as set on the LLM page ("" = its CLI's). */
 export const defaultModelOf = (provider: AiProvider, s: AppSettings = getAppSettings()): string =>
-  provider === "copilot" ? s.copilotModel : provider === "codex" ? s.codexModel : s.claudeModel;
+  provider === "copilot" ? s.copilotModel : provider === "codex" ? s.codexModel : provider === "local" ? localAiModel() : s.claudeModel;
+
+/** The local AI's address and model, as set on its page (plugins/local-ai/config). */
+const localAiUrl = (): string => localAiConfig().url;
+const localAiModel = (): string => localAiConfig().model;
 
 /**
  * A prompt answered as JSON matching `schema` — through the LLM plugin (its task's backend and

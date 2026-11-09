@@ -55,6 +55,24 @@ const now = () => new Date().toISOString();
 /** The run's MCP config (Zeff's server, for a send run Jira too). */
 const jiraConfigPath = (id: number) => path.join(workDir(), `jira-mcp-${id}.json`);
 
+/**
+ * Copilot's share of the same: Zeff's MCP server of this run's account (its config in a file —
+ * the token stays off the command line; Copilot wants `tools` on each server), the todo tools
+ * allowed without asking and the booking tools denied, as Claude's.
+ */
+function copilotMcpArgs(id: number): string[] {
+  const { mcpServers } = workerMcpServers(currentAccountId(), {}, id);
+  const servers = Object.fromEntries(Object.entries(mcpServers).map(([name, s]) => [name, { tools: ["*"], ...(s as object) }]));
+  fs.writeFileSync(/*turbopackIgnore: true*/ jiraConfigPath(id), JSON.stringify({ mcpServers: servers }), { mode: 0o600 });
+  const asCopilot = (tool: string) => tool.replace(/^mcp__zeff__(.+)$/, "zeff($1)");
+  return [
+    "--additional-mcp-config",
+    `@${jiraConfigPath(id)}`,
+    ...TODO_TOOLS.flatMap((tool) => ["--allow-tool", asCopilot(tool)]),
+    ...ZEFF_TOOLS.flatMap((tool) => ["--deny-tool", asCopilot(tool)]),
+  ];
+}
+
 /** The names Zeff's .env files set (their values are Zeff's secrets: Jira's, GitLab's …). */
 export function envFileKeys(dir = process.cwd()): Set<string> {
   const keys = new Set<string>();
@@ -466,7 +484,7 @@ async function start(id: number): Promise<void> {
         void startInteractive({
           runId: id,
           command: cli.command,
-          args: [...cli.args, "--deny-tool", "shell(git push)", ...(r.model ? ["--model", r.model] : [])],
+          args: [...cli.args, "--deny-tool", "shell(git push)", ...copilotMcpArgs(id), ...(r.model ? ["--model", r.model] : [])],
           cwd,
           env: workerEnv(id) as NodeJS.ProcessEnv,
           prompt: `${rules}\n\n${prompt}${tail}\n\nWenn dir etwas unklar ist, frag mich direkt — ich antworte hier.`,
@@ -481,7 +499,7 @@ async function start(id: number): Promise<void> {
       }
       command = cli.command;
       // The prompt on stdin (no command-line length limit).
-      args = [...cli.args, "--allow-all-tools", "--deny-tool", "shell(git push)", "--no-ask-user", ...(r.model ? ["--model", r.model] : [])];
+      args = [...cli.args, "--allow-all-tools", "--deny-tool", "shell(git push)", ...copilotMcpArgs(id), "--no-ask-user", ...(r.model ? ["--model", r.model] : [])];
       stdin = `${rules}\n\n${prompt}${tail}`;
     } else {
       const cli = findClaudeCli();

@@ -101,7 +101,8 @@ export function startSyncScheduler(): void {
   const tick = async () => {
     const { activeAccountId, listAccounts, withAccount, accountsInstalled, reloadAccounts } = await import("@/db/accounts");
     reloadAccounts(); // an account made or changed by the web server
-    const accounts = accountsInstalled() ? listAccounts() : [{ id: activeAccountId(), name: "" }];
+    // (The demo's sample data stays as it is: nothing syncs, backs up or runs by itself there.)
+    const accounts = accountsInstalled() ? listAccounts().filter((a) => !a.demo) : [{ id: activeAccountId(), name: "" }];
     // A backup when it's due (Settings → Backups) — at any hour, quiet ones too; each account's
     // by its own settings, the one you're in or not.
     for (const a of accounts) {

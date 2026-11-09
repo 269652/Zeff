@@ -59,7 +59,7 @@ export type PluginShape<Id extends string = string> = {
   /** Where its actions stand in the AI's dictionary (lower first; none: after the others). Keeps the prompt's order stable. */
   actionsOrder?: number;
   /** The AI provider it is. */
-  aiProvider?: "copilot" | "claude" | "codex";
+  aiProvider?: "copilot" | "claude" | "codex" | "local";
   /** What it brings to other plugins — extensions (see extensions.ts), there while all their plugins are. */
   extensions?: ExtensionShape[];
   /** Experimental: not an official integration of the service (it drives its web page or internals) — why it can break or be refused; shown with the liability disclaimer (Plugins page, before installing, where it acts). */

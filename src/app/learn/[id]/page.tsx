@@ -109,8 +109,9 @@ export default async function CoursePage({ params }: Props) {
     <div className="mx-auto w-full max-w-6xl space-y-6">
       {back}
       <header className="space-y-3">
-        <div className="flex flex-wrap items-start gap-3">
-          <div className="min-w-0 flex-1">
+        {/* Title, what it is, then its button — one under the other (beside each other the title was squeezed on a phone). */}
+        <div className="flex flex-col items-start gap-3">
+          <div className="min-w-0 space-y-1">
             <h1 className="text-lg font-semibold">{course.title}</h1>
             {course.summary && <p className="max-w-[75ch] text-sm text-zinc-600 dark:text-zinc-400">{course.summary}</p>}
           </div>

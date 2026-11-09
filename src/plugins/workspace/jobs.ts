@@ -238,6 +238,20 @@ export function stateOf(rowId: number): JobState | undefined {
 }
 
 /**
+ * The worker a job row is held by: its run ("W-104") while that is queued or running — none when the row isn't a job's, or
+ * its run is over. While it is, the job's status is Zeff's to move (settleJobs, when the run ends), not an agent's.
+ */
+export async function jobHeldBy(rowId: number): Promise<string | null> {
+  const row = getPage(rowId);
+  if (!row?.dbId || !getDatabase(row.dbId)?.schema.jobs) return null;
+  const runId = runOf(row.props[JOB.run]);
+  if (!runId) return null;
+  const { getRun } = await import("@/lib/work/store");
+  const status = getRun(runId)?.status;
+  return status === "queued" || status === "running" ? `W-${runId}` : null;
+}
+
+/**
  * What happens to a job, in the server's log (data/logs): "[jobs] #6843 “title” → In Arbeit (W-90)". Every start, settle, failure
  * and back-off says so — with the reason — so a job that went wrong can be followed there.
  */

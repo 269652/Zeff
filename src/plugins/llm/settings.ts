@@ -21,7 +21,7 @@ export function saveLlmSettings(v: { instructions: string; context: string; task
   const tasks: LlmSettings["tasks"] = {};
   for (const [id, t] of Object.entries(v.tasks ?? {})) {
     if (!isLlmTask(id)) continue;
-    const provider = t?.provider === "copilot" || t?.provider === "claude" || t?.provider === "codex" ? t.provider : "";
+    const provider = t?.provider === "copilot" || t?.provider === "claude" || t?.provider === "codex" || t?.provider === "local" ? t.provider : "";
     const model = String(t?.model ?? "").trim().slice(0, 80);
     if (provider || model) tasks[id] = { provider, model };
   }
