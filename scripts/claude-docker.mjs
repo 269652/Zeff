@@ -306,6 +306,8 @@ function build() {
 function ensureUp() {
   const { image, container, home } = names();
   const mounts = defaultMounts();
+  // Docker itself not running (Docker Desktop not started yet): say so — "the image is missing" sent people the wrong way.
+  if (docker(["version", "--format", "{{.Server.Version}}"]).status !== 0) throw new Error("Docker is not running — start Docker Desktop (Claude runs in Docker: Launcher → Docker)");
   if (!imageExists(image)) {
     process.stderr.write(`[claude-docker] the image ${image} is missing — building it (docker/claude/Dockerfile) …\n`);
     if (build() !== 0) throw new Error("the image could not be built");
