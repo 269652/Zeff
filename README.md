@@ -77,6 +77,20 @@ agents that take todos over in your own repos, and a **Studio** to build whateve
   </tr>
 </table>
 
+<table>
+  <tr>
+    <td width="50%"><img src="docs/screenshots/learn-course.png" alt="A Learn course on differential geometry: level, today's goal, a seven-day streak, progress and badges; the next steps; the skill map with paths in colour, mastered skills ticked, the one in progress with its ring of steps, the locked ones ahead"><br><b>Learn anything</b> — Claude researches a topic and plans it as a skill tree you work through, path by path.</td>
+    <td width="50%"><img src="docs/screenshots/learn-exercise.png" alt="A lesson: an interactive exercise Claude built — the osculating circle of a parabola, moved with a slider — your result with its answer, and the teacher's explanation beside it"><br><b>A teacher that builds exercises</b> — interactive widgets made on the fly, your answers kept on the lesson's timeline.</td>
+  </tr>
+</table>
+
+<table>
+  <tr>
+    <td width="66%"><img src="docs/screenshots/learn-timeline.png" alt="A lesson's timeline: left of the line your tries with every answer marked right or wrong, right of it the teacher's explanations with formulas"></td>
+    <td width="34%"><img src="docs/screenshots/phone-learn.png" alt="The same lesson on a phone: your results and the teacher's messages down one line"></td>
+  </tr>
+</table>
+
 ## Features
 
 ### ✅ Todos — derived from everything that comes in
@@ -207,6 +221,23 @@ agents that take todos over in your own repos, and a **Studio** to build whateve
 - **Documents** — drop PDFs, Office files, pictures or audio; Zeff extracts the text (scans and audio too) and files it.
 - **Correlations** — what goes with what in your days (your mood and energy against meetings, hours, messages,
   spending), computed with real statistics and only told when it holds.
+
+### 🎓 Learn — any topic, taught *(beta)*
+
+- **Pick a topic, get a plan** — Claude researches it (OpenAlex, Semantic Scholar and arXiv, plus curricula and
+  textbooks on the web) and writes a plan over years, phases, skills and small steps of 15–45 minutes, with the
+  sources it used. A plan that comes out as a chain is sent back once to branch out.
+- **A skill map, not a syllabus** — every skill a node in a graph, coloured by its path (foundations, intuition,
+  computation, theory …), in columns after what it needs; say which paths interest you and the next steps follow.
+- **Claude as your teacher** — each step is a lesson in a chat: it explains (formulas typeset), asks, and builds
+  interactive exercises on the spot — quizzes, graphs with sliders, 3D surfaces, charts (KaTeX, JSXGraph, three.js,
+  Chart.js in a locked-down sandbox). When an exercise is done the lesson goes on by itself; when you've shown you
+  can do it, the step is mastered.
+- **A lesson is a timeline** — your messages, every exercise and every try (each answer, right or wrong) on one side
+  of the line, the teacher's explanations on the other: scroll back to see how you solved it.
+- **Game, not homework** — experience and levels, a daily goal, streaks, badges; flashcards from each step reviewed
+  with spaced repetition (a todo tells you when cards are due); weekly study times in your calendar.
+- **Try it** — the demo has a course on differential geometry a week in.
 
 ### 🌱 Life
 
