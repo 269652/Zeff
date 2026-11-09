@@ -380,8 +380,17 @@ export function widgetResult(id: number, r: Extract<WidgetMessage, { type: "resu
   const best = Math.max(w.best_score ?? 0, r.score);
   const xp = Math.max(0, xpForResult({ type: "result", score: best }) - w.xp);
   d.prepare("update learn_widgets set best_score = ?, xp = xp + ? where id = ?").run(best, xp, id);
-  awardXp(w.course_id, xp, "widget", { widget: id, score: r.score, ...(r.correct !== undefined ? { correct: r.correct, total: r.total } : {}), ...(r.note ? { note: r.note } : {}) }, at, w.node_key);
+  awardXp(w.course_id, xp, "widget", { widget: id, score: r.score, ...(r.correct !== undefined ? { correct: r.correct, total: r.total } : {}), ...(r.note ? { note: r.note } : {}), ...(r.answers ? { answers: r.answers } : {}) }, at, w.node_key);
   return { xp, best };
+}
+
+/** Every result a step's exercises reported (each try, oldest first) — the lesson's timeline (timeline.ts). */
+export function widgetResults(courseId: number, nodeKey: string): import("./timeline").TimelineResult[] {
+  const rows = db().prepare("select detail, at from learn_events where course_id = ? and node_key = ? and kind = 'widget' order by at").all(courseId, nodeKey) as { detail: string; at: string }[];
+  return rows.map((r) => {
+    const d = json<{ widget?: number; score?: number; correct?: number; total?: number; note?: string; answers?: { q: string; a: string; ok?: boolean }[] }>(r.detail, {});
+    return { at: r.at, widget: Number(d.widget ?? 0), score: Number(d.score ?? 0), ...(d.correct !== undefined ? { correct: d.correct, total: d.total } : {}), ...(d.note ? { note: d.note } : {}), ...(d.answers ? { answers: d.answers } : {}) };
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

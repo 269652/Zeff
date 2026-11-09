@@ -15,7 +15,7 @@ const BACKEND: Record<string, string> = { claude: "Claude CLI", copilot: "Copilo
  * A run's log lines as they come: polled while it runs, read once when it's over. A live session's
  * recent lines can change (your answer added to its question): its last 50 are read again each time.
  */
-function useRunLog(id: number, active: boolean, live: boolean) {
+export function useRunLog(id: number, active: boolean, live: boolean) {
   const [lines, setLines] = useState<WorkLogLine[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);

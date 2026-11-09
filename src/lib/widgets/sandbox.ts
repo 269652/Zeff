@@ -31,7 +31,7 @@ const BRIDGE = `<script>
 (function () {
   var send = function (m) { m.zeffWidget = 1; parent.postMessage(m, "*"); };
   window.zeff = {
-    report: function (r) { r = r || {}; send({ type: "result", score: r.score, correct: r.correct, total: r.total, note: r.note, done: r.done === true }); },
+    report: function (r) { r = r || {}; send({ type: "result", score: r.score, correct: r.correct, total: r.total, note: r.note, answers: r.answers, done: r.done === true }); },
     resize: function (h) { send({ type: "resize", height: h }); }
   };
   var last = 0;
@@ -76,9 +76,23 @@ export function buildSrcdoc(html: string, opts: ({ libs?: string[]; libBase: str
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${esc(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1">${theme}${css.join("")}${BRIDGE}${js.join("")}</head><body>${html}</body></html>`;
 }
 
-export type WidgetMessage = { type: "result"; score: number; correct?: number; total?: number; note?: string; /** The exercise is over (the lesson goes on). */ done?: boolean } | { type: "resize"; height: number };
+export type WidgetMessage = { type: "result"; score: number; correct?: number; total?: number; note?: string; /** The exercise is over (the lesson goes on). */ done?: boolean; /** What was asked and answered (the lesson's timeline shows it). */ answers?: { q: string; a: string; ok?: boolean }[] } | { type: "resize"; height: number };
 
 const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+
+/** The answers a result carries: at most 50, question and answer as text (300 characters each), right or not if known. */
+function answersOf(v: unknown): { q: string; a: string; ok?: boolean }[] | undefined {
+  if (!Array.isArray(v)) return undefined;
+  const out: { q: string; a: string; ok?: boolean }[] = [];
+  for (const x of v) {
+    if (!x || typeof x !== "object") continue;
+    const o = x as Record<string, unknown>;
+    if (o.q === undefined || o.a === undefined) continue;
+    out.push({ q: String(o.q).slice(0, 300), a: String(o.a).slice(0, 300), ...(typeof o.ok === "boolean" ? { ok: o.ok } : {}) });
+    if (out.length === 50) break;
+  }
+  return out.length ? out : undefined;
+}
 
 /** A message from a widget's frame, checked: a result (score 0–1, from correct/total if not given) or its height. */
 export function parseWidgetMessage(data: unknown): WidgetMessage | null {
@@ -103,6 +117,7 @@ export function parseWidgetMessage(data: unknown): WidgetMessage | null {
     ...(total !== undefined ? { total: Math.max(0, Math.round(total)) } : {}),
     ...(note ? { note } : {}),
     ...(m.done === true ? { done: true } : {}),
+    ...(answersOf(m.answers) ? { answers: answersOf(m.answers) } : {}),
   };
 }
 

@@ -9,12 +9,11 @@ import { getTodo } from "@/lib/todos/store";
 import { runsForTodos } from "@/lib/work/store";
 import { isActive, type WorkRunView } from "@/lib/work/shared";
 import { ClaudeSession } from "@/components/work/ClaudeSession";
-import { SessionThread, type SessionTurn } from "@/components/work/SessionThread";
 import { ChatComposer } from "@/app/chat/ChatComposer";
 import { ScrollToEnd } from "@/app/chat/ScrollToEnd";
 import { StuckRun } from "@/app/chat/StuckRun";
 import { LessonButton } from "@/plugins/learn/ui/LessonButton";
-import { LessonWidgets } from "@/plugins/learn/ui/LessonWidgets";
+import { LessonTimeline, type TimelineRun } from "@/plugins/learn/ui/LessonTimeline";
 
 type Props = { params: Promise<{ id: string; key: string }> };
 
@@ -26,8 +25,9 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 }
 
 /**
- * A step's lesson: what it's about and its goals; the exercises the teacher built (widgets, newest large); the chat with
- * the teacher (Claude, as a live session on the step's own todo — src/plugins/learn/teacher.ts). Not begun yet: a button.
+ * A step's lesson: what it's about and its goals; then what happened, as a timeline — your messages, the exercises the
+ * teacher built and your answers left, the teacher's explanations right (the chat with Claude, a live session on the
+ * step's own todo — src/plugins/learn/teacher.ts); the message box below. Not begun yet: a button.
  */
 export default async function StepPage({ params }: Props) {
   await connection();
@@ -42,15 +42,18 @@ export default async function StepPage({ params }: Props) {
   const status = tree.status.get(node.key) ?? "locked";
   const parent = nodes.find((n) => n.key === node.parent);
   const blockers = node.requires.map((k) => nodes.find((n) => n.key === k)).filter((n) => n && tree.status.get(n.key) !== "mastered");
-  const widgets = store.nodeWidgets(courseId, node.key).map((w) => ({ id: w.id, title: w.title, html: w.html, libs: w.libs, bestScore: w.bestScore }));
+  const widgets = store.nodeWidgets(courseId, node.key).map((w) => ({ id: w.id, title: w.title, html: w.html, libs: w.libs, bestScore: w.bestScore, createdAt: w.createdAt }));
+  const results = store.widgetResults(courseId, node.key);
 
   const runs = node.lessonTodoId ? (runsForTodos([node.lessonTodoId]).get(node.lessonTodoId) ?? []) : [];
   const conversation: WorkRunView[] = [...runs].reverse();
   const todo = node.lessonTodoId ? getTodo(node.lessonTodoId) : undefined;
-  const turns: SessionTurn[] = conversation.map((r) => ({
-    run: r,
-    ask: todo?.userNotes.filter((n) => n.kind === "instruction" && n.run === r.id).map((n) => n.text).join("\n\n") || null,
-    label: "",
+  const timelineRuns: TimelineRun[] = conversation.map((r) => ({
+    id: r.id,
+    startedAt: r.startedAt ?? r.queuedAt,
+    prompts: todo?.userNotes.filter((n) => n.kind === "instruction" && n.run === r.id).map((n) => n.text) ?? [],
+    active: isActive(r.status),
+    live: !!r.session,
   }));
   const last = conversation[conversation.length - 1];
   // A live session still running takes the next message (never a second run queued behind it, waiting for its worker).
@@ -67,8 +70,8 @@ export default async function StepPage({ params }: Props) {
         </div>
       ) : (
         <>
-          <div id="lesson-thread" className="min-h-0 flex-1 overflow-y-auto">
-            <SessionThread turns={turns} />
+          <div id="lesson-thread" data-timeline-scroll className="min-h-0 flex-1 overflow-y-auto pr-1">
+            <LessonTimeline runs={timelineRuns} widgets={widgets} results={results} sessionRunId={liveRun?.id ?? last.id} />
           </div>
           <ScrollToEnd target="lesson-thread" />
           <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-zinc-200 pt-2 dark:border-zinc-800">
@@ -81,9 +84,9 @@ export default async function StepPage({ params }: Props) {
   );
 
   return (
-    // Like the chat, the lesson fills the window (MainArea's full-height pages): the conversation scrolls, the message box
-    // stays at the bottom. With exercises they stand beside the chat (above it on a phone); without, the chat has it all.
-    <div className={`mx-auto flex h-full w-full flex-col gap-3 ${widgets.length ? "max-w-7xl" : "max-w-3xl"}`}>
+    // Like the chat, the lesson fills the window (MainArea's full-height pages): its timeline scrolls — you and the
+    // exercises left of the line, the teacher right of it (LessonTimeline) — the message box stays at the bottom.
+    <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-3">
       <header className="shrink-0 space-y-0.5">
         <Link href={`/learn/${courseId}`} className="text-sm text-zinc-500 hover:underline">
           ← {course.title}
@@ -122,13 +125,6 @@ export default async function StepPage({ params }: Props) {
               ))}
             </ul>
           )}
-        </div>
-      ) : widgets.length > 0 ? (
-        <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
-          <div className="max-h-[45%] min-w-0 shrink-0 overflow-y-auto lg:max-h-none lg:flex-[3]">
-            <LessonWidgets widgets={widgets} sessionRunId={liveRun?.id ?? last?.id} />
-          </div>
-          <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-[2]">{chat}</div>
         </div>
       ) : (
         chat
