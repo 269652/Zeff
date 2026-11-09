@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { Markdown } from "@/components/Markdown";
-import { WidgetFrame } from "@/components/widgets/WidgetFrame";
+import { SnapshotFrame, WidgetFrame } from "@/components/widgets/WidgetFrame";
 import { useRunLog } from "@/components/work/SessionThread";
 import { formatDateTime } from "@/lib/format";
 import type { WorkLogLine } from "@/lib/work/shared";
@@ -150,6 +150,7 @@ function Item({ item, widget, open, onResult }: { item: TimelineItem; widget?: T
             </ol>
           )}
           {item.note && <p className="text-xs text-zinc-500">{item.note}</p>}
+          {item.snapshotId && <Snapshot id={item.snapshotId} />}
           {item.at && <p className="text-[11px] text-zinc-400">{formatDateTime(item.at)}</p>}
         </section>
       );
@@ -157,3 +158,24 @@ function Item({ item, widget, open, onResult }: { item: TimelineItem; widget?: T
   }
 }
 
+
+/** A try as the widget looked then (its drawing, what was typed): opened on a tap, fetched then. */
+function Snapshot({ id }: { id: number }) {
+  const t = useT();
+  const [snap, setSnap] = useState<{ html: string; title: string; libs: string[] } | null | "loading">(null);
+  return (
+    <details
+      className="rounded-lg border border-zinc-200 dark:border-zinc-800"
+      onToggle={(e) => {
+        if (!(e.currentTarget as HTMLDetailsElement).open || snap) return;
+        setSnap("loading");
+        void fetch(`/api/learn/snapshots/${id}`)
+          .then((r) => (r.ok ? r.json() : null))
+          .then((s) => setSnap(s));
+      }}
+    >
+      <summary className="cursor-pointer px-2 py-1 text-xs font-medium text-indigo-700 dark:text-indigo-300">🖼 {t("As it looked")}</summary>
+      <div className="p-1.5">{snap === "loading" ? <p className="text-xs text-zinc-500">…</p> : snap ? <SnapshotFrame html={snap.html} libs={snap.libs} title={snap.title} /> : null}</div>
+    </details>
+  );
+}

@@ -86,3 +86,9 @@ test("the same exercise done twice: each message gets the try whose numbers it n
   const res = items.filter((i) => i.kind === "result") as { correct?: number; at: string | null }[];
   assert.deepEqual(res.map((r) => [r.correct, r.at]), [[5, "2026-11-09T10:02:00.000Z"], [4, "2026-11-09T10:01:00.000Z"]]);
 });
+
+test("a try's snapshot goes along to its result on the timeline", () => {
+  const items = buildTimeline({ runs: [], widgets: [{ id: 1, title: "W", createdAt: "2026-11-09T09:00:00.000Z" }], results: [{ at: "2026-11-09T10:00:00.000Z", widget: 1, score: 1, snapshotId: 7 }] });
+  const r = items.find((i) => i.kind === "result") as { snapshotId?: number };
+  assert.equal(r.snapshotId, 7);
+});

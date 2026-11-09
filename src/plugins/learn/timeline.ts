@@ -7,14 +7,14 @@
 import type { WorkLogLine } from "@/lib/work/shared";
 
 export type Answer = { q: string; a: string; ok?: boolean };
-export type TimelineResult = { at: string; widget: number; score: number; correct?: number; total?: number; note?: string; answers?: Answer[] };
+export type TimelineResult = { at: string; widget: number; score: number; correct?: number; total?: number; note?: string; answers?: Answer[]; /** The widget as it looked then (store.widgetSnapshot). */ snapshotId?: number };
 
 export type TimelineItem =
   | { side: "center"; kind: "session"; at: string }
   | { side: "center"; kind: "mastered" }
   | { side: "left"; kind: "you"; text: string }
   | { side: "left"; kind: "widget"; widgetId: number; title: string }
-  | { side: "left"; kind: "result"; title: string; widgetId: number | null; score: number; correct?: number; total?: number; note?: string; answers?: Answer[]; at: string | null }
+  | { side: "left"; kind: "result"; title: string; widgetId: number | null; score: number; correct?: number; total?: number; note?: string; answers?: Answer[]; at: string | null; snapshotId?: number }
   | { side: "right"; kind: "say"; text: string };
 
 /** `prompts`: what started the run (your messages queued for it — each its own; an exercise's result among them too). */
@@ -30,7 +30,7 @@ export function buildTimeline(v: { runs: Run[]; widgets: Widget[]; results: Time
   const results = [...v.results].sort((a, b) => a.at.localeCompare(b.at));
   const usedWidgets = new Set<number>();
   const usedResults = new Set<TimelineResult>();
-  const resultItem = (r: TimelineResult): TimelineItem => ({ side: "left", kind: "result", title: titleOf.get(r.widget) ?? "", widgetId: r.widget, score: r.score, correct: r.correct, total: r.total, note: r.note, answers: r.answers, at: r.at });
+  const resultItem = (r: TimelineResult): TimelineItem => ({ side: "left", kind: "result", title: titleOf.get(r.widget) ?? "", widgetId: r.widget, score: r.score, correct: r.correct, total: r.total, note: r.note, answers: r.answers, at: r.at, ...(r.snapshotId ? { snapshotId: r.snapshotId } : {}) });
   const runs = [...v.runs].sort((a, b) => a.startedAt.localeCompare(b.startedAt));
 
   runs.forEach((run, i) => {

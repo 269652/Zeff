@@ -112,3 +112,29 @@ test("a result is recorded with its answers (the lesson's timeline shows them)",
   assert.deepEqual(ev[0].answers, [{ q: "2+2", a: "4", ok: true }]);
   assert.equal(ev[0].widget, w);
 });
+
+test("a result may carry a snapshot of the widget as it was (its drawing, its inputs) — text, capped", async () => {
+  const { parseWidgetMessage } = await import("@/lib/widgets/sandbox");
+  const r = parseWidgetMessage({ zeffWidget: 1, type: "result", score: 1, snapshot: "<svg><circle r='2'/></svg>" }) as { snapshot?: string };
+  assert.equal(r.snapshot, "<svg><circle r='2'/></svg>");
+  const big = parseWidgetMessage({ zeffWidget: 1, type: "result", score: 1, snapshot: "x".repeat(3_000_001) }) as { snapshot?: string };
+  assert.equal(big.snapshot, undefined, "too big: left out, the result still counts");
+  assert.equal((parseWidgetMessage({ zeffWidget: 1, type: "result", score: 1, snapshot: 5 }) as { snapshot?: string }).snapshot, undefined);
+});
+
+test("a try's snapshot is kept with it: the timeline has its id, the snapshot its widget's libraries", async () => {
+  const store = await import("@/plugins/learn/store");
+  const id = store.createCourse({ topic: "s", goal: "", level: "" });
+  store.savePlan(id, { title: "T", years: 1, nodes: [{ key: "y", kind: "year", parent: null, title: "Y" }, { key: "p", kind: "phase", parent: "y", title: "P" }, { key: "s", kind: "skill", parent: "p", title: "S" }, { key: "a", kind: "step", parent: "s", title: "A" }] });
+  const w = store.addWidget({ courseId: id, nodeKey: "a", title: "Plot", html: "<div id=b></div>", libs: ["jsxgraph"] });
+  store.widgetResult(w, { type: "result", score: 1, snapshot: "<div><svg><path d='M0 0L1 1'/></svg></div>" });
+  store.widgetResult(w, { type: "result", score: 0.5 });
+  const [first, second] = store.widgetResults(id, "a");
+  assert.ok(first.snapshotId, "the first try has one");
+  assert.equal(second.snapshotId, undefined, "the second none");
+  const snap = store.widgetSnapshot(first.snapshotId!)!;
+  assert.match(snap.html, /<path/);
+  assert.deepEqual(snap.libs, ["jsxgraph"]);
+  assert.equal(snap.title, "Plot");
+  assert.equal(store.widgetSnapshot(999999), null);
+});

@@ -30,8 +30,31 @@ export function checkWidgetHtml(html: string): { ok: true } | { ok: false; why: 
 const BRIDGE = `<script>
 (function () {
   var send = function (m) { m.zeffWidget = 1; parent.postMessage(m, "*"); };
+  // The widget as it is now, to look at later (the lesson's timeline): its body with what was typed and chosen written
+  // into it, canvases (Chart.js, three.js, drawings) as pictures, SVG (JSXGraph, KaTeX) as it stands — no scripts.
+  var snap = function () {
+    try {
+      var root = document.body.cloneNode(true);
+      var from = document.body.querySelectorAll("input,textarea,select"), to = root.querySelectorAll("input,textarea,select");
+      for (var i = 0; i < from.length; i++) {
+        var a = from[i], b = to[i];
+        if (a.type === "checkbox" || a.type === "radio") { if (a.checked) b.setAttribute("checked", ""); else b.removeAttribute("checked"); }
+        else if (a.tagName === "SELECT") { for (var k = 0; k < a.options.length; k++) if (a.options[k].selected) b.options[k].setAttribute("selected", ""); }
+        else if (a.tagName === "TEXTAREA") b.textContent = a.value;
+        else b.setAttribute("value", a.value);
+      }
+      var cs = document.body.querySelectorAll("canvas"), cd = root.querySelectorAll("canvas");
+      for (var j = 0; j < cs.length; j++) {
+        try { var img = document.createElement("img"); img.src = cs[j].toDataURL("image/png"); img.style.cssText = cs[j].style.cssText; img.width = cs[j].clientWidth || cs[j].width; img.height = cs[j].clientHeight || cs[j].height; cd[j].replaceWith(img); } catch (e) {}
+      }
+      var scripts = root.querySelectorAll("script");
+      for (var s = 0; s < scripts.length; s++) scripts[s].remove();
+      var html = root.innerHTML;
+      return html.length <= 3000000 ? html : undefined;
+    } catch (e) { return undefined; }
+  };
   window.zeff = {
-    report: function (r) { r = r || {}; send({ type: "result", score: r.score, correct: r.correct, total: r.total, note: r.note, answers: r.answers, done: r.done === true }); },
+    report: function (r) { r = r || {}; send({ type: "result", score: r.score, correct: r.correct, total: r.total, note: r.note, answers: r.answers, done: r.done === true, snapshot: snap() }); },
     resize: function (h) { send({ type: "resize", height: h }); }
   };
   var last = 0;
@@ -76,9 +99,12 @@ export function buildSrcdoc(html: string, opts: ({ libs?: string[]; libBase: str
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${esc(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1">${theme}${css.join("")}${BRIDGE}${js.join("")}</head><body>${html}</body></html>`;
 }
 
-export type WidgetMessage = { type: "result"; score: number; correct?: number; total?: number; note?: string; /** The exercise is over (the lesson goes on). */ done?: boolean; /** What was asked and answered (the lesson's timeline shows it). */ answers?: { q: string; a: string; ok?: boolean }[] } | { type: "resize"; height: number };
+export type WidgetMessage = { type: "result"; score: number; correct?: number; total?: number; note?: string; /** The exercise is over (the lesson goes on). */ done?: boolean; /** What was asked and answered (the lesson's timeline shows it). */ answers?: { q: string; a: string; ok?: boolean }[]; /** The widget as it looked (its body, no scripts — the timeline shows it later). */ snapshot?: string } | { type: "resize"; height: number };
 
 const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
+
+/** A snapshot at most this long (a drawing with its canvases as pictures can be big); longer: left out, the result counts. */
+export const MAX_SNAPSHOT = 3_000_000;
 
 /** The answers a result carries: at most 50, question and answer as text (300 characters each), right or not if known. */
 function answersOf(v: unknown): { q: string; a: string; ok?: boolean }[] | undefined {
@@ -118,6 +144,7 @@ export function parseWidgetMessage(data: unknown): WidgetMessage | null {
     ...(note ? { note } : {}),
     ...(m.done === true ? { done: true } : {}),
     ...(answersOf(m.answers) ? { answers: answersOf(m.answers) } : {}),
+    ...(typeof m.snapshot === "string" && m.snapshot.trim() && m.snapshot.length <= MAX_SNAPSHOT ? { snapshot: m.snapshot } : {}),
   };
 }
 

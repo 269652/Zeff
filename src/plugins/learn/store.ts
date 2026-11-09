@@ -18,6 +18,7 @@ function db() {
     create table if not exists learn_courses (id integer primary key autoincrement, topic text not null, goal text not null default '', level text not null default '', status text not null default 'researching', title text not null default '', summary text not null default '', years real not null default 0, sources text not null default '[]', problems text not null default '[]', error text, interests text not null default '{}', daily_goal integer not null default 50, xp integer not null default 0, streak integer not null default 0, last_day text, today text, today_xp integer not null default 0, badges text not null default '[]', created_at text not null, updated_at text not null);
     create table if not exists learn_nodes (id integer primary key autoincrement, course_id integer not null references learn_courses(id) on delete cascade, key text not null, kind text not null, parent_key text, title text not null, summary text not null default '', objectives text not null default '[]', requires text not null default '[]', path text, xp integer not null default 0, minutes integer, sources text not null default '[]', ord integer not null default 0, mastered_at text, active_since text, lesson_todo_id integer, unique (course_id, key));
     create table if not exists learn_events (id integer primary key autoincrement, course_id integer not null references learn_courses(id) on delete cascade, node_key text, kind text not null, xp integer not null default 0, detail text not null default '{}', at text not null);
+    create table if not exists learn_snapshots (id integer primary key autoincrement, course_id integer not null, widget_id integer not null, html text not null, at text not null);
     create index if not exists learn_events_course on learn_events (course_id, at);
     create table if not exists learn_widgets (id integer primary key autoincrement, course_id integer not null references learn_courses(id) on delete cascade, node_key text, run_id integer, title text not null, html text not null, libs text not null default '[]', best_score real, xp integer not null default 0, created_at text not null);
     create index if not exists learn_widgets_node on learn_widgets (course_id, node_key);
@@ -120,7 +121,7 @@ export const listCourses = (): Course[] => (db().prepare("select * from learn_co
 export function deleteCourse(id: number): void {
   const d = db();
   // (Each table by hand: the account's database may run without foreign keys.)
-  for (const t of ["learn_cards", "learn_widgets", "learn_events", "learn_nodes"]) d.prepare(`delete from ${t} where course_id = ?`).run(id);
+  for (const t of ["learn_cards", "learn_widgets", "learn_events", "learn_snapshots", "learn_nodes"]) d.prepare(`delete from ${t} where course_id = ?`).run(id);
   d.prepare("delete from learn_courses where id = ?").run(id);
   changed();
 }
@@ -380,7 +381,9 @@ export function widgetResult(id: number, r: Extract<WidgetMessage, { type: "resu
   const best = Math.max(w.best_score ?? 0, r.score);
   const xp = Math.max(0, xpForResult({ type: "result", score: best }) - w.xp);
   d.prepare("update learn_widgets set best_score = ?, xp = xp + ? where id = ?").run(best, xp, id);
-  awardXp(w.course_id, xp, "widget", { widget: id, score: r.score, ...(r.correct !== undefined ? { correct: r.correct, total: r.total } : {}), ...(r.note ? { note: r.note } : {}), ...(r.answers ? { answers: r.answers } : {}) }, at, w.node_key);
+  // The widget as it looked (its drawing, what was typed): kept beside the event, its id in it.
+  const snapshot = r.snapshot ? Number(d.prepare("insert into learn_snapshots (course_id, widget_id, html, at) values (?, ?, ?, ?)").run(w.course_id, id, r.snapshot, at.toISOString()).lastInsertRowid) : null;
+  awardXp(w.course_id, xp, "widget", { widget: id, score: r.score, ...(r.correct !== undefined ? { correct: r.correct, total: r.total } : {}), ...(r.note ? { note: r.note } : {}), ...(r.answers ? { answers: r.answers } : {}), ...(snapshot ? { snapshot } : {}) }, at, w.node_key);
   return { xp, best };
 }
 
@@ -388,9 +391,15 @@ export function widgetResult(id: number, r: Extract<WidgetMessage, { type: "resu
 export function widgetResults(courseId: number, nodeKey: string): import("./timeline").TimelineResult[] {
   const rows = db().prepare("select detail, at from learn_events where course_id = ? and node_key = ? and kind = 'widget' order by at").all(courseId, nodeKey) as { detail: string; at: string }[];
   return rows.map((r) => {
-    const d = json<{ widget?: number; score?: number; correct?: number; total?: number; note?: string; answers?: { q: string; a: string; ok?: boolean }[] }>(r.detail, {});
-    return { at: r.at, widget: Number(d.widget ?? 0), score: Number(d.score ?? 0), ...(d.correct !== undefined ? { correct: d.correct, total: d.total } : {}), ...(d.note ? { note: d.note } : {}), ...(d.answers ? { answers: d.answers } : {}) };
+    const d = json<{ widget?: number; score?: number; correct?: number; total?: number; note?: string; answers?: { q: string; a: string; ok?: boolean }[]; snapshot?: number }>(r.detail, {});
+    return { at: r.at, widget: Number(d.widget ?? 0), score: Number(d.score ?? 0), ...(d.correct !== undefined ? { correct: d.correct, total: d.total } : {}), ...(d.note ? { note: d.note } : {}), ...(d.answers ? { answers: d.answers } : {}), ...(d.snapshot ? { snapshotId: Number(d.snapshot) } : {}) };
   });
+}
+
+/** A try's snapshot: the widget's body as it looked, with its title and the libraries it was drawn with (null: none such). */
+export function widgetSnapshot(id: number): { html: string; title: string; libs: string[]; at: string } | null {
+  const r = db().prepare("select s.html, s.at, w.title, w.libs from learn_snapshots s join learn_widgets w on w.id = s.widget_id where s.id = ?").get(id) as { html: string; at: string; title: string; libs: string } | undefined;
+  return r ? { html: r.html, title: r.title, libs: json<string[]>(r.libs, []), at: r.at } : null;
 }
 
 // ---------------------------------------------------------------------------------------------------------------------

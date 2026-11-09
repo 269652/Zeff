@@ -11,6 +11,7 @@ import { createRun, updateRun } from "@/lib/work/store";
 import { logPath } from "@/lib/work/log";
 import * as store from "./store";
 import { addLessonTodo } from "./teacher";
+import katex from "katex";
 
 type Lang = "de" | "en";
 type Text = Record<Lang, string>;
@@ -124,6 +125,13 @@ document.getElementById("go").onclick = function () {
 </script></div>`;
 };
 
+/** How the quiz looked after a try (what its bridge would have kept): the formula typeset, the answers typed, the score. */
+const quizSnapshot = (lang: Lang, typed: string[], right: number) => {
+  const q = lang === "de" ? ["Radius 2", "Radius 0,5", "Gerade (Radius → ∞)"] : ["radius 2", "radius 0.5", "a line (radius → ∞)"];
+  const formula = katex.renderToString("r:\\;\\kappa = \\tfrac{1}{r}", { throwOnError: false });
+  return `<div style="font:16px system-ui;padding:14px;line-height:1.5"><p style="margin:0 0 8px">${lang === "de" ? "Die Krümmung eines Kreises mit Radius" : "The curvature of a circle of radius"} ${formula}. ${lang === "de" ? "Wie groß ist κ für …" : "What is κ for …"}</p><div>${q.map((t, i) => `<label style="display:flex;gap:8px;align-items:center;margin:6px 0">${t}: κ = <input size="6" value="${typed[i]}" style="font:inherit;padding:4px 6px;border:1px solid #ccc;border-radius:6px"></label>`).join("")}</div><button style="margin-top:10px;padding:8px 14px;border-radius:8px;border:0;background:#4f46e5;color:#fff;font:inherit">${lang === "de" ? "Prüfen" : "Check"}</button><p style="margin:10px 0 0;font-weight:600">${right} / 3</p></div>`;
+};
+
 /** The second: the osculating circle of a parabola, moved along it — JSXGraph. */
 const osculating = (lang: Lang) => `<div style="font:15px system-ui;padding:10px">
 <div id="box" style="width:100%;height:320px"></div>
@@ -140,7 +148,7 @@ var C = b.create("point", [function () { var x = s.Value(); return x - x * (1 + 
 b.create("circle", [C, function () { return 1 / kappa(); }], { strokeColor: "#f59e0b", strokeWidth: 2, dash: 2 });
 var show = function () { document.getElementById("k").textContent = "κ(" + s.Value().toFixed(2) + ") = " + kappa().toFixed(3) + "  ·  r = " + (1 / kappa()).toFixed(2); };
 b.on("update", show); show();
-document.getElementById("done").onclick = function () { zeff.report({ score: 1, note: "${lang === "de" ? "Schmiegekreis an der Parabel" : "osculating circle of a parabola"}", answers: [{ q: "κ(0)", a: kappa().toFixed(2), ok: true }], done: true }); };
+document.getElementById("done").onclick = function () { zeff.report({ score: 1, note: "${lang === "de" ? "Schmiegekreis an der Parabel" : "osculating circle of a parabola"}", answers: [{ q: "κ(" + s.Value().toFixed(2) + ")", a: kappa().toFixed(3), ok: true }], done: true }); };
 </script></div>`;
 
 /** The lesson's talk, as the teacher's session would have logged it (stream-json lines). */
@@ -211,8 +219,8 @@ export function seedLearnDemo(lang: Lang): number {
   const t1 = daysAgo(0, 18, 12);
   const t2 = daysAgo(0, 18, 15);
   const t3 = daysAgo(0, 18, 24);
-  store.widgetResult(w1, { type: "result", score: 2 / 3, correct: 2, total: 3, note: "κ = 1/r", answers: [{ q: q[0], a: "0.5", ok: true }, { q: q[1], a: "2", ok: true }, { q: q[2], a: "1", ok: false }] }, t1);
-  store.widgetResult(w1, { type: "result", score: 1, correct: 3, total: 3, note: "κ = 1/r", answers: [{ q: q[0], a: "0.5", ok: true }, { q: q[1], a: "2", ok: true }, { q: q[2], a: "0", ok: true }] }, t2);
+  store.widgetResult(w1, { type: "result", score: 2 / 3, correct: 2, total: 3, note: "κ = 1/r", answers: [{ q: q[0], a: "0.5", ok: true }, { q: q[1], a: "2", ok: true }, { q: q[2], a: "1", ok: false }], snapshot: quizSnapshot(lang, ["0.5", "2", "1"], 2) }, t1);
+  store.widgetResult(w1, { type: "result", score: 1, correct: 3, total: 3, note: "κ = 1/r", answers: [{ q: q[0], a: "0.5", ok: true }, { q: q[1], a: "2", ok: true }, { q: q[2], a: "0", ok: true }], snapshot: quizSnapshot(lang, ["0.5", "2", "0"], 3) }, t2);
   store.widgetResult(w2, { type: "result", score: 1, note: lang === "de" ? "Schmiegekreis an der Parabel" : "osculating circle of a parabola", answers: [{ q: "κ(0)", a: "1.00", ok: true }] }, t3);
   const ex1 = lang === "de" ? "Krümmung von Kreisen" : "Curvature of circles";
   const ex2 = lang === "de" ? "Der Schmiegekreis" : "The osculating circle";
