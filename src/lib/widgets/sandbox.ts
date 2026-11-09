@@ -31,7 +31,7 @@ const BRIDGE = `<script>
 (function () {
   var send = function (m) { m.zeffWidget = 1; parent.postMessage(m, "*"); };
   window.zeff = {
-    report: function (r) { r = r || {}; send({ type: "result", score: r.score, correct: r.correct, total: r.total, note: r.note }); },
+    report: function (r) { r = r || {}; send({ type: "result", score: r.score, correct: r.correct, total: r.total, note: r.note, done: r.done === true }); },
     resize: function (h) { send({ type: "resize", height: h }); }
   };
   var last = 0;
@@ -76,7 +76,7 @@ export function buildSrcdoc(html: string, opts: ({ libs?: string[]; libBase: str
   return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${esc(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1">${theme}${css.join("")}${BRIDGE}${js.join("")}</head><body>${html}</body></html>`;
 }
 
-export type WidgetMessage = { type: "result"; score: number; correct?: number; total?: number; note?: string } | { type: "resize"; height: number };
+export type WidgetMessage = { type: "result"; score: number; correct?: number; total?: number; note?: string; /** The exercise is over (the lesson goes on). */ done?: boolean } | { type: "resize"; height: number };
 
 const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 
@@ -102,6 +102,7 @@ export function parseWidgetMessage(data: unknown): WidgetMessage | null {
     ...(correct !== undefined ? { correct: Math.max(0, Math.round(correct)) } : {}),
     ...(total !== undefined ? { total: Math.max(0, Math.round(total)) } : {}),
     ...(note ? { note } : {}),
+    ...(m.done === true ? { done: true } : {}),
   };
 }
 

@@ -126,7 +126,7 @@ export default async function StepPage({ params }: Props) {
       ) : widgets.length > 0 ? (
         <div className="flex min-h-0 flex-1 flex-col gap-4 lg:flex-row">
           <div className="max-h-[45%] min-w-0 shrink-0 overflow-y-auto lg:max-h-none lg:flex-[3]">
-            <LessonWidgets widgets={widgets} />
+            <LessonWidgets widgets={widgets} sessionRunId={liveRun?.id ?? last?.id} />
           </div>
           <div className="flex min-h-0 min-w-0 flex-1 flex-col lg:flex-[2]">{chat}</div>
         </div>

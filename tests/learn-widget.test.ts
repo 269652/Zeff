@@ -67,3 +67,20 @@ test("inline: the libraries' code put into the page itself (a sandboxed frame lo
   const evil = buildSrcdoc("<p></p>", { inline: { js: ["</script><script>alert(1)"], css: ["</style><script>x</script>"] } });
   assert.ok(!evil.includes("</script><script>alert(1)"), "a library's text can't close its tag");
 });
+
+test("a widget may say it's done (the lesson goes on then); only true counts", async () => {
+  const { parseWidgetMessage } = await import("@/lib/widgets/sandbox");
+  assert.equal((parseWidgetMessage({ zeffWidget: 1, type: "result", score: 1, done: true }) as { done?: boolean }).done, true);
+  assert.equal("done" in (parseWidgetMessage({ zeffWidget: 1, type: "result", score: 1, done: "yes" }) as object), false);
+});
+
+test("a result as the message to the teacher: the exercise, how it went, the note — and to go on", async () => {
+  const { resultMessage } = await import("@/plugins/learn/result-message");
+  const m = resultMessage("Abhängig oder unabhängig?", { type: "result", score: 0.8, correct: 4, total: 5, note: "Paar 3 falsch" });
+  assert.match(m, /Abhängig oder unabhängig\?/);
+  assert.match(m, /4 von 5 richtig/);
+  assert.match(m, /80 %/);
+  assert.match(m, /Paar 3 falsch/);
+  assert.match(m, /weiter/);
+  assert.doesNotMatch(resultMessage("X", { type: "result", score: 0.5 }), /\d von \d/, "no count without one");
+});
