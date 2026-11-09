@@ -31,3 +31,14 @@ export async function setMobilePasswordAction(password: string): Promise<ActionS
     return { ok: false, error: errorMessage(err) };
   }
 }
+
+/** The phone's conflicts looked at: the list emptied (src/lib/replica/server.ts). */
+export async function clearPhoneConflictsAction(): Promise<ActionState> {
+  try {
+    (await import("@/lib/replica/server")).clearReplicaConflicts();
+    revalidatePath("/settings/mobile");
+    return { ok: true, message: t("Cleared.") };
+  } catch (err) {
+    return { ok: false, error: errorMessage(err) };
+  }
+}

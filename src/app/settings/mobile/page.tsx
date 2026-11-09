@@ -5,6 +5,8 @@ import { readGate } from "@/lib/gate";
 import { t } from "@/lib/i18n/server";
 import { tailscaleState } from "@/lib/tailscale";
 import { MobileAccess } from "./MobileAccess";
+import { PhoneConflicts } from "./PhoneConflicts";
+import { replicaConflicts } from "@/lib/replica/server";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Mobile access") };
@@ -26,7 +28,10 @@ export default async function MobileAccessPage() {
           {t("All settings")}
         </Link>
       </div>
-      <MobileAccess state={await tailscaleState()} hasPassword={!!readGate()} />
+      <div className="space-y-6">
+        <MobileAccess state={await tailscaleState()} hasPassword={!!readGate()} />
+        <PhoneConflicts conflicts={replicaConflicts().slice(-50)} />
+      </div>
     </div>
   );
 }

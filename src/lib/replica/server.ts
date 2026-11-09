@@ -115,6 +115,9 @@ export function replicaEntities(keys: string[]): ReplicaEntity[] {
 /** The conflicts kept (newest last): what didn't stay, so you can look and put it back. */
 export const replicaConflicts = (): ReplicaConflict[] => getPref<ReplicaConflict[]>(CONFLICTS, []);
 
+/** Looked at: the list emptied (Settings → Mobile access). */
+export const clearReplicaConflicts = (): void => setPref(CONFLICTS, []);
+
 /** The PC's id for a ref (a tmp: the id it got when its op was applied; unknown: null). */
 function resolver(ids: Record<string, number | string>) {
   return {
