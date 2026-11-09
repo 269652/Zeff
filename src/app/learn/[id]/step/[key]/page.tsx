@@ -91,27 +91,43 @@ export default async function StepPage({ params }: Props) {
   return (
     // Like the chat, the lesson fills the window (MainArea's full-height pages): its timeline scrolls — you and the
     // exercises left of the line, the teacher right of it (LessonTimeline) — the message box stays at the bottom.
-    <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-3">
-      <header className="shrink-0 space-y-0.5">
-        <Link href={`/learn/${courseId}`} className="text-sm text-zinc-500 hover:underline">
-          ← {course.title}
-        </Link>
-        <h1 className="text-lg font-semibold">
-          {parent && <span className="font-normal text-zinc-500">{parent.title} · </span>}
-          {node.title}
-          {status === "mastered" && <span className="ml-2 text-sm font-normal text-emerald-700 dark:text-emerald-400">✓ {t("mastered")}</span>}
-        </h1>
-        {(node.summary || node.objectives.length > 0) && (
-          <details className="text-sm text-zinc-600 dark:text-zinc-400">
-            <summary className="cursor-pointer">{t("Goals")}</summary>
-            {node.summary && <p className="mt-1 max-w-[75ch]">{node.summary}</p>}
-            {node.objectives.length > 0 && (
-              <ul className="mt-1 list-disc pl-5">
-                {node.objectives.map((o, i) => (
-                  <li key={i}>{o}</li>
-                ))}
-              </ul>
+    <div className="mx-auto flex h-full w-full max-w-6xl flex-col gap-2">
+      {/* One line, so the lesson keeps the height (a phone, a small laptop): back, the step's title (cut when long; the
+          topic small above it, the course only on a wide screen), its state, and its goals behind a button. */}
+      <header className="flex min-w-0 shrink-0 items-center gap-2">
+        {/* Breadcrumbs small above the lesson's title — the course, the topic (its skill map) — each a way back. */}
+        <div className="min-w-0 flex-1">
+          <nav aria-label={t("Breadcrumbs")} className="flex min-w-0 items-center gap-1 text-xs leading-tight text-zinc-500">
+            <Link href={`/learn/${courseId}`} className="min-w-0 truncate hover:text-zinc-800 hover:underline dark:hover:text-zinc-200" title={course.title}>
+              {course.title}
+            </Link>
+            {parent && (
+              <>
+                <span aria-hidden className="shrink-0">›</span>
+                <Link href={`/learn/${courseId}#skill-map`} className="min-w-0 truncate hover:text-zinc-800 hover:underline dark:hover:text-zinc-200" title={parent.title}>
+                  {parent.title}
+                </Link>
+              </>
             )}
+          </nav>
+          <h1 className="truncate text-base leading-snug font-semibold sm:text-lg" title={node.title}>
+            {node.title}
+          </h1>
+        </div>
+        {status === "mastered" && <span className="shrink-0 text-sm text-emerald-700 dark:text-emerald-400">✓<span className="hidden sm:inline"> {t("mastered")}</span></span>}
+        {(node.summary || node.objectives.length > 0) && (
+          <details className="relative shrink-0 text-sm">
+            <summary className="btn btn-sm cursor-pointer list-none">{t("Goals")}</summary>
+            <div className="card absolute top-full right-0 z-20 mt-1 w-[min(32rem,calc(100vw-2rem))] space-y-1 p-3 text-zinc-700 shadow-lg dark:text-zinc-300">
+              {node.summary && <p>{node.summary}</p>}
+              {node.objectives.length > 0 && (
+                <ul className="list-disc pl-5">
+                  {node.objectives.map((o, i) => (
+                    <li key={i}>{o}</li>
+                  ))}
+                </ul>
+              )}
+            </div>
           </details>
         )}
       </header>

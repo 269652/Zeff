@@ -184,7 +184,7 @@ export default async function CoursePage({ params }: Props) {
         </section>
       )}
 
-      <section className="space-y-2">
+      <section id="skill-map" className="scroll-mt-4 space-y-2">
         <h2 className="text-base font-semibold">{t("Skill map")}</h2>
         <SkillMap nodes={mapNodes} groups={mapGroups} label={t("Skill map: {course}", { course: course.title })} />
       </section>
