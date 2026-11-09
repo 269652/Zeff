@@ -29,8 +29,10 @@ export function TodosView() {
     <li key={t.id} className="zo-todo">
       <input type="checkbox" checked={t.status !== "open"} aria-label={t.text} onChange={(e) => void edit({ kind: "todo.set", todo: t.id, field: "status", value: e.target.checked ? "done" : "open" })} />
       <button type="button" className="zo-todo-text" onClick={() => setOpen(String(t.id))}>
-        {t.flagged && <span className="zo-flag">❗</span>}
-        <span className={t.status !== "open" ? "zo-done" : ""}>{t.text}</span>
+        <span className={t.status !== "open" ? "zo-done" : ""}>
+          {t.flagged && <span className="zo-flag">❗</span>}
+          {t.text}
+        </span>
         <small>
           {[t.ticket, t.due ? fmtDay(t.due) : null, waiting.has(String(t.id)) ? tr("pending") : null].filter(Boolean).join(" · ")}
         </small>

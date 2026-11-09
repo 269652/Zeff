@@ -74,8 +74,12 @@ srv.listen(0, "127.0.0.1", async () => {
   const page = await ctx.newPage();
   page.on("console", (m) => m.type() === "error" && console.log("  [page error]", m.text()));
   page.on("pageerror", (e) => console.log("  [page exception]", e.message));
-  const item = (text) => page.locator("#open .todo", { hasText: text });
-  const outbox = () => page.evaluate(() => JSON.parse(localStorage.getItem("zeff.outbox") ?? "[]"));
+  // The offline app's todos (companion/offline): the open ones are in the sections, the done ones folded below.
+  const openTodos = () => page.locator(".zo-page > section .zo-todo");
+  const item = (text) => page.locator(".zo-page > section .zo-todo", { hasText: text });
+  const tick = (text) => item(text).locator("input[type=checkbox]").click();
+  const barText = () => page.locator(".zo-state").innerText().catch(() => "");
+  const queueEmpty = async () => !/wartend|waiting/.test(await barText());
   let ok = true;
   const check = (cond, what) => {
     console.log(`  ${cond ? "PASS" : "FAIL"} ${what}`);
@@ -95,32 +99,35 @@ srv.listen(0, "127.0.0.1", async () => {
     console.log(`  link: ${url.length} characters`);
     await page.goto(url);
     await until("live", () => page.locator(".status.live").count());
-    await until("3 todos", async () => (await page.locator("#open .todo").count()) === 3);
+    await until("3 todos", async () => (await openTodos().count()) === 3, 60000);
     check(!(await page.evaluate(() => location.hash)), "pairing secret removed from the address bar");
     check(comp.status().devices.some((d) => d.connected), "launcher shows the phone connected");
     await page.screenshot({ path: path.join(OUT, "phone-live.png") });
 
     step("live tick on the phone → PC");
     let t0 = Date.now();
-    await item(T.plumber).locator("input").click();
+    await tick(T.plumber);
     await until("done on PC", async () => (await zeffTodo(T.plumber))?.status === "done");
     check(true, `ticked on the PC after ${Date.now() - t0} ms`);
-    await until("queue empty", async () => (await outbox()).length === 0);
+    await until("queue empty", queueEmpty);
     check(true, "phone queue empty");
 
     step("change on the PC → phone, live");
     t0 = Date.now();
     await post([{ id: `pc-${TAG}`, at: new Date().toISOString(), kind: "flag", todoId: T.billId, flagged: true }]);
-    await until("star on phone", async () => (await item(T.bill).locator("button[aria-pressed=true]").count()) === 1);
+    await until("flag on phone", async () => (await item(T.bill).locator(".zo-flag").count()) === 1);
     check(true, `phone shows the flag after ${Date.now() - t0} ms`);
 
     step("away from home: PC unreachable, tick on the phone");
     comp.stop();
     await until("phone notices", () => page.locator(".status.away").count(), 20000);
-    await item(T.anna).locator("input").click();
-    check(/1/.test(await page.locator("#statusText").textContent()), "status shows one change waiting");
+    await tick(T.anna);
+    await until("one waiting", async () => /1 (wartend|waiting)/.test(await barText()), 5000).catch(() => null);
+    { const bar = await barText(); check(/1 (wartend|waiting)/.test(bar), `the bar shows one change waiting ("${bar}")`); }
     check((await zeffTodo(T.anna))?.status === "open", "the PC doesn't have it yet");
-    check(!(await page.locator("#setup").isHidden()) && !(await page.locator("#setup").evaluate((d) => d.open)), "help offered, folded (the todos are there)");
+    const helpFolded = async () => !(await page.locator("#setup").isHidden()) && !(await page.locator("#setup").evaluate((d) => d.open));
+    // (Between two connection attempts: while one runs, the help steps aside.)
+    check(!!(await until("help folded", helpFolded, 25000).catch(() => false)), "help offered, folded (the todos are there)");
     await page.screenshot({ path: path.join(OUT, "phone-away.png") });
 
     step("paired with a PC it never reached: help open");
@@ -142,7 +149,7 @@ srv.listen(0, "127.0.0.1", async () => {
     step("the app opens without any network (service worker)");
     await ctx.setOffline(true);
     await page.reload();
-    await until("rendered offline", async () => (await page.locator(".todo").count()) >= 3);
+    await until("rendered offline", async () => (await page.locator(".zo-todo").count()) >= 3);
     check(true, "app and todos from the phone's own storage");
     await ctx.setOffline(false);
 
@@ -152,7 +159,7 @@ srv.listen(0, "127.0.0.1", async () => {
     await page.locator("#status").click(); // (else the next try within 20 s)
     await until("Anna done on PC", async () => (await zeffTodo(T.anna))?.status === "done", 20000);
     check(true, "the tick made away is done on the PC");
-    await until("queue empty", async () => (await outbox()).length === 0);
+    await until("queue empty", queueEmpty, 20000);
     check(true, "phone queue empty again");
 
     step("the same change sent twice is applied once");
@@ -190,18 +197,18 @@ srv.listen(0, "127.0.0.1", async () => {
     await until("privat todos", async () => (await item(P.home).count()) === 1 && (await item(T.bill).count()) === 0);
     check(true, "Privat's todos, none of Work's");
     await page.screenshot({ path: path.join(OUT, "phone-privat.png") });
-    await item(P.home).locator("input").click();
+    await tick(P.home);
     await until("done in privat", async () => (await zeffIn("/privat", P.home))?.status === "done");
     check((await zeffIn("", P.home)) === undefined, "ticked in Privat's database, Work doesn't have it");
 
     step("away: ticks in two accounts, each goes to its own");
     comp.stop();
     await until("phone notices", () => page.locator(".status.away").count(), 20000);
-    await item(P.gift).locator("input").click();
+    await tick(P.gift);
     await page.selectOption("#account", "default");
     await until("work list from the phone", async () => (await item(T.bill).count()) === 1);
     check(true, "switching works offline (each account's todos kept on the phone)");
-    await item(T.bill).locator("input").click();
+    await tick(T.bill);
     comp = make();
     comp.start();
     await page.locator("#status").click();
@@ -210,8 +217,8 @@ srv.listen(0, "127.0.0.1", async () => {
 
     step("the locked account shows nothing");
     await page.selectOption("#account", "club");
-    await until("locked note", async () => !(await page.locator("#lockedNote").isHidden()));
-    check((await page.locator("#open .todo").count()) === 0, "no todos of a locked account");
+    await until("locked note", () => page.locator(".zo-locked").count());
+    check((await page.locator(".zo-todo").count()) === 0, "no todos of a locked account");
     await page.screenshot({ path: path.join(OUT, "phone-locked.png") });
     await page.selectOption("#account", "default");
 

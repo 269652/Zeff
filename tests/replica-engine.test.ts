@@ -108,6 +108,16 @@ test("two accounts don't mix: each its own copy and queue", async () => {
   assert.equal(b.pending().length, 0);
 });
 
+test("an account's queue is known without loading its copy (the other accounts' queues go too when the PC is reachable)", async () => {
+  const store = memoryStore();
+  const a = new ReplicaEngine(store, "a");
+  await a.load();
+  await a.edit({ kind: "todo.add", text: "eins" });
+  await a.edit({ kind: "todo.add", text: "zwei" });
+  assert.equal(await ReplicaEngine.pendingOf(store, "a"), 2);
+  assert.equal(await ReplicaEngine.pendingOf(store, "b"), 0);
+});
+
 test("the ops a sync sends carry the account's route", async () => {
   const pc = fakePc([]);
   const paths: string[] = [];

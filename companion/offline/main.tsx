@@ -13,6 +13,7 @@ import { TodosView } from "./todos";
 import { WorkspaceView } from "./workspace";
 import { CalendarView } from "./calendar";
 import { ConflictsView } from "./conflicts";
+import { SeenView } from "./seen";
 
 export type Host = {
   /** The account shown (null: none known yet). */
@@ -25,6 +26,12 @@ export type Host = {
   onChange(fn: () => void): () => void;
   /** Show the whole Zeff (only while connected). */
   showFull?: () => void;
+  /** Called when something changed in Zeff on the PC (pushed while connected). Returns: stop listening. */
+  onRemoteChange?(fn: () => void): () => void;
+  /** The account is locked on the PC (Zeff's lock): nothing of it here. */
+  locked?(): boolean;
+  /** Every account the phone knows (id, route, locked) — their queued edits go too while the PC is reachable. */
+  accounts?(): { id: string; prefix: string; locked?: boolean }[];
 };
 
 type Ctx = { engine: ReplicaEngine; rev: number; edit: (e: Edit) => Promise<Tmp | undefined>; online: boolean };
@@ -32,7 +39,7 @@ const ReplicaCtx = createContext<Ctx | null>(null);
 export const useReplica = () => useContext(ReplicaCtx)!;
 
 const kv = idbStore();
-const TABS = ["Todos", "Workspace", "Calendar", "Conflicts"] as const;
+const TABS = ["Todos", "Workspace", "Calendar", "Seen", "Conflicts"] as const;
 type Tab = (typeof TABS)[number];
 
 function App({ host }: { host: Host }) {
@@ -64,6 +71,13 @@ function App({ host }: { host: Host }) {
     setSyncing(true);
     try {
       await engine.sync(t, host.prefix());
+      // The other accounts' edits made while away (each to its own account on the PC).
+      for (const a of host.accounts?.() ?? []) {
+        if (a.id === engine.account || a.locked || !(await ReplicaEngine.pendingOf(kv, a.id))) continue;
+        const other = new ReplicaEngine(kv, a.id);
+        await other.load();
+        await other.sync(t, a.prefix);
+      }
       setError(null);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -81,6 +95,16 @@ function App({ host }: { host: Host }) {
     const timer = setInterval(() => void sync(), 120_000);
     return () => (clearTimeout(first), clearInterval(timer));
   }, [online, engine, sync]);
+  // A change on the PC: fetched shortly after (several in a row make one sync).
+  const remote = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(
+    () =>
+      host.onRemoteChange?.(() => {
+        if (remote.current) clearTimeout(remote.current);
+        remote.current = setTimeout(() => void sync(), 1500);
+      }),
+    [host, sync],
+  );
   const soon = useRef<ReturnType<typeof setTimeout> | null>(null);
   const edit = useCallback(
     async (e: Edit) => {
@@ -94,6 +118,7 @@ function App({ host }: { host: Host }) {
     [engine, bump, sync],
   );
 
+  if (host.locked?.()) return <div className="zo-empty zo-locked">🔒 {tr("lockedAccount")}</div>;
   if (!engine) return <div className="zo-empty">{tr("emptyCopy")}</div>;
   const ctx: Ctx = { engine, rev, edit, online };
   const waiting = engine.pending().length;
@@ -128,6 +153,7 @@ function App({ host }: { host: Host }) {
           {tab === "Todos" && <TodosView />}
           {tab === "Workspace" && <WorkspaceView />}
           {tab === "Calendar" && <CalendarView />}
+          {tab === "Seen" && <SeenView />}
           {tab === "Conflicts" && <ConflictsView onDone={bump} />}
         </main>
         <nav className="zo-tabs">

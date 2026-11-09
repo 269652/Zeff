@@ -82,6 +82,11 @@ export class ReplicaEngine {
 
   private k = (s: string) => `${this.account}/${s}`;
 
+  /** How many edits an account has queued (without loading its copy). */
+  static async pendingOf(kv: KV, account: string): Promise<number> {
+    return ((await kv.get<ReplicaOp[]>(`${account}/q`)) ?? []).length;
+  }
+
   async load(): Promise<void> {
     this.base = new Map((await this.kv.entries<ReplicaEntity>(this.k("e/"))).map(([, e]) => [e.key, e]));
     this.versions = (await this.kv.get<Manifest>(this.k("v"))) ?? {};

@@ -20,6 +20,14 @@
 .zo-empty { padding: 24px 16px; }
 .zo-h { font-size: 13px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.03em; color: var(--muted); margin: 10px 0 4px; }
 .zo-h span { font-weight: 400; margin-left: 4px; }
+summary.zo-h { list-style: none; cursor: pointer; }
+summary.zo-h::-webkit-details-marker { display: none; }
+summary.zo-h::before { content: "▸ "; }
+details[open] > summary.zo-h::before { content: "▾ "; }
+/* Inside the app's page (companion/app: its <main> is narrow and padded): the offline app runs edge to edge and uses a
+   tablet's width; the notes above it (home network, help) keep their margin. */
+main:has(> #offlineApp:not([hidden])) { max-width: none; padding: 12px 0 0; }
+main:has(> #offlineApp:not([hidden])) > :not(#offlineApp) { margin-left: 16px; margin-right: 16px; }
 .zo-red { color: var(--bad); }
 .zo-today { color: #4f46e5; }
 .zo-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
@@ -74,4 +82,8 @@
 .zo-swatch.c-purple { background: #a855f7; } .zo-swatch.c-pink { background: #ec4899; } .zo-swatch.c-yellow { background: #eab308; } .zo-swatch.c-indigo { background: #6366f1; }
 .zo-conflict { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 10px 12px; }
 .zo-conflict p { margin: 4px 0 0; font-size: 14px; }
+.zo-seen { display: flex; flex-direction: column; height: calc(100dvh - 64px - 34px - 56px - env(safe-area-inset-bottom)); }
+.zo-seen-bar { display: flex; align-items: center; gap: 12px; padding: 0 16px; }
+.zo-seen-bar small { color: var(--muted); }
+.zo-seen-frame { flex: 1; width: 100%; border: 0; background: #fff; }
 @media (min-width: 768px) { .zo-page { padding: 16px 24px; } .zo-col { flex-basis: 300px; } }

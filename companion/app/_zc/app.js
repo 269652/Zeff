@@ -622,6 +622,8 @@ function onMessage(msg) {
       store.set("outbox", outbox);
     }
     store.set(`snapshot:${msg.account}`, { at: msg.at, todos: msg.todos });
+    // Something changed in Zeff (the launcher pushes on every change): the offline app fetches what did.
+    for (const fn of remoteListeners) fn();
     if (msg.account === account) snapshot = { at: msg.at, todos: msg.todos };
     render();
   } else if (msg.t === "locked") {
@@ -657,6 +659,7 @@ addEventListener("hashchange", () => {
 // ---------------------------------------------------------------------------------------------------------------------
 
 const offlineListeners = new Set();
+const remoteListeners = new Set();
 let offlineMounted = false;
 let offlineLoading = false;
 function mountOfflineApp() {
@@ -669,6 +672,9 @@ function mountOfflineApp() {
         prefix: () => accounts.find((a) => a.id === account)?.prefix ?? "",
         transport: () => (conn && !(account && lockedAccounts.has(account)) ? zeffJson : null),
         onChange: (fn) => (offlineListeners.add(fn), () => offlineListeners.delete(fn)),
+        onRemoteChange: (fn) => (remoteListeners.add(fn), () => remoteListeners.delete(fn)),
+        locked: () => account !== null && lockedAccounts.has(account),
+        accounts: () => accounts.map((a) => ({ id: a.id, prefix: a.prefix ?? "", locked: lockedAccounts.has(a.id) })),
         showFull: () => conn && showZeff(true),
       });
       offlineMounted = true;
