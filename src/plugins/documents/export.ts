@@ -6,6 +6,7 @@
 import { getDb, schema } from "@/db";
 import type { KnowledgeDoc } from "@/plugins/knowledge/export";
 import { docRef, sizeText } from "./shared";
+import { pendingIds } from "./gate";
 
 /** A text's version: a 31-bit hash (FNV-1a) — the same as the other Zeff pages'. */
 function version(s: string): number {
@@ -22,11 +23,13 @@ export const documentPageId = (id: number) => `zeff:doc:${id}`;
 
 export function documentDocs(zeffUrl: string): KnowledgeDoc[] {
   const { documents } = schema;
+  // Those waiting for your confirmation (a local folder set so — gate.ts) aren't compiled yet.
+  const held = pendingIds();
   return getDb()
     .select()
     .from(documents)
     .all()
-    .filter((d) => d.status === "ready" && d.text.trim())
+    .filter((d) => d.status === "ready" && d.text.trim() && !held.has(d.id))
     .map((d) => {
       const body = `Dokument „${d.name}“ (${d.kind}, ${sizeText(d.size)}, abgelegt am ${d.createdAt.slice(0, 10)}):\n\n${d.text}`;
       return { id: documentPageId(d.id), space: "Zeff · Documents", title: d.name, url: `${zeffUrl.replace(/\/+$/, "")}/documents#${docRef(d.id)}`, version: version(`${d.name}\n${body}`), updatedAt: d.updatedAt, author: null, body };

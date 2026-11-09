@@ -15,18 +15,20 @@ import { errorMessage } from "@/lib/errors";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { extractText, NeedsSlowLane, UnsupportedError } from "./extract";
+import { isPending } from "./gate";
 import { documentPageId } from "./export";
 import { documentFile, getDocument, readingDocuments, setAbstract, setExtracted, setStatus, uncompiledDocuments } from "./store";
 
 type Current = { id: number; name: string; since: number; lane: "fast" | "slow" };
-type Lanes = { gen: number; fast: boolean; slow: boolean; current: Map<number, Current>; ctl: AbortController | null; slowWait: Set<number>; skipped: Set<number> };
+/** `held`: needs the AI to be read, but waits for your confirmation (gate.ts) — not taken until then. */
+type Lanes = { gen: number; fast: boolean; slow: boolean; current: Map<number, Current>; ctl: AbortController | null; slowWait: Set<number>; skipped: Set<number>; held: Set<number> };
 
 const flags = globalThis as { __zeffDocLanes?: Map<string, Lanes>; __zeffDocPoll?: Map<string, ReturnType<typeof setTimeout>> };
 const polls = () => (flags.__zeffDocPoll ??= new Map());
 const lanesOf = (account: string): Lanes => {
   const all = (flags.__zeffDocLanes ??= new Map());
   let l = all.get(account);
-  if (!l) all.set(account, (l = { gen: 0, fast: false, slow: false, current: new Map(), ctl: null, slowWait: new Set(), skipped: new Set() }));
+  if (!l) all.set(account, (l = { gen: 0, fast: false, slow: false, current: new Map(), ctl: null, slowWait: new Set(), skipped: new Set(), held: new Set() }));
   return l;
 };
 
@@ -62,7 +64,7 @@ export async function processDocuments(): Promise<void> {
     l.fast = true;
     const gen = l.gen;
     try {
-      const next = () => readingDocuments().find((d) => d.status === "queued" && !l.slowWait.has(d.id) && !l.current.has(d.id))?.id;
+      const next = () => readingDocuments().find((d) => d.status === "queued" && !l.slowWait.has(d.id) && !l.held.has(d.id) && !l.current.has(d.id))?.id;
       for (let id = next(); id !== undefined && l.gen === gen; id = next()) {
         const doc = getDocument(id);
         const file = doc && documentFile(id);
@@ -78,8 +80,14 @@ export async function processDocuments(): Promise<void> {
         } catch (e) {
           if (l.gen !== gen) return;
           if (e instanceof NeedsSlowLane) {
-            l.slowWait.add(id);
-            setStatus(id, "queued");
+            // Waiting for your confirmation (a local folder set so): Claude reads it only once you confirm.
+            if (isPending(id)) {
+              l.held.add(id);
+              setStatus(id, "queued", t("Waits for your confirmation — then the AI reads it."));
+            } else {
+              l.slowWait.add(id);
+              setStatus(id, "queued");
+            }
           } else failWith(id, doc.name, e);
         } finally {
           if (l.gen === gen) l.current.delete(id);
@@ -169,7 +177,7 @@ export function readingStatus(): ReadingStatus {
   const l = lanesOf(currentAccountId());
   const rows = readingDocuments();
   const current = [...l.current.values()];
-  return { current, waiting: rows.filter((d) => d.status === "queued" && !l.current.has(d.id)).length, idle: !current.length && !l.fast && !l.slow };
+  return { current, waiting: rows.filter((d) => d.status === "queued" && !l.current.has(d.id) && !l.held.has(d.id)).length, idle: !current.length && !l.fast && !l.slow };
 }
 
 /** The knowledge server takes in what's new (its Zeff source) and compiles it — then the abstracts are polled for. */
@@ -225,6 +233,13 @@ export async function pullAbstracts(): Promise<number> {
   } catch {
     return 0;
   }
+}
+
+/** Confirmed (gate.ts): those held back are read now, and compiled. */
+export function releaseHeld(ids: number[]): void {
+  const l = lanesOf(currentAccountId());
+  for (const id of ids) l.held.delete(id);
+  startProcessing();
 }
 
 /** A document just dropped: read it (in the background). */

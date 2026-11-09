@@ -61,6 +61,8 @@ export function startSyncScheduler(): void {
     // Google Drive (the extensions for Backups and Documents): through the sync menu's step — no Chrome needed.
     { name: "drivebackup", settings: () => ({ syncMinutes: stepMinutes("drivebackup"), lastSyncAt: lastSyncOf("drivebackup") }), run: async () => startSync("drivebackup") },
     { name: "drivedocs", settings: () => ({ syncMinutes: stepMinutes("drivedocs"), lastSyncAt: lastSyncOf("drivedocs") }), run: async () => startSync("drivedocs") },
+    // Local folders (Documents): read in what's new or changed in them.
+    { name: "localdocs", settings: () => ({ syncMinutes: stepMinutes("localdocs"), lastSyncAt: lastSyncOf("localdocs") }), run: async () => startSync("localdocs") },
     { name: "teams", settings: getTeamsSettings, run: () => syncTeams({ background: true }) },
     { name: "mail", settings: getMailSettings, run: async () => (await import("@/lib/mail/sync")).syncMail({ background: true }) },
     { name: "gitlab", settings: getGitlabSettings, run: () => syncGitlab({ background: true }) },

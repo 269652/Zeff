@@ -11,6 +11,7 @@ import { dataDir, getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
 import { docRef, kindOf, MAX_DOCUMENT_BYTES, type DocKind, type DocStatus, type DocView } from "./shared";
+import { forget, pendingIds } from "./gate";
 
 const { documents } = schema;
 type Row = typeof documents.$inferSelect;
@@ -97,6 +98,36 @@ export function addDocument(name: string, data: Buffer, mime = ""): { doc: DocVi
   return { doc: toView(row), fresh: true };
 }
 
+/**
+ * A document's file changed (a local folder's — folders.ts): the new content in its place, to be read and compiled
+ * again. The same content as another document already kept: that one is the answer (nothing doubled).
+ */
+export function replaceDocument(id: number, name: string, data: Buffer): DocView {
+  if (!data.length) throw new Error(t("“{name}” is empty.", { name }));
+  if (data.length > MAX_DOCUMENT_BYTES) throw new Error(t("“{name}” is too large (at most {n} MB).", { name, n: MAX_DOCUMENT_BYTES / 1024 / 1024 }));
+  const db = getDb();
+  const cur = db.select().from(documents).where(eq(documents.id, id)).get();
+  if (!cur) return addDocument(name, data).doc;
+  const sha256 = createHash("sha256").update(data).digest("hex");
+  if (sha256 === cur.sha256) return toView(cur);
+  const other = db.select().from(documents).where(eq(documents.sha256, sha256)).get();
+  if (other) return toView(other);
+  const clean = safeName(name);
+  const file = `${sha256.slice(0, 16)}-${clean}`;
+  fs.mkdirSync(/*turbopackIgnore: true*/ documentsDir(), { recursive: true });
+  fs.writeFileSync(/*turbopackIgnore: true*/ path.join(documentsDir(), file), data);
+  if (cur.file !== file) fs.rmSync(/*turbopackIgnore: true*/ path.join(documentsDir(), cur.file), { force: true });
+  const row = db
+    .update(documents)
+    .set({ name: clean, size: data.length, sha256, file, kind: kindOf(clean, cur.mime), status: "queued", error: "", text: "", summary: "", concepts: "", compiled: false, updatedAt: new Date().toISOString() })
+    .where(eq(documents.id, id))
+    .returning()
+    .get();
+  emitChange("todos");
+  void import("./seen").then((m) => m.refresh()).catch(() => undefined);
+  return toView(row);
+}
+
 export function setStatus(id: number, status: DocStatus, error = ""): void {
   getDb().update(documents).set({ status, error: error.slice(0, 500), updatedAt: new Date().toISOString() }).where(eq(documents.id, id)).run();
   emitChange("todos");
@@ -126,6 +157,7 @@ export function deleteDocument(id: number): void {
   const r = db.select().from(documents).where(eq(documents.id, id)).get();
   if (!r) return;
   db.delete(documents).where(eq(documents.id, id)).run();
+  forget(id);
   fs.rmSync(/*turbopackIgnore: true*/ path.join(documentsDir(), r.file), { force: true });
   // Todos that kept it: the ref is dropped (nothing to show any more).
   const like = `%"${docRef(id)}"%`;
@@ -154,25 +186,29 @@ export const readingDocuments = (): { id: number; name: string; status: DocStatu
     .orderBy(documents.id)
     .all() as { id: number; name: string; status: DocStatus }[];
 
-/** Ready ones the knowledge server hasn't compiled yet. */
-export const uncompiledDocuments = (): number[] =>
-  getDb()
+/** Ready ones the knowledge server hasn't compiled yet (not those waiting for your confirmation — gate.ts). */
+export function uncompiledDocuments(): number[] {
+  const held = pendingIds();
+  return getDb()
     .select({ id: documents.id })
     .from(documents)
     .where(sql`${documents.status} = 'ready' and ${documents.compiled} = 0`)
     .all()
-    .map((r) => r.id);
+    .map((r) => r.id)
+    .filter((id) => !held.has(id));
+}
 
 export type ReadableDoc = { id: number; ref: string; name: string; kind: DocKind; createdAt: string; version: string; abstract: string; concepts: string; text: string };
 
-/** The documents whose text was read (ready): for the AI steps — with their full text. */
+/** The documents whose text was read (ready): for the AI steps — with their full text (not those waiting for your confirmation). */
 export function readableDocuments(): ReadableDoc[] {
+  const held = pendingIds();
   return getDb()
     .select()
     .from(documents)
     .where(eq(documents.status, "ready"))
     .orderBy(desc(documents.createdAt))
     .all()
-    .filter((r) => r.text.trim())
+    .filter((r) => r.text.trim() && !held.has(r.id))
     .map((r) => ({ id: r.id, ref: docRef(r.id), name: r.name, kind: r.kind as DocKind, createdAt: r.createdAt, version: r.updatedAt, abstract: r.summary, concepts: r.concepts, text: r.text }));
 }

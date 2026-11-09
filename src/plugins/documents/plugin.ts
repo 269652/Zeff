@@ -9,7 +9,8 @@ export default definePlugin({
   category: "app",
   defaultInstalled: false,
   requires: "For pictures and scanned PDFs: the Claude CLI (scanned PDFs also Poppler's pdftoppm). For audio: a transcriber command.",
-  settings: { href: "/settings/documents", what: "The audio transcriber" },
+  settings: { href: "/settings/documents", what: "Local folders read in by themselves, the audio transcriber" },
+  syncSteps: ["localdocs"],
   apps: [
     { href: "/documents", label: "Documents", short: "Docs", hint: "Drop documents, images, audio" },
   ],

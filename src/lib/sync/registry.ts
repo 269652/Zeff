@@ -138,7 +138,7 @@ export const jiraLastSyncAt = () => recordedOr("jira", jiraTickets.syncedAt).las
 
 /** When a step last ran, however it was started. */
 export const lastSyncOf = (key: SyncKey) =>
-  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" || key === "drivebackup" || key === "drivedocs" || key === "news" ? recorded(key) : (STEPS[key]?.last?.() ?? recorded(key))).lastAt;
+  (key === "calendar" || key === "whatsapp" || key === "signal" || key === "keep" || key === "gcalendar" || key === "drivebackup" || key === "drivedocs" || key === "localdocs" || key === "news" ? recorded(key) : (STEPS[key]?.last?.() ?? recorded(key))).lastAt;
 
 /** Each step: how it runs, what it last did, when it runs by itself. All only read from elsewhere. */
 /** The mailboxes the mail step reads, as text: what is installed, IMAP / POP3 accounts by their names. */
@@ -324,6 +324,20 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
     run: async () => (await import("@/plugins/google-drive/sync")).syncDocuments(),
     busy: () => flag("__zeffDriveDocs"),
     schedule: () => ({ everyMinutes: stepMinutes("drivedocs"), lastAt: recorded("drivedocs").lastAt }),
+  },
+  localdocs: {
+    get label() { return t("Local folders"); },
+    href: "/settings/documents#folders",
+    get what() { return t("The documents in the folders you chose on this computer — new and changed ones read in"); },
+    run: async () => {
+      const { scanFolders } = await import("@/plugins/documents/folders");
+      const r = await scanFolders();
+      if (r.added || r.updated) (await import("@/plugins/documents/process")).startProcessing();
+      const parts = [r.added && t("{n} new", { n: r.added }), r.updated && t("{n} changed", { n: r.updated }), r.missing && t("{n} gone from the folder", { n: r.missing })].filter(Boolean);
+      return r.errors.length && !r.added && !r.updated ? { ok: false, message: r.errors.slice(0, 3).join(" · ") } : { ok: true, message: parts.length ? parts.join(", ") : t("Nothing new.") };
+    },
+    busy: () => false,
+    schedule: () => ({ everyMinutes: stepMinutes("localdocs"), lastAt: recorded("localdocs").lastAt }),
   },
   gitlab: {
     label: "GitLab",

@@ -10,7 +10,7 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { formatDate } from "@/lib/format";
 import { DocDetails, OriginLine } from "./DocBadge";
-import { attachDocumentAction, deleteDocumentAction, reprocessDocumentAction, restartReadingAction, skipDocumentAction, startReadingAction } from "./server-actions";
+import { approveDocumentsAction, attachDocumentAction, deleteDocumentAction, reprocessDocumentAction, restartReadingAction, skipDocumentAction, startReadingAction } from "./server-actions";
 import { DOC_KINDS, KIND_ICONS, sizeText, type DocView } from "./shared";
 import { filterDocs, isDocKindFilter, type DocKindFilter, type DocSort, type DocStatusFilter } from "./list-filter";
 import { TodoPicker } from "./TodoPicker";
@@ -36,10 +36,11 @@ const CHIP: Record<string, string> = {
  * The Documents app: a drop zone (files dragged in, or picked), the store's documents with their
  * state — hover one for its abstract —, the open todos to attach one to, and the transcriber setting.
  */
-export function DocumentsApp({ docs, reading, origins = {}, todos, knowledge }: { docs: DocView[]; /** What is being read now / waits (the server's view). */ reading: { current: { id: number; name: string; since: number; lane: "fast" | "slow" }[]; waiting: number; idle: boolean }; origins?: Record<number, DocOrigin>; todos: { id: number; ref: string; text: string }[]; knowledge: boolean }) {
+export function DocumentsApp({ docs, reading, origins = {}, local = {}, pending: held = [], todos, knowledge }: { docs: DocView[]; /** From a local folder (folders.ts): its folder and path, whether the file is gone. */ local?: Record<number, { folder: string; path: string; shown: string; missing: boolean }>; /** Waiting for your confirmation before any AI (gate.ts). */ pending?: number[]; /** What is being read now / waits (the server's view). */ reading: { current: { id: number; name: string; since: number; lane: "fast" | "slow" }[]; waiting: number; idle: boolean }; origins?: Record<number, DocOrigin>; todos: { id: number; ref: string; text: string }[]; knowledge: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
+  const heldSet = new Set(held);
   const [over, setOver] = useState(false);
   const [uploading, setUploading] = useState(0);
   const input = useRef<HTMLInputElement>(null);
@@ -199,16 +200,41 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, knowledge }: 
               </button>
             </EmptyState>
           ) : (
+        <>
+        {held.length > 0 && (
+          <div className="mb-3 flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-2 text-sm text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200" role="status">
+            <span className="min-w-0 flex-1">
+              {held.length === 1 ? t("1 document from your folders waits for your confirmation — the AI reads, compiles and looks at it only then.") : t("{n} documents from your folders wait for your confirmation — the AI reads, compiles and looks at them only then.", { n: held.length })}
+            </span>
+            <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => void done(await approveDocumentsAction(held)))}>
+              {t("Confirm all")}
+            </button>
+          </div>
+        )}
         <ul className="card divide-y divide-zinc-100 dark:divide-zinc-800">
           {shown.map((d) => (
             <li key={d.id} id={d.ref} className="flex flex-wrap items-center gap-x-4 gap-y-1 px-4 py-2.5 text-sm">
-              <HoverCard width={440} card={<DocDetails d={d} origin={origins[d.id]} />} className="min-w-0 flex-1 basis-64">
+              <HoverCard width={440} card={<DocDetails d={d} origin={origins[d.id]} />} className="flex min-w-0 flex-1 basis-64 flex-col">
                 <a href={`/api/documents/${d.id}/file?open=1`} target="_blank" rel="noreferrer" className="flex min-w-0 items-center gap-2 hover:underline">
                   <span aria-hidden>{KIND_ICONS[d.kind]}</span>
                   <span className="min-w-0 truncate font-medium">{d.name}</span>
                 </a>
                 {origins[d.id] && <OriginLine o={origins[d.id]} />}
+                {local[d.id] && (
+                  <span className="block min-w-0 truncate text-xs text-zinc-500" title={local[d.id].path}>
+                    📁 {local[d.id].shown}
+                    {local[d.id].missing && <span className="ml-1.5 rounded bg-zinc-100 px-1 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300">{t("deleted in the folder")}</span>}
+                  </span>
+                )}
               </HoverCard>
+              {heldSet.has(d.id) && (
+                <span className="flex items-center gap-1.5">
+                  <span className="rounded bg-amber-100 px-1.5 py-0.5 text-xs font-medium text-amber-900 dark:bg-amber-950 dark:text-amber-200">{t("waits for your confirmation")}</span>
+                  <button type="button" className="btn btn-sm" disabled={pending} onClick={() => start(async () => void done(await approveDocumentsAction([d.id])))}>
+                    {t("Confirm")}
+                  </button>
+                </span>
+              )}
               <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${CHIP[d.status]}`} title={d.error || undefined}>
                 {d.status === "ready" ? (knowledge ? (d.compiled ? t("compiled") : t("ready — compiling …")) : t("ready")) : d.status === "queued" ? t("waiting") : d.status === "extracting" ? t("being read …") : d.status === "unsupported" ? t("not readable") : t("failed")}
               </span>
@@ -246,12 +272,13 @@ export function DocumentsApp({ docs, reading, origins = {}, todos, knowledge }: 
             </li>
           ))}
         </ul>
+        </>
           )}
         </div>
       )}
 
       <p className="text-xs text-zinc-500">
-        <Link href="/settings/documents" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Documents settings")}</Link> — {t("audio transcriber, PDF reading")}
+        <Link href="/settings/documents" className="text-indigo-600 hover:underline dark:text-indigo-400">{t("Documents settings")}</Link> — {t("local folders, audio transcriber, PDF reading")}
       </p>
     </div>
   );

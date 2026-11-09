@@ -1,4 +1,6 @@
 import type { Metadata } from "next";
+import { localOrigins } from "@/plugins/documents/folders";
+import { pendingIds } from "@/plugins/documents/gate";
 import { connection } from "next/server";
 import { MailAttachmentsOffer } from "@/components/MailAttachments";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
@@ -41,7 +43,7 @@ export default async function DocumentsPage() {
         </p>
       </div>
       {attachmentOfferOpen() && <MailAttachmentsOffer />}
-      <DocumentsApp docs={docs} reading={readingStatus()} origins={documentOrigins(docs.map((d) => d.id))} todos={todos} knowledge={knowledge} />
+      <DocumentsApp docs={docs} reading={readingStatus()} origins={documentOrigins(docs.map((d) => d.id))} local={Object.fromEntries(localOrigins())} pending={[...pendingIds()]} todos={todos} knowledge={knowledge} />
     </div>
   );
 }

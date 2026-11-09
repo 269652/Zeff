@@ -141,3 +141,57 @@ export async function documentTextAction(id: number): Promise<{ text: string; su
   if (off()) return null;
   return (await import("./fulltext")).documentText(Number(id));
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Local folders (folders.ts) and documents waiting for your confirmation (gate.ts)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** A folder of this computer read in from now on — "auto": the AI goes on by itself; "confirm": it waits for you. */
+export async function addFolderAction(path: string, mode: "auto" | "confirm"): Promise<ActionState> {
+  return run(async () => {
+    const f = (await import("./folders")).addFolder(String(path ?? ""), mode === "confirm" ? "confirm" : "auto");
+    // Read in at once (in the background), not only at the next scheduled run.
+    void (await import("@/lib/sync/registry")).startSync("localdocs");
+    return t("“{path}” is read in now.", { path: f.path });
+  });
+}
+
+export async function setFolderModeAction(id: string, mode: "auto" | "confirm"): Promise<ActionState> {
+  return run(async () => void (await import("./folders")).setFolderMode(String(id), mode === "confirm" ? "confirm" : "auto"));
+}
+
+/** A folder no longer read — its documents stay in Zeff. */
+export async function removeFolderAction(id: string): Promise<ActionState> {
+  return run(async () => {
+    (await import("./folders")).removeFolder(String(id));
+    return t("The folder is no longer read in; its documents stay.");
+  });
+}
+
+/** The folders read in now (not waiting for the schedule). */
+export async function scanFoldersAction(): Promise<ActionState> {
+  return run(async () => {
+    const r = await (await import("@/lib/sync/registry")).syncAndWait("localdocs");
+    return r.lastMessage ?? undefined;
+  });
+}
+
+/** The folder browser: a folder's subfolders (none given: the drives). */
+export async function browseFoldersAction(path: string | null): Promise<{ ok: true; path: string | null; parent: string | null; dirs: { name: string; path: string }[] } | { ok: false; error: string }> {
+  if (off()) return { ok: false, error: off()! };
+  try {
+    return { ok: true, ...(await import("./folders")).browse(path ? String(path) : null) };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
+/** You confirmed them: the AI reads (scans, pictures), compiles and looks at them now. */
+export async function approveDocumentsAction(ids: number[]): Promise<ActionState> {
+  return run(async () => {
+    const list = (Array.isArray(ids) ? ids : []).map(Number).filter(Number.isInteger);
+    const n = (await import("./gate")).approve(list);
+    (await import("./process")).releaseHeld(list);
+    return n === 1 ? t("1 document confirmed.") : t("{n} documents confirmed.", { n });
+  });
+}

@@ -1,9 +1,23 @@
 import { t } from "@/lib/i18n/server";
-import type { PluginSyncSettings } from "../sync-settings";
+import { setStepMinutes, stepMinutes } from "@/lib/sync/intervals";
+import { MINUTE_CHOICES, type PluginSyncSettings } from "../sync-settings";
 
 /** The Documents plugin's part of the Sync settings: its extensions' steps run with each briefing — nothing to set. */
 export const syncSettings: PluginSyncSettings = {
-  intervals: [],
+  intervals: [
+    {
+      key: "localdocs",
+      get label() {
+        return t("Local folders");
+      },
+      get what() {
+        return t("New and changed documents in the folders you chose (Settings → Documents) read in.");
+      },
+      get: () => stepMinutes("localdocs"),
+      set: (m) => setStepMinutes("localdocs", m),
+      choices: MINUTE_CHOICES,
+    },
+  ],
   follows: [
     {
       key: "doctodos",
