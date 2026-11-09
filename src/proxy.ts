@@ -43,8 +43,12 @@ function route(req: NextRequest): { account: string | null; prefix: string; rewr
     // A page that moved, under the prefix: next.config's redirects ran before us and didn't see it.
     const moved = movedPage(hit.rest, url.search);
     if (moved) return { account: hit.account, prefix: hit.prefix, redirect: new URL(`${hit.prefix}${moved}`, url) };
+    // The page itself. Behind the launcher's HTTPS front door Next takes the request for https (X-Forwarded-Proto), and
+    // a rewrite there went out to https://localhost:9333 — which only speaks http (a 500, "wrong version number"). Zeff
+    // itself always serves plain http (TLS ends at the front door): the rewrite says so.
     const rewrite = url.clone();
     rewrite.pathname = hit.rest;
+    rewrite.protocol = "http:";
     return { account: hit.account, prefix: hit.prefix, rewrite, ...(OAUTH_START.test(hit.rest) ? { oauthAccount: hit.account } : {}) };
   }
   // Back from a sign-in: the account it was started in (its cookie, set at the start below).
