@@ -168,3 +168,18 @@ test("a page with blocks Markdown doesn't keep: its body isn't overwritten from 
   assert.equal(JSON.stringify(ws.getPage(id)!.content), JSON.stringify(before), "the callout kept");
   assert.equal(ws.getPage(id)!.title, "Reich und neu");
 });
+
+test("a series' words changed from the phone (its times stay with the PC): every date gets the new title", async () => {
+  const { applyReplicaOps, replicaManifest } = await import("@/lib/replica/server");
+  const { hashValue } = await import("@/lib/replica/shared");
+  const cal = await import("@/lib/calendar/ir");
+  const c = cal.createCalendar("Serien");
+  cal.addEvent(c.id, { title: "Yoga", start: "2026-11-10T18:00", end: "2026-11-10T19:00", recurrence: { freq: "weekly", interval: 1 } as never });
+  const ref = Object.keys(replicaManifest()).find((k) => k.startsWith(`event:${c.id}:`))!.slice(6);
+  const a = await applyReplicaOps([op({ kind: "event.set", event: ref, field: "title", value: "Yoga am Abend", base: hashValue("Yoga") })]);
+  assert.equal(a.results[0].ok, true, JSON.stringify(a.results));
+  const { replicaEntities } = await import("@/lib/replica/server");
+  const [e] = replicaEntities([`event:${ref}`]);
+  assert.equal((e.data as { title: string }).title, "Yoga am Abend");
+  assert.ok((e.data as { recurrence: unknown }).recurrence, "still a series");
+});

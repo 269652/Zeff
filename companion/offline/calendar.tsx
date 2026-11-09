@@ -62,7 +62,8 @@ function EventForm({ ev, onBack }: { ev?: REvent; onBack: () => void }) {
   const own = engine.list("calendar").filter((c) => c.editable);
   const cal = ev ? engine.list("calendar").find((c) => c.id === ev.calendarId) : own[0];
   const series = !!ev?.recurrence;
-  const editable = !!cal?.editable && !series;
+  // A series: its words (title, place, description) for all its dates here; its times only on the PC (they'd move it).
+  const editable = !!cal?.editable;
   const day = today();
   const [v, setV] = useState({
     calendarId: ev?.calendarId ?? own[0]?.id ?? 0,
@@ -80,7 +81,7 @@ function EventForm({ ev, onBack }: { ev?: REvent; onBack: () => void }) {
     if (!v.title.trim()) return;
     if (!ev) await edit({ kind: "event.add", calendarId: v.calendarId, title: v.title.trim(), start, end, allDay: v.allDay, location: v.location, description: v.description });
     else
-      for (const [field, value] of [["title", v.title.trim()], ["start", start], ["end", end], ["allDay", v.allDay], ["location", v.location], ["description", v.description]] as const)
+      for (const [field, value] of [["title", v.title.trim()], ...(series ? [] : ([["start", start], ["end", end], ["allDay", v.allDay]] as const)), ["location", v.location], ["description", v.description]] as const)
         if ((ev as Record<string, unknown>)[field] !== value) await edit({ kind: "event.set", event: ev.ref, field, value });
     onBack();
   };
@@ -98,7 +99,8 @@ function EventForm({ ev, onBack }: { ev?: REvent; onBack: () => void }) {
       <button type="button" className="zo-back" onClick={onBack}>
         ← {tr("Back")}
       </button>
-      {!editable && <p className="zo-muted">{series ? tr("series") : tr("notEditable")}</p>}
+      {!editable && <p className="zo-muted">{tr("notEditable")}</p>}
+      {editable && series && <p className="zo-muted">{tr("seriesWords")}</p>}
       <fieldset disabled={!editable} className="zo-form">
         {!ev && own.length > 1 && (
           <label className="zo-field">
@@ -116,6 +118,7 @@ function EventForm({ ev, onBack }: { ev?: REvent; onBack: () => void }) {
           <span>{tr("Title")}</span>
           <input value={v.title} onChange={(e) => setV({ ...v, title: e.target.value })} />
         </label>
+        <fieldset disabled={series} className="zo-form">
         <label className="zo-check">
           <input type="checkbox" checked={v.allDay} onChange={(e) => setV({ ...v, allDay: e.target.checked })} /> {tr("All day")}
         </label>
@@ -127,6 +130,7 @@ function EventForm({ ev, onBack }: { ev?: REvent; onBack: () => void }) {
           <span>{tr("End")}</span>
           <input type={v.allDay ? "date" : "datetime-local"} value={v.allDay ? v.end.slice(0, 10) : stamp(v.end)} onChange={(e) => setV({ ...v, end: e.target.value })} />
         </label>
+        </fieldset>
         <label className="zo-field">
           <span>{tr("Location")}</span>
           <input value={v.location} onChange={(e) => setV({ ...v, location: e.target.value })} />
@@ -141,7 +145,7 @@ function EventForm({ ev, onBack }: { ev?: REvent; onBack: () => void }) {
           <button type="button" className="zo-btn primary" onClick={() => void save()} disabled={!v.title.trim()}>
             {tr("Save")}
           </button>
-          {ev && (
+          {ev && !series && (
             <button
               type="button"
               className="zo-btn zo-danger"

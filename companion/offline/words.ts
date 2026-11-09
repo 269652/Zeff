@@ -59,7 +59,7 @@ const W: Record<string, [string, string]> = {
   Location: ["Location", "Ort"],
   Description: ["Description", "Beschreibung"],
   Calendar2: ["Calendar", "Kalender"],
-  series: ["A series — change it on the PC.", "Eine Serie — am PC ändern."],
+  seriesWords: ["A series: title, place and description change for all its dates; its times only on the PC.", "Eine Serie: Titel, Ort und Beschreibung ändern sich für alle Termine; die Zeiten nur am PC."],
   notEditable: ["This calendar can be changed on the PC only (Google, Outlook).", "Dieser Kalender ist nur am PC änderbar (Google, Outlook)."],
   noOwnCalendar: ["No calendar of Zeff's own to add to — make one on the PC (Calendar → New calendar).", "Kein eigener Zeff-Kalender zum Eintragen — am PC einen anlegen (Kalender → Neuer Kalender)."],
   noEvents: ["Nothing in these days.", "Nichts in diesen Tagen."],
