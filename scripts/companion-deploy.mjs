@@ -31,6 +31,8 @@ const tryGh = (...args) => {
 };
 
 if (!fs.existsSync(path.join(APP, "index.html"))) throw new Error("companion/app/index.html is missing.");
+// The offline part (companion/offline) bundled fresh into the app first.
+execFileSync(process.execPath, [path.join(ROOT, "scripts", "companion-build.mjs")], { stdio: "inherit" });
 const [owner, name] = REPO.split("/");
 const home = DOMAIN ? `https://${DOMAIN}/` : `https://${owner}.github.io/${name}/`;
 console.log(`Phone companion → ${REPO} (${home})`);

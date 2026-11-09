@@ -78,3 +78,7 @@ scripts/.probe-*.mjs
 
 # a test server's build (the workspace tests start one: .next-ws-test)
 /.next-ws-test/
+
+# The phone app's offline bundle (scripts/companion-build.mjs)
+companion/app/_zc/offline.js
+companion/app/_zc/offline.css

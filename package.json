@@ -19,6 +19,7 @@
     "test:servers": "node scripts/test-server.mjs --list",
     "e2e": "node e2e/run.mjs",
     "companion:check": "node companion/check.cjs",
+    "companion:build": "node scripts/companion-build.mjs",
     "companion:deploy": "node scripts/companion-deploy.mjs",
     "phone:deploy": "node scripts/phone-deploy.mjs",
     "deploy": "node scripts/deploy.mjs",
