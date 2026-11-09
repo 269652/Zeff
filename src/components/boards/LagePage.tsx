@@ -86,9 +86,10 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
         <>
           <WorkFollow active={busy.length > 0} />
           <ViewTabs view={part === "tickets" ? "tickets" : "lage"} />
-          {/* The heading and "Run now" in one row (no line of its own for the button — room for the todos on a phone). */}
-          <div className="flex items-start justify-between gap-3">
-          <div className="min-w-0 space-y-2">
+          {/* The heading and "Run now" in one row (no line of its own for the button — room for the todos on a phone); a
+              long status while it runs ("… analyzing · Cancel") wraps below instead of squeezing the heading's column. */}
+          <div className="flex flex-wrap items-start justify-between gap-x-3 gap-y-2">
+          <div className="min-w-[12rem] flex-1 space-y-2">
           <h1 className="text-xl font-semibold tracking-tight">{part === "tickets" ? t("Tickets") : t("Todos")}</h1>
           {shown && (
             <>
@@ -105,7 +106,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
             </>
           )}
           </div>
-          <div className="shrink-0">
+          <div className="max-w-full shrink-0">
             <BoardRunControls running={running} phase={live?.phase ?? null} since={live?.since ?? null} provider={live?.provider ?? aiLabel} presync={presync} />
           </div>
           </div>
