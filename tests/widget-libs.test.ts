@@ -37,7 +37,9 @@ test("content types", () => {
 test("a bundle: the libraries' code and CSS, KaTeX's fonts inlined as data: (woff2 only)", async () => {
   const { libBundle } = await import("@/lib/widgets/libs");
   const b = libBundle(["katex", "chart", "nope"]);
-  assert.equal(b.js.length, 3, "katex, its auto-render, chart");
+  assert.equal(b.js.length, 4, "katex, its auto-render, chart — and the exercise kit, always last");
+  assert.match(b.js[3], /ZeffKit/);
+  assert.match(libBundle([]).js.join(""), /ZeffKit/, "no libraries: the kit still");
   assert.equal(b.css.length, 1);
   assert.match(b.css[0], /url\(data:font\/woff2;base64,/);
   assert.ok(!/url\(fonts\//.test(b.css[0]), "no font left to load");

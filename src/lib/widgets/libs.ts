@@ -62,7 +62,18 @@ export function libBundle(names: string[]): { js: string[]; css: string[] } {
         return file && fs.existsSync(file) ? `url(data:font/woff2;base64,${fs.readFileSync(file).toString("base64")})` : "url()";
       }),
   );
-  const out = { js, css: css.filter(Boolean) };
+  // The exercise kit (kit/kit.js) in every widget, after the libraries (it uses KaTeX when it's there).
+  const out = { js: [...js, kitSource()].filter(Boolean), css: css.filter(Boolean) };
   bundles.set(key, out);
   return out;
+}
+
+let kit: string | null = null;
+/** Zeff's exercise kit (src/lib/widgets/kit/kit.js — ZeffKit.mount, the checkers), as text. */
+export function kitSource(): string {
+  if (kit === null) {
+    const file = path.resolve(/*turbopackIgnore: true*/ process.cwd(), "src", "lib", "widgets", "kit", "kit.js");
+    kit = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+  }
+  return kit;
 }

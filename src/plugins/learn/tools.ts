@@ -2,6 +2,7 @@
  * What the teacher can do (its MCP tools — mcp.ts registers them): the course's and the step's context, a widget for
  * the lesson, a step mastered, cards to review, the progress. Each answers in plain text for the agent. Server only.
  */
+import { checkSpec, specHasMath, specHtml, type ExerciseSet } from "@/lib/widgets/spec";
 import { levelOf } from "./game";
 import { addCards, addWidget, courseTree, getCourse, getNode, masterNode, nextCourseSteps, nodeWidgets } from "./store";
 
@@ -33,11 +34,32 @@ export function learnContext(a: { course_id: number; node_key?: string }): strin
   return lines.filter(Boolean).join("\n");
 }
 
-export function learnWidget(a: { course_id: number; node_key: string; title: string; html: string; libs?: string[] }): string {
+/**
+ * A widget for the lesson: an exercise set (`spec` — the kit renders it: lib/widgets/spec.ts) or a widget of its own
+ * (`html`). A set with mistakes is refused with each of them, so the agent fixes it at once.
+ */
+export function learnWidget(a: { course_id: number; node_key: string; title: string; html?: string; spec?: unknown; libs?: string[] }): string {
   const c = course(a.course_id);
   step(c.id, a.node_key);
-  const id = addWidget({ courseId: c.id, nodeKey: String(a.node_key), title: String(a.title ?? ""), html: String(a.html ?? ""), libs: Array.isArray(a.libs) ? a.libs.map(String) : [] });
-  return `Widget #${id} is shown in the lesson now. Its results (zeff.report) come back as experience; ask the person how it went.`;
+  let libs = Array.isArray(a.libs) ? a.libs.map(String) : [];
+  let html = String(a.html ?? "");
+  let spec = a.spec;
+  if (typeof spec === "string" && spec.trim()) {
+    try {
+      spec = JSON.parse(spec);
+    } catch (e) {
+      throw new Error(`spec isn't valid JSON: ${e instanceof Error ? e.message : String(e)}`);
+    }
+  }
+  if (spec !== undefined && spec !== null && spec !== "") {
+    const problems = checkSpec(spec);
+    if (problems.length) throw new Error(`The exercise set wasn't shown — fix these and send it again:\n- ${problems.join("\n- ")}`);
+    const set = spec as ExerciseSet;
+    html = specHtml({ ...set, title: set.title ?? String(a.title ?? "") });
+    if (specHasMath(set)) libs = [...new Set([...libs, "katex"])];
+  } else if (!html.trim()) throw new Error("Give either spec (an exercise set) or html (a widget of your own).");
+  const id = addWidget({ courseId: c.id, nodeKey: String(a.node_key), title: String(a.title ?? ""), html, libs });
+  return `Widget #${id} is shown in the lesson now. When it's finished its result comes to you as a message; if something breaks in it, you hear of that too — then send a fixed one.`;
 }
 
 export function learnMasterStep(a: { course_id: number; node_key: string; evidence?: string }): string {

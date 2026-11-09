@@ -8,7 +8,7 @@ import { useRunLog } from "@/components/work/SessionThread";
 import { formatDateTime } from "@/lib/format";
 import type { WorkLogLine } from "@/lib/work/shared";
 import { buildTimeline, type TimelineItem, type TimelineResult } from "../timeline";
-import { useWidgetResults } from "./LessonWidgets";
+import { useWidgetErrors, useWidgetResults } from "./LessonWidgets";
 
 export type TimelineRun = { id: number; startedAt: string; prompts: string[]; active: boolean; live: boolean };
 export type TimelineWidget = { id: number; title: string; html: string; libs: string[]; createdAt: string; bestScore: number | null };
@@ -37,6 +37,7 @@ export function LessonTimeline({ runs, widgets, results, sessionRunId }: { runs:
   // The newest exercise is open to do; earlier ones fold (opened again on a tap).
   const lastWidget = [...items].reverse().find((i) => i.kind === "widget");
   const onResult = useWidgetResults(sessionRunId);
+  const onError = useWidgetErrors(sessionRunId);
 
   // Follow the end while new things come (unless you scrolled up to read).
   const end = useRef<HTMLDivElement>(null);
@@ -58,7 +59,7 @@ export function LessonTimeline({ runs, widgets, results, sessionRunId }: { runs:
         {items.map((it, i) => (
           <li key={i} className={rowClass(it)}>
             {it.side !== "center" && <Dot item={it} />}
-            <Item item={it} widget={it.kind === "widget" || it.kind === "result" ? byId.get(it.widgetId ?? -1) : undefined} open={it === lastWidget} onResult={onResult} />
+            <Item item={it} widget={it.kind === "widget" || it.kind === "result" ? byId.get(it.widgetId ?? -1) : undefined} open={it === lastWidget} onResult={onResult} onError={onError} />
           </li>
         ))}
       </ol>
@@ -88,7 +89,7 @@ const scoreTone = (s: number) =>
       ? { dot: "bg-amber-500", badge: "bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-300" }
       : { dot: "bg-red-500", badge: "bg-red-100 text-red-800 dark:bg-red-950 dark:text-red-300" };
 
-function Item({ item, widget, open, onResult }: { item: TimelineItem; widget?: TimelineWidget; open: boolean; onResult: ReturnType<typeof useWidgetResults> }) {
+function Item({ item, widget, open, onResult, onError }: { item: TimelineItem; widget?: TimelineWidget; open: boolean; onResult: ReturnType<typeof useWidgetResults>; onError: ReturnType<typeof useWidgetErrors> }) {
   const t = useT();
   switch (item.kind) {
     case "session":
@@ -112,7 +113,7 @@ function Item({ item, widget, open, onResult }: { item: TimelineItem; widget?: T
       return open ? (
         <section className="space-y-1.5 rounded-xl border border-indigo-200 bg-white p-2 dark:border-indigo-900 dark:bg-zinc-900" aria-label={widget.title}>
           <h3 className="px-1 text-sm font-semibold">🧪 {widget.title}</h3>
-          <WidgetFrame html={widget.html} libs={widget.libs} title={widget.title} onResult={(r) => void onResult(widget, r)} />
+          <WidgetFrame html={widget.html} libs={widget.libs} title={widget.title} onResult={(r) => void onResult(widget, r)} onError={(m) => onError(widget, m)} />
         </section>
       ) : (
         <details className="rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-900">
@@ -121,7 +122,7 @@ function Item({ item, widget, open, onResult }: { item: TimelineItem; widget?: T
             {widget.bestScore !== null && <span className="ml-2 text-xs font-normal text-zinc-500">{t("best {n}%", { n: Math.round(widget.bestScore * 100) })}</span>}
           </summary>
           <div className="mt-2">
-            <WidgetFrame html={widget.html} libs={widget.libs} title={widget.title} onResult={(r) => void onResult(widget, r)} />
+            <WidgetFrame html={widget.html} libs={widget.libs} title={widget.title} onResult={(r) => void onResult(widget, r)} onError={(m) => onError(widget, m)} />
           </div>
         </details>
       );

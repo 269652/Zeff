@@ -55,8 +55,26 @@ const BRIDGE = `<script>
   };
   window.zeff = {
     report: function (r) { r = r || {}; send({ type: "result", score: r.score, correct: r.correct, total: r.total, note: r.note, answers: r.answers, done: r.done === true, snapshot: snap() }); },
-    resize: function (h) { send({ type: "resize", height: h }); }
+    resize: function (h) { send({ type: "resize", height: h }); },
+    // Something went wrong in the widget: told to the page (the teacher hears of it), once per message.
+    error: function (m) { m = String(m || "error").slice(0, 400); if (said[m]) return; said[m] = 1; send({ type: "error", message: m }); }
   };
+  var said = {};
+  // An error the widget didn't catch: a friendly note at the top (what still works keeps working), and told.
+  var note = function () {
+    try {
+      if (!document.body || document.getElementById("zeff-widget-error")) return;
+      var d = document.createElement("div");
+      d.id = "zeff-widget-error";
+      d.setAttribute("role", "status");
+      d.style.cssText = "margin:0 0 10px;padding:8px 12px;border-radius:10px;border-left:4px solid #d97706;background:rgba(217,119,6,.1);font-size:14px";
+      var l = (document.documentElement.lang || "de").slice(0, 2);
+      d.textContent = l === "de" ? "Hier hakt etwas im Widget — dein Lehrer weiß Bescheid und baut es neu." : l === "es" ? "Algo falló en este widget — tu profesor ya lo sabe y lo rehará." : "Something in this widget broke — your teacher has been told and will rebuild it.";
+      document.body.insertBefore(d, document.body.firstChild);
+    } catch (e) {}
+  };
+  window.addEventListener("error", function (e) { var m = (e && e.message) || "error"; if (e && e.lineno) m += " (line " + e.lineno + ")"; window.zeff.error(m); note(); });
+  window.addEventListener("unhandledrejection", function (e) { var r = e && e.reason; window.zeff.error(String((r && r.message) || r || "error")); note(); });
   var last = 0;
   var fit = function () { var h = Math.ceil(document.documentElement.scrollHeight); if (Math.abs(h - last) > 4) { last = h; window.zeff.resize(h); } };
   if (window.ResizeObserver) new ResizeObserver(fit).observe(document.documentElement);
@@ -75,7 +93,7 @@ const inStyle = (css: string) => css.replace(/<\/(style)/gi, "<\\/$1");
  * by address (`libs` + `libBase`) or — what the page does, so it works on the phone too — `inline`: their code put in
  * (the page fetched it: /api/widgets/bundle), then the frame loads nothing at all.
  */
-export function buildSrcdoc(html: string, opts: ({ libs?: string[]; libBase: string } | { inline: { js: string[]; css: string[] } }) & { dark?: boolean }): string {
+export function buildSrcdoc(html: string, opts: ({ libs?: string[]; libBase: string } | { inline: { js: string[]; css: string[] } }) & { dark?: boolean; lang?: string }): string {
   const inline = "inline" in opts ? opts.inline : null;
   const base = "libBase" in opts ? opts.libBase.replace(/\/+$/, "") : "";
   const libs = "libs" in opts ? [...new Set(opts.libs ?? [])].filter((l) => Object.prototype.hasOwnProperty.call(WIDGET_LIBS, l)) : [];
@@ -90,16 +108,19 @@ export function buildSrcdoc(html: string, opts: ({ libs?: string[]; libBase: str
     "connect-src 'none'",
     "form-action 'none'",
     "frame-src 'none'",
+    // Code exercises (the kit) run in a Worker made from a blob — nothing from outside.
+    "worker-src blob:",
   ].join("; ");
   const css = inline
     ? inline.css.map((c) => `<style>${inStyle(c)}</style>`)
     : libs.flatMap((l) => WIDGET_LIBS[l].css ?? []).map((f) => `<link rel="stylesheet" href="${esc(`${base}/${f}`)}">`);
   const js = inline ? inline.js.map((c) => `<script>${inScript(c)}</script>`) : libs.flatMap((l) => WIDGET_LIBS[l].js ?? []).map((f) => `<script src="${esc(`${base}/${f}`)}"></script>`);
   const theme = `<style>:root{color-scheme:${opts.dark ? "dark" : "light"}}html,body{margin:0;padding:12px;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:${opts.dark ? "#18181b" : "#fff"};color:${opts.dark ? "#ececf1" : "#18181b"}}button{font:inherit}</style>`;
-  return `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${esc(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1">${theme}${css.join("")}${BRIDGE}${js.join("")}</head><body>${html}</body></html>`;
+  const lang = /^[a-z]{2}$/.test(opts.lang ?? "") ? opts.lang : "de";
+  return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${esc(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1">${theme}${css.join("")}${BRIDGE}${js.join("")}</head><body>${html}</body></html>`;
 }
 
-export type WidgetMessage = { type: "result"; score: number; correct?: number; total?: number; note?: string; /** The exercise is over (the lesson goes on). */ done?: boolean; /** What was asked and answered (the lesson's timeline shows it). */ answers?: { q: string; a: string; ok?: boolean }[]; /** The widget as it looked (its body, no scripts — the timeline shows it later). */ snapshot?: string } | { type: "resize"; height: number };
+export type WidgetMessage = { type: "result"; score: number; correct?: number; total?: number; note?: string; /** The exercise is over (the lesson goes on). */ done?: boolean; /** What was asked and answered (the lesson's timeline shows it). */ answers?: { q: string; a: string; ok?: boolean }[]; /** The widget as it looked (its body, no scripts — the timeline shows it later). */ snapshot?: string } | { type: "resize"; height: number } | { type: "error"; message: string };
 
 const n = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? v : undefined);
 
@@ -129,6 +150,7 @@ export function parseWidgetMessage(data: unknown): WidgetMessage | null {
     const h = n(m.height);
     return h === undefined ? null : { type: "resize", height: Math.max(40, Math.min(4000, Math.round(h))) };
   }
+  if (m.type === "error") return typeof m.message === "string" && m.message.trim() ? { type: "error", message: m.message.slice(0, 400) } : null;
   if (m.type !== "result") return null;
   const correct = n(m.correct);
   const total = n(m.total);

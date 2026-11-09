@@ -31,8 +31,14 @@ export function registerLearnTools(server: McpServer, { run, ok, fail }: Helpers
   tool(
     "learn_widget",
     "Learn: show a widget in the lesson",
-    "An interactive widget for the lesson, shown at once: a complete HTML fragment with its <script> (a quiz with feedback, a plot with sliders, a 3D surface, cards). It runs sandboxed: no network; only the libraries asked for in libs (katex, jsxgraph, three, chart). Report results with zeff.report({ score: 0..1, correct, total, note }) — they give experience. Keep it small and touch-friendly.",
-    { ...ids, title: z.string(), html: z.string().describe("The widget's HTML, with inline <script> and <style>"), libs: z.array(z.enum(["katex", "jsxgraph", "three", "chart"])).optional() },
+    "An interactive widget for the lesson, shown at once. Best: `spec`, an exercise set the built-in kit renders with instant feedback, hints, a second try, a summary and the report — { title, intro?, items: [...] } with item types choice, number (tolerance, units), text, formula (compared as functions), cloze, order, match, categorize, hotspot (tap on a picture), slider, code (JavaScript with tests), table, plot (sliders, match a curve), scenario (decision path), cards. Mistakes in a set come back as an error listing each — fix and send again. Or `html`: a widget of your own (a simulation, a 3D model) — a complete HTML fragment with its <script>; ZeffKit (mount, fmt, check.*, expr, plot) is there too. Sandboxed: no network; only the libraries in libs (katex, jsxgraph, three, chart). A widget of your own reports with zeff.report({ score: 0..1, correct, total, answers, done }).",
+    {
+      ...ids,
+      title: z.string(),
+      spec: z.record(z.string(), z.unknown()).optional().describe("An exercise set: { title, intro?, items: [{ type, q, … }], lang?, tries?, pass? } — see the teacher's rules for each type"),
+      html: z.string().optional().describe("A widget of your own: HTML with inline <script> and <style>"),
+      libs: z.array(z.enum(["katex", "jsxgraph", "three", "chart"])).optional(),
+    },
     false,
     t.learnWidget,
   );

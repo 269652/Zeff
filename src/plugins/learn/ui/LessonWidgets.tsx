@@ -7,7 +7,7 @@ import { toast } from "@/components/Toaster";
 import { postJson } from "@/lib/post-json";
 import type { WidgetMessage } from "@/lib/widgets/sandbox";
 import { chatSendAction } from "@/app/chat/actions";
-import { resultMessage } from "../result-message";
+import { errorMessage, resultMessage } from "../result-message";
 
 /** A result without `done`: sent to the teacher once the widget has been quiet this long. */
 const QUIET_MS = 10_000;
@@ -38,5 +38,20 @@ export function useWidgetResults(sessionRunId?: number): (w: { id: number; title
     };
     if (r.done) void send();
     else timer.current = setTimeout(() => void send(), QUIET_MS);
+  };
+}
+
+/**
+ * Something broke in a widget: the teacher hears of it (once per widget and message on this page) and sends a fixed one;
+ * the widget shows its own friendly note meanwhile.
+ */
+export function useWidgetErrors(sessionRunId?: number): (w: { id: number; title: string }, message: string) => void {
+  const router = useRouter();
+  const told = useRef(new Set<string>());
+  return (w, message) => {
+    const key = `${w.id}:${message}`;
+    if (!sessionRunId || told.current.has(key) || told.current.size > 20) return;
+    told.current.add(key);
+    void chatSendAction({ text: errorMessage(w.title, w.id, message), runId: sessionRunId }).then(() => router.refresh());
   };
 }
