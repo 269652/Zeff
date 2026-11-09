@@ -5,6 +5,7 @@ import { useT } from "@/components/I18nProvider";
 import { useRouter } from "next/navigation";
 import { AiWorkingLabel } from "@/components/AiWorking";
 import { Markdown } from "@/components/Markdown";
+import { MessageBlocks } from "@/components/widgets/MessageBlocks";
 import { SnapshotFrame, WidgetFrame } from "@/components/widgets/WidgetFrame";
 import { useRunLog } from "@/components/work/SessionThread";
 import { formatDateTime } from "@/lib/format";
@@ -125,7 +126,13 @@ function Item({ item, widget, open, onResult, onError }: { item: TimelineItem; w
     case "say":
       return (
         <div className="rounded-xl rounded-tl-sm border border-zinc-200 bg-white px-3 py-2 dark:border-zinc-800 dark:bg-zinc-900" aria-label={t("Teacher")}>
-          <Markdown text={item.text} className="text-zinc-800 dark:text-zinc-200" />
+          {/* Its pictures (```svg, plot, chart, widget blocks) right in the message. */}
+          <MessageBlocks
+            text={item.text}
+            className="text-zinc-800 dark:text-zinc-200"
+            onResult={(title, r) => void onResult({ id: 0, title }, r)}
+            onBroken={(why) => onError({ id: 0, title: t("a picture in a message") }, why)}
+          />
         </div>
       );
     case "widget":

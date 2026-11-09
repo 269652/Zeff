@@ -18,7 +18,9 @@ export function liveStateHere(runId: number): LiveState {
 
 /** The session's state — here, or from Zeff's own server when this one hands it the work. */
 export async function liveState(runId: number): Promise<LiveState> {
-  const here = liveStateHere(runId);
+  let here = liveStateHere(runId);
+  // Zeff's own server: a session it doesn't follow yet (started by the phone's server, or before a restart) — followed now.
+  if (!here.followed && !delegates() && followHere(runId)) here = liveStateHere(runId);
   if (here.followed || !delegates()) return here;
   try {
     const { callHost } = await import("@/lib/host/client");

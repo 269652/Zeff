@@ -1,3 +1,4 @@
+import { delegates } from "@/lib/host/role";
 import { llmChoice, llmPreamble } from "@/plugins/llm/run";
 import { isInstalled } from "@/plugins/state";
 import { providerAvailable } from "@/plugins/state";
@@ -307,6 +308,12 @@ ${instruction}`
  */
 export function pump(): void {
   if (!isInstalled("work")) return;
+  // The phone's server (a "web" server) starts no workers itself: Zeff's own does, and follows them — a session the
+  // phone's server started was one Zeff's own pages showed as lost.
+  if (delegates()) {
+    void import("@/lib/host/client").then(({ callHost }) => callHost("work.pump")).catch(() => {});
+    return;
+  }
   const s = getWorkSettings();
   // Live sessions this server doesn't follow yet (an account the start missed): followed again first — else one
   // waiting for you counts as working, and with the workers taken the queue never moves.

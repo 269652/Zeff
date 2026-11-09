@@ -39,6 +39,11 @@ export const HOST_OPS: Record<string, Op> = {
 
   // A live session as the server following it sees it (the phone's server shows a lesson's progress with it).
   "work.live": async (a) => (await import("@/lib/work/live-state")).liveStateHere(Number(a.runId)),
+  // The queue looked at (the phone's server starts no workers: Zeff's own does).
+  "work.pump": async () => {
+    (await import("@/lib/work/runner")).pump();
+    return { ok: true };
+  },
   // A message into a conversation's running live session (the phone's server doesn't follow the sessions).
   "work.send": async (a) => (await import("@/lib/work/live-state")).sendToSessionHere(Number(a.runId), str(a.text)),
 

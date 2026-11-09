@@ -479,9 +479,10 @@
   /** An SVG plot of y = f(x) (a compiled formula or a JS function) — the kit's own, no library needed. */
   function plot(opts) {
     var W = 520;
-    var H = opts.height || 300;
     var xs = opts.x || [-5, 5];
     var ys = opts.y || [-5, 5];
+    // equal: one unit as long on both axes (geometry, vectors — a 45° arrow looks 45°).
+    var H = opts.equal ? Math.max(180, Math.min(560, Math.round((W * (ys[1] - ys[0])) / (xs[1] - xs[0])))) : opts.height || 300;
     var px = function (x) { return ((x - xs[0]) / (xs[1] - xs[0])) * W; };
     var py = function (y) { return H - ((y - ys[0]) / (ys[1] - ys[0])) * H; };
     var ns = "http://www.w3.org/2000/svg";
@@ -501,6 +502,23 @@
     for (var gy = Math.ceil(ys[0] / sy) * sy; gy <= ys[1]; gy += sy) add("line", { x1: 0, x2: W, y1: py(gy), y2: py(gy), stroke: "currentColor", "stroke-opacity": 0.08 });
     if (ys[0] < 0 && ys[1] > 0) add("line", { x1: 0, x2: W, y1: py(0), y2: py(0), stroke: "currentColor", "stroke-opacity": 0.45 });
     if (xs[0] < 0 && xs[1] > 0) add("line", { x1: px(0), x2: px(0), y1: 0, y2: H, stroke: "currentColor", "stroke-opacity": 0.45 });
+    // The numbers: along the x axis (or the bottom) and the y axis (or the left edge).
+    var num = function (v) { return String(Math.round(v * 1000) / 1000); };
+    // Every grid line numbered while there's room, else every other one; none at the very edges.
+    var lsx = (xs[1] - xs[0]) / sx > 10 ? sx * 2 : sx;
+    var lsy = (ys[1] - ys[0]) / sy > 8 ? sy * 2 : sy;
+    var axisY = ys[0] < 0 && ys[1] > 0 ? py(0) : H;
+    var axisX = xs[0] < 0 && xs[1] > 0 ? px(0) : 0;
+    for (var lx = Math.ceil(xs[0] / lsx) * lsx; lx <= xs[1]; lx += lsx) {
+      if (Math.abs(lx) < sx / 2 || px(lx) < 12 || px(lx) > W - 12) continue;
+      var tx1 = add("text", { x: px(lx), y: Math.min(H - 4, axisY + 16), "text-anchor": "middle", "font-size": 12, fill: "currentColor", "fill-opacity": 0.6 });
+      tx1.textContent = num(lx);
+    }
+    for (var ly = Math.ceil(ys[0] / lsy) * lsy; ly <= ys[1]; ly += lsy) {
+      if (Math.abs(ly) < sy / 2 || py(ly) < 12 || py(ly) > H - 8) continue;
+      var ty1 = add("text", { x: Math.max(4, axisX + 6), y: py(ly) + 4, "font-size": 12, fill: "currentColor", "fill-opacity": 0.6 });
+      ty1.textContent = num(ly);
+    }
     var curves = [];
     svg.curve = function (f, style) {
       var path = add("path", { fill: "none", stroke: style && style.color ? style.color : "var(--zk-accent,#6d28d9)", "stroke-width": style && style.width ? style.width : 2.5, "stroke-dasharray": style && style.dashed ? "7 6" : "none" });
@@ -520,6 +538,31 @@
       draw(f);
       curves.push(path);
       return { update: draw };
+    };
+    // An arrow from (x1, y1) to (x2, y2) — a vector — with its label at the tip.
+    var arrows = 0;
+    svg.arrow = function (x1, y1, x2, y2, style) {
+      style = style || {};
+      var color = style.color || "var(--zk-accent,#6d28d9)";
+      var id = "zk-arrow-" + ++arrows + "-" + Math.round(Math.random() * 1e6);
+      var defs = doc.createElementNS(ns, "defs");
+      defs.innerHTML = '<marker id="' + id + '" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="' + color + '"/></marker>';
+      svg.appendChild(defs);
+      add("line", { x1: px(x1), y1: py(y1), x2: px(x2), y2: py(y2), stroke: color, "stroke-width": style.width || 3, "marker-end": "url(#" + id + ")", "stroke-dasharray": style.dashed ? "7 6" : "none" });
+      if (style.label) {
+        var tx = add("text", { x: px(x2) + 8, y: py(y2) - 8, fill: color, "font-size": 18, "font-weight": 600 });
+        tx.textContent = style.label;
+      }
+    };
+    // A point with its label.
+    svg.point = function (x, y, style) {
+      style = style || {};
+      var color = style.color || "currentColor";
+      add("circle", { cx: px(x), cy: py(y), r: 5, fill: color });
+      if (style.label) {
+        var tx = add("text", { x: px(x) + 8, y: py(y) - 8, fill: color, "font-size": 16 });
+        tx.textContent = style.label;
+      }
     };
     return svg;
   }
