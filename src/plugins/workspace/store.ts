@@ -203,6 +203,11 @@ function protectCheck(dbId: number, act: "add" | "set" | "remove", fields: Recor
   }
 }
 
+/** Every page, database, form and row out of the trash (templates too) — the phone's offline copy (src/lib/replica). */
+export function livePages(): Page[] {
+  return (db().prepare("select * from ws_pages where archived_at is null").all() as PRow[]).map(toPage);
+}
+
 /** A page made. A row (`dbId`) takes the database's place in the tree; a database gets a default schema. */
 export function createPage(v: NewPage = {}): number {
   noAgentOnSystem(v.parentId ?? v.dbId);
