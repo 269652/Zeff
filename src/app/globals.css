@@ -276,6 +276,79 @@ p a:not([class*="btn"]):not([role]),
   }
 }
 
+/* The AI at work (src/components/AiWorking.tsx): a bar of moving colour (two strands, like Google's progress), a glyph
+   that turns (like Claude Code's), a shimmer running through the words. */
+:root {
+  --ai-ink: #4338ca;
+}
+@media (prefers-color-scheme: dark) {
+  :root {
+    --ai-ink: #a5b4fc;
+  }
+}
+.ai-progress {
+  position: relative;
+  height: 3px;
+  overflow: hidden;
+  border-radius: 999px;
+  background: color-mix(in srgb, #6366f1 16%, transparent);
+}
+.ai-progress::before,
+.ai-progress::after {
+  content: "";
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  border-radius: inherit;
+  background: linear-gradient(90deg, #6366f1, #a855f7, #ec4899, #f59e0b);
+}
+.ai-progress::before {
+  animation: ai-bar-a 2.1s cubic-bezier(0.65, 0.815, 0.735, 0.395) infinite;
+}
+.ai-progress::after {
+  animation: ai-bar-b 2.1s cubic-bezier(0.165, 0.84, 0.44, 1) 1.15s infinite;
+}
+@keyframes ai-bar-a {
+  0% { left: -35%; right: 100%; }
+  60%, 100% { left: 100%; right: -90%; }
+}
+@keyframes ai-bar-b {
+  0% { left: -200%; right: 100%; }
+  60%, 100% { left: 107%; right: -8%; }
+}
+.ai-glyph {
+  display: inline-block;
+  width: 1em;
+  flex: none;
+  text-align: center;
+  font-weight: 700;
+  color: #d97706;
+}
+.ai-glyph::before {
+  content: "✻";
+  animation: ai-glyph 1.2s steps(1) infinite;
+}
+@keyframes ai-glyph {
+  0% { content: "·"; }
+  16% { content: "✢"; }
+  33% { content: "✳"; }
+  50% { content: "✶"; }
+  66% { content: "✻"; }
+  83% { content: "✽"; }
+}
+.ai-shimmer {
+  color: transparent;
+  background: linear-gradient(90deg, var(--ai-ink) 0%, var(--ai-ink) 38%, #c026d3 50%, var(--ai-ink) 62%, var(--ai-ink) 100%);
+  background-size: 250% 100%;
+  -webkit-background-clip: text;
+  background-clip: text;
+  animation: ai-shimmer 2.2s linear infinite;
+}
+@keyframes ai-shimmer {
+  from { background-position: 100% 0; }
+  to { background-position: -150% 0; }
+}
+
 /* Reduced motion: no animation or transition that moves things (a request of the system's settings). */
 @media (prefers-reduced-motion: reduce) {
   *,
@@ -286,12 +359,24 @@ p a:not([class*="btn"]):not([role]),
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  /* The AI at work, still: a standing bar, the glyph, plain words. */
+  .ai-progress::before { animation: none !important; left: 0; right: 0; opacity: 0.7; }
+  .ai-progress::after { display: none; }
+  .ai-shimmer { animation: none !important; background: none; color: var(--ai-ink); }
 }
 
 /* Windows high contrast: what is drawn with backgrounds and shadows gets a real border and outline. */
 @media (forced-colors: active) {
   :focus-visible {
     outline: 2px solid Highlight;
+  }
+  .ai-shimmer {
+    background: none;
+    color: CanvasText;
+  }
+  .ai-progress::before,
+  .ai-progress::after {
+    background: Highlight;
   }
   .btn,
   .icon-btn,
