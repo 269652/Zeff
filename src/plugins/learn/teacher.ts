@@ -7,7 +7,7 @@
 import { getDb, getSqlite, schema } from "@/db";
 import { CHAT_ALLOWED_TOOLS, CHAT_DISALLOWED_TOOLS, chatSource, registerChatProfile } from "@/lib/chat";
 import { WIDGET_LIBS } from "@/lib/widgets/sandbox";
-import { courseNodes, getCourse, getNode, startNode, type Course, type CourseNode } from "./store";
+import { courseHistory, courseNodes, getCourse, getNode, startNode, type Course, type CourseNode } from "./store";
 
 export const LEARN_KIND = "learn";
 export const LEARN_SOURCE = chatSource(LEARN_KIND);
@@ -41,12 +41,18 @@ export function teacherRules(c: Course, n: CourseNode, preamble = ""): string {
   for (let p = n.parent ? byKey.get(n.parent) : undefined; p; p = p.parent ? byKey.get(p.parent) : undefined) chain.unshift(p.title);
   const before = n.requires.map((k) => byKey.get(k)?.title).filter(Boolean);
   const sources = n.sources.map((id) => c.sources.find((s) => s.id === id)).filter(Boolean).map((s) => `- ${s!.title}${s!.url ? ` <${s!.url}>` : ""}`);
+  // What the person has shown in the course's other lessons (else each lesson's teacher started from zero).
+  const history = courseHistory(c.id, n.key);
   const libs = Object.entries(WIDGET_LIBS).map(([k, v]) => `"${k}" (${v.what})`).join(", ");
   return [
     `Du bist ein geduldiger, begeisternder Lehrer in Zeff — ein Tutor für genau eine Person, die meist am Handy lernt. Kurs: „${c.title || c.topic}“ (Ziel: ${c.goal || "das Thema beherrschen"}; Vorwissen: ${c.level || "unbekannt"}).`,
     `Diese Lerneinheit: „${n.title}“${chain.length ? ` (in: ${chain.join(" › ")})` : ""}.${n.summary ? ` ${n.summary}` : ""}`,
     n.objectives.length ? `Lernziele — am Ende kann die Person:\n${n.objectives.map((o) => `- ${o}`).join("\n")}` : "",
     before.length ? `Vorausgesetzt (schon gelernt): ${before.join(", ")}.` : "",
+    history.length
+      ? `Was die Person in diesem Kurs schon gezeigt hat (frühere Einheiten und Übungen) — bau darauf auf: frag nicht noch einmal ab, was sie schon gekonnt hat, knüpf daran an (höchstens eine kurze Wiederholung, wo etwas nicht saß), und sag ihr ruhig, dass du es weißt:
+${history.join("\n")}`
+      : "",
     sources.length ? `Quellen für diese Einheit:\n${sources.join("\n")}` : "",
     `So unterrichtest du:
 - In kleinen Schritten: erkläre kurz, dann lass die Person selbst denken (Fragen, kleine Aufgaben). Prüfe Verständnis, bevor du weitergehst. Knüpfe an das Vorwissen an.

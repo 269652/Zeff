@@ -455,3 +455,37 @@ export function reviewCard(cardId: number, grade: Grade, now: Date = new Date())
   awardXp(c.courseId, 1, "review", { card: cardId, grade }, now, c.nodeKey);
   return { xp: 1, card: { ...c, ...next } };
 }
+
+/**
+ * What the person has shown in this course so far, outside one step — for the teacher of the next lesson, so it builds
+ * on it instead of starting from zero: the steps mastered (with what showed it) and the exercises done (the newest, each
+ * with its score and answers). Plain lines, German like the teacher's rules; at most ~3000 characters.
+ */
+export function courseHistory(courseId: number, exceptKey?: string): string[] {
+  const rows = db()
+    .prepare("select node_key, kind, detail, at from learn_events where course_id = ? and kind in ('mastered', 'widget') order by id desc limit 60")
+    .all(courseId) as { node_key: string | null; kind: string; detail: string; at: string }[];
+  const titles = new Map(courseNodes(courseId).map((n) => [n.key, n.title]));
+  const out: string[] = [];
+  let size = 0;
+  for (const r of rows) {
+    if (r.node_key && r.node_key === exceptKey) continue;
+    let d: { note?: string; score?: number; correct?: number; total?: number; answers?: { q: string; a: string; ok?: boolean }[] } = {};
+    try {
+      d = JSON.parse(r.detail);
+    } catch {
+      // an old row: its kind and step say enough
+    }
+    const step = r.node_key ? `„${titles.get(r.node_key) ?? r.node_key}“` : "";
+    const line =
+      r.kind === "mastered"
+        ? `- Einheit ${step} gemeistert${d.note ? `: ${d.note}` : ""}`
+        : `- Übung in ${step}${d.note ? ` (${d.note})` : ""}: ${Math.round((d.score ?? 0) * 100)} %${d.correct !== undefined && d.total ? ` (${d.correct}/${d.total})` : ""}${
+            d.answers?.length ? ` — ${d.answers.slice(0, 6).map((x) => `${x.q.slice(0, 80)} → ${x.a.slice(0, 80)}${x.ok === true ? " ✓" : x.ok === false ? " ✗" : ""}`).join("; ")}` : ""
+          }`;
+    if (size + line.length > 3000) break;
+    out.push(line);
+    size += line.length;
+  }
+  return out.reverse();
+}
