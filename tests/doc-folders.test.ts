@@ -122,3 +122,15 @@ test("a drive's root stays the root (\"C:\" alone would be the current folder on
   assert.equal(l.parent, null);
   assert.equal(f.browse(root.replace(/[\\/]$/, "")).path, root, "“C:” is the root too");
 });
+
+test("no local folders set up: the sync step isn't there — not listed, not run, never 'not running'", async () => {
+  const { setInstalled } = await import("@/plugins/state");
+  setInstalled("documents", true);
+  const { setPref } = await import("@/lib/prefs");
+  setPref("documents:folders", []);
+  const reg = await import("@/lib/sync/registry");
+  assert.ok(!reg.syncOverview().steps.some((s) => s.key === "localdocs"), "not listed without folders");
+  setPref("documents:folders", [{ id: "x", path: os.tmpdir(), mode: "confirm", addedAt: "", lastScanAt: null, files: 0 }]);
+  assert.ok(reg.syncOverview().steps.some((s) => s.key === "localdocs"), "listed once there is one");
+  setPref("documents:folders", []);
+});

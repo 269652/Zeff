@@ -128,6 +128,8 @@ export type SyncStep = {
   schedule?: () => { everyMinutes: number; lastAt: string | null; window?: string; workdays?: boolean };
   /** Stop it, when it doesn't run through runStoppable (the Ticket-Lage's own run). */
   stop?: () => void;
+  /** Whether there's anything for it now (false: not shown, not run, never "not running" — e.g. no local folders set up). */
+  inUse?: () => boolean;
 };
 
 type Step = SyncStep;
@@ -337,6 +339,7 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
       return r.errors.length && !r.added && !r.updated ? { ok: false, message: r.errors.slice(0, 3).join(" · ") } : { ok: true, message: parts.length ? parts.join(", ") : t("Nothing new.") };
     },
     busy: () => false,
+    inUse: () => getPref<unknown[]>("documents:folders", []).length > 0,
     schedule: () => ({ everyMinutes: stepMinutes("localdocs"), lastAt: recorded("localdocs").lastAt }),
   },
   gitlab: {
@@ -660,7 +663,7 @@ export function syncOverview(): SyncOverview {
   const l = live();
   // Only the steps there are: Zeff's own and the installed plugins'.
   // (The parts of a stepped step are shown only as that step; a stepped step is there while any of its parts is.)
-  const steps: SyncView[] = allKeys().filter((key) => stepAvailable(key) && !partOfStepped.has(key) && (!isStepped(key) || steppedParts(key).length > 0)).map((key) => {
+  const steps: SyncView[] = allKeys().filter((key) => stepAvailable(key) && (STEPS[key].inUse?.() ?? true) && !partOfStepped.has(key) && (!isStepped(key) || steppedParts(key).length > 0)).map((key) => {
     const s = STEPS[key];
     const sched = s.schedule?.();
     return {
@@ -684,6 +687,8 @@ async function runStep(key: SyncKey): Promise<void> {
   const l = live();
   // A plugin's step while it isn't installed: nothing.
   if (!stepAvailable(key)) return;
+  // Nothing for it (no local folders set up): not run, so never a failure either.
+  if (STEPS[key].inUse?.() === false) return;
   if (l.running.has(key) || STEPS[key].busy?.()) return;
   l.running.add(key);
   let outcome: { ok: boolean; message: string } | null = null;
