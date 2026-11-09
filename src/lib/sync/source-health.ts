@@ -107,7 +107,11 @@ export function computeSourceHealth(steps: HealthStep[], opts: { now?: number; u
   const drift = getPref<Record<string, Drift>>(DRIFT, {});
   const off = daysOff(now);
   const out = steps.map((s) => {
-    const r = records[s.key];
+    const kept = records[s.key];
+    // A good run the step reports itself after the failures were recorded (one that didn't go through the sync — a
+    // briefing run by hand or by its schedule): mended, however the record still reads.
+    const mended = !!kept?.failingSince && s.lastOk === true && !!s.lastAt && Date.parse(s.lastAt) > Date.parse(kept.failingSince);
+    const r = mended ? { failures: 0, failingSince: null, lastOkAt: s.lastAt, message: null } : kept;
     return judgeStep(
       {
         key: s.key,
