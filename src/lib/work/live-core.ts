@@ -529,6 +529,8 @@ export function liveCore<C extends LiveCfgBase, L extends LiveBase<C>>(a: LiveAd
       if (!cfg) continue;
       const l = a.create(runId, cfg);
       l.view.host = processAlive(l) ? "up" : "down";
+      // Its process gone meanwhile: it ends (read to its end first) — else, "down" for good, it held a worker forever.
+      if (l.view.host === "down") l.exited = true;
       lives.set(runId, l);
     }
     ensureTick();
