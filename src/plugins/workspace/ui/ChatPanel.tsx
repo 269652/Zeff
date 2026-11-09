@@ -5,6 +5,7 @@ import { usePagePathname } from "@/lib/use-page-pathname";
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
+import { AiProgressBar, AiWorkingLabel, announceAiWorking } from "@/components/AiWorking";
 import { undoAction } from "../actions";
 import { askWorkspace } from "./chat-client";
 import type { ChatStep } from "../agent";
@@ -89,6 +90,8 @@ export function ChatPanel() {
     setMsgs(next);
     setText("");
     setBusy(true);
+    // The database open beside it shows that the assistant is at work on it (AiWorking.tsx).
+    announceAiWorking(pageId, true);
     try {
       setLive([]);
       const r = await askWorkspace(next.map((m) => ({ role: m.role, text: m.text })), pageId, setLive);
@@ -105,6 +108,7 @@ export function ChatPanel() {
       setMsgs([...next, { role: "assistant", text: t("That didn't work."), error: true }]);
     } finally {
       setBusy(false);
+      announceAiWorking(pageId, false);
     }
   };
 
@@ -166,7 +170,12 @@ export function ChatPanel() {
                 )}
               </div>
             ))}
-            {busy && <p className="text-xs text-violet-700 dark:text-violet-300">✨ {t("The AI is working …")}{live.length > 0 && ` ${live.length === 1 ? t("1 step") : t("{n} steps", { n: live.length })} — ${live[live.length - 1].tool.replace(/^workspace_/, "")}`}</p>}
+            {busy && (
+              <div className="space-y-1.5">
+                <AiProgressBar />
+                <AiWorkingLabel label={t("The AI is working …")} detail={live.length > 0 ? `${live.length === 1 ? t("1 step") : t("{n} steps", { n: live.length })} — ${live[live.length - 1].tool.replace(/^workspace_/, "")}` : undefined} />
+              </div>
+            )}
             <div ref={end} />
           </div>
           <form

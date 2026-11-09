@@ -5,6 +5,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { createPortal } from "react-dom";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
+import { AiProgressBar, AiWorkingLabel, useAiWorkingOn } from "@/components/AiWorking";
 import { chartViewAction, templateParamsAction, discardIfUntouchedAction, formFromTableAction, savePageAction, databasesAction, loadDatabaseAction, makeInboxAction, refreshPipelineAction, rowsMatchingAction, runPipelineAction, type DatabaseData } from "../actions";
 import { hideRows, shownRows, cellText, filterByPeople, mineKeys, panelProperties, personChips, personPropOf, filterRows, isDayList, newView, sortRows, type Labels, type View, type ViewType } from "../model";
 import { PopCell, type CellCtx } from "./cells";
@@ -48,6 +49,8 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false, 
   const t = useT();
   const router = useRouter();
   const api = useDatabase(initial, dbId);
+  // The Workspace assistant working with this database open (its panel says so).
+  const assistantHere = useAiWorkingOn(dbId);
   const dayLabels = useDayTabLabels();
   const { data } = api;
   const search = useSearchParams();
@@ -560,7 +563,12 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false, 
         />
       )}
 
-      {data.extras?.running && <p className="text-sm text-indigo-600 dark:text-indigo-400" data-running>✨ {t("The AI is going through the rows — they change as it writes them …")}</p>}
+      {(data.extras?.running || assistantHere) && (
+        <div className="space-y-1.5" data-running>
+          <AiProgressBar />
+          <AiWorkingLabel label={data.extras?.running ? t("The AI is going through the rows — they change as it writes them …") : t("The assistant is working on this database …")} />
+        </div>
+      )}
       <PipelineSummaries pipeline={schema.pipeline} />
       <DatabaseAgents dbId={dbId} />
       {dayTab && <DayListTab tab={dayTab} dbId={dbId} data={data} set={api.set} saved={api.saved} reload={api.reload} logView={(logId) => <DatabaseView initial={null} dbId={logId} embedded />} />}
