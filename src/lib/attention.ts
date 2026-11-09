@@ -82,7 +82,15 @@ export type Attention = {
   href?: string;
   /** source: the sync step (it can be run again). */
   step?: string;
+  /** false: shown in Zeff, but no desktop notification (yet) — a source that isn't well, until it has lasted a while. */
+  notify?: boolean;
 };
+
+/** A source that isn't well pings the desktop only once it has lasted this long — a failure that mends itself needn't. */
+export const SOURCE_NOTIFY_HOURS = 3;
+
+/** Whether a source incident opened at `openedAt` is old enough for a desktop notification. */
+export const sourceNotifies = (openedAt: string, now = Date.now()): boolean => now - Date.parse(openedAt) >= SOURCE_NOTIFY_HOURS * 3600e3;
 
 // Per account: a sign-in one account's sync needs is that account's banner — not the other's (served side by side, by host).
 const state = globalThis as { __zeffAttentionByAccount?: Map<string, Map<string, Attention>> };
@@ -173,6 +181,7 @@ export async function listAttention(): Promise<Attention[]> {
     body: i.reason || t("See the sync menu."),
     at: i.openedAt,
     href: i.href,
+    notify: sourceNotifies(i.openedAt),
   }));
   // Sign-ins only for what's installed (an uninstalled plugin's request is moot).
   const { serviceAvailable } = await import("@/plugins/state");

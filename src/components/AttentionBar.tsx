@@ -27,8 +27,10 @@ function notifyNew(items: Attention[]) {
   } catch {
     seen = [];
   }
-  const ids = items.map((a) => `${a.key}|${a.kind === "question" ? a.body : a.at}`);
-  for (const [i, a] of items.entries()) {
+  // Not yet for the desktop (a source not well only a short while): not pinged, nor counted as pinged — it may be later.
+  const due = items.filter((a) => a.notify !== false);
+  const ids = due.map((a) => `${a.key}|${a.kind === "question" ? a.body : a.at}`);
+  for (const [i, a] of due.entries()) {
     if (seen.includes(ids[i])) continue;
     const n = new Notification(`Zeff: ${a.title}`, { body: a.body, tag: a.key });
     n.onclick = () => {

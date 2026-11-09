@@ -12,7 +12,8 @@ export async function GET() {
   await connection();
   const items: { id: string; title: string; body: string; href: string; at: string }[] = [];
   const { listAttention } = await import("@/lib/attention");
-  for (const a of await listAttention()) items.push({ id: a.key, title: a.title, body: a.body.slice(0, 200), href: a.href ?? (a.kind === "login" ? "/settings/connections#sign-ins" : "/heute"), at: a.at });
+  // A source not well only a short while: not yet (its desktop notification comes once it has lasted — lib/attention.ts).
+  for (const a of await listAttention()) if (a.notify !== false) items.push({ id: a.key, title: a.title, body: a.body.slice(0, 200), href: a.href ?? (a.kind === "login" ? "/settings/connections#sign-ins" : "/heute"), at: a.at });
   const { isInstalled } = await import("@/plugins/state");
   if (isInstalled("todos")) {
     const { listTodos } = await import("@/lib/todos/store");
