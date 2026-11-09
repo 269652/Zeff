@@ -39,7 +39,8 @@ export type PeopleOverview = {
   meetings: MeetingBrief[];
   /** How many proposed claims and links the AI is sure of (90 % and more) — to take at once. */
   confident: number;
-  settings: { weeks: number; myName: string };
+  /** `aboutMe`: what you wrote about yourself (lib/about-me.ts — the same record as Settings → About me). */
+  settings: { weeks: number; myName: string; aboutMe: string };
 };
 
 export type PersonCardInfo = {
@@ -120,7 +121,7 @@ export async function peopleOverview(): Promise<PeopleOverview> {
     nudges: nudges({ contacts }),
     meetings: await meetingBriefs().catch(() => []),
     confident: proposedClaims().filter((c) => c.confidence >= 0.9).length + proposedLinks().filter((l) => l.confidence >= 0.9).length,
-    settings: { weeks: nudgeWeeks(), myName: myName() },
+    settings: { weeks: nudgeWeeks(), myName: myName(), aboutMe: (await import("@/lib/about-me")).aboutMe() },
     count: people.length,
     upcoming: upcoming({ days: 60 })
       .slice(0, 12)
@@ -151,7 +152,7 @@ export type PeopleTool =
   | { tool: "circle"; id: number; circle: Circle | "" }
   | { tool: "snooze"; id: number; days?: number }
   | { tool: "acceptConfident" }
-  | { tool: "settings"; weeks?: number; myName?: string }
+  | { tool: "settings"; weeks?: number; myName?: string; aboutMe?: string }
   | { tool: "todo"; id: number; text: string }
   | { tool: "greeting"; id: number }
   | { tool: "classify"; force?: boolean };
@@ -173,6 +174,8 @@ export async function peopleTool(o: PeopleTool): Promise<{ message?: string; dra
     case "settings":
       if (o.weeks !== undefined) setNudgeWeeks(Number(o.weeks));
       if (o.myName !== undefined) setMyName(String(o.myName));
+      // About you: the one record (Settings → About me, the AI settings, its prompt page show the same).
+      if (o.aboutMe !== undefined) await (await import("@/lib/about-me")).setAboutMe(String(o.aboutMe));
       return { message: t("Saved.") };
     case "todo": {
       const p = getPerson(Number(o.id));

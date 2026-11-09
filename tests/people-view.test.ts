@@ -41,7 +41,7 @@ const overview = (over: Partial<PeopleOverview> = {}): PeopleOverview => ({
   nudges: [{ personId: 1, name: "Anna Berg", at: ago(70), channel: "WhatsApp", days: 70 }],
   meetings: [{ personId: 3, name: "Clara Dorn", eventId: 7, title: "Weekly", start: "2026-10-22T14:00", lastMet: ago(7), since: [{ at: ago(2), text: "Sent the draft" }], owed: [{ direction: "theirs", text: "The slides", due: "" }], cases: [{ label: "AZ 1", title: "Rent", open: 0, nextDue: null }] }],
   confident: 1,
-  settings: { weeks: 6, myName: "Me Myself" },
+  settings: { weeks: 6, myName: "Me Myself", aboutMe: "" },
   ...over,
 });
 

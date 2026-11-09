@@ -1,4 +1,5 @@
 import { t } from "@/lib/i18n/server";
+import { aboutMe } from "@/lib/about-me";
 import { AiSettingsForm } from "@/components/AiSettingsForm";
 import Link from "next/link";
 import { rich } from "@/lib/i18n/rich";
@@ -69,7 +70,8 @@ export async function LlmSections() {
           </p>
         </div>
         <LlmSettingsForm
-          initial={getLlmSettings()}
+          // "Context about you" is About me (lib/about-me.ts): as every place reads it — its prompt page wins when changed there.
+          initial={{ ...getLlmSettings(), context: aboutMe() }}
           providers={providers.map((p) => ({ id: p.id, label: AI_PROVIDER_INFO[p.id].label }))}
           effective={Object.fromEntries(LLM_TASKS.map((task) => [task.id, llmChoice(task.id)]))}
           pages={await promptPages()}

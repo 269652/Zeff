@@ -212,8 +212,8 @@ function SettingsPart(p: PartProps) {
   const run = useRun(p);
   const o = overviewOf(p);
   if (!o) return null;
-  const { weeks, myName } = o.settings;
-  const save = (v: { weeks?: number; myName?: string }) => void run({ tool: "settings", ...v }, "settings");
+  const { weeks, myName, aboutMe } = o.settings;
+  const save = (v: { weeks?: number; myName?: string; aboutMe?: string }) => void run({ tool: "settings", ...v }, "settings");
   return (
     <div className="grid grid-cols-[auto_1fr] items-center gap-2 border-t border-zinc-100 pt-3 text-sm dark:border-zinc-800">
       <label htmlFor="people-weeks" className="text-xs text-zinc-500">
@@ -224,6 +224,20 @@ function SettingsPart(p: PartProps) {
         {t("Your name")}
       </label>
       <input id="people-me" className="input text-sm" defaultValue={myName} placeholder={t("First and last name")} title={t("People with your last name count as family.")} onBlur={(e) => e.target.value.trim() !== myName && save({ myName: e.target.value })} />
+      {/* About you — the same record as Settings → About me (lib/about-me.ts): what the AI should know about you. */}
+      <label htmlFor="people-about" className="self-start pt-1.5 text-xs text-zinc-500">
+        {t("About me")}
+      </label>
+      <textarea
+        id="people-about"
+        className="input text-sm"
+        rows={3}
+        maxLength={6000}
+        defaultValue={aboutMe ?? ""}
+        placeholder={t("e.g. I teach F4 at a vocational school.")}
+        title={t("The same text as Settings → About me — in front of every AI task.")}
+        onBlur={(e) => e.target.value.trim() !== (aboutMe ?? "").trim() && save({ aboutMe: e.target.value })}
+      />
     </div>
   );
 }

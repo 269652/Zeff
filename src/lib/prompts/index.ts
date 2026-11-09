@@ -133,6 +133,18 @@ export async function ensureSystemPrompts(): Promise<void> {
   }
 }
 
+/**
+ * A prompt's page given a text from elsewhere (a setting that is the same record — "About me", lib/about-me.ts): the page
+ * shows it, and it counts as written so (the setting and the page agree). No page (no Workspace, not made yet): nothing.
+ */
+export async function writePromptPage(key: string, text: string): Promise<void> {
+  const id = pages()[key];
+  if (pageText(id) === null) return;
+  const { updatePage } = await import("@/plugins/workspace/store");
+  updatePage(id, { content: markdownToDoc(text) });
+  setPref(WRITTEN, { ...written(), [key]: { text: pageText(id) ?? "", ...(text.trim() ? { setting: text.trim() } : {}) } });
+}
+
 /** A prompt's page back to the built-in text (what went in besides too: gone). */
 export async function resetSystemPrompt(pageId: number): Promise<void> {
   const key = Object.entries(pages()).find(([, id]) => id === pageId)?.[0];

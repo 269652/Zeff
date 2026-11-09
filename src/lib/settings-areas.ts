@@ -18,6 +18,7 @@ export function settingsAreas(): SettingsAreaGroup[] {
   const on = installedPlugins();
   const general: SettingsArea[] = [
     { href: "/preferences", label: t("General"), what: t("Language, parallel work, security key, lock") },
+    { href: "/settings/about", label: t("About me"), what: t("What Zeff and its AI should know about you") },
     { href: "/settings/ai", label: t("AI"), what: t("Backends and models, your instructions, the prompts, how useful each step is") },
     ...(on.has("todos") ? [{ href: "/settings/todos", label: t("Todo settings"), what: t("The briefing, what a todo shows, which kinds of knowledge count") }] : []),
   ];
