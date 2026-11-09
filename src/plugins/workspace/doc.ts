@@ -278,6 +278,26 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
   }
 }
 
+/** What Markdown keeps through docToMarkdown → markdownToDoc (tested): blocks and marks a round trip doesn't lose. */
+const MD_NODES = new Set(["doc", "paragraph", "heading", "text", "hardBreak", "bulletList", "orderedList", "listItem", "taskList", "taskItem", "blockquote", "codeBlock", "horizontalRule", "table", "tableRow", "tableHeader", "tableCell", "image"]);
+const MD_MARKS = new Set(["bold", "italic", "code", "strike", "link"]);
+
+/**
+ * Whether a document can be edited as Markdown without losing anything (the phone's offline editor): only the blocks and
+ * marks Markdown keeps — a callout, a toggle, an embedded database, a mention or a colour would be lost on the way back.
+ */
+export function markdownEditable(doc: unknown): boolean {
+  if (!doc || typeof doc !== "object") return true;
+  const ok = (n: unknown): boolean => {
+    if (!n || typeof n !== "object") return true;
+    const node = n as { type?: unknown; marks?: { type?: unknown }[]; content?: unknown[] };
+    if (typeof node.type !== "string" || !MD_NODES.has(node.type)) return false;
+    if ((node.marks ?? []).some((m) => typeof m?.type !== "string" || !MD_MARKS.has(m.type))) return false;
+    return (node.content ?? []).every(ok);
+  };
+  return ok(doc);
+}
+
 /** A document as Markdown. */
 export function docToMarkdown(doc: DocNode | null | undefined): string {
   return doc ? `${block(doc).trim()}\n` : "";

@@ -150,3 +150,21 @@ test("calendar: an event made, changed, deleted on Zeff's own calendar; another 
   assert.match(g.results[0].error ?? "", /Zeff's own calendars/i);
 });
 
+
+test("a page with blocks Markdown doesn't keep: its body isn't overwritten from the phone (nothing lost), its title still is", async () => {
+  const { applyReplicaOps } = await import("@/lib/replica/server");
+  const { hashValue } = await import("@/lib/replica/shared");
+  const ws = await import("@/plugins/workspace/store");
+  const callout = { type: "doc", content: [{ type: "callout", attrs: { emoji: "💡" }, content: [{ type: "paragraph", content: [{ type: "text", text: "Wichtig" }] }] }] };
+  const id = ws.createPage({ title: "Reich", content: callout });
+  const before = ws.getPage(id)!.content;
+  const a = await applyReplicaOps([
+    op({ kind: "page.set", page: id, field: "content", value: { type: "doc", content: [{ type: "paragraph", content: [{ type: "text", text: "Wichtig" }] }] }, base: hashValue(before) }),
+    op({ kind: "page.set", page: id, field: "title", value: "Reich und neu", base: hashValue("Reich") }),
+  ]);
+  assert.equal(a.results[0].ok, false);
+  assert.match(a.results[0].error ?? "", /only the PC can edit/);
+  assert.equal(a.results[1].ok, true);
+  assert.equal(JSON.stringify(ws.getPage(id)!.content), JSON.stringify(before), "the callout kept");
+  assert.equal(ws.getPage(id)!.title, "Reich und neu");
+});

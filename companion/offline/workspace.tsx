@@ -1,6 +1,6 @@
 import { Fragment, useRef, useState } from "react";
 import type { RPage } from "@/lib/replica/shared";
-import { docToMarkdown, markdownToDoc } from "@/plugins/workspace/doc";
+import { docToMarkdown, markdownEditable, markdownToDoc } from "@/plugins/workspace/doc";
 import { normalizeSchema, type DbSchema, type Property } from "@/plugins/workspace/model/schema";
 import { cellText } from "@/plugins/workspace/model/values";
 import { parseMarkdown, type MdBlock, type MdInline } from "@/lib/markdown";
@@ -164,6 +164,8 @@ function PageView({ page, go }: { page: RPage; go: (id: string | null) => void }
 function Body({ page }: { page: RPage }) {
   const { edit } = useReplica();
   const md = docToMarkdown(page.content as never);
+  // Blocks Markdown doesn't keep (a callout, an embedded database …) would be lost: such a page is edited on the PC.
+  const editable = !page.locked && markdownEditable(page.content);
   // The text while you edit it (null: not editing — the page's own is shown).
   const [text, setText] = useState<string | null>(null);
   const editing = text !== null;
@@ -172,7 +174,7 @@ function Body({ page }: { page: RPage }) {
     if (v === md) return;
     void edit({ kind: "page.set", page: page.id, field: "content", value: markdownToDoc(v) });
   };
-  if (editing && !page.locked)
+  if (editing && editable)
     return (
       <div className="zo-body">
         <textarea
@@ -203,7 +205,8 @@ function Body({ page }: { page: RPage }) {
   return (
     <div className="zo-body">
       <Markdown text={md} />
-      {!page.locked && (
+      {!editable && !page.locked && <p className="zo-muted">{tr("pcOnlyBody")}</p>}
+      {editable && (
         <button type="button" className="zo-btn" onClick={() => setText(md)}>
           ✎ {tr("Edit")}
         </button>

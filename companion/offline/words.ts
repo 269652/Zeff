@@ -46,6 +46,7 @@ const W: Record<string, [string, string]> = {
   Edit: ["Edit", "Bearbeiten"],
   Done2: ["Done", "Fertig"],
   locked: ["This page is locked.", "Diese Seite ist gesperrt."],
+  pcOnlyBody: ["This page has elements only the PC can edit (callouts, embedded databases …) — its text can be changed there.", "Diese Seite enthält Elemente, die nur am PC bearbeitet werden können (Callouts, eingebettete Datenbanken …) — ihr Text lässt sich dort ändern."],
   New: ["New", "Neu"],
   Title: ["Title", "Titel"],
   noRows: ["No rows yet.", "Noch keine Zeilen."],

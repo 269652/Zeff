@@ -11,6 +11,7 @@ import * as todos from "@/lib/todos/store";
 import { attributed } from "@/lib/todos/activity";
 import * as ir from "@/lib/calendar/ir";
 import * as ws from "@/plugins/workspace/store";
+import { markdownEditable } from "@/plugins/workspace/doc";
 import { isInstalled } from "@/plugins/state";
 import { decideField, hashValue, isTmp, type ApplyAnswer, type Manifest, type OpResult, type RCalendar, type REvent, type Ref, type ReplicaConflict, type ReplicaEntity, type ReplicaOp, type RPage, type RTodo } from "./shared";
 
@@ -216,6 +217,8 @@ export async function applyReplicaOps(ops: ReplicaOp[]): Promise<ApplyAnswer> {
             break;
           }
           if (p.locked && o.field !== "icon") throw new Error("This page is locked.");
+          // A body with blocks Markdown doesn't keep (the phone edits as Markdown): changed on the PC only, nothing lost.
+          if (o.field === "content" && !markdownEditable(p.content)) throw new Error("This page has elements only the PC can edit — its text wasn't changed.");
           const current = o.field === "content" ? p.content : o.field === "title" ? p.title : p.icon;
           const d = decideField({ current, base: o.base, value: o.value, opAt: o.at, pcAt: p.updatedAt });
           if (d.apply) ws.updatePage(p.id, { [o.field]: o.value });
