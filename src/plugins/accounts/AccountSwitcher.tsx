@@ -26,7 +26,9 @@ export const accountUrl = (target: { id: string; prefix: string }, hosts: (strin
   const mine = document.documentElement.getAttribute(PREFIX_ATTR) ?? "";
   const rest = path ?? `${stripPrefix(mine, here.pathname)}${here.search}${here.hash}`;
   const onHost = hosts.includes(here.hostname);
-  const prefix = target.prefix || (onHost ? `/${DEFAULT_SLUG}` : "");
+  // The first account under its "/standard" alias when leaving another's prefix (or an account's host): unprefixed, the
+  // Referer — this page, under the other prefix — would send the page load straight back there (src/proxy.ts).
+  const prefix = target.prefix || (onHost || mine ? `/${DEFAULT_SLUG}` : "");
   const origin = onHost ? `${here.protocol}//localhost${here.port ? `:${here.port}` : ""}` : "";
   return `${origin}${withPrefix(prefix, rest)}`;
 };
