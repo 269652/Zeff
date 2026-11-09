@@ -96,7 +96,18 @@ export async function register() {
   }
   try {
     const { resumeWork } = await import("./lib/work/runner");
-    resumeWork(); // workers that outlived the old server are watched again; the queue goes on
+    // Workers that outlived the old server are watched again, the queue goes on — in every account: one left out kept its
+    // live sessions (a lesson's chat waiting for you) counted as working, and with the workers taken a new message waited
+    // in the queue for good.
+    const { accountsInstalled, listAccounts, withAccount } = await import("./db/accounts");
+    const ids = accountsInstalled() ? listAccounts().filter((a) => !a.demo).map((a) => a.id) : [null];
+    for (const id of ids)
+      try {
+        if (id === null) resumeWork();
+        else withAccount(id, () => resumeWork());
+      } catch (e) {
+        console.error(`[work] resuming work runs${id ? ` (account ${id})` : ""} failed`, e);
+      }
   } catch (e) {
     console.error("[work] resuming work runs failed", e);
   }

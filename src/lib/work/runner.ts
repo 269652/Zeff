@@ -308,6 +308,13 @@ ${instruction}`
 export function pump(): void {
   if (!isInstalled("work")) return;
   const s = getWorkSettings();
+  // Live sessions this server doesn't follow yet (an account the start missed): followed again first — else one
+  // waiting for you counts as working, and with the workers taken the queue never moves.
+  const stillRunning = runsByStatus(["running"]);
+  for (const d of liveDrivers()) {
+    const lost = stillRunning.filter((r) => r.provider === d.provider && d.has(r.id) && !d.view(r.id)).map((r) => r.id);
+    if (lost.length) d.reattach(lost);
+  }
   // Agents outside Zeff (through its MCP) work on top of its own workers.
   // (A live session waiting for you doesn't hold a worker — like a Claude Code tab you left open.)
   const running = runsByStatus(["running"]).filter((r) => r.provider !== "agent" && !liveIdle(r.id));
