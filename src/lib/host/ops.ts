@@ -37,6 +37,11 @@ export const HOST_OPS: Record<string, Op> = {
     return { ok: true };
   },
 
+  // A live session as the server following it sees it (the phone's server shows a lesson's progress with it).
+  "work.live": async (a) => (await import("@/lib/work/live-state")).liveStateHere(Number(a.runId)),
+  // A message into a conversation's running live session (the phone's server doesn't follow the sessions).
+  "work.send": async (a) => (await import("@/lib/work/live-state")).sendToSessionHere(Number(a.runId), str(a.text)),
+
   // Longer jobs the pages start.
   "people.datesAll": async () => ({ started: (await import("@/plugins/people/dates")).findAllDates() }),
 

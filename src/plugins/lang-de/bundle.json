@@ -9076,5 +9076,6 @@
   "It starts as soon as one is free. More workers at once: Settings → Code.": "Es geht los, sobald einer frei ist. Mehr Worker gleichzeitig: Einstellungen → Code.",
   "a session this server doesn't follow (left over from before a restart)": "eine Sitzung, die dieser Server nicht verfolgt (übrig von vor einem Neustart)",
   "a session waiting for you": "eine Sitzung, die auf dich wartet",
-  "its process is gone": "ihr Prozess läuft nicht mehr"
+  "its process is gone": "ihr Prozess läuft nicht mehr",
+  "The teacher is writing …": "Der Lehrer schreibt …"
 }

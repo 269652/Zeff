@@ -2,6 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
+import { useRouter } from "next/navigation";
+import { AiWorkingLabel } from "@/components/AiWorking";
 import { Markdown } from "@/components/Markdown";
 import { SnapshotFrame, WidgetFrame } from "@/components/widgets/WidgetFrame";
 import { useRunLog } from "@/components/work/SessionThread";
@@ -14,9 +16,10 @@ export type TimelineRun = { id: number; startedAt: string; prompts: string[]; ac
 export type TimelineWidget = { id: number; title: string; html: string; libs: string[]; createdAt: string; bestScore: number | null };
 
 /** One run's log, as it comes (polled while it runs) — handed up to the timeline. */
-function RunFeed({ run, onLines }: { run: TimelineRun; onLines: (id: number, lines: WorkLogLine[]) => void }) {
-  const { lines } = useRunLog(run.id, run.active, run.live);
+function RunFeed({ run, onLines, onBusy }: { run: TimelineRun; onLines: (id: number, lines: WorkLogLine[]) => void; onBusy: (id: number, busy: boolean | null) => void }) {
+  const { lines, busy } = useRunLog(run.id, run.active, run.live);
   useEffect(() => onLines(run.id, lines), [run.id, lines, onLines]);
+  useEffect(() => onBusy(run.id, busy), [run.id, busy, onBusy]);
   return null;
 }
 
@@ -29,6 +32,18 @@ export function LessonTimeline({ runs, widgets, results, sessionRunId }: { runs:
   const t = useT();
   const [logs, setLogs] = useState<Record<number, WorkLogLine[]>>({});
   const onLines = useCallback((id: number, lines: WorkLogLine[]) => setLogs((l) => (l[id] === lines ? l : { ...l, [id]: lines })), []);
+  // The teacher working on an answer now (the newest session, as the server following it says) — shown at the end; when
+  // it's done the page is fetched again (the composer, the step's state).
+  const [busy, setBusy] = useState<Record<number, boolean | null>>({});
+  const onBusy = useCallback((id: number, b: boolean | null) => setBusy((x) => (x[id] === b ? x : { ...x, [id]: b })), []);
+  const newest = runs[runs.length - 1];
+  const writing = !!newest && busy[newest.id] === true;
+  const router = useRouter();
+  const wasWriting = useRef(false);
+  useEffect(() => {
+    if (wasWriting.current && !writing) router.refresh();
+    wasWriting.current = writing;
+  }, [writing, router]);
   const items = useMemo(
     () => buildTimeline({ runs: runs.map((r) => ({ id: r.id, startedAt: r.startedAt, prompts: r.prompts, lines: logs[r.id] ?? [] })), widgets, results }),
     [runs, widgets, results, logs],
@@ -51,7 +66,7 @@ export function LessonTimeline({ runs, widgets, results, sessionRunId }: { runs:
   return (
     <div className="relative">
       {runs.map((r) => (
-        <RunFeed key={r.id} run={r} onLines={onLines} />
+        <RunFeed key={r.id} run={r} onLines={onLines} onBusy={onBusy} />
       ))}
       {/* The line itself: down the middle on a wide screen, at the left on a phone. */}
       <div className="absolute top-0 bottom-0 left-3 w-px bg-zinc-200 md:left-1/2 dark:bg-zinc-800" aria-hidden />
@@ -63,6 +78,11 @@ export function LessonTimeline({ runs, widgets, results, sessionRunId }: { runs:
           </li>
         ))}
       </ol>
+      {writing && (
+        <div className="relative mt-3 pl-8 md:pl-[calc(50%+1rem)]">
+          <AiWorkingLabel label={t("The teacher is writing …")} />
+        </div>
+      )}
       <div ref={end} />
     </div>
   );

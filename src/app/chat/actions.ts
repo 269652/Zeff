@@ -17,7 +17,16 @@ export async function chatSendAction(v: { text: string; runId?: number }): Promi
     const session = { permissionMode: "default" };
     let r;
     // (No provider when going on: naming one makes a new run queued behind a running session instead of a message into it.)
-    if (v.runId) r = await startSessionAction({ instruction: text, continueRunId: Number(v.runId), session });
+    if (v.runId) {
+      // Its session still running (waiting for you): the message goes into it — never a run queued behind it, which
+      // would wait for that session to end (and it doesn't: it waits for you).
+      const into = await (await import("@/lib/work/live-state")).sendToSession(Number(v.runId), text);
+      if (into) {
+        revalidatePath("/chat");
+        return { ok: true, runId: into };
+      }
+      r = await startSessionAction({ instruction: text, continueRunId: Number(v.runId), session });
+    }
     else {
       const { addChatTodo } = await import("@/lib/chat");
       r = await startSessionAction({ instruction: text, todoId: addChatTodo(text), provider: "claude", session });

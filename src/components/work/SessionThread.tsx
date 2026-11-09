@@ -19,6 +19,8 @@ export function useRunLog(id: number, active: boolean, live: boolean) {
   const [lines, setLines] = useState<WorkLogLine[]>([]);
   const [errors, setErrors] = useState<string[]>([]);
   const [loaded, setLoaded] = useState(false);
+  // A live session working on an answer now (null: not known) — the log route asks the server that follows it.
+  const [busy, setBusy] = useState<boolean | null>(null);
   const next = useRef(0);
   useEffect(() => {
     let on = true;
@@ -32,12 +34,13 @@ export function useRunLog(id: number, active: boolean, live: boolean) {
           timer = setTimeout(load, 5000);
           return;
         }
-        const j = (await r.json()) as { status: string; lines: WorkLogLine[]; next: number; errors: string[] };
+        const j = (await r.json()) as { status: string; busy?: boolean | null; lines: WorkLogLine[]; next: number; errors: string[] };
         if (!on) return;
         if (live) setLines((l) => (JSON.stringify(l.slice(from)) === JSON.stringify(j.lines) ? l : [...l.slice(0, from), ...j.lines]));
         else if (j.lines.length) setLines((l) => [...l, ...j.lines]);
         next.current = j.next;
         setErrors(j.errors ?? []);
+        setBusy(j.status === "queued" || j.status === "running" ? (j.busy ?? null) : false);
         setLoaded(true);
         if (j.status === "queued" || j.status === "running") timer = setTimeout(load, live ? 700 : 1200);
       } catch {
@@ -51,7 +54,7 @@ export function useRunLog(id: number, active: boolean, live: boolean) {
     };
     // A run that starts again (queued → running) is read on by the same poll; `active` only wakes a finished one.
   }, [id, active, live]);
-  return { lines, errors, loaded };
+  return { lines, errors, loaded, busy };
 }
 
 type Step = Extract<WorkLogLine, { k: "tool" | "out" | "deny" | "ask" }>;

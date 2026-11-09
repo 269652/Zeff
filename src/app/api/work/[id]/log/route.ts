@@ -10,8 +10,11 @@ export async function GET(req: Request, { params }: { params: Promise<{ id: stri
   if (!run) return Response.json({ error: "Not found" }, { status: 404 });
   const from = Math.max(0, Number(new URL(req.url).searchParams.get("from")) || 0);
   const { lines, errors } = readLog(run.id);
+  // A live session: whether it is working on an answer now (busy) — from the server that follows it (on the phone's
+  // server: asked of Zeff's own); null when not known.
+  const busy = run.status === "running" ? (await (await import("@/lib/work/live-state")).liveState(run.id)).busy : false;
   return Response.json(
-    { status: run.status, lines: lines.slice(from), next: lines.length, errors, startedAt: run.startedAt, finishedAt: run.finishedAt },
+    { status: run.status, busy, lines: lines.slice(from), next: lines.length, errors, startedAt: run.startedAt, finishedAt: run.finishedAt },
     { headers: { "Cache-Control": "no-store" } },
   );
 }

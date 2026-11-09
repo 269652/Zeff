@@ -60,7 +60,9 @@ export default async function StepPage({ params }: Props) {
   // A live session still running takes the next message (never a second run queued behind it, waiting for its worker).
   const liveRun = [...conversation].reverse().find((r) => !!r.session && r.status === "running");
   // Running, but no live session answers (Zeff lost it): what comes after would wait for it forever.
-  const stuck = liveRun ? undefined : conversation.find((r) => r.status === "running" && !r.session && !r.live);
+  const lost = liveRun ? undefined : conversation.find((r) => r.status === "running" && !r.session && !r.live);
+  // (On the phone's server the sessions are followed by Zeff's own: one it follows isn't lost.)
+  const stuck = lost && !(await (await import("@/lib/work/live-state")).liveState(lost.id)).followed ? lost : undefined;
 
   const chat = (
     <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2" aria-label={t("Lesson chat")}>
