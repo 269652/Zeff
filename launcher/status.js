@@ -45,6 +45,25 @@ function render(st) {
     el("div", { className: "check", textContent: `listening on ${st.httpsPorts.map((p) => `:${p}`).join(", ") || "—"}` }),
   );
   $("autostart").checked = st.autostart;
+  renderUpdate(st.update);
+}
+
+/** An update: the badge by the title, and a card with what it is and the button (or why not, or how it went). */
+function renderUpdate(u) {
+  if (!u) return;
+  $("updateBadge").hidden = !u.available;
+  const show = u.available || u.updating || !!u.error;
+  $("update").hidden = !show;
+  $("checkUpdate").disabled = u.checking || u.updating;
+  $("checkUpdate").textContent = u.checking ? "Looking …" : "Look for updates";
+  $("checkUpdate").hidden = u.kind === "none";
+  $("checkUpdate").title = [u.current && `Now: ${u.current}`, u.note, u.checkedAt && `Last looked: ${new Date(u.checkedAt).toLocaleString()}`].filter(Boolean).join("\n");
+  if (!show) return;
+  $("updateTitle").textContent = u.updating ? "Updating Zeff …" : u.available ? `Update available: ${u.latest}` : "The update didn’t work";
+  $("updateNow").hidden = !u.available;
+  $("updateNow").disabled = u.updating || !!u.blocked;
+  $("updateNow").textContent = u.updating ? "Updating …" : "Update";
+  $("updateMeta").textContent = u.updating ? (u.progress ?? "") : [u.error, u.blocked, u.available && u.current ? `Now: ${u.current}` + (u.kind === "git" && u.behind ? ` · ${u.behind} new commit${u.behind > 1 ? "s" : ""}` : "") : null].filter(Boolean).join(" · ");
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -227,6 +246,8 @@ window.zeff.onCompanion?.(renderPhone);
 
 $("setup").onclick = () => act("setup");
 $("autostart").onchange = () => act("autostart");
+$("checkUpdate").onclick = () => act("checkUpdate");
+$("updateNow").onclick = () => act("update");
 $("data").onclick = () => act("data");
 $("plugins").onclick = () => act("plugins");
 $("quit").onclick = () => act("quit");

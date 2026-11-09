@@ -71,6 +71,13 @@ const DEFAULTS = {
   /** Restart Zeff's server every night at nightlyRestartAt (local) once it has been idle 10 minutes — gives back what next dev grew to. The tray switch overrides it. */
   nightlyRestart: true,
   nightlyRestartAt: "04:30",
+  /**
+   * Look for updates (lib/updates.js) — a checkout: its upstream branch; the bundle: the newest release of updateRepo — every
+   * updateEveryHours; one found: a badge in the status window and the tray, and an Update button.
+   */
+  updates: true,
+  updateRepo: "269652/zeff-alpha",
+  updateEveryHours: 6,
   /** Start the servers with the launcher. */
   autostartServers: true,
   /** Extra environment for both servers. */

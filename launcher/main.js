@@ -25,6 +25,7 @@ const setup = require("./lib/setup");
 const autostart = require("./lib/autostart");
 const { startNotifications } = require("./lib/notifications");
 const nightly = require("./lib/nightly");
+const updates = require("./lib/updates");
 
 const argv = process.argv.slice(app.isPackaged ? 1 : 2);
 const flag = (f) => argv.includes(f);
@@ -79,6 +80,11 @@ const state = {
   nightly: { ...nightly.DEFAULTS, lastDay: null },
   /** When someone last used Zeff through the https proxy (ms). */
   lastActivity: Date.now(),
+  /**
+   * Updates (lib/updates.js): how Zeff is installed (kind), whether a newer one is there (available, latest), why not
+   * (note), what stands in the way (blocked), and an update under way (updating, progress) or what went wrong (error).
+   */
+  update: { kind: null, available: false, current: null, latest: null, note: null, blocked: null, checking: false, updating: false, progress: null, error: null, checkedAt: null },
 };
 let tray = null;
 let win = null;
@@ -125,7 +131,93 @@ function snapshot() {
     host: state.cfg.host,
     modes: state.modes,
     services: state.services.map((s) => s.snapshot()),
+    update: { ...state.update, release: undefined },
   };
+}
+
+/** Looks for an update now (quietly: a failure is only noted — no network, GitHub's limit). */
+async function checkForUpdates() {
+  const { cfg, paths } = state;
+  if (state.update.checking || state.update.updating) return;
+  state.update = { ...state.update, checking: true, error: null };
+  refresh();
+  try {
+    const r = await updates.check({ app: paths.app, bundleDir: paths.bundleDir, repo: cfg.updateRepo });
+    state.update = { ...state.update, ...r, blocked: r.blocked ?? null, note: r.note ?? null, checkedAt: new Date().toISOString() };
+    if (r.available) log(`update: ${r.latest} is there (now ${r.current})`);
+  } catch (e) {
+    state.update = { ...state.update, error: e.message, checkedAt: new Date().toISOString() };
+    log(`update check: ${e.message}`);
+  } finally {
+    state.update.checking = false;
+    refresh();
+  }
+}
+
+const updateSay = (m) => {
+  state.update.progress = m;
+  log(`update: ${m}`);
+  refresh();
+};
+
+/**
+ * The update done (asked first): a checkout fast-forwarded (then the launcher restarted when its own code changed, else a
+ * deploy in production or a restart of the servers in dev mode); the bundle's release downloaded and swapped in after the
+ * launcher quits.
+ */
+async function runUpdate() {
+  const u = state.update;
+  if (!u.available || u.updating || u.blocked) return;
+  const { response } = await dialog.showMessageBox({
+    type: "question",
+    title: "Zeff",
+    buttons: ["Update now", "Not now"],
+    defaultId: 0,
+    cancelId: 1,
+    message: `Update Zeff to ${u.latest}?`,
+    detail:
+      u.kind === "release"
+        ? "Zeff downloads the new version, quits, puts it in place and starts again. Your data stays as it is. Work running right now is stopped."
+        : "Zeff takes the new commits, then restarts. Your data stays as it is. Work running right now may be stopped.",
+  });
+  if (response !== 0) return;
+  state.update = { ...u, updating: true, error: null, progress: null };
+  refresh();
+  try {
+    if (u.kind === "git") {
+      const r = await updates.updateGit(state.paths.app, { say: updateSay });
+      log(`update: ${r.from} → ${r.to} (${r.files} files)`);
+      if (r.launcher) {
+        updateSay("Restarting the launcher …");
+        app.relaunch();
+        return app.quit();
+      }
+      if (state.dev) {
+        updateSay("Restarting the servers …");
+        await Promise.all(state.services.map((s) => (["running", "starting", "crashed"].includes(s.status) ? s.restart() : null)));
+      } else {
+        // Production: a new build, swapped in while Zeff runs on (scripts/deploy.mjs — the same as `npm run deploy`).
+        updateSay("Building the new version (a few minutes) …");
+        const args = ["scripts/deploy.mjs", "--wait", "--skip-checks", ...(state.cfg.knowledge ? ["--knowledge"] : [])];
+        await new Promise((resolve, reject) =>
+          execFile(state.paths.node, args, { cwd: state.paths.app, windowsHide: true, timeout: 3600_000, maxBuffer: 64 * 1024 * 1024 }, (e, _out, err) =>
+            e ? reject(new Error(`The build failed: ${String(err || e.message).trim().split(/\r?\n/).slice(-3).join(" ")}`)) : resolve(),
+          ),
+        );
+      }
+      state.update = { ...state.update, updating: false, available: false, progress: null };
+      await checkForUpdates();
+    } else if (u.kind === "release") {
+      const bundle = await updates.downloadRelease(u.release, state.paths.bundleDir, { say: updateSay });
+      updateSay("Restarting with the new version …");
+      updates.startSwap({ pid: process.pid, bundleDir: state.paths.bundleDir, newBundle: bundle, restart: launcherExe, logFile: path.join(state.paths.bundleDir, "update.log") });
+      app.quit();
+    }
+  } catch (e) {
+    log(`update failed: ${e.message}`);
+    state.update = { ...state.update, updating: false, progress: null, error: e.message };
+    refresh();
+  }
 }
 
 let refreshQueued = false;
@@ -136,7 +228,7 @@ function refresh() {
     refreshQueued = false;
     if (tray) {
       tray.setContextMenu(buildMenu());
-      tray.setToolTip(`Zeff · ${state.url}\n${state.services.map((s) => `${s.name}: ${s.label}`).join("\n")}`.slice(0, 127));
+      tray.setToolTip(`Zeff · ${state.update.available ? `update ${state.update.latest} available · ` : ""}${state.url}\n${state.services.map((s) => `${s.name}: ${s.label}`).join("\n")}`.slice(0, 127));
     }
     win?.webContents.send("state", snapshot());
   });
@@ -198,7 +290,12 @@ function nightlyTick() {
 }
 
 function buildMenu() {
+  const u = state.update;
   return Menu.buildFromTemplate([
+    // An update there: on top, with the button.
+    ...(u.available
+      ? [{ label: u.updating ? `Updating … ${u.progress ?? ""}`.trim() : `Update to ${u.latest}…`, enabled: !u.updating && !u.blocked, click: () => runUpdate() }, { type: "separator" }]
+      : []),
     { label: "Open Zeff", click: () => shell.openExternal(state.url) },
     { label: "Status…", click: () => showWindow() },
     // The phone companion: straight to its QR code (the status window's Phone tab, a new pairing shown at once).
@@ -214,6 +311,7 @@ function buildMenu() {
     { label: "Open plugins folder", click: openPluginsFolder },
     { label: PLATFORM === "win32" ? "Start with Windows" : "Start at log in", type: "checkbox", checked: state.autostart, click: (item) => toggleAutostart(item.checked) },
     { label: `Set up https://${state.cfg.host}…`, click: () => machineSetup(true) },
+    ...(state.cfg.updates !== false && u.kind !== "none" ? [{ label: u.checking ? "Looking for updates …" : "Look for updates", enabled: !u.checking && !u.updating, click: () => checkForUpdates() }] : []),
     { type: "separator" },
     { label: "Quit Zeff", click: () => app.quit() },
   ]);
@@ -570,6 +668,12 @@ async function start() {
     icon: windowIcon,
   });
   startCompanion();
+  // Updates: what an earlier one left behind removed; a first look a minute after the start, then every few hours.
+  if (cfg.updates !== false) {
+    updates.cleanUp({ bundleDir: paths.bundleDir });
+    setTimeout(() => void checkForUpdates(), 60_000);
+    setInterval(() => void checkForUpdates(), Math.max(1, Number(cfg.updateEveryHours) || 6) * 3600_000);
+  }
   if (!flag("--background")) shell.openExternal(state.url);
 }
 
@@ -763,6 +867,12 @@ ipcMain.handle("do", async (_e, action, name) => {
       break;
     case "autostart":
       await toggleAutostart(!state.autostart);
+      break;
+    case "checkUpdate":
+      void checkForUpdates();
+      break;
+    case "update":
+      void runUpdate();
       break;
     case "quit":
       app.quit();

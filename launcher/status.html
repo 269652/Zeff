@@ -64,6 +64,8 @@
       .ctr .sub2 { grid-column: 2 / span 2; color: var(--muted); font-size: 12px; }
       .badge { font-size: 11px; padding: 1px 6px; border-radius: 9px; background: var(--accent); color: #fff; margin-left: 6px; }
       .empty { color: var(--muted); font-size: 13px; }
+      .card.update { border-color: var(--accent); }
+      button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
       .tabs { display: flex; gap: 2px; border-bottom: 1px solid var(--line); margin: 0 0 14px; }
       .tab { border: 0; border-bottom: 2px solid transparent; border-radius: 0; background: none; padding: 6px 14px; font-size: 14px; }
       .tab.on { border-bottom-color: var(--accent); font-weight: 600; }
@@ -74,7 +76,7 @@
     </style>
   </head>
   <body>
-    <h1>Zeff</h1>
+    <h1>Zeff <span class="badge" id="updateBadge" hidden>Update</span></h1>
     <p class="sub"><a id="url"></a></p>
     <div class="tabs" role="tablist">
       <button class="tab on" data-tab="status" role="tab">Status</button>
@@ -82,6 +84,10 @@
       <button class="tab" data-tab="phone" role="tab">Phone</button>
     </div>
     <section id="tab-status">
+    <div class="card update" id="update" hidden>
+      <div class="row"><span class="name" id="updateTitle"></span><button id="updateNow" class="primary">Update</button></div>
+      <div class="meta" id="updateMeta" style="margin: 4px 0 0"></div>
+    </div>
     <div id="services"></div>
     <div class="card">
       <div class="row"><span class="name">https</span><button id="setup">Set up…</button></div>
@@ -118,7 +124,7 @@
     </section>
     <footer>
       <label><input type="checkbox" id="autostart" /> Start with Windows</label>
-      <span class="row"><button id="data">Data folder</button><button id="plugins">Plugins folder</button><button id="quit">Quit Zeff</button></span>
+      <span class="row"><button id="checkUpdate">Look for updates</button><button id="data">Data folder</button><button id="plugins">Plugins folder</button><button id="quit">Quit Zeff</button></span>
     </footer>
     <script src="status.js"></script>
   </body>
