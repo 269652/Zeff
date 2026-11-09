@@ -9067,5 +9067,14 @@
   "{ai} isn't found on this PC yet — the AI steps would fail. {how}": "{ai} ist auf diesem PC noch nicht zu finden — die KI-Schritte würden scheitern. {how}",
   "To “This PC”": "Zu „Dieser PC“",
   "Setup steps": "Schritte der Einrichtung",
-  "Couldn't reach Zeff — check the connection and try again.": "Zeff war nicht erreichbar — prüfe die Verbindung und versuch es nochmal."
+  "Couldn't reach Zeff — check the connection and try again.": "Zeff war nicht erreichbar — prüfe die Verbindung und versuch es nochmal.",
+  "{n} sessions ended — the workers are free.": "{n} Sitzungen beendet — die Worker sind frei.",
+  "Waiting for a free worker — all of them are taken right now.": "Wartet auf einen freien Worker — gerade sind alle belegt.",
+  "{n} sessions count as running but aren't working:": "{n} Sitzungen gelten als laufend, arbeiten aber nicht:",
+  "Ending …": "Wird beendet …",
+  "Kill all dangling sessions": "Alle hängenden Sitzungen beenden",
+  "It starts as soon as one is free. More workers at once: Settings → Code.": "Es geht los, sobald einer frei ist. Mehr Worker gleichzeitig: Einstellungen → Code.",
+  "a session this server doesn't follow (left over from before a restart)": "eine Sitzung, die dieser Server nicht verfolgt (übrig von vor einem Neustart)",
+  "a session waiting for you": "eine Sitzung, die auf dich wartet",
+  "its process is gone": "ihr Prozess läuft nicht mehr"
 }

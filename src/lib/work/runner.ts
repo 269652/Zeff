@@ -995,3 +995,45 @@ export function resumeWork(): void {
   }
   pump();
 }
+
+/** Why a run is "running" without working — or null when it is working (or waits for your answer to its question). */
+function danglingWhy(r: WorkRun): string | null {
+  if (r.status !== "running" || r.provider === "agent") return null;
+  const d = liveDriverOf(r.id);
+  if (d) {
+    const v = d.view(r.id);
+    if (!v) return t("a session this server doesn't follow (left over from before a restart)");
+    if (v.live.permission) return null; // it asks you something: that's yours to answer
+    if (v.live.busy) return null;
+    return t("a session waiting for you");
+  }
+  if (!r.pid || !alive(r.pid)) return t("its process is gone");
+  return null;
+}
+
+/** The runs that count as running but aren't working: sessions waiting for you or left over, workers whose process is gone. */
+export function danglingRuns(): { id: number; ref: string; todoId: number | null; startedAt: string | null; why: string }[] {
+  if (!isInstalled("work")) return [];
+  return runsByStatus(["running"]).flatMap((r) => {
+    const why = danglingWhy(r);
+    return why ? [{ id: r.id, ref: workRef(r.id), todoId: r.todoId ?? null, startedAt: r.startedAt ?? null, why }] : [];
+  });
+}
+
+/**
+ * "Kill all dangling sessions": each of danglingRuns() stopped (its process and what it started) — their workers free,
+ * the queue goes on. A conversation goes on later from where it was (the next message resumes its session).
+ */
+export function endDanglingRuns(): { ended: number[] } {
+  const ended: number[] = [];
+  for (const r of danglingRuns()) {
+    try {
+      cancelRun(r.id);
+      ended.push(r.id);
+    } catch (e) {
+      console.error(`[work] ending ${r.ref} failed`, e);
+    }
+  }
+  setImmediate(pump);
+  return { ended };
+}

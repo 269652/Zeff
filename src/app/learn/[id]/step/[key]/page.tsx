@@ -12,6 +12,7 @@ import { ClaudeSession } from "@/components/work/ClaudeSession";
 import { ChatComposer } from "@/app/chat/ChatComposer";
 import { ScrollToEnd } from "@/app/chat/ScrollToEnd";
 import { StuckRun } from "@/app/chat/StuckRun";
+import { DanglingSessions } from "@/components/work/DanglingSessions";
 import { LessonButton } from "@/plugins/learn/ui/LessonButton";
 import { LessonTimeline, type TimelineRun } from "@/plugins/learn/ui/LessonTimeline";
 
@@ -76,6 +77,8 @@ export default async function StepPage({ params }: Props) {
           <ScrollToEnd target="lesson-thread" />
           <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-zinc-200 pt-2 dark:border-zinc-800">
             {stuck && <StuckRun runId={stuck.id} />}
+            {/* Your message waits for a worker: said here — and what holds the workers, with the button that frees them. */}
+            {!liveRun && last.status === "queued" && <DanglingSessions waiting className="mb-2" />}
             {liveRun ? <ClaudeSession key={liveRun.id} run={liveRun} /> : <ChatComposer runId={last.id} stay placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Answer the teacher …")} />}
           </div>
         </>

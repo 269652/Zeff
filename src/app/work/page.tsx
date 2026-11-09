@@ -17,6 +17,7 @@ import { llmChoice } from "@/plugins/llm/run";
 import { elevationAvailable } from "@/plugins/work-elevated/elevate";
 import { listRepos, repoForTicket } from "@/lib/repos";
 import { GitMissingNotice } from "@/components/GitMissingNotice";
+import { DanglingSessions } from "@/components/work/DanglingSessions";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Code") };
@@ -70,6 +71,8 @@ export default async function WorkPage({
       contentClassName="flex-col"
     >
       <GitMissingNotice />
+      {/* Sessions that hold workers without working: shown with "Kill all dangling sessions" while there are some. */}
+      <DanglingSessions className="mx-3 mt-3" />
       <WorkFollow active={running > 0} />
       {run ? (
         <SessionPane run={toRunView(run)} options={options} />
