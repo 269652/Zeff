@@ -14,6 +14,8 @@ import { accountNavScript } from "@/lib/account-nav-script";
 import { InlineScript } from "@/components/InlineScript";
 import localFont from "next/font/local";
 import { SiteHeader, type MenuGroup, type MenuLink } from "@/components/SiteHeader";
+import { BadgeLookProvider } from "@/components/BadgeLookProvider";
+import { getBadgeLook } from "@/lib/badges/look-store";
 import { PLUGINS } from "@/plugins/catalog";
 import { settingsAreas, settingsSections } from "@/lib/settings-areas";
 import { catalogText } from "@/plugins/catalog-text";
@@ -125,6 +127,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
       {/* An app shell: the window is the page — the body never scrolls; the content does, in itself. */}
       <body className="flex h-screen flex-col overflow-hidden" suppressHydrationWarning>
         <I18nProvider lang={lang}>
+          {/* The small marks' look (Settings → Badges): the header's dots, the Todos page's unseen activity. */}
+          <BadgeLookProvider look={getBadgeLook()}>
           {/* The first stop of the keyboard: past the header to the page itself (WCAG 2.4.1). */}
           <a href="#main" className="skip-link">
             {t("Skip to the content")}
@@ -165,6 +169,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <StalePageGuard />
           {/* What flows ask you (a check-in, an approval): a card on every page. */}
           {!setupPending && installedPlugins().has("workspace") && <FlowAsks />}
+          </BadgeLookProvider>
         </I18nProvider>
       </body>
     </html>
