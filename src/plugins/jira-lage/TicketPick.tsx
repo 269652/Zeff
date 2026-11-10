@@ -129,6 +129,7 @@ export function TicketsEmbedCard({ embed }: { embed: TicketsEmbed }) {
                     <span className="line-clamp-2 min-w-0 flex-1 text-zinc-900 dark:text-zinc-100">{x.title}</span>
                   </span>
                   <span className="block text-zinc-600 dark:text-zinc-300">{[x.status, x.priority, x.mine ? t("you") : x.assignee || null].filter(Boolean).join(" · ")}</span>
+                  {x.why && <span className="mt-0.5 block text-indigo-800 dark:text-indigo-200">→ {x.why}</span>}
                 </Link>
               </li>
             ))}

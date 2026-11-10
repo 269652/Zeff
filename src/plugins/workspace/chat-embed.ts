@@ -7,7 +7,7 @@ import type { PickCriteria, PickGroupId } from "@/plugins/jira-lage/pick";
 
 export const CHAT_EMBED: unique symbol = Symbol.for("zeff.chatEmbed");
 
-export type EmbedTicket = { rowId: number; key: string; title: string; status: string; assignee: string; priority: string; mine: boolean };
+export type EmbedTicket = { rowId: number; key: string; title: string; status: string; assignee: string; priority: string; mine: boolean; /** Why the assistant picked it. */ why?: string };
 
 /** A filtered Jira board: its tickets in groups, and the address that opens the board with the same filter. */
 export type TicketsEmbed = { kind: "tickets"; dbId: number; board: string; href: string; criteria: PickCriteria; groups: { id: PickGroupId; total: number; tickets: EmbedTicket[] }[] };
