@@ -125,7 +125,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
         </head>
       )}
       {/* An app shell: the window is the page — the body never scrolls; the content does, in itself. */}
-      <body className="flex h-screen flex-col overflow-hidden" suppressHydrationWarning>
+      <body className="flex h-screen h-dvh flex-col overflow-hidden" suppressHydrationWarning>
         <I18nProvider lang={lang}>
           {/* The small marks' look (Settings → Badges): the header's dots, the Todos page's unseen activity. */}
           <BadgeLookProvider look={getBadgeLook()}>

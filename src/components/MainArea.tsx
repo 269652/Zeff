@@ -20,7 +20,7 @@ export function MainArea({ children }: { children: ReactNode }) {
   return (
     <main id="main" tabIndex={0} className="min-h-0 w-full flex-1 overflow-y-auto [container-type:size]">
       {/* At most 1440 px wide, centred — on a wide screen the pages and app views keep their shape (the header the same). */}
-      <div className={`mx-auto w-full max-w-[1440px] px-4 pt-3 pb-20 sm:pb-3 ${flow ? "min-h-full sm:h-full" : wide ? "h-full" : ""}`}>{children}</div>
+      <div className={`mx-auto w-full max-w-[1440px] px-4 pt-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-3 ${flow ? "min-h-full sm:h-full" : wide ? "h-full" : ""}`}>{children}</div>
     </main>
   );
 }
