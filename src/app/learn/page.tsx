@@ -4,6 +4,7 @@ import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { isInstalled } from "@/plugins/state";
+import { CourseCards, courseCards } from "@/plugins/learn/ui/CourseCards";
 import { NewCourseForm } from "@/plugins/learn/ui/NewCourseForm";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -12,62 +13,49 @@ export async function generateMetadata(): Promise<Metadata> {
 
 /**
  * Learn (Learn plugin): your courses — each a topic Claude researched and planned over years, phases, skills and small
- * steps, a skill tree you work through with Claude as the teacher. A new one: the form.
+ * steps, a skill tree you work through with Claude as the teacher. By learning space (a page in the Workspace holding Learn's
+ * databases — each its own courses and progress; more from the template "Learning space"). A new one: the form.
  */
 export default async function LearnPage() {
   await connection();
   if (!isInstalled("learn")) return <PluginNotInstalled id="learn" />;
-  const store = await import("@/plugins/learn/store");
-  const { levelOf } = await import("@/plugins/learn/game");
-  const due = new Map(store.dueCount().map((d) => [d.courseId, d.due]));
-  const courses = store.listCourses().map((c) => ({ c, progress: c.status === "ready" ? store.courseTree(c.id).tree.progress : null }));
-  // (Where it's all kept: Learn's databases in the Workspace — to look at, filter, change.)
-  const folder = isInstalled("workspace") ? (await import("@/plugins/learn/dbs")).learnDbs().folder : null;
+  const ws = isInstalled("workspace");
+  const { learnDbs, learnSpaces } = await import("@/plugins/learn/dbs");
+  const { getPage } = await import("@/plugins/workspace/store");
+  learnDbs(); // (the first space there)
+  const spaces = await Promise.all(
+    learnSpaces().map(async (s) => {
+      const p = getPage(s.folder);
+      return { id: s.folder, title: p?.title || t("Untitled"), icon: p?.icon || "🎓", courses: await courseCards(s.folder) };
+    }),
+  );
+  const several = spaces.length > 1;
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <header className="space-y-1">
         <h1 className="text-lg font-semibold">{t("Learn")}</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">{t("Pick a topic: Claude researches it and plans it as a skill tree — years, phases, skills and small steps. Claude teaches each step in a chat, with exercises it builds for you.")}</p>
-        {folder && (
-          <p className="text-sm">
-            <Link href={`/workspace/${folder}`} className="text-indigo-700 hover:underline dark:text-indigo-300">
-              {t("Your courses, steps, conversations and cards as databases in the Workspace")} →
-            </Link>
-          </p>
-        )}
+        {ws && <p className="text-sm text-zinc-500">{t("Each learning space is a page in the Workspace with its own courses and progress — make another from the template “Learning space”.")}</p>}
       </header>
-      {courses.length > 0 && (
-        <ul className="grid gap-3 sm:grid-cols-2">
-          {courses.map(({ c, progress }) => {
-            const lv = levelOf(c.xp);
-            return (
-              <li key={c.id}>
-                <Link href={`/learn/${c.id}`} className="card block h-full space-y-2 p-4 hover:border-indigo-300 dark:hover:border-indigo-700">
-                  <div className="flex items-start gap-2">
-                    <span className="min-w-0 flex-1 font-semibold">{c.title}</span>
-                    {c.status === "ready" && <span className="shrink-0 rounded-full bg-indigo-100 px-2 text-xs font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">{t("Level {n}", { n: lv.level })}</span>}
-                  </div>
-                  {c.status === "researching" && <p className="text-sm text-zinc-500">{t("Claude is researching and planning …")}</p>}
-                  {c.status === "failed" && <p className="text-sm text-red-700 dark:text-red-400">{t("The research failed.")}</p>}
-                  {progress && (
-                    <>
-                      <div className="h-2 overflow-hidden rounded-full bg-zinc-200 dark:bg-zinc-800" role="progressbar" aria-valuemin={0} aria-valuemax={100} aria-valuenow={Math.round(progress.share * 100)} aria-label={t("Progress")}>
-                        <div className="h-full bg-emerald-500" style={{ width: `${Math.round(progress.share * 100)}%` }} />
-                      </div>
-                      <p className="flex flex-wrap gap-x-3 text-xs text-zinc-500">
-                        <span>{t("{done} of {total} steps", { done: progress.mastered, total: progress.steps })}</span>
-                        {c.streak > 0 && <span title={t("days in a row")}>🔥 {c.streak}</span>}
-                        {(due.get(c.id) ?? 0) > 0 && <span>🃏 {t("{n} cards due", { n: due.get(c.id) ?? 0 })}</span>}
-                      </p>
-                    </>
-                  )}
+      {spaces.map((s) => (
+        <section key={s.id} className="space-y-3" aria-label={s.title}>
+          {(several || ws) && (
+            <h2 className="flex items-center gap-2 text-base font-semibold">
+              <span aria-hidden>{s.icon}</span>
+              {ws ? (
+                <Link href={`/workspace/${s.id}`} className="hover:underline">
+                  {s.title}
                 </Link>
-              </li>
-            );
-          })}
-        </ul>
-      )}
-      <NewCourseForm />
+              ) : (
+                s.title
+              )}
+              <span className="text-sm font-normal text-zinc-500">· {t("Courses: {n}", { n: s.courses.length })}</span>
+            </h2>
+          )}
+          <CourseCards courses={s.courses} />
+        </section>
+      ))}
+      <NewCourseForm spaces={spaces.map((s) => ({ id: s.id, title: s.title }))} />
     </div>
   );
 }

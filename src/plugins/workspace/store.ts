@@ -891,7 +891,7 @@ function ownerKeeps(before: DbSchema, after: DbSchema): void {
 const pluginName = (id: string): string => id.charAt(0).toUpperCase() + id.slice(1);
 
 /** A database marked as a plugin's (its data lives there): the properties it relies on (see DbSchema.owner). Set by the plugin's code only. */
-export function setOwner(dbId: number, owner: { plugin: string; props: string[] }): void {
+export function setOwner(dbId: number, owner: { plugin: string; props: string[]; trashable?: true }): void {
   const d = getDatabase(dbId);
   if (!d) throw new Error("No such database.");
   const schema = normalizeSchema({ ...d.schema, owner });
@@ -905,7 +905,7 @@ function keepOwned(ids: number[]): void {
   const rows = db().prepare(`select id, title, schema from ws_pages where kind = 'database' and schema like '%"owner":%' and id in (${ids.map(() => "?").join(",")})`).all(...ids) as { id: number; title: string; schema: string | null }[];
   for (const r of rows) {
     const owner = normalizeSchema(parse(r.schema, null)).owner;
-    if (owner && isPluginId(owner.plugin) && isInstalled(owner.plugin)) throw new Error(t("“{title}” keeps the {plugin} plugin's data — it can't be deleted while the plugin is installed.", { title: r.title || t("Untitled"), plugin: pluginName(owner.plugin) }));
+    if (owner && !owner.trashable && isPluginId(owner.plugin) && isInstalled(owner.plugin)) throw new Error(t("“{title}” keeps the {plugin} plugin's data — it can't be deleted while the plugin is installed.", { title: r.title || t("Untitled"), plugin: pluginName(owner.plugin) }));
   }
 }
 

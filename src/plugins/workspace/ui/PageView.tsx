@@ -5,7 +5,7 @@ import { SystemPageBar } from "./system-page";
 import type { JSONContent } from "@tiptap/react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { applyRowLayoutAction, archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, saveAsTemplateAction, savePageAction, setTemplateAction, versionAction } from "../actions";
@@ -118,7 +118,7 @@ function History({ pageId, onClose }: { pageId: number; onClose: () => void }) {
   );
 }
 
-export function PageView({ page, row, database, form, person }: { page: PageViewData; row?: { initial: DatabaseData; dbId: number } | null; database?: DatabaseData | null; /** A form page: what it asks (forms.ts). */ form?: FormRun | null; /** What a person's page shows, as the server read it with the page (no round trip after it). */ person?: PersonBundle | null }) {
+export function PageView({ page, row, database, form, person, app }: { page: PageViewData; /** What a plugin shows on this page above its text (a learning space's courses — page-apps.ts). */ app?: ReactNode; row?: { initial: DatabaseData; dbId: number } | null; database?: DatabaseData | null; /** A form page: what it asks (forms.ts). */ form?: FormRun | null; /** What a person's page shows, as the server read it with the page (no round trip after it). */ person?: PersonBundle | null }) {
   const t = useT();
   const router = useRouter();
   // A person's view starts from what the server read with the page.
@@ -569,6 +569,7 @@ export function PageView({ page, row, database, form, person }: { page: PageView
         {row && <LinkedPanel target={{ rowId: page.id }} />}
 
         <SystemPageBar pageId={page.id} />
+        {app}
         {/* A person's page that is (nearly) empty: their todos, what is coming up, the facts and your rhythm on a click. */}
         {page.layoutFits && editable && (
           <button

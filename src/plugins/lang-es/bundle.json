@@ -9287,5 +9287,13 @@
   "Widgets (questions)": "Widgets (preguntas)",
   "Answers a widget that may ask the AI (you allowed it), a few times an hour (Workspace).": "Responde a un widget que puede preguntar a la IA (lo permitiste), unas pocas veces por hora (Workspace).",
   "This picture couldn't be shown.": "Esta imagen no se pudo mostrar.",
-  "Something in this widget broke — your teacher has been told and will rebuild it.": "Algo falló en este widget — tu profesor ya lo sabe y lo rehará."
+  "Something in this widget broke — your teacher has been told and will rebuild it.": "Algo falló en este widget — tu profesor ya lo sabe y lo rehará.",
+  "Learning space": "Espacio de aprendizaje",
+  "Learn on a page of its own: its own courses, progress, streak and cards — Claude researches each topic and teaches it step by step.": "Aprender en una página propia: sus propios cursos, progreso, racha y tarjetas — Claude investiga cada tema y lo enseña paso a paso.",
+  "Courses: {n}": "Cursos: {n}",
+  "All learning spaces": "Todos los espacios de aprendizaje",
+  "Export": "Exportar",
+  "Exporting …": "Exportando …",
+  "The learning space with its courses and progress as a file — import it in another Zeff or account": "El espacio de aprendizaje con sus cursos y progreso como archivo — impórtalo en otro Zeff o cuenta",
+  "Each learning space is a page in the Workspace with its own courses and progress — make another from the template “Learning space”.": "Cada espacio de aprendizaje es una página del Workspace con sus propios cursos y progreso — crea otro con la plantilla «Espacio de aprendizaje»."
 }

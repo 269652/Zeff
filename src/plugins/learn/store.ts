@@ -12,13 +12,13 @@ import { emitChange } from "@/lib/events";
 import { localDay } from "@/lib/dates";
 import { checkWidgetHtml, xpForResult, WIDGET_LIBS, type WidgetMessage } from "@/lib/widgets/sandbox";
 import { specHtml, type ExerciseSet } from "@/lib/widgets/spec";
-import { addRow, archivePage, getPage, setCell, updatePage } from "@/plugins/workspace/store";
+import { addRow, archivePage, getPage, rawRows, setCell, updatePage } from "@/plugins/workspace/store";
 import type { Row } from "@/plugins/workspace/model";
 import { badgesFor, nextStreak, type BadgeId } from "./game";
 import { normalizePlan } from "./plan";
 import { review, newCard, type Grade } from "./srs";
 import { computeTree, layers, nextSteps, type Tree, type TreeInput, type TreeNode } from "./tree";
-import { learnDbs, learnRows, memo, P } from "./dbs";
+import { dbsFor, learnDbs, learnRows, learnSpaceAt, memo, P } from "./dbs";
 import type { NodeKind, PlanSource } from "./shared";
 // (Learn's old tables moved into the databases the first time they're used: to-workspace.ts registers how.)
 import "./to-workspace";
@@ -156,10 +156,13 @@ function courseRow(id: number): Row | undefined {
 /** The course's id now (the row's) — an old id followed; the id itself when there's no such course. */
 const cid = (id: number): number => courseRow(Number(id))?.id ?? Number(id);
 
-export function createCourse(v: { topic: string; goal: string; level: string }): number {
+/** A new course — in the learning space `space` (its page's id; the first space when none is named). */
+export function createCourse(v: { topic: string; goal: string; level: string; space?: number | null }): number {
   const topic = v.topic.trim().slice(0, 200);
   if (!topic) throw new Error("What do you want to learn?");
-  const id = addRow(learnDbs().courses, { title: topic, cells: filled({ [P.topic]: topic, [P.goal]: v.goal.trim().slice(0, 1000), [P.level]: v.level.trim().slice(0, 300), [P.status]: "researching", [P.dailyGoal]: 50, [P.xp]: 0, [P.streak]: 0 }) });
+  const into = v.space ? learnSpaceAt(v.space) : learnDbs();
+  if (!into) throw new Error("That page is no learning space.");
+  const id = addRow(into.courses, { title: topic, cells: filled({ [P.topic]: topic, [P.goal]: v.goal.trim().slice(0, 1000), [P.level]: v.level.trim().slice(0, 300), [P.status]: "researching", [P.dailyGoal]: 50, [P.xp]: 0, [P.streak]: 0 }) });
   changed();
   return id;
 }
@@ -169,11 +172,19 @@ export function getCourse(id: number): Course | undefined {
   return r ? courses().find((c) => c.id === r.id) : undefined;
 }
 
-export const listCourses = (): Course[] => [...courses()].sort((a, b) => {
-  const ra = learnRows("courses").find((r) => r.id === a.id)!;
-  const rb = learnRows("courses").find((r) => r.id === b.id)!;
-  return rb.updatedAt.localeCompare(ra.updatedAt) || b.id - a.id;
-});
+/** The courses — of one learning space (its page's id), or of all. */
+export const listCourses = (space?: number | null): Course[] => {
+  const at = space ? learnSpaceAt(space) : null;
+  if (space && !at) return [];
+  const only = at ? new Set(rawRows(at.courses).map((r) => r.id)) : null;
+  return [...courses()]
+    .filter((c) => !only || only.has(c.id))
+    .sort((a, b) => {
+      const ra = learnRows("courses").find((r) => r.id === a.id)!;
+      const rb = learnRows("courses").find((r) => r.id === b.id)!;
+      return rb.updatedAt.localeCompare(ra.updatedAt) || b.id - a.id;
+    });
+};
 
 /** Rows of a Learn database that belong to a course (its relation). */
 const ofCourse = (which: "steps" | "exercises" | "activity" | "cards" | "messages", courseId: number): Row[] =>
@@ -198,7 +209,7 @@ export function savePlan(id: number, raw: unknown, opts: { keepProgress?: boolea
     failResearch(courseId, problems[0] ?? "The plan has no steps.");
     return { problems };
   }
-  const dbs = learnDbs();
+  const dbs = dbsFor(courseId);
   inTx(() => {
     // Each key keeps its row (what links to it — its exercises, cards, conversation — stays linked); a key the plan
     // doesn't have any more goes to the trash. A new plan (not an update) starts without progress.
@@ -506,7 +517,7 @@ export function awardXp(courseId: number, xp: number, kind: string, detail: Reco
   return inTx(() => {
     const day = localDay(at);
     const step = stepRow(c.id, nodeKey);
-    addRow(learnDbs().activity, {
+    addRow(dbsFor(c.id).activity, {
       title: eventTitle(kind, c.id, nodeKey, detail),
       cells: filled({
         [P.event]: kind,
@@ -633,7 +644,7 @@ export function addWidget(v: { courseId: number; nodeKey: string | null; title: 
   const step = stepRow(courseId, v.nodeKey);
   const spec = v.spec && typeof v.spec === "object" ? JSON.stringify(v.spec) : "";
   return inTx(() => {
-    const id = addRow(learnDbs().exercises, {
+    const id = addRow(dbsFor(courseId).exercises, {
       title: v.title.trim().slice(0, 200) || "Widget",
       cells: filled({ [P.course]: [courseId], [P.step]: step ? [step.id] : null, [P.libs]: libs, [P.run]: v.runId ?? null, [P.spec]: spec.length <= 19000 ? spec : "" }),
     });
@@ -745,7 +756,7 @@ export function addCards(courseId: number, nodeKey: string | null, list: { front
       const back = String(x.back ?? "").trim().slice(0, 4000);
       if (!front || !back) continue;
       const s = newCard(now);
-      addRow(learnDbs().cards, {
+      addRow(dbsFor(c).cards, {
         title: front.slice(0, 300),
         cells: filled({ [P.front]: front.length > 300 ? front : "", [P.back]: back, [P.due]: timeCell(s.due), [P.reps]: 0, [P.lapses]: 0, [P.ease]: s.ease, [P.interval]: 0, [P.course]: [c], [P.step]: step ? [step.id] : null }),
       });

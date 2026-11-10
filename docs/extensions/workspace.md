@@ -546,6 +546,8 @@ The Workspace owns these points (other plugins contribute; `src/plugins/<x>/serv
 | `workspace.lookups` | [lookup-point.ts](../../src/plugins/workspace/lookup-point.ts) | Sources for a view's `<lookup>` | (none yet; lookups come as lambdas) |
 | `workspace.flowActions` | [flows/actions.ts](../../src/plugins/workspace/flows/actions.ts) | Actions for flow nodes | (none yet) |
 | `workspace.packages` | [packages-point.ts](../../src/plugins/workspace/packages-point.ts) | Whole apps offered under templates | (none yet) |
+| `workspace.pageApps` | [page-apps-point.ts](../../src/plugins/workspace/page-apps-point.ts) | What a page shows above its text when it is a plugin's own (told from the page) | Learn (a learning space's courses) |
+| `workspace.templates` | [page-apps-point.ts](../../src/plugins/workspace/page-apps-point.ts) | Templates made by a plugin's code, offered under templates (*Packages* tab) | Learn (*Learning space*) |
 
 App views and row views are closed lists in [app-views.ts](../../src/plugins/workspace/app-views.ts) (mail, chat, inbox
 → mail-client; people; calendar; documents; cases; debts → finances; agenda) and
