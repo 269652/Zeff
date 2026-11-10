@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { layoutDag } from "@/lib/graph/layout";
 import type { SkillTreeStatus } from "./SkillTree";
-import { nodeDiscs, organicWay, threadCorners, wayLabels, type Grid } from "./thread-route";
+import { naturalWay, nodeDiscs, organicWay, threadCorners, wayLabels, type Grid } from "./thread-route";
 
 export type SkillMapStep = { key: string; title: string; status: SkillTreeStatus; href?: string; minutes?: number | null };
 export type SkillMapNode = {
@@ -108,6 +108,12 @@ export function SkillMap({
     const uses = new Map<number, number>();
     const SHIFTS = [0, 5, -5, 9, -9];
     const cells = [...layout.pos.entries()];
+    const drawn: { x: number; y: number }[][] = [];
+    // The titles' cards (a little narrower than the cell: short titles are narrower still).
+    const titleBoxes = cells.map(([key]) => {
+      const c = xy(key);
+      return { x1: c.x - 62, x2: c.x + 62, y1: c.y + R + 4, y2: c.y + R + 40 };
+    });
     const ways = thread.slice(1).map((k, i) => {
       const a = layout.pos.get(thread[i])!;
       const b = layout.pos.get(k)!;
@@ -116,7 +122,11 @@ export function SkillMap({
       for (const x of gaps) uses.set(x, n + 1);
       const corners = threadCorners(grid, a, b, has, SHIFTS[n % SHIFTS.length]);
       const discs = nodeDiscs(grid, cells.filter(([key]) => key !== thread[i] && key !== k).map(([, p]) => p));
-      return { key: k, ...organicWay(grid, corners, discs) };
+      // A free, natural curve, keeping off the ways before it; where none fits, along the corridor.
+      const free = naturalWay(grid, xy(thread[i]), xy(k), discs, drawn, titleBoxes);
+      const way = free.samples.length ? free : organicWay(grid, corners, discs);
+      drawn.push(way.samples);
+      return { key: k, ...way };
     });
     // (The numbers keep off the titles' cards too: those lie over the lines.)
     const titles = cells.flatMap(([key]) => {
@@ -295,7 +305,7 @@ export function SkillMap({
                     {n.status === "mastered" ? "✓" : n.status === "locked" ? <span className="text-xl leading-none">🔒</span> : `${done}/${n.steps.length}`}
                   </span>
                 </span>
-                <span className={`line-clamp-2 max-w-full rounded-md border border-zinc-200 bg-white/95 px-1.5 py-0.5 text-center text-xs leading-snug shadow-sm dark:border-zinc-700 dark:bg-zinc-900/95 ${n.status === "locked" ? "text-zinc-500 dark:text-zinc-400" : "font-medium text-zinc-800 dark:text-zinc-200"}`}>{n.title}</span>
+                <span className={`line-clamp-2 max-w-full rounded-md border border-zinc-200 bg-white/[0.32] px-1.5 py-0.5 text-center text-xs leading-snug shadow-sm dark:border-zinc-700 dark:bg-zinc-900/[0.32] ${n.status === "locked" ? "text-zinc-500 dark:text-zinc-400" : "font-medium text-zinc-800 dark:text-zinc-200"}`}>{n.title}</span>
               </button>
             );
           })}

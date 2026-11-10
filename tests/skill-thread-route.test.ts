@@ -90,3 +90,18 @@ test("organic ways: soft curves (no right angles) that keep out of the other cir
   assert.equal(mids.length, 3);
   for (let i = 0; i < mids.length; i++) for (let j = i + 1; j < mids.length; j++) assert.ok(Math.hypot(mids[i].x - mids[j].x, mids[i].y - mids[j].y) >= 20);
 });
+
+test("natural ways: straight where free, round a circle in the way, and off a way drawn before where it can", async () => {
+  const { naturalWay, nodeDiscs } = await import("../src/components/skill-tree/thread-route");
+  const a = centre(g, { col: 0, row: 0 });
+  const b = centre(g, { col: 2, row: 0 });
+  const free = naturalWay(g, a, b, [], []);
+  assert.ok(free.samples.every((p) => Math.abs(p.y - a.y) < 1), "straight across");
+  const blocked = nodeDiscs(g, [{ col: 1, row: 0 }]);
+  const round = naturalWay(g, a, b, blocked, []);
+  assert.ok(round.samples.length > 2);
+  for (const p of round.samples) for (const d of blocked) assert.ok(Math.hypot(p.x - d.x, p.y - d.y) >= d.r - 0.01, "kept out of the circle");
+  const again = naturalWay(g, a, b, blocked, [round.samples]);
+  const shared = again.samples.filter((p) => round.samples.some((q) => Math.hypot(p.x - q.x, p.y - q.y) < 7)).length;
+  assert.ok(shared < again.samples.length / 2, "not along the first one");
+});

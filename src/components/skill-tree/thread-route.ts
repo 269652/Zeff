@@ -264,3 +264,105 @@ export function wayLabels(ways: Pt[][], discs: Disc[], badge = 10): Pt[] {
   });
   return placed;
 }
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Natural ways: one free, soft curve from circle to circle — straight at the target where nothing is in the way, else
+// bending round over one or two points of the map's white space, the one that is short, calm and keeps off the ways
+// drawn before it (few runs side by side, so each can be followed)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** Points along a Catmull-Rom curve through `pts` (centripetal enough for a few points), `per` per stretch. */
+function catmull(pts: Pt[], per: number): Pt[] {
+  const out: Pt[] = [pts[0]];
+  for (let i = 0; i < pts.length - 1; i++) {
+    const p0 = pts[i - 1] ?? pts[i];
+    const p1 = pts[i];
+    const p2 = pts[i + 1];
+    const p3 = pts[i + 2] ?? p2;
+    const t1 = { x: (p2.x - p0.x) / 2, y: (p2.y - p0.y) / 2 };
+    const t2 = { x: (p3.x - p1.x) / 2, y: (p3.y - p1.y) / 2 };
+    const seg: Seg = [p1, { x: p1.x + t1.x / 3, y: p1.y + t1.y / 3 }, { x: p2.x - t2.x / 3, y: p2.y - t2.y / 3 }, p2];
+    for (let k = 1; k <= per; k++) out.push(bez(seg, k / per));
+  }
+  return out;
+}
+
+/** How much a line turns along its points (radians, summed) — calm lines turn little. */
+function turning(pts: Pt[]): number {
+  let sum = 0;
+  for (let i = 2; i < pts.length; i++) {
+    const a = Math.atan2(pts[i - 1].y - pts[i - 2].y, pts[i - 1].x - pts[i - 2].x);
+    const b = Math.atan2(pts[i].y - pts[i - 1].y, pts[i].x - pts[i - 1].x);
+    let d = Math.abs(b - a);
+    if (d > Math.PI) d = 2 * Math.PI - d;
+    sum += d;
+  }
+  return sum;
+}
+
+/**
+ * The thread's way from circle a to circle b (their centres) as a natural curve: the samples from a's rim to b's rim.
+ * `discs`: the other circles (kept out of); `drawn`: the ways so far (kept off — a way running along another costs);
+ * the candidates: straight, then over one point of the white space (between the circles: the gaps and strips), then two.
+ */
+export function naturalWay(g: Grid, a: Pt, b: Pt, discs: Disc[], drawn: Pt[][], titles: { x1: number; y1: number; x2: number; y2: number }[] = []): { d: string; samples: Pt[] } {
+  // (Behind a title's card a line may run — but one round it reads better: a little cost for each bit across a title.)
+  const onTitle = (p: Pt) => titles.some((t) => p.x > t.x1 && p.x < t.x2 && p.y > t.y1 && p.y < t.y2);
+  const near = drawn.flat();
+  const grid = 8;
+  // (The ways so far in buckets, to tell quickly how much of a candidate runs along them.)
+  const buckets = new Map<string, Pt[]>();
+  for (const p of near) {
+    const k = `${Math.floor(p.x / grid)}:${Math.floor(p.y / grid)}`;
+    (buckets.get(k) ?? buckets.set(k, []).get(k)!).push(p);
+  }
+  const alongOthers = (p: Pt) => {
+    const cx = Math.floor(p.x / grid);
+    const cy = Math.floor(p.y / grid);
+    for (let dx = -1; dx <= 1; dx++) for (let dy = -1; dy <= 1; dy++) for (const q of buckets.get(`${cx + dx}:${cy + dy}`) ?? []) if (Math.hypot(p.x - q.x, p.y - q.y) < 7) return true;
+    return false;
+  };
+  const rim = g.r + 3;
+  const trim = (s: Pt[]) => s.filter((p) => Math.hypot(p.x - a.x, p.y - a.y) > rim && Math.hypot(p.x - b.x, p.y - b.y) > rim + 1);
+  const cost = (via: Pt[]): { s: Pt[]; c: number } | null => {
+    const s = trim(catmull([a, ...via, b], 24));
+    if (s.length < 2) return null;
+    let len = 0;
+    let along = 0;
+    let across = 0;
+    for (let i = 0; i < s.length; i++) {
+      const p = s[i];
+      if (inDisc(p, discs) || p.x < 6 || p.x > g.width - 6 || p.y < g.top - 18 || p.y > g.height - 6) return null;
+      if (i) len += Math.hypot(p.x - s[i - 1].x, p.y - s[i - 1].y);
+      if (alongOthers(p)) along++;
+      if (onTitle(p)) across++;
+    }
+    return { s, c: len + 60 * turning(s) + 9 * along + 4 * across };
+  };
+  // The white space's points: the gaps between the columns and the middles of the columns, at circle height and
+  // half-way between the rows — near the two circles (a cell around the box they span).
+  const cols = Math.round(g.width / g.col);
+  const rows = Math.max(1, Math.round((g.height - g.top) / g.row));
+  const xs = Array.from({ length: cols * 2 + 1 }, (_, i) => Math.min(g.width - 14, Math.max(14, (i * g.col) / 2)));
+  const ys = Array.from({ length: rows * 2 }, (_, i) => g.top + (i * g.row) / 2 + g.r + 8).filter((y) => y < g.height - 8);
+  const box = { x1: Math.min(a.x, b.x) - g.col, x2: Math.max(a.x, b.x) + g.col, y1: Math.min(a.y, b.y) - g.row, y2: Math.max(a.y, b.y) + g.row };
+  const spots = xs.flatMap((x) => ys.map((y) => ({ x, y }))).filter((p) => p.x >= box.x1 && p.x <= box.x2 && p.y >= box.y1 && p.y <= box.y2 && !inDisc(p, discs.map((d) => ({ ...d, r: d.r + 6 }))));
+  let best = cost([]);
+  const better = (c: { s: Pt[]; c: number } | null) => {
+    if (c && (!best || c.c < best.c)) best = c;
+  };
+  for (const p of spots) better(cost([p]));
+  // (Bends a little off the white space's points too: half-way to the side of the straight line — a softer bow.)
+  const mid = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+  const len = Math.hypot(b.x - a.x, b.y - a.y) || 1;
+  const nx = -(b.y - a.y) / len;
+  const ny = (b.x - a.x) / len;
+  for (const k of [-0.9, -0.6, -0.35, 0.35, 0.6, 0.9]) better(cost([{ x: mid.x + nx * g.col * k, y: mid.y + ny * g.col * k }]));
+  if (!best) for (const p of spots) for (const q of spots) if (p !== q && Math.hypot(p.x - q.x, p.y - q.y) < 2.2 * g.col) better(cost([p, q]));
+  const f = (n: number) => Math.round(n * 10) / 10;
+  if (best) {
+    const s = (best as { s: Pt[] }).s;
+    return { d: `M${f(s[0].x)},${f(s[0].y)}` + s.slice(1).map((p) => ` L${f(p.x)},${f(p.y)}`).join(""), samples: s };
+  }
+  return { d: "", samples: [] };
+}
