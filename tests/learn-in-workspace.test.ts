@@ -84,7 +84,7 @@ test("the view's actions: the space's courses, a map with steps opening their ro
   assert.ok(map.ok && map.map);
   if (map.ok && map.map) {
     const hrefs = map.map.nodes.flatMap((n) => n.steps.map((s) => s.href));
-    assert.ok(hrefs.length > 5 && hrefs.every((h) => /^\/workspace\/\d+$/.test(h)), "every step opens its row in the Workspace");
+    assert.ok(hrefs.length > 5 && hrefs.every((h) => /^\/workspace\/\d+$/.test(h ?? "")), "every step opens its row in the Workspace");
   }
   const due = await a.learnDueCardsAction(space.cards, course);
   assert.ok(due.ok && due.cards.length > 0 && Object.keys(due.cards[0]).sort().join() === "back,front,id");

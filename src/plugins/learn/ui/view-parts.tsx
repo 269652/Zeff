@@ -66,15 +66,17 @@ function Courses({ app }: PartProps) {
 function Map({ attrs }: PartProps) {
   const t = useT();
   const course = Number(attrs.course);
-  const [map, setMap] = useState<MapData | null | undefined>(undefined);
+  // (Kept with the course it was read for: another course asked for is loading until its own arrives.)
+  const [got, setGot] = useState<{ course: number; map: MapData | null } | null>(null);
   useEffect(() => {
-    if (!(course > 0)) return void setMap(null);
+    if (!(course > 0)) return;
     let live = true;
-    void learnMapAction(course).then((r) => live && setMap(r.ok ? (r.map as MapData) : null));
+    void learnMapAction(course).then((r) => live && setGot({ course, map: r.ok ? (r.map as MapData) : null }));
     return () => {
       live = false;
     };
   }, [course]);
+  const map = !(course > 0) ? null : got?.course === course ? got.map : undefined;
   if (map === undefined) return <p className="text-sm text-zinc-500">{t("Loading …")}</p>;
   if (!map) return <p className="text-sm text-zinc-500">{t("Pick a course whose plan is ready.")}</p>;
   return (
@@ -92,15 +94,17 @@ function Map({ attrs }: PartProps) {
 
 function Review({ attrs, data }: PartProps) {
   const t = useT();
-  const [cards, setCards] = useState<{ id: number; front: string; back: string }[] | null>(null);
+  const [got, setGot] = useState<{ key: string; cards: { id: number; front: string; back: string }[] } | null>(null);
   const course = Number(attrs.course) || null;
+  const key = `${data.id}:${course ?? ""}`;
   useEffect(() => {
     let live = true;
-    void learnDueCardsAction(data.id, course).then((r) => live && setCards(r.ok ? r.cards : []));
+    void learnDueCardsAction(data.id, course).then((r) => live && setGot({ key, cards: r.ok ? r.cards : [] }));
     return () => {
       live = false;
     };
-  }, [data.id, course]);
+  }, [data.id, course, key]);
+  const cards = got?.key === key ? got.cards : null;
   if (cards === null) return <p className="text-sm text-zinc-500">{t("Loading …")}</p>;
   if (!cards.length) return <p className="text-sm text-zinc-500">{t("No cards due — well done.")}</p>;
   return <ReviewDeck cards={cards} />;
