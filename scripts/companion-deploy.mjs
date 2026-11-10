@@ -14,7 +14,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1")), "..");
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/i, "$1")), "..");
 const APP = path.join(ROOT, "companion", "app");
 const REPO = process.env.COMPANION_REPO || "269652/zeff-app";
 const DOMAIN = process.env.COMPANION_DOMAIN ?? "app.getzeff.com";

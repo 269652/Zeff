@@ -16,7 +16,7 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 
-const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/, "$1")), "..");
+const ROOT = path.resolve(path.dirname(new URL(import.meta.url).pathname.replace(/^\/([A-Z]:)/i, "$1")), "..");
 const RULES = path.join(ROOT, "integrations", "booking", "publish", "scrub.txt");
 const REPO = process.env.GITHUB_REPO || "269652/Zeff";
 const dry = process.argv.includes("--dry-run");
