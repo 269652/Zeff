@@ -362,7 +362,8 @@ function hadConversation(id: number): boolean {
     const buf = Buffer.alloc(65536);
     const n = fs.readSync(fd, buf, 0, buf.length, 0);
     fs.closeSync(fd);
-    return /"type"\s*:\s*"(system|assistant|result)"/.test(buf.toString("utf8", 0, n));
+    // Its start (init) or an answer — not a lone error result ("No conversation found", 0 turns: that's no conversation).
+    return /"subtype"\s*:\s*"init"|"type"\s*:\s*"assistant"/.test(buf.toString("utf8", 0, n));
   } catch {
     return false;
   }
