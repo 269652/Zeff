@@ -18,6 +18,7 @@ import { evalFormula } from "./formula";
 import { ANY_TAG_ATTRS, cardScope, CARD_TAGS, checkAttr, FILTERS as CARD_FILTERS, isField, isNode, KEYWORDS, numOf, parseFilter, parseTemplate, splitPipes, textOf, type AttrKind, type CardScope, type Ctx as CardCtx, type Field, type TagDef, type TNode, type TplError, type VNode } from "./card-template";
 import { noLabels, TITLE, type Labels, type Property, type Row } from "./model";
 import { localDay } from "@/lib/dates";
+import { blockFlowName, blockSignature, paramValue, type BlockDef } from "./blocks";
 
 export type { VNode, TplError };
 
@@ -150,7 +151,49 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   field: T({ name: "text" }, true),
   part: T(ANY),
   widget: T(ANY, true),
+  // Blocks of your own (blocks.ts): <use block="name" param=…>what goes into its <slot/></use>, <fill slot="x"> for a named one.
+  use: T(ANY),
+  slot: T({ name: "text" }, true),
+  fill: T({ slot: "text" }),
+  // A name for a value from here on (its siblings after it and what is inside them): <let name="open" value="rows | where(…)"/>.
+  let: T({ name: "text", value: "list" }, true),
+  switch: T({ on: "text" }),
+  case: T({ value: "text" }),
+  otherwise: T({}),
+  // Tabs that hold their content (only the tab shown is drawn).
+  tabset: T({ bind: "text" }),
+  tab: T({ id: "text", label: "text", n: "text" }),
+  // A dialog (center) or a drawer (side=right), open while state.<bind> is filled.
+  dialog: T({ bind: "text", title: "text", side: { oneOf: ["center", "right"] }, wide: { oneOf: ["true", "false"] } }),
+  input: T({ bind: "text", type: { oneOf: ["text", "number", "date", "time", "month", "color", "textarea", "email", "url"] }, label: "text", placeholder: "text", value: "text" }, true),
+  slider: T({ bind: "text", min: "num", max: "num", step: "num", label: "text", value: "text", unit: "text" }, true),
+  calendar: T({ source: "list", date: "list", bind: "text", empty: "text" }),
+  heatmap: T({ source: "list", date: "list", value: "list", calc: { oneOf: ["count", "sum"] }, weeks: "int", label: "text", unit: "text" }, true),
+  pivot: T({ source: "list", rows: "list", cols: "list", value: "list", calc: { oneOf: ["count", "sum", "avg"] }, format: "text", total: { oneOf: ["true", "false"] }, empty: "text" }, true),
+  gauge: T({ value: "num", max: "num", label: "text", sub: "text", tone: { oneOf: ["info", "good", "warn", "bad"] }, size: "int" }, true),
+  rating: T({ value: "text", max: "int", prop: "text" }, true),
+  copy: T({ text: "text", label: "text" }, true),
 };
+
+/** The tags whose attribute names a state (or a data name): in a block, each use keeps its own. */
+const STATE_KEYS: Record<string, string[]> = {
+  state: ["name"],
+  tabs: ["bind"],
+  select: ["bind"],
+  search: ["bind"],
+  toggle: ["bind"],
+  facets: ["bind"],
+  tabset: ["bind"],
+  dialog: ["bind"],
+  input: ["bind"],
+  slider: ["bind"],
+  calendar: ["bind"],
+  data: ["name"],
+  entry: ["state"],
+  button: ["state", "into"],
+};
+/** How deep blocks may stand in blocks. */
+const MAX_BLOCK_DEPTH = 6;
 
 // ---------------------------------------------------------------------------
 // Collections
@@ -174,6 +217,15 @@ type Ctx = {
   parts: Set<string>;
   actions: Set<string>;
   scopes: Map<number, CardScope>;
+  /** What <let> named (from there on). */
+  vars: Map<string, unknown>;
+  /** The blocks of your own, by name — null: not known yet (a <use> draws nothing, and says nothing). */
+  blocks: Map<string, BlockDef> | null;
+  /** Inside a block: its use's own state's prefix ("_b3_"), its parameters, what goes into its slots, the blocks it stands in. */
+  prefix: string;
+  block: { name: string; props: Record<string, unknown>; slots: Map<string, { nodes: TNode[]; ctx: Ctx }> } | null;
+  stack: string[];
+  seq: { n: number };
 };
 
 const norm = (s: string) => s.trim().toLowerCase();
@@ -200,11 +252,21 @@ function resolve(ctx: Ctx, path: string): { found: boolean; value: unknown } {
   if (local) return { found: true, value: local };
   const [head, ...rest] = p.split(".");
   const h = norm(head);
-  const walk = (v: unknown, keys: string[]): unknown => keys.reduce<unknown>((o, k) => (o && typeof o === "object" && !Array.isArray(o) ? (o as Record<string, unknown>)[k] : undefined), v);
+  const walk = (v: unknown, keys: string[]): unknown => keys.reduce<unknown>((o, k) => (o && typeof o === "object" && !Array.isArray(o) && !isRows(o) ? (o as Record<string, unknown>)[k] : undefined), v);
+  if (ctx.vars.has(h)) return { found: true, value: rest.length ? (walk(ctx.vars.get(h), rest) ?? null) : ctx.vars.get(h) };
+  if (h === "props" && ctx.block) {
+    if (!rest.length) return { found: true, value: ctx.block.props };
+    const key = Object.keys(ctx.block.props).find((k) => norm(k) === norm(rest[0]));
+    return key === undefined ? { found: false, value: null } : { found: true, value: rest.length > 1 ? (walk(ctx.block.props[key], rest.slice(1)) ?? null) : ctx.block.props[key] };
+  }
   if (h === "rows" && !rest.length) return { found: true, value: new RowList(ctx.data.rows) };
-  if (h === "state") return { found: true, value: rest.length ? (ctx.state[rest.join(".")] ?? null) : ctx.state };
+  if (h === "state") {
+    if (rest.length) return { found: true, value: ctx.state[ctx.prefix + rest.join(".")] ?? null };
+    // (Inside a block: its own state, by the names it gave it.)
+    return { found: true, value: ctx.prefix ? Object.fromEntries(Object.entries(ctx.state).filter(([k]) => k.startsWith(ctx.prefix)).map(([k, v]) => [k.slice(ctx.prefix.length), v])) : ctx.state };
+  }
   if (h === "app") return { found: true, value: walk(ctx.data.app, rest) ?? null };
-  if (h === "data") return { found: true, value: walk(ctx.data.data ?? {}, rest) ?? null };
+  if (h === "data") return { found: true, value: (rest.length ? walk(ctx.data.data ?? {}, [ctx.prefix + rest[0], ...rest.slice(1)]) : ctx.data.data) ?? null };
   if (h === "db") return { found: true, value: walk(ctx.data.db, rest) ?? null };
   if (h === "now") return { found: true, value: localDay(ctx.data.now ?? new Date()) };
   if (h === "this") return { found: true, value: ctx.item ? walk(ctx.item, rest) : ctx.row ? (rest.length ? fieldOf(ctx, ctx.row, rest.join(".")) : ctx.row.title) : null };
@@ -329,8 +391,13 @@ function matches(x: unknown, op: string, want: unknown): boolean {
       return v === null || v === "" || (Array.isArray(v) && !v.length);
     case "filled":
       return !(v === null || v === "" || (Array.isArray(v) && !v.length));
+    case "in": {
+      // One of these (want: "a|b|c", or a list).
+      const wants = (Array.isArray(want) ? want : textOf(want).split("|")).map((w) => norm(textOf(w)));
+      return list.some((x) => wants.includes(norm(textOf(x))));
+    }
     default:
-      throw new Error(`where: no comparison “${op}” (=, !=, >, <, >=, <=, contains, empty, filled)`);
+      throw new Error(`where: no comparison “${op}” (=, !=, >, <, >=, <=, contains, in, empty, filled)`);
   }
 }
 
@@ -376,6 +443,35 @@ const LIST_FILTERS: Record<string, (v: unknown, a: (string | number)[], ctx: Ctx
     return remake(v, itemsOf(v).filter((o) => norm(JSON.stringify(o)).includes(w)));
   },
   count: (v) => itemsOf(v).length,
+  // The items by a field's value: [{ group, count, items }] — {{#each rows | groupby('Status')}}{{ group }} {{ count }}<list source="this.items">…
+  groupby: (v, a, ctx) => {
+    const vals = valuesOf(v, ctx, String(a[0] ?? ""));
+    const buckets = new Map<string, unknown[]>();
+    itemsOf(v).forEach((it, i) => {
+      const f = vals[i];
+      const labels = isField(f) ? (f.text ? f.text.split(", ") : [""]) : Array.isArray(f) ? f.map((y) => textOf(y)) : [textOf(plain(f))];
+      for (const label of labels.length ? labels : [""]) buckets.set(label, [...(buckets.get(label) ?? []), it]);
+    });
+    const out = [...buckets].map(([group, items]) => ({ group: group || String(a[1] ?? "—"), count: items.length, items: remake(v, items) }));
+    return String(a[2] ?? "").toLowerCase() === "count" ? out.sort((x, y) => y.count - x.count) : out;
+  },
+  // A field's values, each once (in the order they come).
+  distinct: (v, a, ctx) => [...new Set((a.length ? valuesOf(v, ctx, String(a[0])) : itemsOf(v)).flatMap((x) => (isField(x) ? (x.text ? x.text.split(", ") : []) : [textOf(plain(x))])).filter(Boolean))],
+  offset: (v, a) => remake(v, itemsOf(v).slice(typeof a[0] === "number" ? a[0] : 0)),
+  reverse: (v) => remake(v, [...itemsOf(v)].reverse()),
+  // Between two values (dates, numbers), both included: between('Due', now, '2026-12-31').
+  between: (v, a, ctx) => {
+    const vals = valuesOf(v, ctx, String(a[0] ?? ""));
+    return remake(v, itemsOf(v).filter((_, i) => matches(vals[i], ">=", a[1]) && matches(vals[i], "<=", a[2])));
+  },
+  // The field of the row (or the item) whose name this is: {{ props.amount | field | euro }} in a block.
+  field: (v, _a, ctx) => {
+    const name = textOf(plain(v)).trim().replace(/^\[|\]$/g, "");
+    if (!name) return null;
+    if (ctx.row) return fieldOf(ctx, ctx.row, name) ?? (norm(name) === "title" ? ctx.row.title : null);
+    return ctx.item ? (ctx.item[name] ?? null) : null;
+  },
+  json: (v) => JSON.stringify(isRows(v) ? v.rows.map((r) => ({ id: r.id, title: r.title })) : isField(v) ? v.value : v),
   sum: (v, a, ctx) => sumOf(a.length ? valuesOf(v, ctx, String(a[0])) : itemsOf(v)).reduce((x, y) => x + y, 0),
   avg: (v, a, ctx) => {
     const ns = sumOf(a.length ? valuesOf(v, ctx, String(a[0])) : itemsOf(v));
@@ -537,10 +633,104 @@ function attrsOf(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): Record<string, stri
     const ok = checkAttr(kind, interpolate(raw, ctx, n.line));
     if (ok !== null) a[k] = ok;
   }
+  // In a block: each use keeps its own state (the names it gives get its prefix), and @name is one of the block's flows.
+  if (ctx.prefix) {
+    for (const k of STATE_KEYS[n.name] ?? []) if (a[k]) a[k] = ctx.prefix + a[k];
+    if (n.name === "button" && a.then?.includes("=")) a.then = ctx.prefix + a.then.trimStart();
+  }
+  if (ctx.block) for (const k of ["run", "flow"]) if (a[k]?.startsWith("@")) a[k] = blockFlowName(ctx.block.name, a[k].slice(1));
   return a;
 }
 
+/** A name for a block's use: letters, digits and _ (its state's and data's prefix). */
+const keyOf = (s: string) => s.replace(/[^\p{L}\p{N}_]/gu, "_");
+
+/** The day of a value ("2026-11-03", a date's {start}, a Date): YYYY-MM-DD, or null. */
+function dayOf(v: unknown): string | null {
+  const x = plain(v);
+  if (x instanceof Date) return localDay(x);
+  if (x && typeof x === "object" && "start" in (x as object)) return dayOf((x as { start: unknown }).start);
+  const m = /^(\d{4}-\d{2}-\d{2})/.exec(textOf(x));
+  return m ? m[1] : null;
+}
+
+/** A field's name in an attribute: as written ("Due", "[Due date]"), or worked out ({{ props.field }} in a block). */
+const fieldName = (raw: string | undefined, ctx: Ctx, line: number): string => {
+  const s = (raw ?? "").trim();
+  return (s.includes("{{") ? interpolate(s, ctx, line) : s).trim().replace(/^\[|\]$/g, "");
+};
+
+/** A collection's items with a value of each — a row's field, an object's key — by a name ("" or missing: none). */
+const fieldValues = (ctx: Ctx, src: unknown, field: string | undefined): unknown[] => (field ? valuesOf(src, ctx, field.trim().replace(/^\[|\]$/g, "")) : itemsOf(src).map(() => null));
+
+/** A number as a filter writes it (format="euro", "number(1)", "hours", "percent") — plain without one. */
+function formatted(ctx: Ctx, n: number, format: string | undefined, line: number): string {
+  if (!format) return Number.isInteger(n) ? String(n) : n.toLocaleString(ctx.data.locale ?? "de-DE", { maximumFractionDigits: 2 });
+  try {
+    const call = parseFilter(format);
+    const own = LIST_FILTERS[call.name];
+    const card = CARD_FILTERS[call.name];
+    if (!own && !card) throw new Error(`There is no filter “${call.name}”.`);
+    return textOf(own ? own(n, argsOf(call, ctx), ctx) : card(n, argsOf(call, ctx), cardCtx(ctx)));
+  } catch (e) {
+    ctx.errors.push({ line, message: (e as Error).message });
+    return String(n);
+  }
+}
+
+/** <use block="…">: a block of your own drawn — its template with its parameters, its own state, what stood inside it in its slots. */
+function drawUse(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
+  const raw = Object.fromEntries(n.attrs);
+  const err = (message: string) => (ctx.errors.push({ line: n.line, message }), [] as VNode[]);
+  const name = (raw.block ?? "").trim().toLowerCase();
+  if (!name) return err('<use> needs block="…" (the name of a block).');
+  if (!ctx.blocks) return [];
+  const def = ctx.blocks.get(name);
+  if (!def) return err(`There is no block “${name}” — there are ${[...ctx.blocks.keys()].join(", ") || "none yet (workspace_save_block makes one)"}.`);
+  if (ctx.stack.includes(name)) return err(`The block “${name}” stands in itself (${[...ctx.stack, name].join(" → ")}).`);
+  if (ctx.stack.length >= MAX_BLOCK_DEPTH) return err(`Blocks stand in blocks ${MAX_BLOCK_DEPTH} deep at most.`);
+  const byName = new Map(def.params.map((p) => [norm(p.name), p]));
+  for (const k of Object.keys(raw)) if (k !== "block" && k !== "id" && !byName.has(norm(k))) err(`The block “${name}” has no parameter “${k}” — it takes ${def.params.map((p) => p.name).join(", ") || "none"}.`);
+  const props: Record<string, unknown> = {};
+  for (const p of def.params) {
+    const key = Object.keys(raw).find((k) => norm(k) === norm(p.name));
+    const given = key === undefined ? undefined : raw[key];
+    if (given === undefined && p.required) err(`The block “${name}” needs ${p.name}="…"${p.help ? ` (${p.help})` : ""}.`);
+    const text = given ?? p.default;
+    if (p.type === "list") {
+      // A collection, as a source= is written (rows | where(…)) — {{ }} around it are allowed.
+      const expr = (text ?? "").trim().replace(/^\{\{([\s\S]*)\}\}$/, "$1").trim();
+      props[p.name] = expr ? pipe(expr, ctx, n.line) : [];
+    } else {
+      const v = text === undefined ? "" : interpolate(text, ctx, n.line);
+      if (p.options?.length && v && !p.options.some((o) => norm(o) === norm(v))) err(`${p.name}="${v}": the block “${name}” takes ${p.options.join(", ")}.`);
+      props[p.name] = paramValue(p, v);
+    }
+  }
+  // What stood inside: <fill slot="x"> for a named slot, the rest for <slot/>.
+  const slots = new Map<string, { nodes: TNode[]; ctx: Ctx }>();
+  const fills = n.kids.filter((k): k is Extract<TNode, { k: "tag" }> => k.k === "tag" && k.name === "fill");
+  slots.set("", { nodes: n.kids.filter((k) => !fills.includes(k as Extract<TNode, { k: "tag" }>)), ctx });
+  for (const f of fills) slots.set(norm(Object.fromEntries(f.attrs).slot ?? ""), { nodes: f.kids, ctx });
+  const parsed = parseView(def.template);
+  const id = raw.id?.trim() ? keyOf(interpolate(raw.id, ctx, n.line)) : `${keyOf(name)}${ctx.seq.n++}`;
+  const inner: Ctx = { ...ctx, prefix: `_${id}_`, block: { name, props, slots }, stack: [...ctx.stack, name], vars: new Map(), errors: [] };
+  const nodes = drawList(parsed.nodes, inner);
+  // (Its mistakes said where the block is used, with its own line.)
+  for (const e of [...parsed.errors, ...inner.errors]) ctx.errors.push({ line: n.line, message: e.message.startsWith("block “") ? e.message : `block “${name}”, line ${e.line}: ${e.message}` });
+  // One thing where it stands (a cell of a grid, a pane): its parts together in a column — one part stays as it is.
+  const parts = nodes.filter((x) => typeof x !== "string" || x.trim());
+  return parts.length > 1 && parts.some((x) => typeof x !== "string") ? [{ t: "col", a: { gap: "3" }, c: nodes }] : nodes;
+}
+
+/** A month's first day ("2026-11") — the one asked for, or the one of now. */
+function monthOf(asked: string | undefined, now: Date): string {
+  return /^\d{4}-\d{2}$/.test(asked ?? "") ? asked! : localDay(now).slice(0, 7);
+}
+
 function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
+  // (A block's parameters are its own: a collection isn't interpolated as a text first.)
+  if (n.name === "use") return drawUse(n, ctx);
   const a = attrsOf(n, ctx);
   const err = (message: string) => ctx.errors.push({ line: n.line, message });
   const kids = () => drawList(n.kids, ctx);
@@ -582,7 +772,7 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       const all = itemsOf(source());
       // page=20: that many, and a button for the next ones (where it stands is the view's state).
       const page = Number(a.page) || 0;
-      const moreKey = `more:${n.line}`;
+      const moreKey = `${ctx.prefix}more:${n.line}`;
       const count = page ? Number(ctx.state[moreKey]) || page : all.length;
       const items = all.slice(0, count).map((it, i) => {
         const c = withItem(ctx, it);
@@ -595,7 +785,7 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
         return { t: "item", a: own, c: drawList(n.kids, c) } as VNode;
       });
       const more: VNode[] = count < all.length ? [{ t: "button", a: { action: "state", state: moreKey, value: String(count + page), label: a.more ?? "Show more", variant: "quiet", wide: "true" }, c: [] }] : [];
-      return [{ t: n.name, a: { ...a, source: "", image: "", alt: "", date: "" }, c: items }, ...more];
+      return [{ t: n.name, a: { ...a, source: "", image: "", alt: "", date: "", ...(ctx.prefix ? { selkey: `${ctx.prefix}selected` } : {}) }, c: items }, ...more];
     }
     case "board": {
       const p = a.group ? propByName(ctx, a.group) : undefined;
@@ -730,7 +920,7 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       return [{ t: "entry", a: { ...a, id, ...(row ? { row } : {}) }, c: [] }];
     }
     case "selected": {
-      const id = Number(ctx.state.selected);
+      const id = Number(ctx.state[`${ctx.prefix}selected`]);
       const row = Number.isFinite(id) ? ctx.data.rows.find((r) => r.id === id) : undefined;
       if (!row) return a.empty ? [{ t: "muted", a: {}, c: [a.empty] }] : [];
       return [{ t: "selected", a: { row: String(row.id) }, c: drawList(n.kids, withRow(ctx, row)) }];
@@ -753,6 +943,7 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       if (action === "assistant" && ctx.row) return (err("“assistant” can't stand in a row: what a row says must not become a request."), []);
       const out: Record<string, string> = { ...a };
       if (ctx.row && !a.row) out.row = String(ctx.row.id);
+      if (action === "select" && ctx.prefix) out.selkey = `${ctx.prefix}selected`;
       if (a.prop) {
         const p = propByName(ctx, a.prop);
         if (!p) return (err(`There is no property “${a.prop}”.`), []);
@@ -799,14 +990,167 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       if (!a.id) return (err('<widget> needs id="…" (a widget of a plugin).'), []);
       return [{ t: "widget", a, c: [] }];
     }
+    case "slot": {
+      if (!ctx.block) return (err("<slot/> stands in a block's template: where what stood inside <use> goes."), []);
+      const s = ctx.block.slots.get(norm(a.name ?? ""));
+      return s ? drawList(s.nodes, s.ctx) : [];
+    }
+    case "fill":
+      return (err('<fill slot="…"> stands directly inside a <use>.'), []);
+    case "case":
+    case "otherwise":
+      return (err(`<${n.name}> stands in a <switch>.`), []);
+    case "tab":
+      return (err("<tab> stands in a <tabset>."), []);
+    case "switch": {
+      const on = norm(a.on ?? "");
+      for (const k of n.kids) if (k.k === "tag" && k.name === "case" && (attrsOf(k, ctx).value ?? "").split("|").map(norm).includes(on)) return drawList(k.kids, ctx);
+      const other = n.kids.find((k): k is Extract<TNode, { k: "tag" }> => k.k === "tag" && k.name === "otherwise");
+      return other ? drawList(other.kids, ctx) : [];
+    }
+    case "tabset": {
+      const bind = a.bind || `${ctx.prefix}tabset:${n.line}`;
+      const tabs = n.kids.filter((k): k is Extract<TNode, { k: "tag" }> => k.k === "tag" && k.name === "tab");
+      if (!tabs.length) return (err('<tabset> needs <tab id="…" label="…">…</tab> inside.'), []);
+      const metas = tabs.map((tb, i) => {
+        const ta = attrsOf(tb, ctx);
+        const id = ta.id || ta.label || String(i + 1);
+        return ta.n ? [id, ta.label || id, ta.n] : [id, ta.label || id];
+      });
+      if (ctx.state[bind] === undefined) ctx.state[bind] = metas[0][0];
+      const i = Math.max(0, metas.findIndex((m) => m[0] === ctx.state[bind]));
+      return [{ t: "tabset", a: { bind, current: metas[i][0], options: JSON.stringify(metas) }, c: drawList(tabs[i].kids, ctx) }];
+    }
+    case "dialog": {
+      if (!a.bind) return (err('<dialog> needs bind="…" (the state that opens it: a button action="state" state="…" value="true").'), []);
+      const v = ctx.state[a.bind];
+      return v && v !== "false" ? [{ t: "dialog", a, c: kids() }] : [];
+    }
+    case "input":
+    case "slider": {
+      if (!a.bind) return (err(`<${n.name}> needs bind="…" (the state it sets).`), []);
+      if (ctx.state[a.bind] === undefined && a.value !== undefined) ctx.state[a.bind] = a.value;
+      return [{ t: n.name, a: { ...a, current: ctx.state[a.bind] ?? "" }, c: [] }];
+    }
+    case "calendar": {
+      const field = fieldName(a.date, ctx, n.line);
+      if (!field) return (err('<calendar> needs date="…" (the field that holds the day).'), []);
+      const bind = a.bind || `${ctx.prefix}cal:${n.line}`;
+      const now = ctx.data.now ?? new Date();
+      const month = monthOf(ctx.state[bind], now);
+      if (ctx.state[bind] === undefined) ctx.state[bind] = month;
+      const src = source();
+      const days = fieldValues(ctx, src, field);
+      const items = itemsOf(src).flatMap((it, i): VNode[] => {
+        const d = dayOf(days[i]);
+        if (!d || d.slice(0, 7) !== month) return [];
+        const c = withItem(ctx, it);
+        const id = c.row ? String(c.row.id) : c.item && (typeof c.item.id === "number" || typeof c.item.id === "string") ? String(c.item.id) : null;
+        return [{ t: "item", a: { day: d, ...(id ? { row: id } : {}) }, c: drawList(n.kids, c) }];
+      });
+      return [{ t: "calendar", a: { bind, month, today: localDay(now), ...(a.empty ? { empty: a.empty } : {}) }, c: items }];
+    }
+    case "heatmap": {
+      const field = fieldName(a.date, ctx, n.line);
+      if (!field) return (err('<heatmap> needs date="…" (the field that holds the day).'), []);
+      const src = source();
+      const days = fieldValues(ctx, src, field);
+      const vals = a.value ? fieldValues(ctx, src, fieldName(a.value, ctx, n.line)) : null;
+      const sum = new Map<string, number>();
+      itemsOf(src).forEach((_, i) => {
+        const d = dayOf(days[i]);
+        if (d) sum.set(d, (sum.get(d) ?? 0) + (vals && a.calc !== "count" ? (numOf(plain(vals[i])) ?? 0) : 1));
+      });
+      const weeks = Math.max(4, Math.min(60, Number(a.weeks) || 26));
+      const now = ctx.data.now ?? new Date();
+      // From the Monday (weeks − 1) weeks back to today.
+      const start = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      start.setDate(start.getDate() - ((start.getDay() + 6) % 7) - (weeks - 1) * 7);
+      const out: [string, number][] = [];
+      for (const d = new Date(start); localDay(d) <= localDay(now); d.setDate(d.getDate() + 1)) out.push([localDay(d), Math.round((sum.get(localDay(d)) ?? 0) * 100) / 100]);
+      return [{ t: "heatmap", a: { days: JSON.stringify(out), ...(a.label ? { label: a.label } : {}), ...(a.unit ? { unit: a.unit } : {}) }, c: [] }];
+    }
+    case "pivot": {
+      const strip = (s: string | undefined) => fieldName(s, ctx, n.line);
+      const rf = strip(a.rows);
+      const cf = strip(a.cols);
+      const vf = strip(a.value);
+      if (!rf) return (err('<pivot> needs rows="…" (the field whose values are its rows).'), []);
+      const src = source();
+      const items = itemsOf(src);
+      const rv = fieldValues(ctx, src, rf);
+      const cv = cf ? fieldValues(ctx, src, cf) : null;
+      const vv = vf ? fieldValues(ctx, src, vf) : null;
+      const calc = a.calc ?? (vf ? "sum" : "count");
+      const labels = (f: unknown): string[] => (isField(f) ? (f.text ? f.text.split(", ") : ["—"]) : Array.isArray(f) ? (f.length ? f.map((x) => textOf(x)) : ["—"]) : [textOf(plain(f)) || "—"]);
+      // (A select's or status's options give the order; else as they come.)
+      const order = (field: string, seen: string[]): string[] => {
+        const p = isRows(src) ? propByName(ctx, field) : undefined;
+        const opts = p?.options?.map((o) => o.name) ?? [];
+        return [...opts.filter((o) => seen.includes(o)), ...seen.filter((s) => !opts.includes(s))];
+      };
+      const cells = new Map<string, number[]>();
+      const byRow = new Map<string, number[]>();
+      const byCol = new Map<string, number[]>();
+      const all: number[] = [];
+      const rowsSeen: string[] = [];
+      const colsSeen: string[] = [];
+      items.forEach((_, i) => {
+        const x = vv ? numOf(plain(vv[i])) : 1;
+        if (x === null) return;
+        for (const r of labels(rv[i])) {
+          if (!rowsSeen.includes(r)) rowsSeen.push(r);
+          byRow.set(r, [...(byRow.get(r) ?? []), x]);
+          for (const c of cv ? labels(cv[i]) : [""]) {
+            if (!colsSeen.includes(c)) colsSeen.push(c);
+            cells.set(`${r}\u0000${c}`, [...(cells.get(`${r}\u0000${c}`) ?? []), x]);
+          }
+        }
+        for (const c of cv ? labels(cv[i]) : [""]) byCol.set(c, [...(byCol.get(c) ?? []), x]);
+        all.push(x);
+      });
+      const agg = (xs: number[] | undefined) => (!xs?.length ? null : calc === "count" ? xs.length : calc === "avg" ? xs.reduce((p, q) => p + q, 0) / xs.length : xs.reduce((p, q) => p + q, 0));
+      const fmt = (x: number | null) => (x === null ? "" : formatted(ctx, x, a.format, n.line));
+      const rows = order(rf, rowsSeen);
+      const cols = cf ? order(cf, colsSeen) : [""];
+      const data = {
+        rows,
+        cols: cf ? cols : [a.label ?? (calc === "count" ? "#" : "Σ")],
+        cells: rows.map((r) => cols.map((c) => fmt(agg(cells.get(`${r}\u0000${c}`))))),
+        rowTotals: rows.map((r) => fmt(agg(byRow.get(r)))),
+        colTotals: cols.map((c) => fmt(agg(byCol.get(c)))),
+        total: fmt(agg(all)),
+      };
+      return [{ t: "pivot", a: { data: JSON.stringify(data), total: a.total === "false" || !cf ? "false" : "true", ...(a.empty ? { empty: a.empty } : {}) }, c: [] }];
+    }
+    case "rating": {
+      const max = String(Math.max(1, Math.min(10, Number(a.max) || 5)));
+      if (!a.prop) return [{ t: "rating", a: { value: String(numOf(a.value ?? "") ?? 0), max }, c: [] }];
+      if (!ctx.row) return (err("<rating prop=…> rates a row — put it in a list's item, an {{#each rows}} or <selected>."), []);
+      const p = propByName(ctx, a.prop);
+      if (!p || p.type !== "number") return (err(`<rating prop="${a.prop}">: a number property of the row.`), []);
+      return [{ t: "rating", a: { value: String(numOf(fieldOf(ctx, ctx.row, p.id)?.value) ?? 0), max, row: String(ctx.row.id), prop: p.id }, c: [] }];
+    }
     default:
       return [{ t: n.name, a, c: kids() }];
   }
 }
 
-function drawList(list: TNode[], ctx: Ctx): VNode[] {
+function drawList(list: TNode[], outer: Ctx): VNode[] {
   const res: VNode[] = [];
+  let ctx = outer;
   for (const n of list) {
+    if (n.k === "tag" && n.name === "let") {
+      // A name for a value, for what comes after it here (and inside that).
+      const raw = Object.fromEntries(n.attrs);
+      if (!raw.name || !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(raw.name)) ctx.errors.push({ line: n.line, message: '<let> needs name="…" (letters, digits, _).' });
+      else if (["rows", "state", "app", "data", "db", "now", "this", "props", "title", "id"].includes(norm(raw.name))) ctx.errors.push({ line: n.line, message: `<let name="${raw.name}">: that name is taken — pick another.` });
+      else {
+        const expr = (raw.value ?? "").trim().replace(/^\{\{([\s\S]*)\}\}$/, "$1").trim();
+        ctx = { ...ctx, vars: new Map(ctx.vars).set(norm(raw.name), expr ? pipe(expr, ctx, n.line) : null) };
+      }
+      continue;
+    }
     if (n.k === "text") res.push(n.v);
     else if (n.k === "out") {
       let v = head(n.expr, ctx, n.line);
@@ -850,9 +1194,25 @@ export function parseView(src: string): ReturnType<typeof parseTemplate> {
  * A view drawn: its nodes, what went wrong (by line), and the state after it (the defaults its <state>, <tabs>, <select> set).
  * `parts`/`actions`: what the app adds.
  */
-export function renderView(src: string, data: ViewData, opts: { parts?: PartMeta[]; actions?: ActionMeta[] } = {}): { nodes: VNode[]; errors: TplError[]; state: Record<string, string> } {
+export function renderView(src: string, data: ViewData, opts: { parts?: PartMeta[]; actions?: ActionMeta[]; /** null: not read yet. */ blocks?: BlockDef[] | null } = {}): { nodes: VNode[]; errors: TplError[]; state: Record<string, string> } {
   const parsed = parseView(src);
-  const ctx: Ctx = { data, state: { ...data.state }, row: data.current ?? null, item: null, locals: new Map(), errors: [], parts: new Set((opts.parts ?? []).map((p) => p.name)), actions: new Set((opts.actions ?? []).map((a) => a.name)), scopes: new Map() };
+  const ctx: Ctx = {
+    data,
+    state: { ...data.state },
+    row: data.current ?? null,
+    item: null,
+    locals: new Map(),
+    errors: [],
+    parts: new Set((opts.parts ?? []).map((p) => p.name)),
+    actions: new Set((opts.actions ?? []).map((a) => a.name)),
+    scopes: new Map(),
+    vars: new Map(),
+    blocks: opts.blocks === null ? null : new Map((opts.blocks ?? []).map((b) => [b.name, b])),
+    prefix: "",
+    block: null,
+    stack: [],
+    seq: { n: 0 },
+  };
   const nodes = drawList(parsed.nodes, ctx);
   const seen = new Set<string>();
   const errors = [...parsed.errors, ...ctx.errors].filter((e) => (seen.has(`${e.line}:${e.message}`) ? false : (seen.add(`${e.line}:${e.message}`), true)));
@@ -876,7 +1236,7 @@ export function navOf(nodes: VNode[]): { title: string; entries: ViewNavEntry[] 
 }
 
 /** The language as the editor's help and the AI read it: tags, filters, actions, names — and this view's parts and actions. */
-export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []): string {
+export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = [], blocks: BlockDef[] = []): string {
   return [
     "VIEW TEMPLATE LANGUAGE — tags from this list only, {{ value | filter }}, {{#if …}}…{{#else}}…{{/if}}, {{#each …}}…{{/each}}, {{! a comment }}. No HTML, no script.",
     "",
@@ -901,6 +1261,12 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     "FILTERS for values: host (an address's site), euro (euro(0): whole euros), number(2), percent, hours, date, relative, chip, upper, lower, truncate(40), clamp(3), default(\"—\"), join(\", \"), first, last, count, check, bold, muted, small, code, link, img(80), bar(max), initials.",
     "NAV: <nav title=\"…\"><entry label=\"…\" icon=\"📥\" state=\"scope\" value=\"inbox\" n=\"{{ … }}\" group=\"…\"/>…</nav> — the view's sidebar (beside the view, or — its setting — in the Workspace tree under the database); an entry sets the view's state, opens a row (row=\"{{ id }}\" — in {{#each}} the row by itself) or goes to an address (href). E.g. the newest five: {{#each rows | sort('Date', 'desc') | limit(5)}}<entry label=\"{{ title }}\" group=\"Newest\"/>{{/each}}.",
     "WIDGETS: <widget id=\"plugin.widget\" setting=value/> — a plugin's widget (as on pages).",
+    "NAMES OF YOUR OWN: <let name=\"open\" value=\"rows | where('Status', '!=', 'Done')\"/> — a value named for what follows it (siblings after it and what is inside them): {{ open | count }}, <list source=\"open | limit(5)\">. <switch on=\"{{ Status }}\"><case value=\"Done|Closed\">…</case><otherwise>…</otherwise></switch>.",
+    "MORE BLOCKS: <tabset bind=\"t\"><tab id=\"open\" label=\"Open\" n=\"{{ open | count }}\">content</tab><tab id=\"all\" label=\"All\">…</tab></tabset> (tabs with their content; only the one shown is drawn). <dialog bind=\"edit\" title=\"…\" side=center|right wide=true>…</dialog> (open while state.edit is filled: <button action=\"state\" state=\"edit\" value=\"true\" label=\"…\"/>; its ✕ empties it; side=right: a drawer). <input bind=\"n\" type=text|number|date|time|month|color|textarea|email|url label=\"…\" placeholder=\"…\" value=\"start\"/> and <slider bind=\"x\" min=0 max=100 step=5 label=\"…\" unit=\"%\" value=\"50\"/> (state you type or drag: {{ state.n }}, rows | where('Amount', '>', state.x)). <calendar source=\"rows\" date=\"Due\" empty=\"…\">item</calendar> (a month: the items on their days, ‹ › to page months — bind=\"m\" holds the month as 2026-11). <heatmap source=\"rows\" date=\"Date\" value=\"Hours\" calc=count|sum weeks=26 label=\"…\" unit=\"h\"/> (a day by day grid, darker where more happened). <pivot source=\"rows\" rows=\"Owner\" cols=\"Status\" value=\"Amount\" calc=count|sum|avg format=\"euro(0)\" total=true/> (a cross table with totals; format: a value filter). <gauge value=\"{{ … }}\" max=100 label=\"…\" sub=\"…\" tone=good|warn|bad size=96/> (a ring). <rating value=\"{{ … }}\" max=5/> (stars) — in a row <rating prop=\"Stars\"/> sets a number property by a click. <copy text=\"{{ URL }}\" label=\"Copy\"/> (to the clipboard).",
+    "MORE FILTERS: groupby('Status') → items {group, count, items} ({{#each rows | groupby('Owner')}}<section title=\"{{ group }}\" aside=\"{{ count }}\"><list source=\"this.items\">…</list></section>{{/each}}; groupby('Owner', '—', 'count') biggest first), distinct('Tag') (each value once), offset(10), reverse, between('Due', now, '2026-12-31'), where('Status', 'in', 'Open|Waiting'), json (to look at a value).",
+    blocks.length
+      ? `BLOCKS of your own (use them; workspace_save_block makes more): ${blocks.map((b) => `${blockSignature(b)} — ${b.description || b.title || b.name}${b.params.some((p) => p.help) ? ` (${b.params.filter((p) => p.help).map((p) => `${p.name}: ${p.help}`).join("; ")})` : ""}`).join("; ")}. What stands inside <use>…</use> goes where its <slot/> is.`
+      : "BLOCKS of your own: none yet — something used again and again (a card of a deal, a filter bar, a finder that calls a web service) can become one: workspace_block_docs tells how.",
     parts.length ? `PARTS of this app (its own blocks; <part name=…>template content</part> where a part shows content): ${parts.map((p) => `<part name="${p.name}"${Object.entries(p.attrs ?? {}).map(([k, v]) => ` ${k}="${v}"`).join("")}/> — ${p.description}`).join("; ")}.` : "PARTS: none (a view of any table: build it from the tags above).",
     "",
     "Expressions: app.owe ? 'A' : 'B', a == 3, a > b and not c — texts in '…' inside an attribute.",
@@ -919,6 +1285,36 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     '<grid cols=3 min=160><tile label="Open" value="{{ rows | where(\'Status\', \'!=\', \'Done\') | count }}" icon="📬"/><tile label="Done" value="{{ rows | where(\'Status\', \'Done\') | count }}" tone=good/><tile label="All" value="{{ rows | count }}"/></grid>',
     '<toolbar><search bind="q" placeholder="Search"/><grow/></toolbar>',
     '<split side=right width=352><list source="rows | search(state.q)" select=true page=20 empty="Nothing yet: add the first entry."><row><b>{{ title }}</b><grow/></row></list><selected empty="Pick an entry"><header title="{{ title }}"><button action="open" label="Open"/></header></selected></split>',
+  ].join("\n");
+}
+
+/** How a block of your own is made — what the AI reads before workspace_save_block. */
+export function blockReference(blocks: BlockDef[] = []): string {
+  return [
+    "BLOCKS OF YOUR OWN — a building block of the view language made from the view language: parameters, a template, and flows for what it does on the server. Every view can use it: <use block=\"name\" param=\"…\"/>.",
+    "",
+    "WHAT A BLOCK IS (workspace_save_block): name (lowercase, digits, - _, parts joined by dots: \"crm.deal-card\"), title, description (one line: what it shows or does — the views' authors pick by it), icon (one emoji), params [{ name, type: text|number|boolean|list|color|url, required, default, help, options: [allowed values] }], template, example (a <use …/> line), flows (optional: what it does on the server).",
+    "",
+    "IN ITS TEMPLATE — the whole view language (workspace_view_template_docs), and:",
+    "- props.<param>: a parameter's value. A list parameter is a collection, given as a source is written (items=\"rows | where('Status', 'Open')\") — <list source=\"props.items\">, {{ props.items | count }}. A text names a field as well: where(props.field, 'Done'), <calendar date=\"{{ props.field }}\">, {{#each props.items}}…{{/each}}.",
+    "- rows: the rows of the view it stands in; used inside a row (a list's item, <selected>) the row's fields are names and its buttons act on that row — a block can be a row's card.",
+    "- state of its own: every use keeps its own (<state>, bind=, a button's state= and into=, <data name>, the row picked) — two uses of the same block on one view don't touch each other. {{ state.x }} reads its own.",
+    "- <slot/>: what stood inside <use>…</use> goes there (drawn where the block is used, with its names). Named: <slot name=\"actions\"/> ← <use …><fill slot=\"actions\"><button …/></fill></use>.",
+    "- its own flows: run=\"@search\" (a button) and <data name=\"hits\" flow=\"@search\" with=\"q={{ state.q }}\"/> call the block's flow \"search\" (saved as block.<name>.search). Any other flow by its full name.",
+    "- blocks in blocks: <use> inside a block's template (not itself).",
+    "",
+    "FLOWS (the server side; workspace_flow_docs tells the nodes and actions): flows: [{ name: \"search\", title, inputs: [{ name: \"q\", type: \"text\" }], nodes: [...], output: \"{{ steps.x.output }}\", permissions: { … } }] — saved with the block. Permissions are only asked for: the user grants them in the Studio (the flow's page); until then a node that needs one fails and says what is missing.",
+    "",
+    "GOOD BLOCKS: one job, named for it; generic — fields and collections come in as parameters, not written into the template (unless it is made for one database); defaults for what is optional; an <empty> when there is nothing; no help text on the page. Check it: workspace_save_block draws it and names every mistake by line; try it with workspace_update_database (a view's template using it).",
+    "",
+    "EXAMPLE — a card of a deal, used in a list's item:",
+    '{ "name": "crm.deal-card", "description": "A deal: its title, amount, stage and owner, a button to move it on", "params": [{ "name": "amount", "type": "text", "default": "Amount" }, { "name": "stage", "type": "text", "default": "Stage" }], "template": "<row wrap=false><col fill=true><b>{{ title }}</b><small>{{ [Owner] }}</small></col>{{ props.stage | field | chip }}<b>{{ props.amount | field | euro(0) }}</b></row><slot/>", "example": "<list source=\\"rows\\"><use block=\\"crm.deal-card\\"><button action=\\"open\\" label=\\"Open\\"/></use></list>" }',
+    "",
+    "EXAMPLE — a finder that calls a web service (its flow) and adds what you pick:",
+    '{ "name": "web.finder", "params": [{ "name": "placeholder", "type": "text", "default": "Search" }], "template": "<state name=\\"q\\" value=\\"\\"/><search bind=\\"q\\" placeholder=\\"{{ props.placeholder }}\\"/><data name=\\"hits\\" flow=\\"@search\\" with=\\"q={{ state.q }}\\" when=\\"{{ state.q }}\\" debounce=400/>{{#if data.hits_status == \'loading\'}}<muted>…</muted>{{/if}}<datatable source=\\"data.hits.items\\" empty=\\"Nothing found\\"><column label=\\"Title\\">{{ title }}</column><column label=\\"\\" align=right><button action=\\"new\\" values=\\"Name={{ title }}\\" label=\\"Add\\"/></column></datatable>", "flows": [{ "name": "search", "inputs": [{ "name": "q", "type": "text" }], "nodes": [{ "id": "get", "kind": "action", "action": "http.request", "input": { "url": "https://api.example.org/search", "query": { "q": "{{ input.q }}" } } }], "output": { "items": "{{ steps.get.json.results }}" }, "permissions": { "web": ["api.example.org"] } }] }',
+    "- a field named by a parameter: {{ props.stage | field }} (the value of the row's field whose name props.stage holds — then | chip, | euro as any field).",
+    "",
+    blocks.length ? `THE BLOCKS THERE ARE: ${blocks.map((b) => `${blockSignature(b)} — ${b.description || b.title || b.name}`).join("; ")}.` : "THE BLOCKS THERE ARE: none yet.",
   ].join("\n");
 }
 

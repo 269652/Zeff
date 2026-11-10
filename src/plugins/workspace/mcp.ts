@@ -15,6 +15,7 @@ import { registerWorkspaceDbTools, valuesToCells } from "./mcp-db";
 import { registerMetricTools } from "./mcp-metrics";
 import { registerFlowTools } from "./flows/mcp";
 import { registerWidgetTools } from "./mcp-widgets";
+import { registerBlockTools } from "./mcp-blocks";
 import { mayRead, refusal } from "@/lib/boundaries";
 import { labelResolver, pageLabel } from "./sensitivity";
 
@@ -360,6 +361,7 @@ export function registerWorkspaceTools(real: McpServer, h: Helpers): void {
   registerFlowTools(server, h);
   // Widgets: small apps the assistant builds — shown in its answer, put into a page.
   registerWidgetTools(server, h);
+  registerBlockTools(server, h);
   // The Kennzahlen (named numbers) — read, and made from a formula.
   registerMetricTools(server, h);
 }

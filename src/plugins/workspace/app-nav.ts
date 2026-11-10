@@ -34,7 +34,7 @@ async function templateNav(dbId: number, view: View): Promise<AppNavEntry[]> {
   if (!d || !page) return [];
   const src = templateOf(view);
   const labels = labelFns(await labelsFor(d.schema, d.rows));
-  const r = renderView(src, { rows: d.rows, props: d.schema.properties, titleName: d.schema.titleName, state: viewDefaults(src), app: {}, db: { id: dbId, title: page.title }, labels });
+  const r = renderView(src, { rows: d.rows, props: d.schema.properties, titleName: d.schema.titleName, state: viewDefaults(src), app: {}, db: { id: dbId, title: page.title }, labels }, { blocks: (await import("./block-store")).listBlocks() });
   return (navOf(r.nodes)?.entries ?? []).map((e) => ({ id: e.id, label: e.label, icon: e.icon, n: e.n, ...(e.group ? { group: e.group } : {}), hidden: false, ...(e.row ? { href: `/workspace/${e.row}` } : e.href ? { href: e.href } : {}) }));
 }
 

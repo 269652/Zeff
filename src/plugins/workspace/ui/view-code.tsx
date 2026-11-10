@@ -10,6 +10,7 @@ import { viewTemplateAiAction, type ViewChatTurn } from "../view-template-action
 import { viewReference, type TplError } from "../view-template";
 import { TemplateEditor } from "./template-editor";
 import { ViewBuilder } from "./view-builder";
+import { useBlockDefs } from "./use-blocks";
 import { templateToTree, treeToTemplate } from "../view-tree";
 
 /**
@@ -18,6 +19,7 @@ import { templateToTree, treeToTemplate } from "../view-tree";
  */
 export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, onNewView, onClose, rowId, fields, head }: { view: View; dbId: number; meta: ViewAppMeta; draft: string; setDraft: (s: string) => void; errors: TplError[]; onSave: (template: string | null) => void; /** None: no new view from here (a row's own page). */ onNewView?: (template: string, name: string) => void; onClose: () => void; /** A row's own page: the row it is about. */ rowId?: number; /** The database's fields (the editor completes them). */ fields?: string[]; /** What its header starts with instead of its title (the Studio's: the app, its buttons). */ head?: React.ReactNode }) {
   const t = useT();
+  const blocks = useBlockDefs();
   const [help, setHelp] = useState(false);
   const [chat, setChat] = useState<ViewChatTurn[]>([]);
   const [ask, setAsk] = useState("");
@@ -113,7 +115,7 @@ export function ViewCode({ view, dbId, meta, draft, setDraft, errors, onSave, on
           ) : (
             <p className="text-xs text-zinc-500">{t("No errors — the view below shows it as it is now. Ctrl+S saves.")}</p>
           )}
-          {help && <pre tabIndex={0} className="max-h-80 overflow-auto rounded-lg bg-zinc-50 p-3 text-[11px] leading-4 whitespace-pre-wrap text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">{viewReference(meta.parts, meta.actions)}</pre>}
+          {help && <pre tabIndex={0} className="max-h-80 overflow-auto rounded-lg bg-zinc-50 p-3 text-[11px] leading-4 whitespace-pre-wrap text-zinc-600 dark:bg-zinc-900 dark:text-zinc-300">{viewReference(meta.parts, meta.actions, blocks ?? [])}</pre>}
         </div>
 
         <div className="flex min-h-48 flex-col rounded-lg border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950">
