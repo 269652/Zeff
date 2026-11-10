@@ -27,3 +27,30 @@ if (!g.__zeffLearnTimer && process.env.NODE_ENV !== "test" && !process.env.DATAB
   }, 60 * 60_000);
   g.__zeffLearnTimer.unref?.();
 }
+
+/**
+ * A finished exercise told to its lesson's teacher — by the server, with its result kept (not left to the page after it:
+ * a slow moment lost it, and the teacher never knew the exercise was done). Into the lesson's running session, or the
+ * conversation goes on in a new run. Whether it went; why not, logged.
+ */
+export async function tellTeacher(widgetId: number, r: Extract<import("@/lib/widgets/sandbox").WidgetMessage, { type: "result" }>): Promise<boolean> {
+  try {
+    const { getSqlite } = await import("@/db");
+    const w = getSqlite().prepare("select course_id, node_key, title from learn_widgets where id = ?").get(widgetId) as { course_id: number; node_key: string | null; title: string } | undefined;
+    if (!w?.node_key) return false;
+    const store = await import("./store");
+    const node = store.getNode(w.course_id, w.node_key);
+    if (!node?.lessonTodoId) return false;
+    const { runsForTodos } = await import("@/lib/work/store");
+    const last = runsForTodos([node.lessonTodoId]).get(node.lessonTodoId)?.[0];
+    if (!last) return false;
+    const { resultMessage } = await import("./result-message");
+    const { chatSendAction } = await import("@/app/chat/actions");
+    const sent = await chatSendAction({ text: resultMessage(w.title, r), runId: last.id });
+    if (!sent.ok) console.error(`[learn] the result of widget ${widgetId} didn't reach the teacher: ${sent.error}`);
+    return sent.ok;
+  } catch (e) {
+    console.error(`[learn] the result of widget ${widgetId} didn't reach the teacher`, e);
+    return false;
+  }
+}

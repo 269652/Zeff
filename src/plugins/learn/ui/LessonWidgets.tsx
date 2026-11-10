@@ -25,7 +25,7 @@ export function useWidgetResults(sessionRunId?: number): (w: { id: number; title
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   useEffect(() => () => void (timer.current && clearTimeout(timer.current)), []);
   return async (w, r) => {
-    const res = await postJson<{ xp: number; best: number }>(`/api/learn/widgets/${w.id}/result`, r).catch(() => null);
+    const res = await postJson<{ xp: number; best: number; told?: boolean }>(`/api/learn/widgets/${w.id}/result`, r).catch(() => null);
     if (res && res.xp > 0) toast(t("+{xp} XP — {title}", { xp: res.xp, title: w.title }), { tone: "ok" });
     router.refresh();
     if (timer.current) clearTimeout(timer.current);
@@ -36,7 +36,10 @@ export function useWidgetResults(sessionRunId?: number): (w: { id: number; title
       if (!sent.ok) toast(sent.error, { tone: "error" });
       router.refresh();
     };
-    if (r.done) void send();
+    // Finished: the server told the teacher with the result (told) — only if it couldn't, from here.
+    if (r.done) {
+      if (!res?.told) void send();
+    }
     else timer.current = setTimeout(() => void send(), QUIET_MS);
   };
 }

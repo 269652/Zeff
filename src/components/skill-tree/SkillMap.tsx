@@ -125,6 +125,51 @@ export function SkillMap({
           ))}
         </ul>
       )}
+      {/* The skill picked — its lessons, done and under way — above the map (where you go on from). */}
+      {sel && (
+        <section className="card space-y-2 p-4" aria-live="polite" aria-label={sel.title}>
+          <header className="flex flex-wrap items-center gap-2">
+            <h3 className="min-w-0 flex-1 font-semibold">{sel.title}</h3>
+            {sel.path && (
+              <span className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ background: color(sel.path) }}>
+                {sel.path}
+              </span>
+            )}
+            <span className="text-xs text-zinc-500">{statusLabel(t, sel.status)}</span>
+          </header>
+          {sel.summary && <p className="text-sm text-zinc-600 dark:text-zinc-400">{sel.summary}</p>}
+          {sel.status === "locked" && sel.after.length > 0 && (
+            <p className="text-sm text-zinc-500">
+              {t("First: {skills}", { skills: sel.after.map((a) => byKey.get(a)?.title).filter(Boolean).join(", ") })}
+            </p>
+          )}
+          <ol className="grid gap-1 sm:grid-cols-2">
+            {sel.steps.map((st) => {
+              const inner = (
+                <>
+                  <span className={`grid size-4 shrink-0 place-items-center rounded-full text-[9px] ${st.status === "mastered" ? "text-white" : ""}`} style={st.status === "mastered" ? { background: color(sel.path) } : { boxShadow: `inset 0 0 0 1.5px ${st.status === "locked" ? "#a1a1aa" : color(sel.path)}` }} aria-hidden>
+                    {st.status === "mastered" ? "✓" : ""}
+                  </span>
+                  <span className="min-w-0 flex-1 truncate">{st.title}</span>
+                  {st.minutes ? <span className="shrink-0 text-[11px] text-zinc-400">{st.minutes}′</span> : null}
+                  <span className="sr-only">— {statusLabel(t, st.status)}</span>
+                </>
+              );
+              return (
+                <li key={st.key}>
+                  {st.href && st.status !== "locked" ? (
+                    <Link href={st.href} className="flex min-h-9 items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none dark:hover:bg-white/5">
+                      {inner}
+                    </Link>
+                  ) : (
+                    <span className="flex min-h-9 items-center gap-2 px-1.5 py-1 text-sm text-zinc-500">{inner}</span>
+                  )}
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
       <div className="overflow-x-auto rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-950" role="group" aria-label={label}>
         <div className="relative" style={{ width, height }}>
           <svg className="pointer-events-none absolute inset-0" width={width} height={height} aria-hidden>
@@ -238,50 +283,6 @@ export function SkillMap({
         </div>
       </div>
 
-      {sel && (
-        <section className="card space-y-2 p-4" aria-live="polite" aria-label={sel.title}>
-          <header className="flex flex-wrap items-center gap-2">
-            <h3 className="min-w-0 flex-1 font-semibold">{sel.title}</h3>
-            {sel.path && (
-              <span className="rounded-full px-2 py-0.5 text-xs font-medium text-white" style={{ background: color(sel.path) }}>
-                {sel.path}
-              </span>
-            )}
-            <span className="text-xs text-zinc-500">{statusLabel(t, sel.status)}</span>
-          </header>
-          {sel.summary && <p className="text-sm text-zinc-600 dark:text-zinc-400">{sel.summary}</p>}
-          {sel.status === "locked" && sel.after.length > 0 && (
-            <p className="text-sm text-zinc-500">
-              {t("First: {skills}", { skills: sel.after.map((a) => byKey.get(a)?.title).filter(Boolean).join(", ") })}
-            </p>
-          )}
-          <ol className="grid gap-1 sm:grid-cols-2">
-            {sel.steps.map((st) => {
-              const inner = (
-                <>
-                  <span className={`grid size-4 shrink-0 place-items-center rounded-full text-[9px] ${st.status === "mastered" ? "text-white" : ""}`} style={st.status === "mastered" ? { background: color(sel.path) } : { boxShadow: `inset 0 0 0 1.5px ${st.status === "locked" ? "#a1a1aa" : color(sel.path)}` }} aria-hidden>
-                    {st.status === "mastered" ? "✓" : ""}
-                  </span>
-                  <span className="min-w-0 flex-1 truncate">{st.title}</span>
-                  {st.minutes ? <span className="shrink-0 text-[11px] text-zinc-400">{st.minutes}′</span> : null}
-                  <span className="sr-only">— {statusLabel(t, st.status)}</span>
-                </>
-              );
-              return (
-                <li key={st.key}>
-                  {st.href && st.status !== "locked" ? (
-                    <Link href={st.href} className="flex min-h-9 items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none dark:hover:bg-white/5">
-                      {inner}
-                    </Link>
-                  ) : (
-                    <span className="flex min-h-9 items-center gap-2 px-1.5 py-1 text-sm text-zinc-500">{inner}</span>
-                  )}
-                </li>
-              );
-            })}
-          </ol>
-        </section>
-      )}
     </div>
   );
 }

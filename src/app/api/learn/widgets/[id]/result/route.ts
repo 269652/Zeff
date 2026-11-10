@@ -18,7 +18,11 @@ export async function POST(req: Request, { params }: { params: Promise<{ id: str
   if (!m || m.type !== "result") return Response.json({ error: "no result" }, { status: 400 });
   try {
     const { widgetResult } = await import("@/plugins/learn/store");
-    return Response.json(widgetResult(Number((await params).id), m));
+    const id = Number((await params).id);
+    const kept = widgetResult(id, m);
+    // Finished: its teacher hears of it from here (the page doesn't have to manage it after) — told: whether it went.
+    const told = m.done ? await (await import("@/plugins/learn/server")).tellTeacher(id, m) : false;
+    return Response.json({ ...kept, told });
   } catch (e) {
     return Response.json({ error: e instanceof Error ? e.message : String(e) }, { status: 404 });
   }

@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { deleteCourseAction, retryResearchAction, setDailyGoalAction, setInterestsAction, setStudySlotsAction, updatePlanAction } from "@/app/learn/actions";
@@ -93,8 +93,25 @@ export function UpdatePlan({ id }: { id: number }) {
 export function InterestsEditor({ id, paths, weights }: { id: number; paths: string[]; weights: Record<string, number> }) {
   const t = useT();
   const [w, setW] = useState(weights);
-  const [pending, run] = useRun();
+  const [saved, setSaved] = useState<"" | "saving" | "saved" | "failed">("");
+  const router = useRouter();
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const levels = [t("not now"), t("a little"), t("interested"), t("most of all")];
+  // Each change saved by itself, a moment after the last (a button below the sliders was easy to miss — nothing was kept).
+  const change = (next: Record<string, number>) => {
+    setW(next);
+    setSaved("saving");
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(async () => {
+      const r = await setInterestsAction(id, next).catch((e: unknown) => ({ ok: false as const, error: String(e) }));
+      if (!r.ok) {
+        setSaved("failed");
+        return void toast(r.error, { tone: "error" });
+      }
+      setSaved("saved");
+      router.refresh(); // the red thread and the next steps follow
+    }, 600);
+  };
   if (!paths.length) return null;
   return (
     <div className="space-y-2">
@@ -103,14 +120,14 @@ export function InterestsEditor({ id, paths, weights }: { id: number; paths: str
         return (
           <label key={p} className="flex flex-wrap items-center gap-2 text-sm">
             <span className="min-w-0 flex-1">{p}</span>
-            <input type="range" min={0} max={3} step={1} value={v} aria-valuetext={levels[v]} onChange={(e) => setW({ ...w, [p]: Number(e.target.value) })} className="w-32" />
+            <input type="range" min={0} max={3} step={1} value={v} aria-valuetext={levels[v]} onChange={(e) => change({ ...w, [p]: Number(e.target.value) })} className="w-32" />
             <span className="w-24 text-xs text-zinc-500">{levels[v]}</span>
           </label>
         );
       })}
-      <button type="button" className="btn btn-sm" disabled={pending} onClick={() => run(() => setInterestsAction(id, w), t("Saved."))}>
-        {t("Save")}
-      </button>
+      <p className="text-xs text-zinc-500" aria-live="polite">
+        {saved === "saving" ? t("Saving …") : saved === "saved" ? t("Saved — the red thread follows.") : saved === "failed" ? t("Not saved.") : t("Saved as you change them.")}
+      </p>
     </div>
   );
 }
