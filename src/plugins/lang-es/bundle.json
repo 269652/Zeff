@@ -3271,6 +3271,8 @@
   "Open the comment on {ticket} in Jira": "Abrir el comentario de {ticket} en Jira",
   "Open the file ↗": "Abrir el archivo ↗",
   "open the MR": "abrir el MR",
+  "Open the run working on it on the Code tab": "Abrir la ejecución que trabaja en ello en la pestaña Trabajo",
+  "{ref} working ↗": "{ref} trabajando ↗",
   "Open the run on the Code tab": "Abrir la ejecución en la pestaña Trabajo",
   "Open the todo": "Abrir la tarea",
   "Open the trash": "Abrir la papelera",
