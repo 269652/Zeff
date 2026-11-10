@@ -12,8 +12,6 @@ export async function LageStrip({ dbId }: { dbId: number }) {
   if (kind !== "board") return null;
   const board = await import("./board");
   return (
-    <div className="mx-auto w-full max-w-md px-4 pt-3">
-      <BoardLageButton state={board.boardLageRunState()} />
-    </div>
+    <BoardLageButton state={board.boardLageRunState()} />
   );
 }

@@ -9133,5 +9133,7 @@
   "Ready to pick up": "Bereit zum Übernehmen",
   "Matching tickets": "Passende Tickets",
   "+{n} more on the board": "+{n} weitere auf dem Board",
-  "Open the board filtered like this": "Board so gefiltert öffnen"
+  "Open the board filtered like this": "Board so gefiltert öffnen",
+  "All tickets": "Alle Tickets",
+  "Last {when}": "Zuletzt {when}"
 }

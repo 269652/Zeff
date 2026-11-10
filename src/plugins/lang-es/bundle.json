@@ -9133,5 +9133,7 @@
   "Ready to pick up": "Listos para tomar",
   "Matching tickets": "Tickets que coinciden",
   "+{n} more on the board": "+{n} más en el tablero",
-  "Open the board filtered like this": "Abrir el tablero con este filtro"
+  "Open the board filtered like this": "Abrir el tablero con este filtro",
+  "All tickets": "Todos los tickets",
+  "Last {when}": "Última vez {when}"
 }

@@ -5,6 +5,7 @@ import { useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import type { DbSchema, Row } from "@/plugins/workspace/model";
 import type { TicketsEmbed } from "@/plugins/workspace/chat-embed";
+import { BOARD_ACTIONS_SLOT } from "./BoardLageButton";
 import { boardTickets, pickTickets, type PickResult, type PickCriteria, type PickGroupId } from "./pick";
 
 /**
@@ -63,6 +64,8 @@ export function TicketPickBar({ on, onToggle, pick, criteria, meKnown, openRow, 
         <button type="button" className={chip(on)} aria-pressed={on} onClick={onToggle} title={t("Only your unfinished tickets and what is ready to pick up")}>
           🎯 {t("Find tickets for me")}
         </button>
+        {/* The board's Lage run (BoardLageButton) sits here, at the right. */}
+        <div id={BOARD_ACTIONS_SLOT} className="ml-auto" />
       </div>
       {pick && criteria && (
         <div role="status" className="space-y-1.5 rounded-lg border border-indigo-200 bg-indigo-50 px-3 py-2 text-sm text-indigo-900 dark:border-indigo-900 dark:bg-indigo-950/50 dark:text-indigo-100">
