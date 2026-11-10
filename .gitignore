@@ -82,3 +82,4 @@ scripts/.probe-*.mjs
 # The phone app's offline bundle (scripts/companion-build.mjs)
 companion/app/_zc/offline.js
 companion/app/_zc/offline.css
+companion/app/_zc/Geist-latin.woff2

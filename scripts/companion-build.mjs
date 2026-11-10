@@ -28,6 +28,20 @@ const r = await build({
   metafile: true,
   logLevel: "warning",
 });
-fs.copyFileSync(path.join(ROOT, "companion", "offline", "offline.css"), path.join(OUT, "offline.css"));
+// Its styles: Zeff's own (src/app/globals.css — Tailwind, its tokens, .card / .btn / .input, dark mode), the classes the
+// offline app uses, and its Geist font — so the app looks like Zeff, not like an app of its own; then the few of its own.
+const { default: postcss } = await import("postcss");
+const { default: tailwind } = await import("@tailwindcss/postcss");
+const globalsFile = path.join(ROOT, "src", "app", "globals.css");
+const globals = fs
+  .readFileSync(globalsFile, "utf8")
+  .replace('@import "tailwindcss" source("../");', `@import "tailwindcss" source(none);\n@source "${path.join(ROOT, "companion", "offline").split(path.sep).join("/")}";`)
+  .replace('@source "../../integrations";', "");
+const font = `@font-face { font-family: "Geist"; src: url("/_zc/Geist-latin.woff2") format("woff2"); font-weight: 100 900; font-display: swap; }
+:root { --font-geist-sans: "Geist", system-ui, Arial; --font-geist-mono: ui-monospace, Consolas; }
+`;
+const css = await postcss([tailwind({ base: ROOT })]).process(globals, { from: globalsFile });
+fs.writeFileSync(path.join(OUT, "offline.css"), font + css.css + "\n" + fs.readFileSync(path.join(ROOT, "companion", "offline", "offline.css"), "utf8"));
+fs.copyFileSync(path.join(ROOT, "src", "app", "fonts", "Geist-latin.woff2"), path.join(OUT, "Geist-latin.woff2"));
 const bytes = Object.values(r.metafile.outputs).reduce((s, o) => s + o.bytes, 0);
 console.log(`companion/app/_zc/offline.js — ${Math.round(bytes / 1024)} KB`);

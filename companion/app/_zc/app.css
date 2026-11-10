@@ -38,8 +38,11 @@ h1 { font-size: 20px; margin: 0; }
 header > .status { margin-left: auto; flex: none; }
 .sr { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
 .notice { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 12px 14px; }
-h2 { font-size: 18px; margin: 0 0 8px; }
-main { padding: 12px 16px 24px; max-width: 640px; margin: 0 auto; }
+/* (The frame's own elements — not the offline app's, which has Zeff's styles.) */
+h2:not(#offlineApp *) { font-size: 18px; margin: 0 0 8px; }
+main:not(#offlineApp *) { padding: 12px 16px 24px; max-width: 640px; margin: 0 auto; }
+/* The offline app shown: edge to edge (its own bars and padding, as in Zeff). */
+main:has(> #offlineApp:not([hidden])) { padding: 0; max-width: none; }
 .muted { color: var(--muted); }
 .status { display: inline-flex; align-items: center; gap: 8px; font: inherit; font-size: 14px; color: var(--fg); background: var(--card); border: 1px solid var(--line); border-radius: 999px; padding: 6px 12px; min-height: 36px; cursor: pointer; }
 .status:focus-visible, .todo button:focus-visible, .todo input:focus-visible, summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
@@ -59,8 +62,8 @@ main { padding: 12px 16px 24px; max-width: 640px; margin: 0 auto; }
 .todo button { width: 44px; height: 44px; border: 0; background: none; font-size: 20px; color: var(--muted); cursor: pointer; border-radius: 8px; }
 .todo button[aria-pressed="true"] { color: var(--star); }
 .todo.closed .text { color: var(--muted); text-decoration: line-through; }
-details { margin-top: 20px; }
-summary { cursor: pointer; color: var(--muted); padding: 8px 0; min-height: 44px; display: flex; align-items: center; }
+details:not(#offlineApp *) { margin-top: 20px; }
+summary:not(#offlineApp *) { cursor: pointer; color: var(--muted); padding: 8px 0; min-height: 44px; display: flex; align-items: center; }
 #done { margin-top: 8px; }
 #welcome { margin-bottom: 12px; }
 .setup { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 4px 14px 12px; margin-top: 16px; }

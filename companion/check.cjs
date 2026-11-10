@@ -75,10 +75,10 @@ srv.listen(0, "127.0.0.1", async () => {
   page.on("console", (m) => m.type() === "error" && console.log("  [page error]", m.text()));
   page.on("pageerror", (e) => console.log("  [page exception]", e.message));
   // The offline app's todos (companion/offline): the open ones are in the sections, the done ones folded below.
-  const openTodos = () => page.locator(".zo-page > section .zo-todo");
-  const item = (text) => page.locator(".zo-page > section .zo-todo", { hasText: text });
+  const openTodos = () => page.locator('[data-zo="open"] [data-zo="todo"]');
+  const item = (text) => page.locator('[data-zo="open"] [data-zo="todo"]', { hasText: text });
   const tick = (text) => item(text).locator("input[type=checkbox]").click();
-  const barText = () => page.locator(".zo-state").innerText().catch(() => "");
+  const barText = () => page.locator('[data-zo="state"]').innerText().catch(() => "");
   const queueEmpty = async () => !/wartend|waiting/.test(await barText());
   let ok = true;
   const check = (cond, what) => {
@@ -115,7 +115,7 @@ srv.listen(0, "127.0.0.1", async () => {
     step("change on the PC → phone, live");
     t0 = Date.now();
     await post([{ id: `pc-${TAG}`, at: new Date().toISOString(), kind: "flag", todoId: T.billId, flagged: true }]);
-    await until("flag on phone", async () => (await item(T.bill).locator(".zo-flag").count()) === 1);
+    await until("flag on phone", async () => (await item(T.bill).locator('[data-zo="flag"]').count()) === 1);
     check(true, `phone shows the flag after ${Date.now() - t0} ms`);
 
     step("away from home: PC unreachable, tick on the phone");
@@ -149,7 +149,7 @@ srv.listen(0, "127.0.0.1", async () => {
     step("the app opens without any network (service worker)");
     await ctx.setOffline(true);
     await page.reload();
-    await until("rendered offline", async () => (await page.locator(".zo-todo").count()) >= 3);
+    await until("rendered offline", async () => (await page.locator('[data-zo="todo"]').count()) >= 3);
     check(true, "app and todos from the phone's own storage");
     await ctx.setOffline(false);
 
@@ -217,8 +217,8 @@ srv.listen(0, "127.0.0.1", async () => {
 
     step("the locked account shows nothing");
     await page.selectOption("#account", "club");
-    await until("locked note", () => page.locator(".zo-locked").count());
-    check((await page.locator(".zo-todo").count()) === 0, "no todos of a locked account");
+    await until("locked note", () => page.locator('[data-zo="locked"]').count());
+    check((await page.locator('[data-zo="todo"]').count()) === 0, "no todos of a locked account");
     await page.screenshot({ path: path.join(OUT, "phone-locked.png") });
     await page.selectOption("#account", "default");
 

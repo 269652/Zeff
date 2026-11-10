@@ -52,6 +52,7 @@ function App({ host }: { host: Host }) {
   const [syncing, setSyncing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tab, setTab] = useState<Tab>(() => (localStorage.getItem("zeff.offline.tab") as Tab) || "Todos");
+  const [more, setMore] = useState(false);
   const bump = useCallback(() => setRev((r) => r + 1), []);
 
   useEffect(() => host.onChange(() => (setAccount(host.account()), setOnline(!!host.transport()))), [host]);
@@ -118,51 +119,88 @@ function App({ host }: { host: Host }) {
     [engine, bump, sync],
   );
 
-  if (host.locked?.()) return <div className="zo-empty zo-locked">🔒 {tr("lockedAccount")}</div>;
-  if (!engine) return <div className="zo-empty">{tr("emptyCopy")}</div>;
+  if (host.locked?.()) return <div data-zo="locked" className="p-6 text-center text-sm text-zinc-500">🔒 {tr("lockedAccount")}</div>;
+  if (!engine) return <div className="p-6 text-center text-sm text-zinc-500">{tr("emptyCopy")}</div>;
   const ctx: Ctx = { engine, rev, edit, online };
   const waiting = engine.pending().length;
   const conflicts = engine.conflicts().length + engine.failures().length;
   const lastSync = engine.lastSync;
-  const go = (t: Tab) => (setTab(t), localStorage.setItem("zeff.offline.tab", t));
+  const go = (t: Tab) => (setTab(t), setMore(false), localStorage.setItem("zeff.offline.tab", t));
+  // Zeff's own bar at the bottom of a phone (src/components/SiteHeader.tsx): the main screens a thumb away, "More" for the rest.
+  const tabs: { id: Tab; icon: string }[] = [
+    { id: "Todos", icon: "M5 10.5l3 3 7-7" },
+    { id: "Workspace", icon: "M5.5 3.5h6l3 3v10h-9zM11.5 3.5v3h3M7.5 10h5M7.5 13h5" },
+    { id: "Calendar", icon: "M4 5.5h12v10.5H4zM4 8.5h12M7.5 3.5v3M12.5 3.5v3" },
+  ];
+  const tabClass = (on: boolean) => `relative flex min-w-0 flex-1 cursor-pointer flex-col items-center justify-center gap-0.5 px-1 py-2 text-xs font-medium ${on ? "text-indigo-600 dark:text-indigo-400" : "text-zinc-600 dark:text-zinc-400"}`;
 
   return (
     <ReplicaCtx.Provider value={ctx}>
-      <div className="zo">
-        <header className="zo-bar">
-          <span className={`zo-dot ${online ? "on" : ""}`} aria-hidden />
-          <span className="zo-state">
+      <div className="min-h-full pb-24 font-sans text-[var(--foreground)]">
+        {/* Where things stand: connected or offline, what waits to be sent, when it last synced. */}
+        <div className="sticky top-0 z-20 flex items-center gap-2 border-b border-zinc-200 bg-white/90 px-4 py-2 text-xs text-zinc-600 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90 dark:text-zinc-400" role="status">
+          <span className={`size-2 shrink-0 rounded-full ${online ? "bg-emerald-500" : "bg-amber-500"}`} aria-hidden />
+          <span data-zo="state" className="min-w-0 flex-1 truncate">
             {online ? tr("live") : tr("offline")}
             {waiting ? ` · ${tr("waiting", { n: waiting })}` : ""}
             {" · "}
             {syncing ? tr("syncing") : lastSync ? tr("asOf", { time: fmtTime(lastSync) }) : tr("never")}
           </span>
           {online && (
-            <button type="button" className="zo-btn" onClick={() => void sync()} disabled={syncing}>
+            <button type="button" className="btn btn-sm" onClick={() => void sync()} disabled={syncing} aria-label={tr("syncing")}>
               ↻
             </button>
           )}
           {online && host.showFull && (
-            <button type="button" className="zo-btn" onClick={host.showFull}>
+            <button type="button" className="btn btn-sm btn-primary" onClick={host.showFull}>
               {tr("fullZeff")}
             </button>
           )}
-        </header>
-        {error && <p className="zo-error">{tr("syncFailed", { error })}</p>}
-        <main className="zo-main">
+        </div>
+        {error && <p className="mx-3 mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">{tr("syncFailed", { error })}</p>}
+        <main className="mx-auto w-full max-w-3xl px-3 py-3">
           {tab === "Todos" && <TodosView />}
           {tab === "Workspace" && <WorkspaceView />}
           {tab === "Calendar" && <CalendarView />}
           {tab === "Seen" && <SeenView />}
           {tab === "Conflicts" && <ConflictsView onDone={bump} />}
         </main>
-        <nav className="zo-tabs">
-          {TABS.filter((t) => t !== "Conflicts" || conflicts > 0 || tab === "Conflicts").map((t) => (
-            <button key={t} type="button" className={tab === t ? "on" : ""} aria-current={tab === t ? "page" : undefined} onClick={() => go(t)}>
-              {tr(t)}
-              {t === "Conflicts" && conflicts > 0 ? ` (${conflicts})` : ""}
+        {/* "More": the rest — pages as last seen, the conflicts, all of Zeff while connected. */}
+        {more && (
+          <div className="fixed inset-0 z-30 bg-black/30" onClick={() => setMore(false)}>
+            <div className="card absolute inset-x-3 bottom-[calc(4.5rem+env(safe-area-inset-bottom))] space-y-1 p-2" onClick={(e) => e.stopPropagation()}>
+              <button type="button" className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => go("Seen")}>
+                {tr("Seen")}
+              </button>
+              <button type="button" className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800" onClick={() => go("Conflicts")}>
+                {tr("Conflicts")}
+                {conflicts > 0 && <span className="ml-auto rounded-full bg-red-100 px-2 text-xs font-semibold text-red-700 dark:bg-red-950 dark:text-red-300">{conflicts}</span>}
+              </button>
+              {online && host.showFull && (
+                <button type="button" className="flex w-full items-center rounded-lg px-3 py-2.5 text-left text-sm font-medium text-indigo-700 hover:bg-zinc-100 dark:text-indigo-300 dark:hover:bg-zinc-800" onClick={host.showFull}>
+                  {tr("fullZeff")} →
+                </button>
+              )}
+            </div>
+          </div>
+        )}
+        <nav className="fixed inset-x-0 bottom-0 z-30 flex border-t border-zinc-200 bg-white/90 pb-[env(safe-area-inset-bottom)] backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90" aria-label="Main">
+          {tabs.map(({ id, icon }) => (
+            <button key={id} type="button" className={tabClass(tab === id && !more)} aria-current={tab === id ? "page" : undefined} onClick={() => go(id)}>
+              {tab === id && !more && <span className="absolute top-0 h-0.5 w-8 rounded-full bg-indigo-600 dark:bg-indigo-400" aria-hidden />}
+              <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden>
+                <path d={icon} />
+              </svg>
+              <span className="max-w-full truncate">{tr(id)}</span>
             </button>
           ))}
+          <button type="button" className={tabClass(more || tab === "Seen" || tab === "Conflicts")} aria-expanded={more} onClick={() => setMore((m) => !m)}>
+            <svg viewBox="0 0 20 20" className="size-5" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" aria-hidden>
+              <path d="M4 6h12M4 10h12M4 14h12" />
+            </svg>
+            <span>{tr("More")}</span>
+            {conflicts > 0 && <span className="absolute top-1 left-[calc(50%+0.5rem)] size-2 rounded-full bg-red-500" aria-hidden />}
+          </button>
         </nav>
       </div>
     </ReplicaCtx.Provider>
