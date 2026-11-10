@@ -245,6 +245,26 @@ page and database, and offers starters (*Add a row: …*, *Change this database 
 
 ![The Workspace assistant unfolded at the bottom of the sidebar: what it does, four starter chips, a text box "What should the AI do? (Enter sends, Shift+Enter: new line)", New chat and Send](img/workspace-assistant.png)
 
+#### Widgets the AI builds
+
+Type **/** and pick **AI … → Widget (AI-built)**, then say what it should do: *a form for new contacts that writes
+into the table below*, *a chart of the hours per project*, *a VAT calculator*, *a countdown to the holidays*. The AI
+builds a small app and puts it right in the page. It knows the databases on the page (their fields and choices) and
+uses Zeff's ready parts: a form that adds rows, a table that keeps up, figures side by side.
+
+![A page with a widget the AI built from one sentence: a form (Name, E-Mail, Thema, Dringend) whose entry "Max Beispiel" was just saved — it shows in the widget's own list and in the embedded database "Kontakte" below at once](img/workspace-ai-widget.png)
+
+- **✨** on the block's bar changes it by a sentence (*make the topic required*, *show the last ten*); **</>** shows
+  its code to edit by hand.
+- **What it may write is yours to allow.** A widget built in a page may write to the databases *on that page* it was
+  asked to fill. Anything else, such as another database or a question to the AI, shows a yellow bar *This widget
+  wants to …* with **Allow**. While you change a widget, the bar shows what you allowed, and each item can be taken
+  back. Changed code counts as a new widget and asks again.
+- **The assistant builds them too.** Ask it in the sidebar for a calculator or a form. It shows the widget under its
+  answer, and **+ Add to this page** keeps it. It can also put one straight into a page.
+- Widgets run sealed off: no internet, no access to Zeff except through the bridge, which reads your
+  databases (never secret ones) and writes only where you allowed.
+
 ### Settings
 
 The Workspace has no global switches beyond its settings pages; most settings sit on the database or page.

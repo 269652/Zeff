@@ -151,11 +151,11 @@ test("a widget of its own that throws: a friendly note in it, the error told to 
       (window as unknown as { msgs: unknown[] }).msgs = [];
       window.addEventListener("message", (e) => (window as unknown as { msgs: unknown[] }).msgs.push(e.data));
     });
-    const doc = buildSrcdoc(`<p>Simulation</p><script>window.addEventListener("load", function () { undefinedThing(); });</script>`, { inline: { js: [], css: [] }, lang: "de" });
+    const doc = buildSrcdoc(`<p>Simulation</p><script>window.addEventListener("load", function () { undefinedThing(); });</script>`, { inline: { js: [], css: [] }, lang: "de", errorNote: "Hier hakt etwas im Widget — dein Lehrer weiß Bescheid." });
     await page.route("http://kit.test/", (r) => r.fulfill({ contentType: "text/html", body: doc }));
     await page.goto("http://kit.test/");
     await page.locator("#zeff-widget-error").waitFor();
-    assert.match(await page.locator("#zeff-widget-error").innerText(), /Lehrer weiß Bescheid/);
+    assert.match(await page.locator("#zeff-widget-error").innerText(), /Lehrer weiß Bescheid/, "the page's own words (Learn: the teacher)");
     const msgs = await page.evaluate(() => (window as unknown as { msgs: Record<string, unknown>[] }).msgs);
     assert.ok(msgs.some((m) => m.type === "error" && /undefinedThing/.test(String(m.message))));
     assert.ok(await page.locator("p", { hasText: "Simulation" }).isVisible(), "what works stays");

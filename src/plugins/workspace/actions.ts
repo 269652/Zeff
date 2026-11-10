@@ -19,5 +19,6 @@ export * from "./actions/forms";
 export * from "./actions/details";
 export * from "./actions/formulas";
 export * from "./actions/flows";
+export * from "./actions/apps";
 
 

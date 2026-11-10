@@ -140,6 +140,8 @@ function Item({ item, widget, open, onResult, onError }: { item: TimelineItem; w
             className="text-zinc-800 dark:text-zinc-200"
             onResult={(title, r) => void onResult({ id: 0, title }, r)}
             onBroken={(why) => onError({ id: 0, title: t("a picture in a message") }, why)}
+            brokenNote={t("This picture couldn't be shown — the teacher has been told.")}
+            errorNote={t("Something in this widget broke — your teacher has been told and will rebuild it.")}
           />
         </div>
       );
@@ -148,7 +150,7 @@ function Item({ item, widget, open, onResult, onError }: { item: TimelineItem; w
       return open ? (
         <section className="space-y-1.5 rounded-xl border border-indigo-200 bg-white p-2 dark:border-indigo-900 dark:bg-zinc-900" aria-label={widget.title}>
           <h3 className="px-1 text-sm font-semibold">🧪 {widget.title}</h3>
-          <WidgetFrame html={widget.html} libs={widget.libs} title={widget.title} onResult={(r) => void onResult(widget, r)} onError={(m) => onError(widget, m)} />
+          <WidgetFrame html={widget.html} libs={widget.libs} title={widget.title} onResult={(r) => void onResult(widget, r)} onError={(m) => onError(widget, m)} errorNote={t("Something in this widget broke — your teacher has been told and will rebuild it.")} />
         </section>
       ) : (
         <details className="rounded-xl border border-zinc-200 bg-white p-2 dark:border-zinc-800 dark:bg-zinc-900">
@@ -157,7 +159,7 @@ function Item({ item, widget, open, onResult, onError }: { item: TimelineItem; w
             {widget.bestScore !== null && <span className="ml-2 text-xs font-normal text-zinc-500">{t("best {n}%", { n: Math.round(widget.bestScore * 100) })}</span>}
           </summary>
           <div className="mt-2">
-            <WidgetFrame html={widget.html} libs={widget.libs} title={widget.title} onResult={(r) => void onResult(widget, r)} onError={(m) => onError(widget, m)} />
+            <WidgetFrame html={widget.html} libs={widget.libs} title={widget.title} onResult={(r) => void onResult(widget, r)} onError={(m) => onError(widget, m)} errorNote={t("Something in this widget broke — your teacher has been told and will rebuild it.")} />
           </div>
         </details>
       );

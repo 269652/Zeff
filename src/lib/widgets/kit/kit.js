@@ -1351,6 +1351,225 @@
     showItem();
   }
 
+  // -------------------------------------------------------------------------------------------------------------------
+  // App parts — over Zeff's bridge (zeff.db, lib/widgets/sandbox.ts): a form that adds a row to a database, a live table
+  // of its rows, figures. What the AI writes in one line instead of a page of code; each reads the database's fields
+  // itself (zeff.db.schema) and says plainly what went wrong.
+  // -------------------------------------------------------------------------------------------------------------------
+  var APP_WORDS = {
+    de: { save: "Speichern", saved: "Gespeichert ✓", required: "Bitte ausfüllen, was fehlt.", loading: "Lädt …", empty: "Noch nichts da.", search: "Suchen …", failed: "Das ging nicht: ", more: "weitere", pick: "— wählen —" },
+    en: { save: "Save", saved: "Saved ✓", required: "Please fill in what is missing.", loading: "Loading …", empty: "Nothing here yet.", search: "Search …", failed: "That didn't work: ", more: "more", pick: "— pick —" },
+    es: { save: "Guardar", saved: "Guardado ✓", required: "Rellena lo que falta.", loading: "Cargando …", empty: "Aún no hay nada.", search: "Buscar …", failed: "No funcionó: ", more: "más", pick: "— elegir —" },
+  };
+  var APP_CSS =
+    ".zk-app{max-width:none}.zk-app .zk-title{margin-bottom:6px}.zk-muted{color:var(--zk-muted)}" +
+    ".zk-form{display:grid;gap:12px}.zk-grid2{display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:12px}.zk-field{display:grid;gap:4px;min-width:0}.zk-field>span{font-size:13px;font-weight:600;color:var(--zk-muted)}" +
+    ".zk-in{width:100%;min-height:40px;padding:8px 10px;border:1px solid var(--zk-line);border-radius:10px;background:var(--zk-card);color:inherit;font:inherit}textarea.zk-in{min-height:84px;resize:vertical}" +
+    ".zk-in:focus-visible{outline:2px solid var(--zk-accent);outline-offset:1px}.zk-invalid .zk-in{border-color:var(--zk-bad)}.zk-invalid>span{color:var(--zk-bad)}" +
+    ".zk-checks{display:flex;flex-wrap:wrap;gap:6px}.zk-chip{display:inline-flex;align-items:center;gap:6px;padding:4px 10px;border:1px solid var(--zk-line);border-radius:999px;font-size:14px;cursor:pointer}" +
+    ".zk-msg{font-size:14px;color:var(--zk-muted)}.zk-scroll{overflow-x:auto}" +
+    ".zk-tbl{width:100%;border-collapse:collapse;font-size:14px}.zk-tbl th{text-align:left;font-size:12px;font-weight:600;color:var(--zk-muted);border-bottom:1px solid var(--zk-line);padding:6px 8px;white-space:nowrap}" +
+    ".zk-tbl td{border-bottom:1px solid var(--zk-line);padding:7px 8px;vertical-align:top}.zk-tbl tr.zk-click{cursor:pointer}.zk-tbl tr.zk-click:hover td{background:var(--zk-soft)}" +
+    ".zk-stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(140px,1fr));gap:10px}.zk-stat{border:1px solid var(--zk-line);border-radius:12px;padding:10px 12px;background:var(--zk-card)}" +
+    ".zk-stat b{display:block;font-size:24px;line-height:1.2}.zk-stat span{font-size:13px;color:var(--zk-muted)}.zk-stat small{display:block;font-size:12px;color:var(--zk-muted)}.zk-stat.good b{color:var(--zk-ok)}.zk-stat.bad b{color:var(--zk-bad)}.zk-stat.warn b{color:var(--zk-warn)}";
+  var appStyled = false;
+  function ensureStyle() {
+    if (!styled) { doc.head.appendChild(h("style", { text: CSS })); styled = true; }
+    if (!appStyled) { doc.head.appendChild(h("style", { text: APP_CSS })); appStyled = true; }
+  }
+  var darkCls = function () { return doc.documentElement.style.colorScheme === "dark" || (getComputedStyle(doc.documentElement).colorScheme || "").indexOf("dark") >= 0 ? " dark" : ""; };
+  var bridge = function () {
+    if (typeof zeff === "undefined" || !zeff.db) throw new Error("this needs Zeff's bridge (a widget frame)"); // eslint-disable-line no-undef
+    return zeff; // eslint-disable-line no-undef
+  };
+  var said = function (msg) {
+    if (typeof zeff !== "undefined" && zeff.error) zeff.error(msg); // eslint-disable-line no-undef
+    else if (typeof console !== "undefined") console.error(msg);
+  };
+  var target = function (el) { return typeof el === "string" ? doc.querySelector(el) : el; };
+  var blank = function (v) { return v == null || v === "" || (Array.isArray(v) && !v.length); };
+  /** A value as text in a cell: a list joined, a tick for yes, nothing for nothing. */
+  var shown = function (v) { return v == null ? "" : Array.isArray(v) ? v.join(", ") : v === true ? "✓" : v === false ? "" : String(v); };
+  /** The kinds of field a form can ask (the others are computed, or Zeff's). */
+  var ASKABLE = { title: 1, text: 1, markdown: 1, number: 1, date: 1, checkbox: 1, select: 1, status: 1, multi_select: 1, url: 1, email: 1, phone: 1, person: 1, relation: 1 };
+
+  /** One field of a form: its label and control, how to read and set it. */
+  function formField(f, w, W) {
+    var label = w.label || f.name;
+    var box = h("label", { cls: "zk-field" }, h("span", { text: label + (w.required ? " *" : "") }));
+    var get, set, focus;
+    var start = w["default"] != null ? w["default"] : f.type === "checkbox" ? false : f.type === "multi_select" ? [] : "";
+    if (f.type === "checkbox") {
+      var cb = h("input", { type: "checkbox" });
+      box = h("label", { cls: "zk-chip" }, cb, label);
+      get = function () { return cb.checked; };
+      set = function (v) { cb.checked = !!v; };
+      focus = function () { cb.focus(); };
+    } else if (f.type === "select" || f.type === "status") {
+      var sel = h("select", { cls: "zk-in" }, h("option", { value: "", text: w.placeholder || W.pick }), (f.options || []).map(function (o) { return h("option", { value: o, text: o }); }));
+      box.appendChild(sel);
+      get = function () { return sel.value; };
+      set = function (v) { sel.value = v == null ? "" : String(v); };
+      focus = function () { sel.focus(); };
+    } else if (f.type === "multi_select") {
+      var checks = (f.options || []).map(function (o) { return { o: o, cb: h("input", { type: "checkbox", value: o }) }; });
+      box = h("div", { cls: "zk-field", role: "group", "aria-label": label }, h("span", { text: label + (w.required ? " *" : "") }), h("div", { cls: "zk-checks" }, checks.map(function (c) { return h("label", { cls: "zk-chip" }, c.cb, c.o); })));
+      get = function () { return checks.filter(function (c) { return c.cb.checked; }).map(function (c) { return c.o; }); };
+      set = function (v) { var on = [].concat(v || []); checks.forEach(function (c) { c.cb.checked = on.indexOf(c.o) >= 0; }); };
+      focus = function () { if (checks[0]) checks[0].cb.focus(); };
+    } else {
+      var long = f.type === "markdown" || w.long;
+      var type = { number: "number", date: "date", url: "url", email: "email", phone: "tel" }[f.type] || "text";
+      var inp = long ? h("textarea", { cls: "zk-in", placeholder: w.placeholder || "" }) : h("input", { cls: "zk-in", type: type, placeholder: w.placeholder || "", step: type === "number" ? "any" : null });
+      box.appendChild(inp);
+      get = function () {
+        var v = inp.value.trim();
+        if (f.type === "number") return v === "" ? "" : Number(v);
+        if (f.type === "person" || f.type === "relation") return v ? v.split(",").map(function (x) { return x.trim(); }).filter(Boolean) : [];
+        return v;
+      };
+      set = function (v) { inp.value = v == null ? "" : Array.isArray(v) ? v.join(", ") : String(v); };
+      focus = function () { inp.focus(); };
+    }
+    if (w.help) box.appendChild(h("small", { cls: "zk-muted", text: w.help }));
+    set(start);
+    return { f: f, box: box, get: get, set: set, focus: focus, start: start, required: !!w.required && f.type !== "checkbox", half: w.width === "half" };
+  }
+
+  /**
+   * A form that adds a row to a database: ZeffKit.form(el, { db, fields?, title?, submit?, done?, values?, reset?, onSaved? }).
+   * fields: names (or { name, label?, required?, placeholder?, help?, default?, long?, width: "half" }) — without, every field
+   * a form can ask; values: set on every row without being asked ({ Status: "New" }).
+   */
+  function form(el, opts) {
+    opts = opts || {};
+    el = target(el);
+    ensureStyle();
+    var W = APP_WORDS[langOf(opts)];
+    var root = h("form", { cls: "zk zk-app zk-form" + darkCls(), novalidate: true });
+    el.innerHTML = "";
+    el.appendChild(root);
+    root.appendChild(h("p", { cls: "zk-muted", text: W.loading }));
+    var api = { el: root, ready: null };
+    api.ready = bridge().db.schema(opts.db).then(function (s) {
+      root.innerHTML = "";
+      if (opts.title) root.appendChild(h("div", { cls: "zk-title", text: opts.title }));
+      var byName = {};
+      s.fields.forEach(function (f) { byName[f.name.toLowerCase()] = f; });
+      var asTitle = function (n) { n = String(n).toLowerCase(); return n === "title" || n === String(s.titleName).toLowerCase(); };
+      var wanted = (opts.fields || [{ name: s.titleName }].concat(s.fields.filter(function (f) { return ASKABLE[f.type]; }))).map(function (w) { return typeof w === "string" ? { name: w } : w; });
+      var fields = [];
+      wanted.forEach(function (w) {
+        var f = asTitle(w.name) ? { name: s.titleName, type: "title" } : byName[String(w.name).toLowerCase()];
+        if (!f) return said("ZeffKit.form: no field \"" + w.name + "\" in \"" + s.title + "\" (fields: " + [s.titleName].concat(s.fields.map(function (x) { return x.name; })).join(", ") + ")");
+        if (!ASKABLE[f.type]) return said("ZeffKit.form: \"" + f.name + "\" is computed — it can't be asked");
+        fields.push(formField(f, w, W));
+      });
+      var grid = null;
+      fields.forEach(function (x) {
+        if (x.half) { if (!grid) { grid = h("div", { cls: "zk-grid2" }); root.appendChild(grid); } grid.appendChild(x.box); }
+        else { grid = null; root.appendChild(x.box); }
+      });
+      var msg = h("div", { cls: "zk-msg", role: "status" });
+      var btn = h("button", { type: "submit", cls: "zk-btn pri", text: opts.submit || W.save });
+      root.appendChild(h("div", { cls: "zk-row" }, btn, msg));
+      root.addEventListener("submit", function (e) {
+        e.preventDefault();
+        var values = {};
+        var bad = null;
+        fields.forEach(function (x) {
+          var v = x.get();
+          x.box.classList.remove("zk-invalid");
+          if (x.required && blank(v)) { x.box.classList.add("zk-invalid"); bad = bad || x; }
+          else if (!blank(v) || x.f.type === "checkbox") values[x.f.type === "title" ? s.titleName : x.f.name] = v;
+        });
+        if (bad) { msg.textContent = W.required; bad.focus(); return; }
+        for (var k in opts.values || {}) if (Object.prototype.hasOwnProperty.call(opts.values, k)) values[k] = opts.values[k];
+        btn.disabled = true;
+        msg.textContent = "";
+        bridge().db.add(opts.db, values).then(
+          function (r) {
+            msg.textContent = opts.done || W.saved;
+            if (opts.reset !== false) fields.forEach(function (x) { x.set(x.start); });
+            if (typeof opts.onSaved === "function") opts.onSaved(Object.assign({ id: r && r.id }, values));
+          },
+          function (err) { msg.textContent = W.failed + String((err && err.message) || err); }
+        ).then(function () { btn.disabled = false; });
+      });
+      return s;
+    }, function (err) {
+      root.innerHTML = "";
+      root.appendChild(h("div", { cls: "zk-broken", text: W.failed + String((err && err.message) || err) }));
+      said("ZeffKit.form: " + String((err && err.message) || err));
+    });
+    return api;
+  }
+
+  /**
+   * A database's rows as a table that keeps up (it reads again when something changed):
+   * ZeffKit.table(el, { db, columns?, where?, contains?, sort?, desc?, limit?, search?, empty?, title?, format?, onRow?, open? }).
+   * columns: field names (without: the title and the first four); format: { field: function (value, row) → text or node };
+   * onRow(row) on a click — or open: true opens the row's page.
+   */
+  function table(el, opts) {
+    opts = opts || {};
+    el = target(el);
+    ensureStyle();
+    var W = APP_WORDS[langOf(opts)];
+    var root = h("div", { cls: "zk zk-app" + darkCls() });
+    el.innerHTML = "";
+    el.appendChild(root);
+    if (opts.title) root.appendChild(h("div", { cls: "zk-title", text: opts.title }));
+    var search = opts.search ? h("input", { cls: "zk-in", type: "search", placeholder: W.search, style: "margin-bottom:8px" }) : null;
+    if (search) root.appendChild(search);
+    var box = h("div", { cls: "zk-scroll" }, h("p", { cls: "zk-muted", text: W.loading }));
+    root.appendChild(box);
+    var last = 0;
+    function draw(r) {
+      box.innerHTML = "";
+      if (!r.rows.length) { box.appendChild(h("p", { cls: "zk-muted", text: opts.empty || W.empty })); return; }
+      var cols = opts.columns || [r.titleName].concat(Object.keys(r.rows[0].values).slice(0, 4));
+      var cell = function (row, c) {
+        var v = String(c).toLowerCase() === String(r.titleName).toLowerCase() || c === "title" ? row.title : row.values[c];
+        var f = opts.format && opts.format[c];
+        var out = f ? f(v, row) : shown(v);
+        return h("td", null, out && out.nodeType ? out : String(out == null ? "" : out));
+      };
+      var click = typeof opts.onRow === "function" ? opts.onRow : opts.open ? function (row) { bridge().open(row.id); } : null;
+      box.appendChild(h("table", { cls: "zk-tbl" },
+        h("thead", null, h("tr", null, cols.map(function (c) { return h("th", { text: c === "title" ? r.titleName : c }); }))),
+        h("tbody", null, r.rows.map(function (row) {
+          return h("tr", click ? { cls: "zk-click", tabindex: "0", onclick: function () { click(row); }, onkeydown: function (e) { if (e.key === "Enter") click(row); } } : null, cols.map(function (c) { return cell(row, c); }));
+        }))));
+      if (r.total > r.rows.length) box.appendChild(h("p", { cls: "zk-muted", text: "+ " + (r.total - r.rows.length) + " " + W.more }));
+    }
+    function load() {
+      var n = ++last;
+      var q = { where: opts.where, sort: opts.sort, desc: opts.desc, limit: opts.limit || 50, contains: (search && search.value.trim()) || opts.contains };
+      return bridge().db.rows(opts.db, q).then(function (r) { if (n === last) draw(r); return r; }, function (err) {
+        box.innerHTML = "";
+        box.appendChild(h("div", { cls: "zk-broken", text: W.failed + String((err && err.message) || err) }));
+        said("ZeffKit.table: " + String((err && err.message) || err));
+      });
+    }
+    if (search) { var t; search.addEventListener("input", function () { clearTimeout(t); t = setTimeout(load, 200); }); }
+    if (opts.live !== false && typeof zeff !== "undefined" && zeff.on) zeff.on("changed", load); // eslint-disable-line no-undef
+    load();
+    return { el: root, reload: load };
+  }
+
+  /** Figures side by side: ZeffKit.stats(el, [{ label, value, detail?, tone?: "good" | "warn" | "bad" }]). */
+  function stats(el, items) {
+    el = target(el);
+    ensureStyle();
+    var root = h("div", { cls: "zk zk-app zk-stats" + darkCls() }, (items || []).map(function (s) {
+      return h("div", { cls: "zk-stat" + (s.tone ? " " + s.tone : "") }, h("span", { text: s.label || "" }), h("b", { text: shown(s.value) }), s.detail ? h("small", { text: s.detail }) : null);
+    }));
+    el.innerHTML = "";
+    el.appendChild(root);
+    return { el: root };
+  }
+
   return {
     mount: mount,
     fmt: fmt,
@@ -1359,5 +1578,10 @@
     check: { number: checkNumber, text: checkText, formula: checkFormula, parseNumber: parseNumber, parseCloze: parseCloze },
     runCode: runCode,
     TYPES: Object.keys(ITEMS),
+    form: form,
+    table: table,
+    stats: stats,
+    h: h,
+    style: ensureStyle,
   };
 });
