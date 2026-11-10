@@ -60,7 +60,16 @@ const localAiModel = (): string => localAiConfig().model;
 export async function runAi<T>(
   prompt: string,
   schemaOut: object,
-  opts: { task?: LlmTaskId; provider?: AiProvider; timeoutMs?: number; maxBudgetUsd?: number; /** Not from the cache of an idempotent task (an eval's repeated runs). */ fresh?: boolean } = {},
+  opts: {
+    task?: LlmTaskId;
+    provider?: AiProvider;
+    timeoutMs?: number;
+    maxBudgetUsd?: number;
+    /** Not from the cache of an idempotent task (an eval's repeated runs). */
+    fresh?: boolean;
+    /** Someone is waiting for it (a widget being built): ahead of the background's AI calls (llm/run.ts gate). */
+    urgent?: boolean;
+  } = {},
 ): Promise<AiAnswer<T>> {
   const { llm } = await import("@/plugins/llm/run");
   return llm<T>(opts.task ?? "general", prompt, schemaOut, opts);

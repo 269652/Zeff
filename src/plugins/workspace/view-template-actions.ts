@@ -26,6 +26,7 @@ export async function viewTemplateAiAction(v: { dbId: number; app: string; curre
     const { getDatabase, rowsOf } = await import("./store");
     const { viewAppMeta, rowViewMeta, TEMPLATE_VIEW } = await import("./view-apps");
     const { renderView, viewReference } = await import("./view-template");
+    const blocks = (await import("./block-store")).listBlocks();
     const { cellText } = await import("./model");
     const db = getDatabase(Number(v.dbId));
     if (!db) throw new Error("The database is gone.");
@@ -59,7 +60,7 @@ export async function viewTemplateAiAction(v: { dbId: number; app: string; curre
         "Halte dich streng an die Tags, Filter und Aktionen der Referenz. Beschriftungen in der Sprache des Nutzers (meist Deutsch). Nutze die Teile (parts) der App, wo sie passen; baue Neues aus den Tags.",
         "Gute Ansichten: oben das Wichtigste (Kennzahlen als <tile> in einem <grid>), dann die Zeilen (Liste, Karten oder Tabelle), Aktionen als Buttons; auf dem Handy gut lesbar (grid passt sich an).",
         "",
-        viewReference(meta.parts, meta.actions),
+        viewReference(meta.parts, meta.actions, blocks),
         meta.appData ? `\nAPP-DATEN (app.*): ${meta.appData}` : "",
         widgets.length ? `\nWIDGETS: ${widgets.map((w) => `${w.id} (${w.label}${w.settings.length ? `; ${w.settings.map((s) => `${s.key}=${s.kind}${s.options ? `[${s.options.map((o) => o.value).join("|")}]` : ""}`).join(", ")}` : ""})`).join("; ")}` : "",
         "",
@@ -77,7 +78,7 @@ export async function viewTemplateAiAction(v: { dbId: number; app: string; curre
       ].join("\n");
     const { runAi } = await import("@/lib/ai");
     const check = (template: string) =>
-      renderView(template, { rows, props: schema.properties, titleName: schema.titleName, state: {}, app: {}, db: { id: db.page.id, title: db.page.title }, current }, { parts: meta.parts, actions: meta.actions }).errors;
+      renderView(template, { rows, props: schema.properties, titleName: schema.titleName, state: {}, app: {}, db: { id: db.page.id, title: db.page.title }, current }, { parts: meta.parts, actions: meta.actions, blocks }).errors;
     let r = (await runAi<{ template: string; note: string }>(prompt(), SCHEMA, { task: "view-template" })).output;
     let errors = check(r.template ?? "");
     if (errors.length) {

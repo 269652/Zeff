@@ -21,6 +21,7 @@ import { LookupField } from "./view-lookup";
 import { AskBox, DossierBox } from "./view-notebook";
 import { FlowData, runFlowButton, transitionButton, TransitionsBlock } from "./view-flows";
 import { WidgetBlock } from "./widget-node";
+import { useBlockDefs } from "./use-blocks";
 
 /**
  * A view drawn from its template (view-template.ts): the nodes as this page's own components — tiles, tabs, lists, a table of cells,
@@ -56,6 +57,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
   const state = useMemo(() => ({ ...defaults, ...own, ...fromTree }), [defaults, own, fromTree]);
   const setState = useCallback((name: string, value: string) => setOwn((s) => ({ ...s, [name]: value })), []);
   const app = module.useAppData(props, state);
+  const blocks = useBlockDefs();
   // What flows gave (a <data>'s output, a button's into=): data.<name>.
   const [flowData, setFlowData] = useState<Record<string, unknown>>({});
   const setData = useCallback((_name: string, patch: Record<string, unknown>) => setFlowData((d) => ({ ...d, ...patch })), []);
@@ -64,8 +66,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
   const previews = props.data.extras?.previews;
   const texts = useMemo(() => Object.fromEntries(Object.entries(previews ?? {}).map(([id, lines]) => [id, lines.map((l) => (l.kind === "task" ? `${l.checked ? "☑" : "☐"} ${l.text}` : l.text)).join("\n")])), [previews]);
   const r = useMemo(
-    () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, data: flowData, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE", current, texts }, { parts: meta.parts, actions: meta.actions }),
-    [src, props.rows, schema, state, app.data, flowData, props.data.id, props.data.title, labels, meta, current, texts],
+    () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, data: flowData, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE", current, texts }, { parts: meta.parts, actions: meta.actions, blocks }),
+    [src, props.rows, schema, state, app.data, flowData, props.data.id, props.data.title, labels, meta, current, texts, blocks],
   );
   // Its sidebar (a <nav>): beside the view — or, the view's setting, in the Workspace tree, whose entry picked (?nav=) sets the state.
   const nav = useMemo(() => navOf(r.nodes), [r.nodes]);
@@ -124,7 +126,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         case "state":
           return void (a.state && setState(a.state, a.value ?? ""));
         case "select":
-          return void (rowId && setState("selected", String(rowId)));
+          return void (rowId && setState(a.selkey || "selected", String(rowId)));
         case "url":
           // Zeff's own pages in place, a mail written in the mail program, anything else in a new tab.
           return void (a.href && (a.href.startsWith("/") ? router.push(a.href) : a.href.startsWith("mailto:") ? (window.location.href = a.href) : window.open(a.href, "_blank", "noopener")));
@@ -301,10 +303,13 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
               <span className="truncate">{a.label}</span>
               {a.icon && <span aria-hidden>{a.icon}</span>}
             </div>
-            <div className="mt-1 flex items-end justify-between gap-2">
-              <div className={`text-2xl leading-7 font-semibold tracking-tight tabular-nums ${TONE[a.tone ?? ""] ?? ""}`}>{a.value || "—"}</div>
-              {a.spark && <Sparkline values={json<number[]>(a.spark, [])} />}
-            </div>
+            {/* (A tile of content alone — a ring, a part — has no value line.) */}
+            {(a.value !== undefined || a.spark || !n.c.length) && (
+              <div className="mt-1 flex items-end justify-between gap-2">
+                <div className={`text-2xl leading-7 font-semibold tracking-tight tabular-nums ${TONE[a.tone ?? ""] ?? ""}`}>{a.value || "—"}</div>
+                {a.spark && <Sparkline values={json<number[]>(a.spark, [])} />}
+              </div>
+            )}
             {a.trend && <div className={`mt-0.5 text-xs font-medium tabular-nums ${a.trend.startsWith("-") || a.trend.startsWith("−") ? TONE.bad : TONE.good}`}>{a.trend}</div>}
             {(a.sub || n.c.length > 0) && (
               <div className="mt-0.5 text-xs text-zinc-500">
@@ -437,8 +442,9 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
       case "cards": {
         const items = n.c.filter((c): c is Extract<VNode, object> => typeof c !== "string");
         if (!items.length) return a.empty ? <EmptyState key={key} text={a.empty} /> : null;
-        const active = (it: Extract<VNode, object>) => it.a.row && it.a.row === r.state.selected;
-        const click = (it: Extract<VNode, object>) => (it.a.row ? () => (a.select === "true" ? setState("selected", it.a.row) : a.open === "true" ? props.openRow(Number(it.a.row)) : undefined) : undefined);
+        const selkey = a.selkey || "selected";
+        const active = (it: Extract<VNode, object>) => it.a.row && it.a.row === r.state[selkey];
+        const click = (it: Extract<VNode, object>) => (it.a.row ? () => (a.select === "true" ? setState(selkey, it.a.row) : a.open === "true" ? props.openRow(Number(it.a.row)) : undefined) : undefined);
         const clickable = a.select === "true" || a.open === "true";
         if (n.t === "cards")
           return (

@@ -9295,5 +9295,9 @@
   "Export": "Exportieren",
   "Exporting …": "Exportiere …",
   "The learning space with its courses and progress as a file — import it in another Zeff or account": "Der Lernbereich mit seinen Kursen und dem Fortschritt als Datei — in einem anderen Zeff oder Konto wieder importieren",
-  "Each learning space is a page in the Workspace with its own courses and progress — make another from the template “Learning space”.": "Jeder Lernbereich ist eine Seite im Workspace mit eigenen Kursen und eigenem Fortschritt — einen weiteren legst du über die Vorlage „Lernbereich“ an."
+  "Each learning space is a page in the Workspace with its own courses and progress — make another from the template “Learning space”.": "Jeder Lernbereich ist eine Seite im Workspace mit eigenen Kursen und eigenem Fortschritt — einen weiteren legst du über die Vorlage „Lernbereich“ an.",
+  "Dialog": "Dialog",
+  "Nothing this month.": "Nichts in diesem Monat.",
+  "{n} of {max}": "{n} von {max}",
+  "Couldn't copy.": "Konnte nicht kopieren."
 }
