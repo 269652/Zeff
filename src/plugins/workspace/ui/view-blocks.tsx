@@ -7,6 +7,7 @@ import { TITLE } from "../model";
 import { Dropdown } from "./kit";
 import type { VNode } from "../view-template";
 import type { AppViewProps } from "./app-view";
+import { moreBlock } from "./view-blocks-more";
 
 /**
  * The view language's bigger building blocks, one look for all of them: a page header, a callout, an empty state, facts, a gallery, a
@@ -431,7 +432,7 @@ export function viewBlock(n: Node, key: string | number, kids: Kids, env: BlockE
     case "form":
       return <RowForm key={key} a={a} env={env} />;
     default:
-      return undefined;
+      return moreBlock(n, key, kids, env);
   }
 }
 

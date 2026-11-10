@@ -9287,5 +9287,9 @@
   "Widgets (questions)": "Widgets (preguntas)",
   "Answers a widget that may ask the AI (you allowed it), a few times an hour (Workspace).": "Responde a un widget que puede preguntar a la IA (lo permitiste), unas pocas veces por hora (Workspace).",
   "This picture couldn't be shown.": "Esta imagen no se pudo mostrar.",
-  "Something in this widget broke — your teacher has been told and will rebuild it.": "Algo falló en este widget — tu profesor ya lo sabe y lo rehará."
+  "Something in this widget broke — your teacher has been told and will rebuild it.": "Algo falló en este widget — tu profesor ya lo sabe y lo rehará.",
+  "Dialog": "Diálogo",
+  "Nothing this month.": "Nada este mes.",
+  "{n} of {max}": "{n} de {max}",
+  "Couldn't copy.": "No se pudo copiar."
 }

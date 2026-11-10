@@ -265,6 +265,35 @@ uses Zeff's ready parts: a form that adds rows, a table that keeps up, figures s
 - Widgets run sealed off: no internet, no access to Zeff except through the bridge, which reads your
   databases (never secret ones) and writes only where you allowed.
 
+#### Blocks for views — and blocks of your own
+
+A database view of its own design (**+** beside the views → a view from a template, or ask the assistant) is built
+from blocks: lists, cards, tables, boards, charts, tiles, panes, forms and more. These came in with the block engine:
+
+- **Tabs with content** (`<tabset>`), a **dialog or side drawer** (`<dialog>`, opened by a button), **inputs** for
+  text, numbers, dates and colours and a **slider** — what you type or drag filters the view at once.
+- A **month calendar** (`<calendar>`), a **day-by-day heatmap** (`<heatmap>`, like a contribution graph), a **cross
+  table** with totals (`<pivot>`: owner × stage, summed as euros), a **ring** (`<gauge>`), **stars** you click to rate a
+  row (`<rating>`), a **copy** button.
+- Names for values (`<let name="open" value="rows | where(…)"/>`), a `<switch>` with cases, and new filters:
+  `groupby`, `distinct`, `offset`, `reverse`, `between`, `where(…, 'in', 'A|B')`.
+
+![A deals view built from blocks: a pipeline summary block of its own (figures, a goal ring, a cross table by owner and stage), tabs for the deals with a slider, a calendar, a heatmap and the deals by owner — every deal drawn by a "deal card" block with stars to rate it](img/workspace-blocks.png)
+
+**Blocks of your own.** Something you want again and again — a deal card, a summary of a pipeline, a finder that
+asks a web service — becomes a block: its **parameters**, its **template** (the same view language) and, when it
+does something on the server, its own **flows**. Any view then uses it as `<use block="crm.deal-card"/>`. Each use
+keeps its own state (two finders side by side search independently), and what you put inside `<use>…</use>` goes
+where the block says `<slot/>`.
+
+You don't write them by hand: ask the **Workspace assistant** (*"make a block that shows a deal in one line with its
+stars, and use it in the Deals view"*). It reads how blocks are made, saves the block — Zeff draws it on your data
+first and refuses it with every mistake named — and puts it into a view. What a block's flow may reach (the web, a
+database, the AI) the assistant only **asks for**: you grant it on the flow's page in the Studio (the flows stand
+under the page **🧩 Blocks**).
+
+![Two uses of the same block "Wikipedia finder" side by side: each has its own search, its flow asks Wikipedia on the server, and each shows its own hits](img/workspace-block-flow.png)
+
 ### Settings
 
 The Workspace has no global switches beyond its settings pages; most settings sit on the database or page.
@@ -421,6 +450,8 @@ The plugin has about 280 files; the important ones by area.
 | AI | [ai-entry.ts](../../src/plugins/workspace/ai-entry.ts), [assist.ts](../../src/plugins/workspace/assist.ts), [ai-block.ts](../../src/plugins/workspace/ai-block.ts), [agent.ts](../../src/plugins/workspace/agent.ts) | ✨ entry, Think along, AI blocks, the Workspace assistant |
 | | [dossier.ts](../../src/plugins/workspace/dossier.ts), [instructions.ts](../../src/plugins/workspace/instructions.ts), [prompts.ts](../../src/plugins/workspace/prompts.ts), [ai-feedback.ts](../../src/plugins/workspace/ai-feedback.ts) | Dossiers, AI instruction pages, prompts, corrections of AI fields |
 | | [view-template-actions.ts](../../src/plugins/workspace/view-template-actions.ts) | Views written by the AI |
+| Blocks | [blocks.ts](../../src/plugins/workspace/blocks.ts), [block-store.ts](../../src/plugins/workspace/block-store.ts), [block-check.ts](../../src/plugins/workspace/block-check.ts), [mcp-blocks.ts](../../src/plugins/workspace/mcp-blocks.ts), [ui/use-blocks.ts](../../src/plugins/workspace/ui/use-blocks.ts) | Blocks of your own: definition and parameters, storage (their flows are `block.<name>.<flow>` under the page "🧩 Blocks"), the check before saving (drawn on a database's rows, at the top and in a row), the MCP tools, the views' shared read |
+| | [ui/view-blocks-more.tsx](../../src/plugins/workspace/ui/view-blocks-more.tsx) | The tabset, dialog, input, slider, calendar, heatmap, pivot, gauge, rating and copy blocks |
 | Views | [view-template.ts](../../src/plugins/workspace/view-template.ts), [card-template.ts](../../src/plugins/workspace/card-template.ts), [view-tree.ts](../../src/plugins/workspace/view-tree.ts), [app-views.ts](../../src/plugins/workspace/app-views.ts), [row-views.ts](../../src/plugins/workspace/row-views.ts) | View/card template languages, visual builder tree, app and row views |
 | | [forms.ts](../../src/plugins/workspace/forms.ts), [form-spec.ts](../../src/plugins/workspace/form-spec.ts) | Form pages |
 | Todos | [todo-engine.ts](../../src/plugins/workspace/todo-engine.ts), [task-lists.ts](../../src/plugins/workspace/task-lists.ts), [task-source.ts](../../src/plugins/workspace/task-source.ts), [todo-marks.ts](../../src/plugins/workspace/todo-marks.ts) | Databases and page lists as todos, both ways |
@@ -453,6 +484,7 @@ All tables are made on first use (`create table if not exists`) in the account's
 | `ws_routine_reports` | An agent's report per session (draft / final) |
 | `ws_rule_jobs` | Jobs a rule made per record |
 | `ws_job_claims`, `ws_job_starts` | Jobs taken by agents; auto-starts per day and database |
+| `ws_blocks` | Blocks of your own: name, definition (JSON: params, template, example), when it changed |
 | `ws_flows`, `ws_flow_runs`, `ws_flow_secrets` | Flow definitions (per page), runs with journal, waits and log, named secrets |
 | `ws_transitions` | Lifecycle transitions of rows (from, to, by, note) |
 | `ws_lambdas` | Your lambdas (manifest, files) |
@@ -512,6 +544,7 @@ are their defaults. Instruction pages under *KI-Anweisungen* can be attached to 
 | Pages | `workspace_search`, `workspace_read_page`, `workspace_write_page`, `workspace_append`, `workspace_create_page`, `workspace_update_page`, `workspace_set_page`, `workspace_tree`, `workspace_templates` |
 | Databases | `workspace_query_database`, `workspace_database_schema`, `workspace_create_database`, `workspace_update_database`, `workspace_add_row`, `workspace_add_row_from_url`, `workspace_update_row`, `workspace_relation_sources`, `workspace_ask_database`, `workspace_database_dossier`, `workspace_view_template_docs` |
 | Routines | `workspace_routines`, `workspace_routine_runs`, `workspace_run_routine`, `agent_report` |
+| Blocks | `workspace_block_docs`, `workspace_blocks`, `workspace_save_block` (with its flows; checked on a database's rows before anything is kept), `workspace_delete_block` |
 | Flows & lifecycles | `workspace_flows`, `workspace_read_flow`, `workspace_save_flow`, `workspace_run_flow`, `workspace_flow_runs`, `workspace_flow_docs`, `workspace_set_lifecycle`, `workspace_transition` |
 | Questions | `zeff_ask`, `zeff_ask_result` |
 | Kennzahlen | `metric_list`, `metric_get`, `metric_define` |
@@ -563,7 +596,7 @@ About 100 test files cover it; the main ones: `tests/workspace-store.test.ts`, `
 `workspace-routine-triggers.test.ts`, `workspace-automation.test.ts`, `workspace-agent.test.ts`,
 `workspace-flows.test.ts`, `workspace-lambdas.test.ts`, `workspace-jobs.test.ts`, `workspace-rules.test.ts`,
 `workspace-forms.test.ts`, `workspace-mcp.test.ts`, `workspace-undo.test.ts`, `workspace-links.test.ts`,
-`workspace-packages.test.ts`, `workspace-values.test.ts`, `workspace-widgets.test.ts`, `view-template.test.ts`,
+`workspace-packages.test.ts`, `workspace-values.test.ts`, `workspace-widgets.test.ts`, `view-template.test.ts`, `view-blocks-engine.test.ts`,
 `card-template.test.ts`, `metrics.test.ts`, `day-log.test.ts`, `sheet-formulas.test.ts`, `formula-units.test.ts`,
 `keep-to-workspace.test.ts`, `jira-to-workspace.test.ts` (list: `ls tests | grep workspace`).
 

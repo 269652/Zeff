@@ -12,6 +12,8 @@ import { applyOps, type DbOp, type PropIn, type ViewIn } from "./schema-ops";
 import { cellText, isComputed, PROP_TYPES, ROLLUP_FNS, VIEW_TYPES, type DbSchema } from "./model";
 import * as store from "./store";
 import { findPage, off, type Helpers } from "./mcp";
+import { renderView } from "./view-template";
+import { listBlocks } from "./block-store";
 import { mayRead } from "@/lib/boundaries";
 import { labelResolver } from "./sensitivity";
 
@@ -248,7 +250,7 @@ export function registerWorkspaceDbTools(server: McpServer, h: Helpers): void {
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, idempotentHint: true },
     },
-    guard(async () => h.ok(`${(await import("./view-template")).viewReference()}
+    guard(async () => h.ok(`${(await import("./view-template")).viewReference([], [], (await import("./block-store")).listBlocks())}
 
 ${(await import("./lookups")).lookupReference()}`)),
   );
@@ -296,6 +298,18 @@ ${(await import("./lookups")).lookupReference()}`)),
       const d = p?.kind === "database" ? store.getDatabase(p.id) : null;
       if (!p || !d) return h.fail(`No database "${database}".`);
       const { schema, notes } = applyOps(d.schema, operations, { related });
+      // A view's template drawn on the rows before it is kept (its fields, its blocks <use>): refused with what is wrong.
+      const touched = new Set(
+        operations.flatMap((o) => ((o.op === "add_view" || o.op === "update_view") && "template" in o && o.template ? [o.op === "update_view" ? o.view : undefined, o.name].filter((s): s is string => !!s).map((s) => s.toLowerCase()) : [])),
+      );
+      if (touched.size) {
+        const rows = store.rowsOf(p.id)?.rows ?? [];
+        const blocks = listBlocks();
+        for (const v of schema.views.filter((x) => x.template && (touched.has(x.name.toLowerCase()) || touched.has(x.id)))) {
+          const errs = renderView(v.template!, { rows, props: schema.properties, titleName: schema.titleName, state: {}, app: {}, data: {}, db: { id: p.id, title: p.title } }, { blocks }).errors;
+          if (errs.length) return h.fail(`Not saved — the view “${v.name}”: ${errs.slice(0, 12).map((e) => `line ${e.line}: ${e.message}`).join("; ")}`);
+        }
+      }
       const saved = store.saveSchema(p.id, schema);
       return h.ok(`Saved: ${notes.join("; ")}.\n\n${describeSchema(p, saved)}`);
     }),

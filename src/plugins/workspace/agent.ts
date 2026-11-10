@@ -77,7 +77,7 @@ const MAX_RESULT = 5000;
 /** A page in the browser: its pictures and links come first, and the text after them still has to fit. */
 const MAX_PAGE_RESULT = 12000;
 /** How much of a tool's answer the AI reads on: what it must read whole gets more room. */
-export const resultCap = (tool: unknown): number => (tool === "workspace_view_template_docs" || tool === "workspace_flow_docs" ? 24000 : tool === "browser_open" || tool === "workspace_database_dossier" ? MAX_PAGE_RESULT : MAX_RESULT);
+export const resultCap = (tool: unknown): number => (tool === "workspace_view_template_docs" || tool === "workspace_flow_docs" || tool === "workspace_block_docs" ? 32000 : tool === "browser_open" || tool === "workspace_database_dossier" ? MAX_PAGE_RESULT : MAX_RESULT);
 const MAX_ROUNDS = 12;
 
 const SCHEMA = {
