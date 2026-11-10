@@ -9190,5 +9190,6 @@
   "The numbers and dots on tabs, in the Workspace tree and the header: which, what they count, their colours": "Die Zahlen und Punkte auf Reitern, im Workspace-Baum und in der Kopfzeile: welche, was sie zählen, ihre Farben",
   "Badges and dots": "Badges und Punkte",
   "Settings → Badges and dots": "Einstellungen → Badges und Punkte",
-  "Not saved — Zeff could not be reached. Try again.": "Nicht gespeichert – Zeff war nicht erreichbar. Bitte noch einmal versuchen."
+  "Not saved — Zeff could not be reached. Try again.": "Nicht gespeichert – Zeff war nicht erreichbar. Bitte noch einmal versuchen.",
+  "Zeff took too long to confirm (it is busy right now) — what you sent has most likely arrived and shows up in a moment. If not, send it again.": "Zeff hat zu lange für die Bestätigung gebraucht (es ist gerade ausgelastet) — deine Nachricht ist sehr wahrscheinlich angekommen und erscheint gleich. Wenn nicht, schick sie noch einmal."
 }
