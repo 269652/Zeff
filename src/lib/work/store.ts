@@ -4,7 +4,8 @@ import { asc, desc, eq, inArray } from "drizzle-orm";
 import { getDb, schema } from "@/db";
 import { emitChange } from "@/lib/events";
 import { liveView } from "@/plugins/copilot-cli/live-state";
-import { liveSessionView } from "./live-driver";
+import { liveDriverOf, liveSessionView } from "./live-driver";
+import { delegates } from "@/lib/host/role";
 import { getPref, setPref } from "@/lib/prefs";
 import type { WorkRun } from "@/db/schema";
 import { getAppSettings, updateAppSettings } from "@/lib/ai";
@@ -78,6 +79,12 @@ export function updateClaudeSessionSettings(patch: Partial<ClaudeSessionSettings
 const STATUSES: WorkStatus[] = ["queued", "running", "done", "failed", "cancelled", "interrupted"];
 
 export function toRunView(r: WorkRun): WorkRunView {
+  // The phone's server: a running session Zeff's own follows is watched here too — so its page shows it (what it asks,
+  // whether it works); what you do there goes to Zeff's own (lib/work/live-actions.ts).
+  if (r.status === "running" && delegates() && !liveSessionView(r.id)) {
+    const d = liveDriverOf(r.id);
+    if (d) d.reattach([r.id]);
+  }
   return {
     id: r.id,
     ref: workRef(r.id),

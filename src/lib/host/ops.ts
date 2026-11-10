@@ -44,6 +44,8 @@ export const HOST_OPS: Record<string, Op> = {
     (await import("@/lib/work/runner")).pump();
     return { ok: true };
   },
+  // What you do in a live session, from the phone's server (it only watches them): done here, where it's followed.
+  "work.liveDo": async (a) => (await import("@/lib/work/live-actions")).liveDo(Number(a.runId), (a.body ?? {}) as import("@/lib/work/live-actions").LiveBody),
   // A message into a conversation's running live session (the phone's server doesn't follow the sessions).
   "work.send": async (a) => (await import("@/lib/work/live-state")).sendToSessionHere(Number(a.runId), str(a.text)),
 

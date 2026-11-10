@@ -15,8 +15,8 @@ test("the next lesson's teacher knows what the person showed in the course's oth
   store.masterNode(id, "a", new Date(), "5 von 6 richtig");
   const lines = store.courseHistory(id, "b");
   assert.equal(lines.length, 2, lines.join("\n"));
-  assert.match(lines[0], /Übung in „Hirnlappen“ \(Limbisches System\): 100 % \(2\/2\) — Neues merken .* → Hippocampus ✓/);
-  assert.match(lines[1], /Einheit „Hirnlappen“ gemeistert: 5 von 6 richtig/);
+  assert.match(lines[0], /Übung in „Hirnlappen“ \(a\) \(Limbisches System\): 100 % \(2\/2\) — Neues merken .* → Hippocampus ✓/);
+  assert.match(lines[1], /Einheit „Hirnlappen“ \(a\) gemeistert: 5 von 6 richtig/);
   assert.deepEqual(store.courseHistory(id, "a"), [], "its own lesson's things aren't repeated");
   const { teacherRules } = await import("@/plugins/learn/teacher");
   assert.match(teacherRules(store.getCourse(id)!, store.getNode(id, "b")!), /schon gezeigt hat[\s\S]*Hippocampus ✓/);

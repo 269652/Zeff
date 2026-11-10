@@ -3,6 +3,7 @@ import fs from "node:fs";
 import type net from "node:net";
 import path from "node:path";
 import { currentAccountId, withAccount } from "@/db/accounts";
+import { delegates } from "@/lib/host/role";
 import { killPid, sleep } from "@/lib/abort";
 import { lastJson } from "@/lib/ai/json";
 import { emitChange } from "@/lib/events";
@@ -300,10 +301,18 @@ export function liveCore<C extends LiveCfgBase, L extends LiveBase<C>>(a: LiveAd
   }
 
   /** After new lines: its end (a result for a task, an asked-for result, its process gone), a restart, questions nobody answered. */
+  /** This server only watches the sessions (it hands the work to Zeff's own — the phone's server). */
+  const watchOnly = () => delegates();
+
   async function settle(l: L) {
     if (l.closed) return;
     const { getRun } = await import("@/lib/work/store");
     const run = getRun(l.runId);
+    // Only watching (the phone's server: Zeff's own follows the session and acts on it) — shown while it runs, nothing more.
+    if (watchOnly()) {
+      if (!run || run.status !== "running") drop(l);
+      return;
+    }
     if (!run || run.status !== "running") {
       // Stopped or finished meanwhile: its process goes too.
       if (!l.exited && !l.stopSent) {
@@ -367,6 +376,7 @@ export function liveCore<C extends LiveCfgBase, L extends LiveBase<C>>(a: LiveAd
   /** The run taken in (finalize reads the log through the driver's outcome); its process told to go. */
   async function end(l: L, gone = false) {
     if (l.closed) return;
+    if (watchOnly()) return drop(l);
     l.closed = true;
     const { finalize } = await import("@/lib/work/runner");
     await withAccount(l.account, () => finalize(l.runId, gone && !l.cfg.closing));

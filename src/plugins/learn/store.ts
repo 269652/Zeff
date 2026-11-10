@@ -476,7 +476,7 @@ export function courseHistory(courseId: number, exceptKey?: string): string[] {
     } catch {
       // an old row: its kind and step say enough
     }
-    const step = r.node_key ? `„${titles.get(r.node_key) ?? r.node_key}“` : "";
+    const step = r.node_key ? `„${titles.get(r.node_key) ?? r.node_key}“ (${r.node_key})` : "";
     const line =
       r.kind === "mastered"
         ? `- Einheit ${step} gemeistert${d.note ? `: ${d.note}` : ""}`

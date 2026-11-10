@@ -459,6 +459,18 @@ export async function setClaudeMode(runId: number, mode: string) {
   if (mode === "bypassPermissions" && !l.cfg.allowBypass) throw new Error(t("Bypass isn't allowed — Code settings → “Bypass may be picked” (it applies to new sessions)."));
   await core.write(l, { type: "control_request", request_id: reqId(), request: { subtype: "set_permission_mode", mode } });
   l.mode = mode;
+  // What it already waits for is decided by the mode it had when it asked — switched to one that wouldn't ask, those
+  // go ahead now (auto, bypass: all; accept edits: the edits). A question for you, its plan: still yours to answer.
+  const yours = new Set(["AskUserQuestion", "ExitPlanMode"]);
+  const edits = new Set(["Edit", "Write", "MultiEdit", "NotebookEdit"]);
+  const lets = (tool: string) => !yours.has(tool) && (mode === "auto" || mode === "bypassPermissions" || (mode === "acceptEdits" && edits.has(tool)));
+  for (const ask of [...l.view.asks].filter((a) => lets(a.tool))) {
+    try {
+      await answer(runId, ask.requestId, { behavior: "allow" });
+    } catch {
+      // answered meanwhile (it doesn't wait for it any more)
+    }
+  }
   changed();
 }
 
