@@ -586,14 +586,14 @@ export function getWidget(id: number): Widget | undefined {
   return r ? toWidget(r, true) : undefined;
 }
 
-export const nodeWidgets = (courseId: number, nodeKey: string): Widget[] => {
+export const nodeWidgets = (courseId: number, nodeKey: string, opts: { html?: boolean } = {}): Widget[] => {
   const c = cid(courseId);
   const step = getNode(c, nodeKey)?.id;
   if (!step) return [];
   return ofCourse("exercises", c)
     .filter((r) => ids(r.cells[P.step]).includes(step))
     .sort((a, b) => a.id - b.id)
-    .map((r) => toWidget(r, true));
+    .map((r) => toWidget(r, opts.html !== false));
 };
 
 /** A widget's result: kept as its best, worth experience only for doing better than before (5 at most per widget). */

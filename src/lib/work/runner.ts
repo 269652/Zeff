@@ -395,6 +395,18 @@ async function start(id: number): Promise<void> {
           : { afterRun: null, prompt: todo && !isChatTodo(todo) ? `${briefFor(todo)}\n\n${r.prompt}` : r.prompt },
       ) ?? r;
   }
+  // A chat whose stored conversation was changed since its session last spoke (a lesson's messages edited in Learn's
+  // database): a fresh session, with that conversation in its prompt — not the old session resumed (conversation-guard.ts).
+  const chatTodo = getTodo(r.todoId);
+  if (chatTodo && isChatTodo(chatTodo)) {
+    await import("@/plugins/contributions");
+    const { freshContext, freshStarted } = await import("./conversation-guard");
+    const context = freshContext(r.todoId);
+    if (context !== null) {
+      r = updateRun(id, { sessionId: null, cwd: null, branch: null, base: null, baseSha: null, prompt: `${context}\n\n${r.prompt}` }) ?? r;
+      freshStarted(r.todoId);
+    }
+  }
   const startedAt = now();
   updateRun(id, { status: "running", startedAt });
   announceRun(id, "work.run.started");
@@ -611,6 +623,8 @@ export async function messageRunningSession(runId: number, text: string): Promis
   if (!message) throw new ValidationError("What's your message?");
   const driver = liveDriverOf(runId);
   if (r.status !== "running" || (r.provider !== "claude" && !driver)) throw new ValidationError(`${workRef(runId)} isn't a working session.`);
+  // Its chat's stored conversation changed (a lesson's messages edited): a fresh session takes the message instead.
+  if (await (await import("./conversation-guard")).freshInstead(runId, message)) return;
   if (driver?.view(runId)) await driver.send(runId, message, []);
   else if (!(await sendToHost(runId, message))) throw new ValidationError(`${workRef(runId)} can't take a message right now - it is just finishing (or the work host isn't running). Send it again in a moment.`);
   addTodoInstruction(r.todoId, message, runId);
@@ -867,6 +881,8 @@ export async function finalize(id: number, gone = false): Promise<void> {
   finishing.add(id);
   try {
     await finish(r, gone);
+    // (A chat that keeps its conversation elsewhere — Learn's lessons — follows its end.)
+    void import("./conversation-guard").then((m) => m.conversationTurn(id));
   } catch (e) {
     // Finishing failed (its log unreadable, delivery or the database throwing): the run ends as an
     // error all the same — left "running", it would hold the queue (and account switching) forever.

@@ -58,6 +58,9 @@ async function session(d: LiveDriver, runId: number, b: ClaudeBody) {
         return { mediaType, data };
       });
       if (!text && !images.length) throw new Error(t("The message is empty."));
+      // Its chat's stored conversation changed (a lesson's messages edited): a fresh session takes the message instead.
+      const fresh = images.length ? null : await (await import("./conversation-guard")).freshInstead(runId, text);
+      if (fresh) return { fresh };
       await d.send(runId, text.slice(0, 100000) || "(see the image)", images);
       return {};
     }

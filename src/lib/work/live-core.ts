@@ -326,6 +326,8 @@ export function liveCore<C extends LiveCfgBase, L extends LiveBase<C>>(a: LiveAd
     if (a.beforeSettle?.(l)) return;
     if (l.resultSeen && !a.busy(l)) {
       l.resultSeen = false;
+      // A turn ended: a chat that keeps its conversation elsewhere (Learn's lessons) writes it down now.
+      void import("./conversation-guard").then((m) => m.conversationTurn(l.runId));
       const ended = !l.cfg.conversation || l.cfg.finishing;
       const turnResult = resultOf(l.turnText);
       if (ended && turnResult) {

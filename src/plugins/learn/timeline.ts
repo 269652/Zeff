@@ -17,8 +17,33 @@ export type TimelineItem =
   | { side: "left"; kind: "result"; title: string; widgetId: number | null; score: number; correct?: number; total?: number; note?: string; answers?: Answer[]; at: string | null; snapshotId?: number }
   | { side: "right"; kind: "say"; text: string };
 
+/** What of a run's log is the conversation (and goes into the Conversations database): your words, the teacher's, an exercise shown, the step mastered. */
+export const isMessageLine = (l: WorkLogLine): boolean => l.k === "you" || l.k === "say" || (l.k === "tool" && /learn_(widget|master_step)$/.test(l.tool));
+
+/** A line of the lesson: from a run's log, or a message of the database (an exercise shown names its widget). */
+export type LessonLine = WorkLogLine & { widget?: number | null };
+
+/** A message as the Conversations database keeps it (conversation.ts) — client-safe. */
+export type StoredMessage = { run: number | null; role: "you" | "teacher" | "system"; kind: "message" | "exercise" | "mastered"; text: string; exercise: number | null };
+
+/** A stored message as a line of the lesson. */
+export const storedLine = (m: StoredMessage): LessonLine =>
+  m.kind === "exercise"
+    ? { k: "tool", tool: "zeff__learn_widget", text: m.text, widget: m.exercise }
+    : m.kind === "mastered"
+      ? { k: "tool", tool: "zeff__learn_master_step", text: "" }
+      : m.role === "you"
+        ? { k: "you", text: m.text }
+        : { k: "say", text: m.text };
+
+/**
+ * A run's lines for the timeline: what the database has of it (its messages — as you may have changed them), then what its log
+ * says beyond what was written there (`synced`: how many of its message lines were) — the turn being written right now.
+ */
+export const runLines = (stored: StoredMessage[], log: WorkLogLine[], synced: number): LessonLine[] => [...stored.map(storedLine), ...log.filter(isMessageLine).slice(synced)];
+
 /** `prompts`: what started the run (your messages queued for it — each its own; an exercise's result among them too). */
-type Run = { id: number; startedAt: string; prompts: string[]; lines: WorkLogLine[] };
+type Run = { id: number; startedAt: string; prompts: string[]; lines: LessonLine[] };
 type Widget = { id: number; title: string; createdAt: string };
 
 const RESULT = /^\[Übung „(.+?)“ abgeschlossen: (?:(\d+) von (\d+) richtig, )?(\d+) %/;
@@ -35,7 +60,7 @@ export function buildTimeline(v: { runs: Run[]; widgets: Widget[]; results: Time
 
   runs.forEach((run, i) => {
     out.push({ side: "center", kind: "session", at: run.startedAt });
-    const lines: WorkLogLine[] = [...run.prompts.filter((x) => x.trim()).map((text): WorkLogLine => ({ k: "you", text: text.trim() })), ...run.lines];
+    const lines: LessonLine[] = [...run.prompts.filter((x) => x.trim()).map((text): LessonLine => ({ k: "you", text: text.trim() })), ...run.lines];
     for (const l of lines) {
       if (l.k === "say") out.push({ side: "right", kind: "say", text: l.text });
       else if (l.k === "you") {
@@ -54,7 +79,8 @@ export function buildTimeline(v: { runs: Run[]; widgets: Widget[]; results: Time
           out.push(resultItem(r));
         } else out.push({ side: "left", kind: "result", title: m[1], widgetId: null, score: Number(m[4]) / 100, ...(m[2] ? { correct: Number(m[2]), total: Number(m[3]) } : {}), at: null });
       } else if (l.k === "tool" && /learn_widget$/.test(l.tool)) {
-        const w = widgets.find((x) => !usedWidgets.has(x.id));
+        // (A message of the database names its widget; a line of the log: the next one not shown yet.)
+        const w = (l.widget ? widgets.find((x) => x.id === l.widget && !usedWidgets.has(x.id)) : undefined) ?? (l.widget === null || l.widget === undefined ? widgets.find((x) => !usedWidgets.has(x.id)) : undefined);
         if (w) {
           usedWidgets.add(w.id);
           out.push({ side: "left", kind: "widget", widgetId: w.id, title: w.title });

@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
@@ -38,8 +38,10 @@ export default async function StepPage({ params }: Props) {
   const p = await params;
   const courseId = Number(p.id);
   const course = store.getCourse(courseId);
-  const node = course && store.getNode(courseId, decodeURIComponent(p.key));
+  const node = course && store.getNode(course.id, decodeURIComponent(p.key));
   if (!course || !node || node.kind !== "step") notFound();
+  // (An old link — the course's id from before Learn's data moved into the Workspace: to where it is now.)
+  if (course.id !== courseId) redirect(`/learn/${course.id}/step/${encodeURIComponent(node.key)}`);
   const { nodes, tree } = store.courseTree(courseId);
   const status = tree.status.get(node.key) ?? "locked";
   const parent = nodes.find((n) => n.key === node.parent);
@@ -50,16 +52,42 @@ export default async function StepPage({ params }: Props) {
   const runs = node.lessonTodoId ? (runsForTodos([node.lessonTodoId]).get(node.lessonTodoId) ?? []) : [];
   const conversation: WorkRunView[] = [...runs].reverse();
   const todo = node.lessonTodoId ? getTodo(node.lessonTodoId) : undefined;
-  const timelineRuns: TimelineRun[] = conversation.map((r) => ({
-    id: r.id,
-    startedAt: r.startedAt ?? r.queuedAt,
-    prompts: todo?.userNotes.filter((n) => n.kind === "instruction" && n.run === r.id).map((n) => n.text) ?? [],
-    active: isActive(r.status),
-    live: !!r.session,
-  }));
+  // The conversation as the Conversations database has it (brought up to date from the runs' logs first) — what you changed
+  // or deleted there is what shows; only what is being said right now comes from the log.
+  const conv = await import("@/plugins/learn/conversation");
+  if (node.lessonTodoId) conv.syncLesson(node.lessonTodoId);
+  const stored = conv.stepMessages(node.id);
+  const states = conv.syncStates(conversation.map((r) => r.id));
+  const known = new Set(conversation.map((r) => r.id));
+  const loose = stored.filter((m) => m.run === null || !known.has(m.run));
+  const timelineRuns: TimelineRun[] = [
+    // Messages of no run (added in the database, or of a run that's gone): first.
+    ...(loose.length ? [{ id: 0, startedAt: loose[0].at, prompts: [], active: false, live: false, messages: loose, synced: 0, done: true }] : []),
+    ...conversation.map((r) => ({
+      id: r.id,
+      startedAt: r.startedAt ?? r.queuedAt,
+      prompts: states.has(r.id) ? [] : (todo?.userNotes.filter((n) => n.kind === "instruction" && n.run === r.id).map((n) => n.text) ?? []),
+      active: isActive(r.status),
+      live: !!r.session,
+      messages: stored.filter((m) => m.run === r.id),
+      synced: states.get(r.id)?.lines ?? 0,
+      done: states.get(r.id)?.done ?? false,
+    })),
+  ];
   const last = conversation[conversation.length - 1];
   // A live session still running takes the next message (never a second run queued behind it, waiting for its worker).
-  const liveRun = [...conversation].reverse().find((r) => !!r.session && r.status === "running");
+  let liveRun = [...conversation].reverse().find((r) => !!r.session && r.status === "running");
+  // The conversation was changed in the database since the teacher's session last spoke: that session (waiting for you) is
+  // closed — the next message starts a fresh one that is told the conversation as it is stored now.
+  if (liveRun && node.lessonTodoId && conv.lessonChanged(node.lessonTodoId)) {
+    const { liveState } = await import("@/lib/work/live-state");
+    if (!(await liveState(liveRun.id)).busy) {
+      const runId = liveRun.id;
+      const { delegates } = await import("@/lib/host/role");
+      await (delegates() ? (await import("@/lib/host/client")).callHost("work.liveDo", { runId, body: { do: "close" } }, 15000) : (await import("@/lib/work/live-actions")).liveDo(runId, { do: "close" })).catch(() => undefined);
+      liveRun = undefined;
+    }
+  }
   // Running, but no live session answers (Zeff lost it): what comes after would wait for it forever.
   const lost = liveRun ? undefined : conversation.find((r) => r.status === "running" && !r.session && !r.live);
   // (On the phone's server the sessions are followed by Zeff's own: one it follows isn't lost.)
@@ -75,7 +103,7 @@ export default async function StepPage({ params }: Props) {
       ) : (
         <>
           <div id="lesson-thread" data-timeline-scroll className="min-h-0 flex-1 overflow-y-auto pr-1">
-            <LessonTimeline runs={timelineRuns} widgets={widgets} results={results} sessionRunId={liveRun?.id ?? last.id} />
+            <LessonTimeline runs={timelineRuns.filter((r) => r.id > 0 || r.messages.length)} widgets={widgets} results={results} sessionRunId={liveRun?.id ?? last.id} />
           </div>
           <ScrollToEnd target="lesson-thread" />
           <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-zinc-200 pt-2 dark:border-zinc-800">

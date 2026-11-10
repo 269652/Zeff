@@ -10,10 +10,15 @@ import { SnapshotFrame, WidgetFrame } from "@/components/widgets/WidgetFrame";
 import { useRunLog } from "@/components/work/SessionThread";
 import { formatDateTime } from "@/lib/format";
 import type { WorkLogLine } from "@/lib/work/shared";
-import { buildTimeline, type TimelineItem, type TimelineResult } from "../timeline";
+import { buildTimeline, runLines, type StoredMessage, type TimelineItem, type TimelineResult } from "../timeline";
 import { useWidgetErrors, useWidgetResults } from "./LessonWidgets";
 
-export type TimelineRun = { id: number; startedAt: string; prompts: string[]; active: boolean; live: boolean };
+/**
+ * A run of the lesson: when it began, what started it (when the database doesn't have it yet), its messages from the
+ * Conversations database and how many of its log's message lines are in there (`synced`); `done`: all of it is — its log
+ * isn't read any more.
+ */
+export type TimelineRun = { id: number; startedAt: string; prompts: string[]; active: boolean; live: boolean; messages: StoredMessage[]; synced: number; done: boolean };
 export type TimelineWidget = { id: number; title: string; html: string; libs: string[]; createdAt: string; bestScore: number | null };
 
 /** One run's log, as it comes (polled while it runs) — handed up to the timeline. */
@@ -46,7 +51,7 @@ export function LessonTimeline({ runs, widgets, results, sessionRunId }: { runs:
     wasWriting.current = writing;
   }, [writing, router]);
   const items = useMemo(
-    () => buildTimeline({ runs: runs.map((r) => ({ id: r.id, startedAt: r.startedAt, prompts: r.prompts, lines: logs[r.id] ?? [] })), widgets, results }),
+    () => buildTimeline({ runs: runs.map((r) => ({ id: r.id, startedAt: r.startedAt, prompts: r.prompts, lines: runLines(r.messages, r.done ? [] : (logs[r.id] ?? []), r.synced) })), widgets, results }),
     [runs, widgets, results, logs],
   );
   const byId = useMemo(() => new Map(widgets.map((w) => [w.id, w])), [widgets]);
@@ -66,9 +71,12 @@ export function LessonTimeline({ runs, widgets, results, sessionRunId }: { runs:
 
   return (
     <div className="relative">
-      {runs.map((r) => (
-        <RunFeed key={r.id} run={r} onLines={onLines} onBusy={onBusy} />
-      ))}
+      {/* (Only what isn't all in the database yet is read from its log — and the newest, to know whether the teacher is writing.) */}
+      {runs
+        .filter((r) => r.id > 0 && (!r.done || r === newest))
+        .map((r) => (
+          <RunFeed key={r.id} run={r} onLines={onLines} onBusy={onBusy} />
+        ))}
       {/* The line itself: down the middle on a wide screen, at the left on a phone. */}
       <div className="absolute top-0 bottom-0 left-3 w-px bg-zinc-200 md:left-1/2 dark:bg-zinc-800" aria-hidden />
       <ol className="relative space-y-3" aria-label={t("The lesson so far")}>

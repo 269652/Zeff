@@ -48,6 +48,9 @@ export async function sendToSessionHere(runId: number, text: string): Promise<nu
   if (!r) return null;
   const live = runsByStatus(["running"]).filter((x) => x.todoId === r.todoId && !!liveDriverOf(x.id)).sort((a, b) => b.id - a.id)[0];
   if (!live || !followHere(live.id)) return null;
+  // Its chat's stored conversation changed (a lesson's messages edited): a fresh session takes the message instead.
+  const fresh = await (await import("./conversation-guard")).freshInstead(live.id, text);
+  if (fresh) return fresh;
   await liveDriverOf(live.id)!.send(live.id, text.slice(0, 100000), []);
   return live.id;
 }

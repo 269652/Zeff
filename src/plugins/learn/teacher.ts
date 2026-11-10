@@ -7,6 +7,8 @@
 import { getDb, schema } from "@/db";
 import { CHAT_ALLOWED_TOOLS, CHAT_DISALLOWED_TOOLS, chatSource, registerChatProfile } from "@/lib/chat";
 import { WIDGET_LIBS } from "@/lib/widgets/sandbox";
+import { registerConversationGuard } from "@/lib/work/conversation-guard";
+import { freshSessionStarted, lessonContinuity, syncRun } from "./conversation";
 import { courseHistory, courseNodes, getCourse, getNode, lessonOfTodo, startNode, type Course, type CourseNode } from "./store";
 
 export const LEARN_KIND = "learn";
@@ -90,6 +92,14 @@ function lessonOf(todoId: number): { course: Course; node: CourseNode } | null {
     return null;
   }
 }
+
+// A lesson's conversation is kept in Learn's Conversations database: written at each turn's end, and a fresh session when it
+// was changed there since the session last spoke (conversation.ts).
+registerConversationGuard(LEARN_SOURCE, {
+  continuity: lessonContinuity,
+  started: freshSessionStarted,
+  turn: (runId) => void syncRun(runId),
+});
 
 registerChatProfile(LEARN_KIND, (todo, preamble) => {
   const l = lessonOf(todo.id);
