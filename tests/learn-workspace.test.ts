@@ -133,3 +133,53 @@ test("a course deleted: its rows go to the Workspace's trash (they can come back
   assert.equal(ws.rawRows(a.steps).filter((r) => (r.cells[dbs.P.course] as number[])?.includes(id)).length, 0);
   assert.ok(ws.getPage(id)?.archivedAt, "the course's row is in the trash");
 });
+
+test("ticked mastered by hand (the table, the phone, the AI): counted as in Learn — its xp once, Mastered at filled, the skill it completes too", async () => {
+  const { dbs, ws, id, store } = await setup();
+  const row = (k: string) => ws.rawRows(dbs.learnDbs().steps).find((r) => (r.cells[dbs.P.course] as number[])?.includes(id) && r.cells[dbs.P.key] === k)!;
+  const xp0 = store.getCourse(id)!.xp;
+  ws.setCell(row("a1").id, dbs.P.mastered, true);
+  assert.equal(store.courseTree(id).tree.status.get("a1"), "mastered");
+  assert.equal(store.getCourse(id)!.xp, xp0 + 10, "the step's xp");
+  assert.ok(row("a1").cells[dbs.P.masteredAt], "Mastered at filled in");
+  assert.equal(row("a1").cells[dbs.P.awarded], true);
+  assert.ok(store.getCourse(id)!.streak >= 1, "the streak follows");
+  assert.ok(store.getCourse(id)!.badges.includes("first-step"), "the badges too");
+  assert.equal(store.recentEvents(id).filter((e) => e.kind === "mastered").length, 1, "one Activity row");
+  // Read again: nothing given twice.
+  store.courseTree(id);
+  assert.equal(store.getCourse(id)!.xp, xp0 + 10);
+  // Unticked: not mastered, Mastered at emptied, the xp stays; ticked again: no second time.
+  ws.setCell(row("a1").id, dbs.P.mastered, false);
+  assert.equal(store.courseTree(id).tree.status.get("a1"), "available");
+  assert.equal(row("a1").cells[dbs.P.masteredAt], undefined, "Mastered at emptied");
+  assert.equal(store.getCourse(id)!.xp, xp0 + 10, "no xp taken back");
+  ws.setCell(row("a1").id, dbs.P.mastered, true);
+  assert.equal(store.courseTree(id).tree.status.get("a1"), "mastered");
+  assert.equal(store.getCourse(id)!.xp, xp0 + 10, "ticked again: no second xp");
+  // The last step of the skill ticked: the step, the skill, its phase and year — each once.
+  ws.setCell(row("a2").id, dbs.P.mastered, true);
+  assert.equal(store.courseTree(id).tree.status.get("a"), "mastered");
+  assert.equal(store.getCourse(id)!.xp, xp0 + 10 + 10 + 50 + 150 + 500);
+  assert.equal(row("a").cells[dbs.P.mastered], true, "the skill marked mastered too");
+  store.courseTree(id);
+  assert.equal(store.getCourse(id)!.xp, xp0 + 720, "once");
+});
+
+test("mastered in Learn (the teacher's tool): as before — and a step given its xp by hand isn't given it again", async () => {
+  const { dbs, ws, id, store } = await setup();
+  const xp0 = store.getCourse(id)!.xp;
+  const r1 = store.masterNode(id, "a1");
+  assert.equal(r1.xp, 10);
+  assert.equal(store.getCourse(id)!.xp, xp0 + 10);
+  const a1 = ws.rawRows(dbs.learnDbs().steps).find((r) => r.id === store.getNode(id, "a1")!.id)!;
+  assert.equal(a1.cells[dbs.P.awarded], true);
+  store.courseTree(id);
+  assert.equal(store.getCourse(id)!.xp, xp0 + 10, "not settled a second time");
+  ws.setCell(a1.id, dbs.P.mastered, false);
+  store.courseTree(id);
+  const again = store.masterNode(id, "a1");
+  assert.deepEqual(again.mastered, ["a1"]);
+  assert.equal(again.xp, 0, "mastered again: no second xp");
+  assert.equal(store.getCourse(id)!.xp, xp0 + 10);
+});

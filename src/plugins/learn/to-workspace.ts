@@ -18,6 +18,8 @@ import { copiesOf } from "@/plugins/workspace/links";
 import { learnDbs, P, setMover } from "./dbs";
 import { htmlDoc, timeCell } from "./store";
 import { syncLesson } from "./conversation";
+import { computeTree } from "./tree";
+import type { NodeKind } from "./shared";
 
 export const MOVED_FLAG = "learn.movedToWorkspace";
 export const BACKUP_NAME = "zeff-before-learn-move.db";
@@ -117,6 +119,15 @@ function moveCourse(d: ReturnType<typeof getSqlite>, oldId: number, opts: { inte
 
     // The plan's nodes, with your progress; then what links them.
     const nodes = all("learn_nodes", "ord, id");
+    // What was mastered — a step by its time, a skill, phase or year by its steps: its experience was given then (marked, so
+    // it's never given again — store.ts settleTicks).
+    const parents = new Set(nodes.map((x) => str(x.parent_key)).filter(Boolean));
+    const tree = computeTree({
+      nodes: nodes.map((x) => ({ id: Number(x.id), key: str(x.key), kind: str(x.kind) as NodeKind, parent: x.parent_key ? str(x.parent_key) : null, requires: json<string[]>(x.requires, []), path: x.path ? str(x.path) : null, xp: n(x.xp) ?? 0 })),
+      mastered: new Set(nodes.filter((x) => x.mastered_at && !parents.has(str(x.key))).map((x) => str(x.key))),
+      active: new Set(),
+    });
+    const given = (x: R) => !!x.mastered_at || tree.status.get(str(x.key)) === "mastered";
     const stepOf = new Map<string, number>();
     for (const x of nodes) {
       const key = str(x.key);
@@ -134,6 +145,8 @@ function moveCourse(d: ReturnType<typeof getSqlite>, oldId: number, opts: { inte
           [P.sourceIds]: json<string[]>(x.sources, []).join(", "),
           [P.order]: n(x.ord) ?? 0,
           [P.mastered]: x.mastered_at ? true : null,
+          // (Its experience was given when it was mastered — in the course's xp already.)
+          [P.awarded]: given(x) ? true : null,
           [P.masteredAt]: timeCell(str(x.mastered_at) || null),
           [P.activeSince]: timeCell(str(x.active_since) || null),
           [P.lessonTodo]: n(x.lesson_todo_id) ? [n(x.lesson_todo_id)] : null,

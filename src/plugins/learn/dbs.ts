@@ -57,6 +57,8 @@ export const P = {
   masteredAt: "learnmasteredat",
   activeSince: "learnactivesince",
   lessonTodo: "learnlessontodo",
+  /** Its experience was given (once — unticked and ticked again, it isn't given twice). */
+  awarded: "learnawarded",
   // Exercises
   spec: "learnspec",
   libs: "learnlibs",
@@ -149,8 +151,9 @@ function specs(): Record<Which, { title: string; icon: string; titleName: string
         prop(P.sourceIds, t("Sources"), "text"),
         prop(P.order, t("Order"), "number"),
         prop(P.lessonTodo, t("Lesson todo"), "todo"),
+        prop(P.awarded, t("XP given"), "checkbox"),
       ],
-      hidden: [P.key, P.order, P.sourceIds, P.lessonTodo],
+      hidden: [P.key, P.order, P.sourceIds, P.lessonTodo, P.awarded],
       sort: { prop: P.order, dir: "asc" },
     },
     exercises: {

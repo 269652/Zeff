@@ -15,6 +15,9 @@ if (!g.__zeffLearnTimer && process.env.NODE_ENV !== "test" && !process.env.DATAB
         for (const a of listAccounts()) {
           await withAccount(a.id, async () => {
             if (!isInstalled("learn")) return;
+            // (Steps ticked mastered in the database — the phone, the AI, a routine: their xp given now, not only when Learn is opened.)
+            const store = await import("./store");
+            for (const c of store.listCourses()) store.courseTree(c.id);
             const { syncReviewTodos, syncStudyCalendar } = await import("./schedule");
             syncReviewTodos();
             await syncStudyCalendar();

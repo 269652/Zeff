@@ -9187,5 +9187,6 @@
   "system": "System",
   "“{name}” belongs to the {plugin} plugin — it can't be removed (hide it in a view instead).": "„{name}“ gehört zum Plugin {plugin} — es kann nicht entfernt werden (blende es stattdessen in einer Ansicht aus).",
   "“{name}” belongs to the {plugin} plugin — its kind can't be changed.": "„{name}“ gehört zum Plugin {plugin} — seine Art kann nicht geändert werden.",
-  "“{title}” keeps the {plugin} plugin's data — it can't be deleted while the plugin is installed.": "„{title}“ enthält die Daten des Plugins {plugin} — solange es installiert ist, kann es nicht gelöscht werden."
+  "“{title}” keeps the {plugin} plugin's data — it can't be deleted while the plugin is installed.": "„{title}“ enthält die Daten des Plugins {plugin} — solange es installiert ist, kann es nicht gelöscht werden.",
+  "XP given": "XP vergeben"
 }

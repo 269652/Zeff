@@ -222,7 +222,7 @@ export function savePlan(id: number, raw: unknown, opts: { keepProgress?: boolea
         [P.sourceIds]: (n.sources ?? []).join(", "),
         [P.order]: i,
         ...(n.parent && rowOf.has(n.parent) ? { [P.parent]: [rowOf.get(n.parent)!] } : {}),
-        ...(!opts.keepProgress ? { [P.mastered]: false, [P.masteredAt]: null, [P.activeSince]: null, [P.lessonTodo]: null } : {}),
+        ...(!opts.keepProgress ? { [P.mastered]: false, [P.masteredAt]: null, [P.activeSince]: null, [P.lessonTodo]: null, [P.awarded]: null } : {}),
       };
       const row = had.get(n.key);
       if (row) {
@@ -302,7 +302,12 @@ const keyOf = (r: Row) => str(r.cells[P.key]).trim() || `r${r.id}`;
 /** A course's nodes, in the plan's order — from its rows in Steps (read once until something changes). */
 export const courseNodes = (courseId: number): CourseNode[] => {
   const c = cid(courseId);
-  return memo(`learn:nodes:${c}`, () => {
+  settleTicks(c);
+  return nodesOf(c);
+};
+
+const nodesOf = (c: number): CourseNode[] =>
+  memo(`learn:nodes:${c}`, () => {
     const rows = ofCourse("steps", c);
     const keyById = new Map(rows.map((r) => [r.id, keyOf(r)]));
     const at = new Map(rows.map((r, i) => [r.id, i]));
@@ -332,7 +337,50 @@ export const courseNodes = (courseId: number): CourseNode[] => {
         };
       });
   });
-};
+
+/**
+ * Steps ticked "Mastered" (or unticked) another way than through Learn — in the Steps table, on the phone, by the Workspace's AI,
+ * a pipeline or a routine: settled the next time Learn reads the course, as if mastered in Learn. A step ticked whose experience
+ * wasn't given (`learnawarded`) gets it now (once: unticked and ticked again, never a second time), its "Mastered at" (when its
+ * row was changed, if empty), the course's xp, streak, today and badges — and the skills, phases and years it completed with it.
+ * Unticked: not mastered, "Mastered at" emptied — the experience given stays. Done once per change of the database.
+ */
+let settling = false;
+function settleTicks(c: number): void {
+  if (settling) return;
+  memo(`learn:settled:${c}`, () => {
+    settling = true;
+    try {
+      const nodes = nodesOf(c);
+      const rows = new Map(ofCourse("steps", c).map((r) => [r.id, r]));
+      const kids = new Set(nodes.map((n) => n.parent).filter(Boolean));
+      const row = (n: CourseNode) => rows.get(n.id)!;
+      const ticked = nodes.filter((n) => !kids.has(n.key) && n.masteredAt && row(n).cells[P.awarded] !== true);
+      const unticked = nodes.filter((n) => !kids.has(n.key) && !n.masteredAt && row(n).cells[P.masteredAt]);
+      const tree = computeTree(treeInput(nodes));
+      // Skills, phases, years complete now whose experience wasn't given — or not complete any more (a step unticked).
+      const done = nodes.filter((n) => kids.has(n.key) && tree.status.get(n.key) === "mastered" && row(n).cells[P.awarded] !== true);
+      const undone = nodes.filter((n) => kids.has(n.key) && tree.status.get(n.key) !== "mastered" && row(n).cells[P.mastered] === true);
+      if (!ticked.length && !unticked.length && !done.length && !undone.length) return true;
+      inTx(() => {
+        const now = new Date();
+        for (const n of [...unticked, ...undone]) setCells(row(n), { [P.mastered]: false, [P.masteredAt]: null });
+        for (const n of ticked) {
+          const r = row(n);
+          setCells(r, { [P.awarded]: true, ...(r.cells[P.masteredAt] ? {} : { [P.masteredAt]: timeCell(r.updatedAt) }) });
+          awardXp(c, n.xp, "mastered", { keys: [n.key], note: "ticked in the database" }, now, n.key);
+        }
+        if (done.length) {
+          for (const n of done) setCells(row(n), { [P.mastered]: true, [P.awarded]: true, [P.masteredAt]: timeCell(now.toISOString()) });
+          awardXp(c, done.reduce((s, n) => s + n.xp, 0), "mastered", { keys: done.map((n) => n.key), note: "completed" }, now, ticked[0]?.key ?? null);
+        }
+      });
+      return true;
+    } finally {
+      settling = false;
+    }
+  });
+}
 
 export function getNode(courseId: number, key: string): CourseNode | undefined {
   return courseNodes(courseId).find((n) => n.key === key);
@@ -400,17 +448,30 @@ export function masterNode(courseId: number, key: string, at: Date = new Date(),
   if (status === "mastered") return { xp: 0, mastered: [], badges: [] };
   if (status === "locked") throw new Error(`"${node.title}" is still locked: what it requires isn't mastered yet.`);
   if (before.nodes.some((n) => n.parent === key)) throw new Error(`"${node.title}" is mastered through its steps.`);
+  // (Its own marking isn't a tick by hand: nothing settled meanwhile — settleTicks.)
+  const was = settling;
+  settling = true;
+  try {
+    return mastering(c, key, before, at, note);
+  } finally {
+    settling = was;
+  }
+}
+
+function mastering(c: number, key: string, before: { nodes: CourseNode[]; tree: Tree }, at: Date, note: string): { xp: number; mastered: string[]; badges: BadgeId[] } {
+  // (What was given its experience before — mastered, unticked, mastered again: not a second time.)
+  const given = new Set(ofCourse("steps", c).filter((r) => r.cells[P.awarded] === true).map((r) => r.id));
   return inTx(() => {
     const mark = (k: string) => {
       const r = stepRow(c, k);
-      if (r) setCells(r, { [P.mastered]: true, [P.masteredAt]: timeCell(at.toISOString()) });
+      if (r) setCells(r, { [P.mastered]: true, [P.masteredAt]: timeCell(at.toISOString()), [P.awarded]: true });
     };
     mark(key);
     const after = courseTree(c);
     const newly = after.nodes.filter((n) => after.tree.status.get(n.key) === "mastered" && before.tree.status.get(n.key) !== "mastered");
     // Containers completed with it: marked too (their date of mastery).
     for (const n of newly) if (n.key !== key) mark(n.key);
-    const xp = newly.reduce((s, n) => s + n.xp, 0);
+    const xp = newly.filter((n) => !given.has(n.id)).reduce((s, n) => s + n.xp, 0);
     const badges = awardXp(c, xp, "mastered", { keys: newly.map((n) => n.key), note: note.slice(0, 500) }, at, key);
     return { xp, mastered: newly.map((n) => n.key), badges };
   });

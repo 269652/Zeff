@@ -9187,5 +9187,6 @@
   "system": "sistema",
   "“{name}” belongs to the {plugin} plugin — it can't be removed (hide it in a view instead).": "«{name}» pertenece al plugin {plugin}: no se puede eliminar (ocúltalo en una vista).",
   "“{name}” belongs to the {plugin} plugin — its kind can't be changed.": "«{name}» pertenece al plugin {plugin}: no se puede cambiar su tipo.",
-  "“{title}” keeps the {plugin} plugin's data — it can't be deleted while the plugin is installed.": "«{title}» guarda los datos del plugin {plugin}: no se puede borrar mientras esté instalado."
+  "“{title}” keeps the {plugin} plugin's data — it can't be deleted while the plugin is installed.": "«{title}» guarda los datos del plugin {plugin}: no se puede borrar mientras esté instalado.",
+  "XP given": "XP otorgados"
 }
