@@ -211,9 +211,17 @@ export async function cancelWorkAction(runId: number): Promise<ActionState> {
 export async function saveWorkSettingsAction(_prev: ActionState, fd: FormData): Promise<ActionState> {
   try {
     const { PERMISSION_MODES } = await import("@/lib/work/shared");
-    const { updateWorkSettings } = await import("@/lib/work/store");
+    const { reservedWorkers, updateWorkSettings } = await import("@/lib/work/store");
+    const { MAX_PARALLEL, MAX_RESERVED } = await import("@/lib/work/slots");
     const parallel = num(fd, "parallel");
-    if (parallel === undefined || parallel < 1 || parallel > 8) return { ok: false, error: t("1 to 8 workers at once.") };
+    if (parallel === undefined || parallel < 1 || parallel > MAX_PARALLEL) return { ok: false, error: t("1 to {max} workers at once.", { max: MAX_PARALLEL }) };
+    // Workers reserved for an installed plugin's runs (Learn's lessons): on top of these (a plugin not installed keeps its own).
+    const reserved = reservedWorkers();
+    for (const pool of (await import("@/lib/work/view")).workerPools()) {
+      const n = num(fd, `reserved:${pool.source}`) ?? 0;
+      if (n < 0 || n > MAX_RESERVED) return { ok: false, error: t("0 to {max} reserved workers.", { max: MAX_RESERVED }) };
+      reserved[pool.source] = n;
+    }
     const permissionMode = str(fd, "permissionMode") ?? "auto";
     if (!(PERMISSION_MODES as readonly string[]).includes(permissionMode)) return { ok: false, error: t("Unknown permission mode.") };
     const isolation = str(fd, "isolation") === "checkout" ? "checkout" : "worktree";
@@ -223,6 +231,7 @@ export async function saveWorkSettingsAction(_prev: ActionState, fd: FormData): 
     if (model && !/^[\w.:\[\]-]{2,60}$/.test(model)) return { ok: false, error: t("A model name like sonnet, opus or claude-sonnet-5-5.") };
     updateWorkSettings({
       parallel,
+      reserved,
       permissionMode: permissionMode as (typeof PERMISSION_MODES)[number],
       isolation,
       ...(copilotMode ? { copilotMode } : {}),

@@ -8,6 +8,7 @@ import { liveDriverOf, liveSessionView } from "./live-driver";
 import { delegates } from "@/lib/host/role";
 import { getPref, setPref } from "@/lib/prefs";
 import type { WorkRun } from "@/db/schema";
+import { clampParallel, clampReserved, cleanReserved } from "./slots";
 import { getAppSettings, updateAppSettings } from "@/lib/ai";
 import { CLAUDE_SESSION_DEFAULTS, COPILOT_MODES, EFFORTS, isClaudeMode, PERMISSION_MODES, workRef, type ClaudeSessionSettings, type CopilotMode, type PermissionMode, type WorkMode, type WorkResult, type WorkRunView, type WorkSettingsView, type WorkStatus } from "./shared";
 
@@ -24,7 +25,8 @@ const parse = <T>(json: string | null, fallback: T): T => {
 export function getWorkSettings(): WorkSettingsView {
   const s = getAppSettings();
   return {
-    parallel: Math.min(8, Math.max(1, Math.round(s.workParallel) || 1)),
+    parallel: clampParallel(s.workParallel),
+    reserved: reservedWorkers(),
     permissionMode: (PERMISSION_MODES as readonly string[]).includes(s.workPermissionMode) ? (s.workPermissionMode as PermissionMode) : "auto",
     isolation: s.workIsolation === "checkout" ? "checkout" : "worktree",
     copilotMode: (COPILOT_MODES as readonly string[]).includes(s.workCopilotMode) ? (s.workCopilotMode as CopilotMode) : "interactive",
@@ -35,8 +37,9 @@ export function getWorkSettings(): WorkSettingsView {
 }
 
 export function updateWorkSettings(patch: Partial<WorkSettingsView>): WorkSettingsView {
+  if (patch.reserved !== undefined) setPref("workReserved", cleanReserved(patch.reserved));
   updateAppSettings({
-    ...(patch.parallel !== undefined ? { workParallel: Math.min(8, Math.max(1, Math.round(patch.parallel))) } : {}),
+    ...(patch.parallel !== undefined ? { workParallel: clampParallel(patch.parallel) } : {}),
     ...(patch.permissionMode !== undefined ? { workPermissionMode: patch.permissionMode } : {}),
     ...(patch.isolation !== undefined ? { workIsolation: patch.isolation } : {}),
     ...(patch.copilotMode !== undefined ? { workCopilotMode: patch.copilotMode } : {}),
@@ -50,6 +53,18 @@ export function updateWorkSettings(patch: Partial<WorkSettingsView>): WorkSettin
       : {}),
   });
   return getWorkSettings();
+}
+
+/** Workers reserved per todo source, on top of the general ones (slots.ts) — Settings → Code, or Learn's button. */
+export function reservedWorkers(): Record<string, number> {
+  return cleanReserved(getPref<unknown>("workReserved", {}));
+}
+
+/** Reserves `n` workers for this source's runs (0: none) — the queue isn't pumped here (the caller does). */
+export function setReservedWorkers(source: string, n: number): Record<string, number> {
+  setPref("workReserved", { ...reservedWorkers(), [source]: clampReserved(n) });
+  emitChange("work");
+  return reservedWorkers();
 }
 
 /** Live Claude sessions' settings (Code settings → Claude sessions). */
@@ -149,6 +164,14 @@ export function getRun(id: number): WorkRun | undefined {
 /** Runs in these states, oldest first (the queue's order). */
 export function runsByStatus(statuses: WorkStatus[]): WorkRun[] {
   return getDb().select().from(workRuns).where(inArray(workRuns.status, statuses)).orderBy(asc(workRuns.id)).all();
+}
+
+/** The todos' sources (which pool of workers their runs take — slots.ts); a todo that's gone isn't in it. */
+export function todoSources(todoIds: number[]): Map<number, string | null> {
+  const ids = [...new Set(todoIds)];
+  if (!ids.length) return new Map();
+  const rows = getDb().select({ id: schema.todos.id, source: schema.todos.source }).from(schema.todos).where(inArray(schema.todos.id, ids)).all();
+  return new Map(rows.map((r) => [r.id, r.source]));
 }
 
 /** The runs on these todos, newest first, by todo. */

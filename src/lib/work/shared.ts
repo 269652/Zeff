@@ -368,6 +368,8 @@ export const copilotModeLabels = (t: T): Record<CopilotMode, string> => ({
 
 export type WorkSettingsView = {
   parallel: number;
+  /** Workers reserved per todo source on top of `parallel` (slots.ts): only that source's runs take them. */
+  reserved: Record<string, number>;
   copilotMode: CopilotMode;
   permissionMode: PermissionMode;
   isolation: WorkIsolation;
