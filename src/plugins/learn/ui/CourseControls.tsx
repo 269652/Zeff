@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { deleteCourseAction, retryResearchAction, setDailyGoalAction, setInterestsAction, setStudySlotsAction } from "@/app/learn/actions";
+import { deleteCourseAction, retryResearchAction, setDailyGoalAction, setInterestsAction, setStudySlotsAction, updatePlanAction } from "@/app/learn/actions";
 import type { StudySlot } from "../schedule-shared";
 
 type R = { ok: true } | { ok: false; error: string };
@@ -44,6 +44,48 @@ export function ReplanCourse({ id }: { id: number }) {
     >
       {t("Plan anew")}
     </button>
+  );
+}
+
+/**
+ * "Update planning": the plan revised — for what interests you now and a note of yours ("more clinical cases") — while
+ * everything you've mastered or begun stays as it is.
+ */
+export function UpdatePlan({ id }: { id: number }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const [note, setNote] = useState("");
+  const [pending, run] = useRun();
+  if (!open)
+    return (
+      <button type="button" className="btn btn-sm btn-primary" onClick={() => setOpen(true)}>
+        {t("Update planning")}
+      </button>
+    );
+  return (
+    <div className="card w-full space-y-2 p-3">
+      <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("Claude revises the plan for your interests and what you write here. Everything you've mastered or begun stays — with its lessons.")}</p>
+      <textarea className="input w-full text-sm" rows={2} value={note} onChange={(e) => setNote(e.target.value)} placeholder={t("e.g. more clinical cases; less statistics; pharmacology earlier")} maxLength={2000} />
+      <div className="flex flex-wrap gap-2">
+        <button
+          type="button"
+          className="btn btn-sm btn-primary"
+          disabled={pending}
+          onClick={() =>
+            run(async () => {
+              const r = await updatePlanAction(id, note);
+              if (r.ok) setOpen(false);
+              return r;
+            })
+          }
+        >
+          {pending ? t("Starting …") : t("Update planning")}
+        </button>
+        <button type="button" className="btn btn-sm" onClick={() => setOpen(false)}>
+          {t("Cancel")}
+        </button>
+      </div>
+    </div>
   );
 }
 

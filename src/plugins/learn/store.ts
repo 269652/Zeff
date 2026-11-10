@@ -128,13 +128,19 @@ export function deleteCourse(id: number): void {
 }
 
 /** The research's plan into the course (checked and repaired: plan.ts) — its nodes replace any before. */
-export function savePlan(id: number, raw: unknown): { problems: string[] } {
+/** `keepProgress`: an updated plan (the same steps, revised) — what was done stays with each key it still has. */
+export function savePlan(id: number, raw: unknown, opts: { keepProgress?: boolean } = {}): { problems: string[] } {
   const { plan, problems } = normalizePlan(raw);
   if (!plan.nodes.length) {
     failResearch(id, problems[0] ?? "The plan has no steps.");
     return { problems };
   }
   const d = db();
+  // What was done kept for every key the new plan has too (an updated plan — "Update planning" — keeps the progress):
+  // mastered, begun, its lesson's conversation.
+  const kept = new Map(
+    (!opts.keepProgress ? [] : d.prepare("select key, mastered_at, active_since, lesson_todo_id from learn_nodes where course_id = ?").all(id) as { key: string; mastered_at: string | null; active_since: string | null; lesson_todo_id: number | null }[]).map((r) => [r.key, r] as const),
+  );
   d.transaction(() => {
     d.prepare("delete from learn_nodes where course_id = ?").run(id);
     const ins = d.prepare(
@@ -143,6 +149,11 @@ export function savePlan(id: number, raw: unknown): { problems: string[] } {
     plan.nodes.forEach((n, i) =>
       ins.run(id, n.key, n.kind, n.parent, n.title, n.summary ?? "", JSON.stringify(n.objectives ?? []), JSON.stringify(n.requires ?? []), n.path ?? null, n.xp ?? 0, n.minutes ?? null, JSON.stringify(n.sources ?? []), i),
     );
+    const restore = d.prepare("update learn_nodes set mastered_at = ?, active_since = ?, lesson_todo_id = ? where course_id = ? and key = ?");
+    for (const n of plan.nodes) {
+      const k = kept.get(n.key);
+      if (k && (k.mastered_at || k.active_since || k.lesson_todo_id)) restore.run(k.mastered_at, k.active_since, k.lesson_todo_id, id, n.key);
+    }
     d.prepare("update learn_courses set status = 'ready', title = ?, summary = ?, years = ?, sources = ?, problems = ?, error = null, updated_at = ? where id = ?").run(
       plan.title,
       plan.summary,
@@ -499,4 +510,10 @@ export function courseHistory(courseId: number, exceptKey?: string): string[] {
     size += line.length;
   }
   return out.reverse();
+}
+
+/** A plan update that didn't work: the plan stays as it was (ready), the error said. */
+export function failPlanUpdate(id: number, error: string): void {
+  db().prepare("update learn_courses set status = 'ready', error = ?, updated_at = ? where id = ?").run(`Planung aktualisieren: ${error}`.slice(0, 2000), nowIso(), id);
+  changed();
 }

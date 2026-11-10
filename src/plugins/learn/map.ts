@@ -7,7 +7,7 @@ type N = { key: string; kind: NodeKind; parent: string | null; requires: string[
  * Each skill with the skills it follows: its own requirements, and — where it has none inside its phase — its phase's
  * and year's. A phase or year required stands for its last skills (those nothing else in it requires).
  */
-export function skillGraph(nodes: N[]): { key: string; phase: string | null; after: string[] }[] {
+export function skillGraph(nodes: N[]): { key: string; phase: string | null; after: string[]; foundation?: boolean }[] {
   const byKey = new Map(nodes.map((n) => [n.key, n]));
   const skills = nodes.filter((n) => n.kind === "skill");
   const inside = (container: string): N[] => skills.filter((s) => {
@@ -27,7 +27,19 @@ export function skillGraph(nodes: N[]): { key: string; phase: string | null; aft
     if (n.kind === "step") return n.parent && byKey.get(n.parent)?.kind === "skill" ? [n.parent] : [];
     return lastOf(k);
   };
+  // The foundations (the first phase's skills, learned one after another): drawn down one column in the plan's order —
+  // no lines between them here (the map joins them as a sequence) — and what builds on them follows only the last one.
+  const firstPhase = nodes.find((n) => n.kind === "phase")?.key ?? null;
+  const foundations = firstPhase ? skills.filter((s) => s.parent === firstPhase).map((s) => s.key) : [];
+  const isFoundation = new Set(foundations);
+  const lastFoundation = foundations[foundations.length - 1];
   return skills.map((s) => {
+    const g = graphOf(s);
+    if (isFoundation.has(s.key)) return { ...g, after: g.after.filter((k) => !isFoundation.has(k)), foundation: true };
+    if (!g.after.some((k) => isFoundation.has(k))) return g;
+    return { ...g, after: [...new Set([...g.after.filter((k) => !isFoundation.has(k)), lastFoundation])] };
+  });
+  function graphOf(s: N): { key: string; phase: string | null; after: string[] } {
     const phase = s.parent && byKey.get(s.parent)?.kind === "phase" ? s.parent : null;
     const siblings = new Set(phase ? inside(phase).map((x) => x.key) : []);
     const own = s.requires.flatMap(expand);
@@ -35,7 +47,7 @@ export function skillGraph(nodes: N[]): { key: string; phase: string | null; aft
     const inherited: string[] = [];
     if (!hasInPhase) for (let p = s.parent; p; p = byKey.get(p)?.parent ?? null) inherited.push(...(byKey.get(p)?.requires ?? []).flatMap(expand));
     return { key: s.key, phase, after: [...new Set([...own, ...inherited])].filter((k) => k !== s.key) };
-  });
+  }
 }
 
 type RouteNode = { key: string; kind: NodeKind; parent: string | null; path: string | null; masteredAt: string | null; activeSince: string | null };

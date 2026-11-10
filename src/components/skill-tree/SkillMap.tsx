@@ -16,6 +16,8 @@ export type SkillMapNode = {
   group: string | null;
   /** The nodes it follows. */
   after: string[];
+  /** One of the foundations, learned one after another (drawn down the first column, joined in order). */
+  foundation?: boolean;
   summary?: string;
   steps: SkillMapStep[];
 };
@@ -46,7 +48,9 @@ export function SkillMap({
   const t = useT();
   // The foundations (nothing before them): one after another down the first column, in the red thread's order.
   const foundations = useMemo(() => {
-    const roots = new Set(nodes.filter((n) => !n.after.some((a) => nodes.some((m) => m.key === a))).map((n) => n.key));
+    // Marked as such (the first phase's skills) — else those that need nothing.
+    const marked = nodes.filter((n) => n.foundation);
+    const roots = new Set((marked.length ? marked : nodes.filter((n) => !n.after.some((a) => nodes.some((m) => m.key === a)))).map((n) => n.key));
     const inRoute = (route?.keys ?? []).filter((k) => roots.has(k));
     return [...inRoute, ...nodes.filter((n) => roots.has(n.key) && !inRoute.includes(n.key)).map((n) => n.key)];
   }, [nodes, route]);
@@ -62,6 +66,34 @@ export function SkillMap({
   const xy = (k: string) => {
     const p = layout.pos.get(k)!;
     return { x: p.col * COL + COL / 2, y: TOP + p.row * ROW + R + 8 };
+  };
+  // Where a line meets a node: spread over a half circle, not all in one point — what comes in over the left half, what
+  // goes out over the right, each in the order of where its other end lies (top to bottom), so lines cross less.
+  const spread = (i: number, count: number) => (count > 1 ? -0.4 * Math.PI + (0.8 * Math.PI * i) / (count - 1) : 0);
+  const inAngle = new Map<string, number>();
+  const outAngle = new Map<string, number>();
+  for (const n of nodes) {
+    const ins = n.after.filter((a) => layout.pos.has(a)).sort((p, q) => xy(p).y - xy(q).y || xy(p).x - xy(q).x);
+    ins.forEach((a, i) => inAngle.set(`${a}>${n.key}`, Math.PI - spread(i, ins.length)));
+    const outs = nodes.filter((m) => m.after.includes(n.key)).sort((p, q) => xy(p.key).y - xy(q.key).y || xy(p.key).x - xy(q.key).x);
+    outs.forEach((m, i) => outAngle.set(`${n.key}>${m.key}`, spread(i, outs.length)));
+  }
+  const port = (k: string, angle: number) => {
+    const c = xy(k);
+    return { x: c.x + R * Math.cos(angle), y: c.y + R * Math.sin(angle) };
+  };
+  /** A curve leaving p1 in the direction a1 and coming into p2 from a2 (the angles point away from each node). */
+  const controls = (p1: { x: number; y: number }, a1: number, p2: { x: number; y: number }, a2: number) => {
+    const k = Math.max(30, Math.hypot(p2.x - p1.x, p2.y - p1.y) / 2.6);
+    return [p1.x + Math.cos(a1) * k, p1.y + Math.sin(a1) * k, p2.x + Math.cos(a2) * k, p2.y + Math.sin(a2) * k] as const;
+  };
+  const curve = (p1: { x: number; y: number }, a1: number, p2: { x: number; y: number }, a2: number) => {
+    const [c1x, c1y, c2x, c2y] = controls(p1, a1, p2, a2);
+    return `M${p1.x},${p1.y} C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
+  };
+  const midpoint = (p1: { x: number; y: number }, a1: number, p2: { x: number; y: number }, a2: number) => {
+    const [c1x, c1y, c2x, c2y] = controls(p1, a1, p2, a2);
+    return { x: (p1.x + 3 * c1x + 3 * c2x + p2.x) / 8, y: (p1.y + 3 * c1y + 3 * c2y + p2.y) / 8 };
   };
   const width = Math.max(1, layout.cols) * COL;
   const height = TOP + Math.max(1, layout.rows) * ROW;
@@ -105,18 +137,13 @@ export function SkillMap({
               n.after
                 .filter((a) => layout.pos.has(a))
                 .map((a) => {
-                  const s = xy(a);
-                  const e = xy(n.key);
-                  const x1 = s.x + R;
-                  const x2 = e.x - R;
-                  const mx = (x1 + x2) / 2;
                   const from = byKey.get(a)!;
                   const done = from.status === "mastered";
                   const locked = n.status === "locked";
                   return (
                     <path
                       key={`${a}>${n.key}`}
-                      d={`M${x1},${s.y} C${mx},${s.y} ${mx},${e.y} ${x2},${e.y}`}
+                      d={curve(port(a, outAngle.get(`${a}>${n.key}`) ?? 0), outAngle.get(`${a}>${n.key}`) ?? 0, port(n.key, inAngle.get(`${a}>${n.key}`) ?? Math.PI), inAngle.get(`${a}>${n.key}`) ?? Math.PI)}
                       fill="none"
                       strokeWidth={done ? 2.5 : 2}
                       strokeDasharray={locked ? "4 5" : undefined}
@@ -141,12 +168,30 @@ export function SkillMap({
             </defs>
             {/* The red thread: the way through the map — walked solid, the plan ahead dashed. */}
             {thread.slice(1).map((k, i) => {
+              // Out of the one node and into the next in its own direction (a little turned, off the map's lines).
               const a = xy(thread[i]);
               const b = xy(k);
-              const mx = (a.x + b.x) / 2;
+              const ta = Math.atan2(b.y - a.y, b.x - a.x) - 0.35;
+              const tb = Math.atan2(a.y - b.y, a.x - b.x) + 0.35;
               const walked = i + 1 < (route?.walked ?? 0);
-              const d = a.x === b.x ? `M${a.x - 10},${a.y} C${a.x - 34},${a.y} ${b.x - 34},${b.y} ${b.x - 10},${b.y}` : `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`;
-              return <path key={`thread-${k}`} d={d} fill="none" stroke="#dc2626" strokeWidth={walked ? 4 : 2.5} strokeOpacity={walked ? 0.75 : 0.5} strokeDasharray={walked ? undefined : "6 6"} strokeLinecap="round" />;
+              return <path key={`thread-${k}`} d={curve(port(thread[i], ta), ta, port(k, tb), tb)} fill="none" stroke="#dc2626" strokeWidth={walked ? 4 : 2.5} strokeOpacity={walked ? 0.75 : 0.55} strokeDasharray={walked ? undefined : "6 6"} strokeLinecap="round" />;
+            })}
+            {/* Its order: a number on each stretch — where the thread goes next. */}
+            {thread.slice(1).map((k, i) => {
+              const a = xy(thread[i]);
+              const b = xy(k);
+              const ta = Math.atan2(b.y - a.y, b.x - a.x) - 0.35;
+              const tb = Math.atan2(a.y - b.y, a.x - b.x) + 0.35;
+              const m = midpoint(port(thread[i], ta), ta, port(k, tb), tb);
+              const walked = i + 1 < (route?.walked ?? 0);
+              return (
+                <g key={`n-${k}`}>
+                  <circle cx={m.x} cy={m.y} r={9} fill={walked ? "#dc2626" : "#fff"} stroke="#dc2626" strokeWidth={1.5} />
+                  <text x={m.x} y={m.y + 3.5} textAnchor="middle" fontSize={10} fontWeight={700} fill={walked ? "#fff" : "#dc2626"}>
+                    {i + 2}
+                  </text>
+                </g>
+              );
             })}
           </svg>
           {bands.map((b, i) => (

@@ -206,7 +206,8 @@ export function seedLearnDemo(lang: Lang): number {
 
   // A week of learning: a step or two a day (the streak, the badges), the last one today.
   const done: [string, number][] = [
-    ["linalg.a", 6], ["calc.a", 6], ["linalg.b", 5], ["calc.b", 4], ["linalg.c", 3], ["calc.c", 2], ["plane.a", 1], ["plane.b", 0],
+    // (The foundations one after another: linear algebra in depth first, then calculus.)
+    ["linalg.a", 6], ["linalg.b", 6], ["linalg.c", 5], ["calc.a", 4], ["calc.b", 3], ["calc.c", 2], ["plane.a", 1], ["plane.b", 0],
   ];
   for (const [key, ago] of done) store.masterNode(id, key, daysAgo(ago, 19, 30), "");
 

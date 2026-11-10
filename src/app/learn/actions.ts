@@ -12,6 +12,19 @@ const guard = () => {
 
 // A new course: POST /api/learn/courses (a route — a page older than the server still reaches it).
 
+/** "Update planning": the plan revised for your interests and your note — what's done stays. */
+export async function updatePlanAction(id: number, note: string): Promise<Ok> {
+  try {
+    guard();
+    const { startPlanUpdate } = await import("@/plugins/learn/research");
+    if (!startPlanUpdate(Number(id), String(note ?? "").slice(0, 2000))) throw new Error(t("This course is being planned already."));
+    revalidatePath(`/learn/${id}`);
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
 export async function retryResearchAction(id: number): Promise<Ok> {
   try {
     guard();

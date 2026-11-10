@@ -18,10 +18,13 @@ test("the skill map's edges: a skill's own requirements, a container required st
   ]);
   const after = Object.fromEntries(g.map((s) => [s.key, s.after.sort()]));
   assert.deepEqual(Object.keys(after), ["a", "b", "c", "d", "e"], "only skills");
+  // The first phase's skills are the foundations: drawn one after another without lines between them (the map joins them
+  // in order), and what builds on them follows only the last one.
   assert.deepEqual(after.a, []);
-  assert.deepEqual(after.b, ["a"]);
-  assert.deepEqual(after.d, ["b", "c"], "the start of a phase follows the last skills of the phase it requires");
-  assert.deepEqual(after.e, ["b", "c", "d"]);
+  assert.deepEqual(after.b, []);
+  assert.deepEqual(g.filter((s) => s.foundation).map((s) => s.key), ["a", "b", "c"]);
+  assert.deepEqual(after.d, ["c"], "the start of a phase follows the last foundation");
+  assert.deepEqual(after.e, ["c", "d"]);
   assert.equal(g.find((s) => s.key === "d")?.phase, "p2");
 });
 

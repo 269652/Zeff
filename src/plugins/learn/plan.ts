@@ -102,6 +102,24 @@ export function normalizePlan(raw: unknown): { plan: Plan; problems: string[] } 
     n.requires = kept;
   }
 
+  // The foundations — the first phase's skills — are learned one after another, in depth (each requires the one before);
+  // what builds on them builds on the last one: the breadth comes after.
+  const firstPhase = nodes.find((n) => n.kind === "phase");
+  if (firstPhase) {
+    const found = nodes.filter((n) => n.kind === "skill" && n.parent === firstPhase.key);
+    const inFound = new Set(found.map((f) => f.key));
+    found.forEach((f, i) => {
+      const own = (f.requires ?? []).filter((r) => !inFound.has(r));
+      f.requires = i ? [...own, found[i - 1].key] : own;
+    });
+    const last = found[found.length - 1]?.key;
+    if (last)
+      for (const n of nodes) {
+        if (inFound.has(n.key) || !(n.requires ?? []).some((r) => inFound.has(r))) continue;
+        n.requires = [...new Set([...(n.requires ?? []).filter((r) => !inFound.has(r)), last])];
+      }
+  }
+
   // No cycle of requirements: a depth-first walk drops the edge that closes one.
   const state = new Map<string, "open" | "done">();
   const visit = (key: string) => {
@@ -154,6 +172,8 @@ export function planShape(plan: Plan): { paths: number; widths: number[]; linear
     }
     widths.push(Math.max(...count.values()));
   }
-  const branching = widths.filter((w) => w >= 2).length;
-  return { paths, widths, linear: paths < 2 || branching * 2 < widths.length };
+  // (The first phase — the foundations — is a chain on purpose: learned one after another. The breadth is judged after it.)
+  const after = widths.slice(1);
+  const branching = after.filter((w) => w >= 2).length;
+  return { paths, widths, linear: paths < 2 || (after.length > 0 && branching * 2 < after.length) };
 }

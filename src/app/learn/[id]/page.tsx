@@ -9,7 +9,7 @@ import { SkillTree, type SkillTreeSkill } from "@/components/skill-tree/SkillTre
 import { SkillMap, type SkillMapNode } from "@/components/skill-tree/SkillMap";
 import { courseRoute, skillGraph } from "@/plugins/learn/map";
 import { isInstalled } from "@/plugins/state";
-import { DailyGoal, DeleteCourse, InterestsEditor, ReplanCourse, RetryResearch, StudySlots } from "@/plugins/learn/ui/CourseControls";
+import { DailyGoal, DeleteCourse, InterestsEditor, ReplanCourse, RetryResearch, StudySlots, UpdatePlan } from "@/plugins/learn/ui/CourseControls";
 import { badgeLabel } from "@/plugins/learn/ui/badges";
 
 type Props = { params: Promise<{ id: string }> };
@@ -99,6 +99,7 @@ export default async function CoursePage({ params }: Props) {
       path: s.path,
       group: g.phase,
       after: g.after,
+      foundation: g.foundation,
       summary: s.summary,
       steps: (kids.get(s.key) ?? []).filter((n) => n.kind === "step").map((st) => ({ key: st.key, title: st.title, status: status(st.key), href: stepHref(st.key), minutes: st.minutes })),
     };
@@ -164,7 +165,12 @@ export default async function CoursePage({ params }: Props) {
       </header>
 
       <section id="skill-map" className="scroll-mt-4 space-y-2">
-        <h2 className="text-base font-semibold">{t("Skill map")}</h2>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <h2 className="text-base font-semibold">{t("Skill map")}</h2>
+          {/* The plan revised (interests, a note of yours) — what's done stays. */}
+          <UpdatePlan id={id} />
+        </div>
+        {course.error && <p className="text-sm text-amber-700 dark:text-amber-400">{course.error}</p>}
         <SkillMap nodes={mapNodes} groups={mapGroups} route={route} label={t("Skill map: {course}", { course: course.title })} />
       </section>
 

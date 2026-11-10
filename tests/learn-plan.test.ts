@@ -129,6 +129,7 @@ test("a plan's shape: parallel skills on several paths branch", async () => {
   };
   const s = planShape(normalizePlan(branching).plan);
   assert.equal(s.paths, 4);
-  assert.deepEqual(s.widths, [2, 2], "b and c both follow a; d and e side by side");
+  // (The first phase — the foundations — is made a chain on purpose: width 1; the breadth is in the phases after it.)
+  assert.deepEqual(s.widths, [1, 2], "the foundations one after another; d and e side by side");
   assert.equal(s.linear, false);
 });

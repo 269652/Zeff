@@ -132,3 +132,74 @@ export function startResearch(courseId: number): boolean {
 }
 
 export const isResearching = (courseId: number) => running.has(courseId);
+
+/** The plan revised (interests, a note of yours, the plan's rules) — keeping what's done (German, as Zeff's prompts are). */
+export function updatePrompt(
+  c: { topic: string; goal: string; level: string },
+  plan: { title: string; summary: string; years: number; nodes: unknown[]; sources: unknown[] },
+  done: { mastered: string[]; begun: string[] },
+  interests: Record<string, number>,
+  note: string,
+): string {
+  const levels = ["nicht jetzt", "ein wenig", "interessiert", "am meisten"];
+  const wants = Object.entries(interests).map(([p, w]) => `- ${p}: ${levels[Math.max(0, Math.min(3, Math.round(w)))] ?? w}`);
+  return `Du bist ein erfahrener Didaktiker. Überarbeite diesen bestehenden Lernplan — die Person lernt schon damit.
+
+Thema: ${c.topic}
+Ziel: ${c.goal || "das Thema gründlich verstehen und anwenden können"}
+Vorwissen: ${c.level || "unbekannt"}
+${wants.length ? `Wie sehr sie die Pfade interessieren:\n${wants.join("\n")}\n` : ""}${note.trim() ? `Ihr Wunsch für die Überarbeitung: ${note.trim()}\n` : ""}
+Bereits gemeistert (unverändert lassen — gleicher Key, gleicher Titel, gleicher Inhalt): ${done.mastered.join(", ") || "noch nichts"}
+Begonnen (ebenso unverändert lassen): ${done.begun.join(", ") || "nichts"}
+
+So überarbeitest du:
+- Behalte alles Gemeisterte und Begonnene genau so (Key, Titel, Lernziele, Eltern) — es ist die Lerngeschichte der Person.
+- Pfade, die sie am meisten interessieren, bekommen mehr Tiefe und kommen früher; "nicht jetzt" wird knapper (nicht gestrichen, wenn andere darauf aufbauen).
+- Die erste Phase sind die Grundlagen: ihre Skills lernt man nacheinander, in die Tiefe — jeder setzt den vorigen voraus. Was darauf aufbaut, setzt den letzten Grundlagen-Skill voraus; erst danach wird es breit (mehrere Skills parallel, Wahlpfade, Zusammenführungen).
+- Neue Knoten bekommen neue, eindeutige Keys im selben Schema (y1.p2.s5.a …); bestehende Keys bleiben für denselben Inhalt.
+- Sonst gelten die Regeln wie bei der ersten Planung: year → phase → skill → step, Steps 15–45 Minuten mit prüfbaren Lernzielen, "requires" ohne Zyklen, mindestens 3 Pfade, Texte auf Deutsch.
+
+Antworte nur mit dem ganzen überarbeiteten Plan im verlangten JSON-Format.
+
+Der bisherige Plan:
+${JSON.stringify(plan)}`;
+}
+
+/** A course's plan updated (interests, your note) — what's done stays. Runs like the research (once per course). */
+export async function runPlanUpdate(courseId: number, note: string, deps: Deps = {}): Promise<void> {
+  const { courseNodes, getCourse: course } = await import("./store");
+  const c = course(courseId);
+  if (!c) return;
+  const nodes = courseNodes(courseId);
+  const plan = {
+    title: c.title,
+    summary: c.summary,
+    years: c.years,
+    sources: c.sources,
+    nodes: nodes.map((n) => ({ key: n.key, kind: n.kind, parent: n.parent, title: n.title, summary: n.summary, objectives: n.objectives, requires: n.requires, path: n.path, minutes: n.minutes, sources: n.sources })),
+  };
+  const done = { mastered: nodes.filter((n) => n.kind === "step" && n.masteredAt).map((n) => n.key), begun: nodes.filter((n) => n.kind === "step" && n.activeSince && !n.masteredAt).map((n) => n.key) };
+  setResearching(courseId);
+  try {
+    const ask = deps.ask ?? askClaude;
+    const raw = (await ask(updatePrompt(c, plan, done, c.interests, note))) as Partial<Plan> | null;
+    if (!raw || typeof raw !== "object" || !Array.isArray(raw.nodes)) throw new Error("The update answered no plan.");
+    // Whatever the answer did with them: the steps done are kept (their node as it was, if it was left out).
+    const keys = new Set(raw.nodes.map((n) => n?.key));
+    const lost = nodes.filter((n) => (done.mastered.includes(n.key) || done.begun.includes(n.key)) && !keys.has(n.key));
+    const ancestorsOf = (k: string | null): typeof nodes => (k ? [...ancestorsOf(nodes.find((x) => x.key === k)?.parent ?? null), nodes.find((x) => x.key === k)!].filter(Boolean) : []);
+    const back = [...new Map([...lost.flatMap((n) => ancestorsOf(n.parent)), ...lost].filter((n) => !keys.has(n.key)).map((n) => [n.key, n])).values()];
+    const merged = { ...raw, sources: [...(raw.sources ?? []), ...c.sources.filter((s) => !(raw.sources ?? []).some((x) => x?.id === s.id))], nodes: [...raw.nodes, ...back.map((n) => plan.nodes.find((p) => p.key === n.key)!)] };
+    savePlan(courseId, merged, { keepProgress: true });
+  } catch (e) {
+    (await import("./store")).failPlanUpdate(courseId, e instanceof Error ? e.message : String(e));
+  }
+}
+
+/** The plan update in the background, once per course at a time (shares the research's lock). Whether it started. */
+export function startPlanUpdate(courseId: number, note = ""): boolean {
+  if (running.has(courseId)) return false;
+  running.add(courseId);
+  void runPlanUpdate(courseId, note).finally(() => running.delete(courseId));
+  return true;
+}
