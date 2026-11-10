@@ -28,7 +28,7 @@ export default async function TimelinePage({ searchParams }: { searchParams: Pro
   const kinds = (sp.kind ?? "").split(",").filter((k) => (KIND_GROUPS as readonly string[]).includes(k));
   const sources = (sp.source ?? "").split(",").filter((s) => (SOURCES as readonly string[]).includes(s));
   const seen = lastSeen("all");
-  const since = timelineSince({ since: seen ?? "7d", limit: 12, perGroup: 1 });
+  const since = timelineSince({ since: seen ?? "7d", until: new Date().toISOString(), limit: 12, perGroup: 1 });
   const stats = timelineStats();
   // A source it reads that isn't well (source health): one line — the timeline may miss what it brought.
   let healthNote: string | null = null;

@@ -21,8 +21,10 @@ export async function timelineAction(q: TimelineQuery): Promise<TimelineAnswer> 
     const { timelineFor, timelineAll } = await import("./query");
     const { lastSeen } = await import("./store");
     const limit = Math.max(1, Math.min(LIMIT, Number(q.limit) || 30));
-    if (!q.ref && !q.row) return { ok: true, label: t("Timeline"), refs: [], events: timelineAll({ kinds: q.kinds, sources: q.sources, since: q.since, limit, before: q.before }), lastSeen: lastSeen("all") };
-    const r = timelineFor({ ref: q.ref, row: q.row ? Number(q.row) : undefined, kinds: q.kinds, sources: q.sources, since: q.since, limit, before: q.before });
+    // What happened, not what is coming: nothing later than now (an appointment next week isn't an event yet).
+    const until = new Date().toISOString();
+    if (!q.ref && !q.row) return { ok: true, label: t("Timeline"), refs: [], events: timelineAll({ kinds: q.kinds, sources: q.sources, since: q.since, until, limit, before: q.before }), lastSeen: lastSeen("all") };
+    const r = timelineFor({ ref: q.ref, row: q.row ? Number(q.row) : undefined, kinds: q.kinds, sources: q.sources, since: q.since, until, limit, before: q.before });
     return r.ok ? r : { ok: false, error: r.error };
   } catch (e) {
     return { ok: false, error: errorMessage(e) };
