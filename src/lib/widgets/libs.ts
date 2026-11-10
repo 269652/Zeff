@@ -3,6 +3,7 @@
  * ("katex/katex.min.css", "katex/fonts/…") → the file in node_modules — only inside each library's own folder, only
  * script, style and font files. Server only.
  */
+import { spawnSync } from "node:child_process";
 import fs from "node:fs";
 import path from "node:path";
 import { WIDGET_LIBS } from "./sandbox";
@@ -13,7 +14,27 @@ const ROOTS: Record<string, string> = {
   jsxgraph: "jsxgraph/distrib",
   three: "three/build",
   chart: "chart.js/dist",
+  mathjs: "mathjs/lib/browser",
+  algebrite: "algebrite/dist",
+  plotly: "plotly.js-dist-min",
+  d3: "d3/dist",
+  "3dmol": "3dmol/build",
+  smiles: "smiles-drawer/dist",
+  network: "cytoscape/dist",
+  astronomy: "astronomy-engine",
+  stats: "simple-statistics/dist",
+  // Put together by scripts/widget-libs.mjs (three.js with its add-ons, the physics engines, the world map) — made when first asked.
+  built: ".cache/zeff-widget-libs",
 };
+
+let builtOnce = false;
+/** The composed libraries made (once per server, and only when missing or out of date — the script checks). */
+function ensureBuilt(): void {
+  if (builtOnce) return;
+  builtOnce = true;
+  const script = path.resolve(/*turbopackIgnore: true*/ process.cwd(), "scripts", "widget-libs.mjs");
+  if (fs.existsSync(script)) spawnSync(process.execPath, [script], { cwd: process.cwd(), stdio: "ignore", timeout: 120_000, windowsHide: true });
+}
 
 const TYPES: Record<string, string> = {
   ".js": "text/javascript; charset=utf-8",
@@ -35,6 +56,7 @@ export function libFile(published: string): string | null {
   const base = path.resolve(/*turbopackIgnore: true*/ process.cwd(), "node_modules", root);
   const file = path.resolve(base, ...rest);
   if (!file.startsWith(base + path.sep)) return null;
+  if (lib === "built") ensureBuilt();
   return contentTypeOf(file) ? file : null;
 }
 
@@ -73,7 +95,9 @@ let kit: string | null = null;
 export function kitSource(): string {
   if (kit === null) {
     const file = path.resolve(/*turbopackIgnore: true*/ process.cwd(), "src", "lib", "widgets", "kit", "kit.js");
-    kit = fs.existsSync(file) ? fs.readFileSync(file, "utf8") : "";
+    // (And the science kit after it — kit/science.js: numbers, colour maps, 3D scenes, iso-surfaces, answers as pods.)
+    const science = path.resolve(/*turbopackIgnore: true*/ process.cwd(), "src", "lib", "widgets", "kit", "science.js");
+    kit = [file, science].filter((f) => fs.existsSync(f)).map((f) => fs.readFileSync(f, "utf8")).join("\n;\n");
   }
   return kit;
 }

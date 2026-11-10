@@ -13,8 +13,23 @@ import { parseCall, type WidgetCall } from "./bridge";
 export const WIDGET_LIBS: Record<string, { js?: string[]; css?: string[]; what: string }> = {
   katex: { js: ["katex/katex.min.js", "katex/contrib/auto-render.min.js"], css: ["katex/katex.min.css"], what: "math formulas (katex.render, renderMathInElement)" },
   jsxgraph: { js: ["jsxgraph/jsxgraphcore.js"], css: ["jsxgraph/jsxgraph.css"], what: "interactive geometry, function plots with sliders (JXG.JSXGraph.initBoard)" },
-  three: { js: ["three/three.min.js"], what: "3D (window.THREE, r159): surfaces, curves in space" },
+  three: {
+    js: ["built/three.js"],
+    what:
+      "3D (window.THREE, r159) with its add-ons on THREE: OrbitControls, TrackballControls, MarchingCubes (organic surfaces from a field — a brain, a cell), SimplexNoise / ImprovedNoise, ConvexGeometry, ParametricGeometry, TextGeometry (THREE.defaultFont), RoundedBoxGeometry, CSS2DRenderer + CSS2DObject (labels that stay on a part), EffectComposer + RenderPass + UnrealBloomPass + OutputPass (glow), Lut (colour maps), mergeGeometries. ZeffKit.scene sets one up",
+  },
   chart: { js: ["chart/chart.umd.js"], what: "charts (window.Chart)" },
+  mathjs: { js: ["mathjs/math.js"], what: "window.math — exact and numeric maths: evaluate(expr, scope), units and conversions (math.unit('9.81 m/s^2'), .to('ft/s^2'); physical constants math.speedOfLight …), matrices (inv, det, eigs, lusolve), complex numbers, fractions, BigNumber, derivative / simplify / rationalize, statistics, fft, toTex (with katex)" },
+  algebrite: { js: ["algebrite/algebrite.bundle-for-browser.js"], what: "window.Algebrite — computer algebra: Algebrite.run('integral(x^2 sin(x), x)'), 'defint(...)', 'factor(...)', 'roots(...)', 'nroots(...)', 'simplify(...)', 'taylor(...)', 'expand(...)', 'eigenvec(...)'; returns text (use 'printlatex(...)' for TeX)" },
+  plotly: { js: ["plotly/plotly.min.js"], what: "window.Plotly — scientific plots: 2D/3D scatter and lines, surface, mesh3d, isosurface, volume, contour, heatmap, histogram, box/violin, polar, ternary, sankey, maps (scattergeo, choropleth); zoom and rotate built in. Big: only when needed" },
+  d3: { js: ["d3/d3.min.js"], what: "window.d3 — data graphics: scales, axes, shapes, force layouts, hierarchies (tree, treemap), geo projections (d3.geoPath, d3.geoOrthographic …), contours, delaunay" },
+  geo: { js: ["built/geo.js"], what: "the world map: window.ZeffWorld.countries / .land (TopoJSON, 1:110m) and window.topojson (topojson.feature(ZeffWorld.countries, ZeffWorld.countries.objects.countries)) — draw with d3 (needs d3) or Plotly" },
+  molecules: { js: ["3dmol/3Dmol-min.js"], what: "window.$3Dmol — molecules and proteins in 3D: $3Dmol.createViewer(el, { backgroundColor: 'white' }), viewer.addModel(text, 'pdb'|'sdf'|'xyz'|'mol2'|'cif'), setStyle({}, { cartoon: { color: 'spectrum' } } | { stick: {} } | { sphere: {} }), addSurface, zoomTo, render — the structure as text (written in, or from a flow)" },
+  smiles: { js: ["smiles/smiles-drawer.min.js"], what: "window.SmilesDrawer — structural formulas from SMILES: new SmilesDrawer.SmiDrawer().draw('CCO', '#svg-or-canvas-selector')" },
+  physics: { js: ["built/physics.js"], what: "physics engines: window.CANNON (cannon-es: 3D rigid bodies, constraints, gravity — pair with THREE) and window.Matter (matter.js: 2D bodies, collisions, springs, its own renderer)" },
+  network: { js: ["network/cytoscape.min.js"], what: "window.cytoscape — networks and graphs: nodes and edges, layouts (cose, breadthfirst, circle, grid, concentric), styles, selection, graph algorithms (dijkstra, pageRank, betweenness)" },
+  astronomy: { js: ["astronomy/astronomy.browser.min.js"], what: "window.Astronomy — the sky computed: positions of Sun, Moon and planets (Equator, Horizon, HelioVector), rise/set, moon phases, eclipses, seasons, conjunctions" },
+  stats: { js: ["stats/simple-statistics.min.js"], what: "window.ss — statistics: mean, median, standardDeviation, quantile, linearRegression, rSquared, tTest, chiSquaredGoodnessOfFit, kMeansCluster, bayesian classifier, permutationTest" },
 };
 
 /** The most a widget's HTML may be. */
