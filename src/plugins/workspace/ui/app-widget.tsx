@@ -250,7 +250,10 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
   const [busy, setBusy] = useState(false);
   const [code, setCode] = useState(html);
   const [ideas, setIdeas] = useState<{ id: number; title: string }[]>([]);
-  const [broke, setBroke] = useState<string | null>(null);
+  // (What broke belongs to the code it broke in: a new widget starts without it.)
+  const [brokeIn, setBrokeIn] = useState<{ html: string; message: string } | null>(null);
+  const broke = brokeIn && brokeIn.html === html ? brokeIn.message : null;
+  const setBroke = useCallback((message: string | null) => setBrokeIn(message === null ? null : { html, message }), [html]);
   const [versions, setVersions] = useState<VersionRow[] | null>(null);
   const [preview, setPreview] = useState<{ n: number; html: string; libs: string[]; title: string } | null>(null);
   const elapsed = useElapsed(busy);
@@ -260,8 +263,6 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
   useEffect(() => {
     if (editable && !wid) updateAttributes({ wid: newWid() });
   }, [editable, wid, updateAttributes]);
-  // (A new widget is a new start: what broke before is gone.)
-  useEffect(() => setBroke(null), [html]);
 
   useEffect(() => {
     if (html || !editable) return;

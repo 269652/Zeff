@@ -42,6 +42,57 @@ block keeps its state in its `state` attribute). Everything else goes to the ser
 After a write the host fires `ws-changed`. The databases on the page and every widget, which hears `changed`, then
 read again.
 
+## Widgets on one page work together — and with all of Zeff
+
+| Call | What it does | Where it goes |
+| --- | --- | --- |
+| `zeff.page.set(key, value)` / `zeff.page.get(key?)` | Values the widgets on one page share; the others hear `zeff.on("page", ({ key, value }))` | `ws_widget_page_state`, by page (`setPageState`, widget-bridge.ts) |
+| `zeff.emit(name, detail)` | A message to the other widgets on the page (`zeff.on(name, …)`) | the page's bus (`zeff-widget-bus` window event, app-widget.tsx) |
+| `zeff.publish(name, value, { unit, label })` | A value for the whole of Zeff — number, text, list, table | `ws_widget_outputs` (widget-outputs.ts); a name belongs to the block that published it first |
+| `zeff.values.get(name)` / `.list()` | What any widget published | — |
+| `zeff.flow.run(name, input)` / `zeff.flow.list()` | Zeff's server side: web, APIs, lookups, AI extraction, rows written — only flows the user allowed this widget (`flows` on the block, grant `flows`) | flows/engine.ts, trigger `{ kind: "widget" }` |
+
+A published value is read by other widgets anywhere, by views (`{{ outputs.total }}`, `<datatable
+source="outputs.results">`, `[outputs.Name with spaces]`), as a **Kennzahl** when it is a number (formulas:
+`kennzahl("name")`, the Kennzahlen page, Today — a `workspaceMetrics` contribution in server.ts), and by the assistant
+and agents: `workspace_widget_outputs` lists or reads them, `workspace_output_to_database` pours a published table
+into a database. When a widget is built, the AI is told the other widgets on its page and the keys and names they
+share and send (`siblingsText`, widget-make.ts), so a new one fits in.
+
+## Libraries and the science kit
+
+Every library is in [sandbox.ts](../src/lib/widgets/sandbox.ts) `WIDGET_LIBS` and served by
+[libs.ts](../src/lib/widgets/libs.ts): KaTeX, JSXGraph, Chart.js, **three.js with its add-ons** (OrbitControls,
+MarchingCubes, SimplexNoise, CSS2D labels, bloom …), **mathjs** (units, matrices, derivatives), **Algebrite**
+(computer algebra), **Plotly** (scientific 2D/3D plots), **d3**, a **world map** (`geo`), **3Dmol** (molecules,
+proteins), **SmilesDrawer**, **physics** (cannon-es, matter.js), **Cytoscape** (networks), **astronomy-engine**,
+**simple-statistics**. three.js with its add-ons, the physics engines and the world map are put together by
+[scripts/widget-libs.mjs](../scripts/widget-libs.mjs) (esbuild) into `node_modules/.cache/zeff-widget-libs` the first
+time one is asked for.
+
+[kit/science.js](../src/lib/widgets/kit/science.js) adds to `ZeffKit`: numerics (`ode` — RK4 and adaptive RK45,
+`integrate`, `root`, `minimize`, `derivative`, `grid`, `fit`), scientific colour maps, `tex`, `scene` (three.js in
+one line: lights, orbit controls, labels, glow, resize), `isosurface` (organic surfaces from a field — a brain, a
+cell), `pods` (results one under the other) and `alpha` (a Wolfram|Alpha-like calculator: the AI only says what to
+compute, mathjs and Algebrite compute it in the frame). Learn's lessons get all of it too (results only there: no
+databases, flows, page or published values).
+
+## Versions
+
+A page's widget block has an id (`wid`) and every change is a version
+([widget-versions.ts](../src/plugins/workspace/widget-versions.ts), `ws_widget_versions`, the newest 60): built or
+changed by the AI (✨), its code edited (`</>`), an error fixed by the AI (🩹 — offered when the widget reports one),
+an older one brought back (↶). 🕘 on the block lists them, shows any of them as it was and brings it back. When it
+changes a widget, the AI reads the requests so far. A copy of a page (duplicate, template) starts its own history.
+
+## Apps, templates, plugins
+
+[packages.ts](../src/plugins/workspace/packages.ts) moves widgets with their page: a database of the package in a
+widget's code (`db: 12`, `zeff.db.rows(12)`) becomes a placeholder on export and the new id on install, `writes`
+likewise; the page's shared values and the flows below it come along (their permissions granted again by whoever
+installs it). **⋯ → Save as plugin** writes a plugin folder (`app-<name>/zeff-plugin.json` + `app.json`, manifest
+field `contributes.workspacePackages`): switched on, its app is offered under New → templates.
+
 ## Markdown
 
 ```
@@ -60,3 +111,9 @@ A line of the code that is just `:::` is written as ` :::` and read back as `:::
 - [tests/widget-apps-browser.test.ts](../tests/widget-apps-browser.test.ts) uses real Chrome: `ZeffKit.form` and
   `ZeffKit.table` over the bridge, a refused call, and a table refreshed by `changed`.
 - [tests/widget-kit-browser.test.ts](../tests/widget-kit-browser.test.ts) covers the exercise kit.
+- [tests/widget-science-browser.test.ts](../tests/widget-science-browser.test.ts) uses real Chrome: every library
+  loads under the frame's rules, the science kit computes (ODEs, integrals, roots, fits), mathjs and Algebrite
+  answer, a three.js iso-surface brain renders, `ZeffKit.alpha` computes the pods.
+- [tests/widgets-pro.test.ts](../tests/widgets-pro.test.ts) covers flows only as allowed, a page's shared values,
+  published values (owners, a Kennzahl, a view's `outputs`, a table poured into a database), versions, packages
+  moving widgets with their databases, flows and shared values, and a page saved as a plugin.
