@@ -34,8 +34,8 @@ export const LLM_CONCURRENCY = 3;
 const MEMO_MAX_AGE_MS = 7 * 864e5;
 
 // One gate for the whole server (its module copies share it).
-const shared = globalThis as { __zeffLlmGate?: Gate; __zeffLlmPruned?: number };
-const gate = (): Gate => (shared.__zeffLlmGate ??= createGate(LLM_CONCURRENCY));
+const shared = globalThis as { __zeffLlmGate2?: Gate; __zeffLlmPruned?: number };
+const gate = (): Gate => (shared.__zeffLlmGate2 ??= createGate(LLM_CONCURRENCY));
 /** An idempotent answer kept (the old ones dropped, at most once an hour). */
 function remember(task: string, key: string, answer: AiAnswer<unknown>): void {
   try {
@@ -91,7 +91,7 @@ export function llmPreamble(): string {
  * for once more; an idempotent task (tasks.ts) repeated with the same input is answered from memory
  * (`fresh`: not).
  */
-export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { provider?: AiProvider; timeoutMs?: number; maxBudgetUsd?: number; fresh?: boolean } = {}): Promise<AiAnswer<T>> {
+export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { provider?: AiProvider; timeoutMs?: number; maxBudgetUsd?: number; fresh?: boolean; urgent?: boolean } = {}): Promise<AiAnswer<T>> {
   if (!isInstalled("llm")) return Promise.reject(new ValidationError(t("The LLM plugin is not installed (Menu → Plugins) — no AI tasks.")));
   const choice = llmChoice(task);
   let provider = opts.provider ?? choice.provider;
@@ -130,7 +130,7 @@ export function llm<T>(task: LlmTaskId, prompt: string, schema: object, opts: { 
   const stop = new AbortController();
   const off = onAbort(() => stop.abort());
   return gate()
-    .run(() => withNoJsonRetry(provider, attempt, () => throwIfAborted()), stop.signal)
+    .run(() => withNoJsonRetry(provider, attempt, () => throwIfAborted()), stop.signal, { first: !!opts.urgent })
     .then((answer) => {
       if (key) remember(task, key, answer);
       recordUsage(task, provider, model, answer);

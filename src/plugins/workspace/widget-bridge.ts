@@ -171,7 +171,7 @@ async function askAi(key: string, args: Record<string, unknown>) {
   const r = await runAi<Record<string, unknown>>(
     `Ein kleines Programm (ein Widget auf einer Seite) fragt dich. Antworte knapp und nur darauf.\n\n${prompt}`,
     schema ?? { type: "object", required: ["text"], properties: { text: { type: "string" } } },
-    { task: "widget-ai", timeoutMs: 2 * 60000, maxBudgetUsd: 0.2 },
+    { task: "widget-ai", timeoutMs: 2 * 60000, maxBudgetUsd: 0.2, urgent: true },
   );
   if (!r.output) throw new Refused("The AI gave no answer.");
   return r.output;

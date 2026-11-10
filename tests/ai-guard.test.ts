@@ -163,3 +163,41 @@ test("withNoJsonRetry stops before the second try when told to", async () => {
   );
   assert.equal(calls, 1);
 });
+
+test("a call someone waits for doesn't wait for the background's: a spare slot, then ahead of the line", async () => {
+  const gate = createGate(2);
+  const started: string[] = [];
+  const done = new Map<string, () => void>();
+  const job = (name: string, first = false) =>
+    gate.run(
+      async () => {
+        started.push(name);
+        await new Promise<void>((r) => done.set(name, r));
+      },
+      undefined,
+      { first },
+    );
+  const all = [job("bg1"), job("bg2"), job("bg3"), job("bg4")];
+  await tick();
+  assert.deepEqual(started, ["bg1", "bg2"], "the background fills the slots");
+  all.push(job("widget", true));
+  await tick();
+  assert.deepEqual(started, ["bg1", "bg2", "widget"], "the widget at once, in the spare slot");
+  all.push(job("widget2", true));
+  await tick();
+  assert.equal(started.length, 3, "a second one waits — but ahead of the background");
+  done.get("bg1")!();
+  await tick();
+  assert.equal(started[3], "widget2");
+  done.get("widget")!();
+  await tick();
+  assert.equal(started.length, 4, "the spare slot isn't the background's: still two of them at most");
+  done.get("bg2")!();
+  await tick();
+  assert.equal(started[4], "bg3");
+  for (const n of ["widget2", "bg3"]) done.get(n)!();
+  await tick();
+  done.get("bg4")!();
+  await Promise.all(all);
+  assert.equal(gate.active, 0);
+});

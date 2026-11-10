@@ -66,25 +66,34 @@ export const answerKey = (parts: unknown[]): string => createHash("sha256").upda
 // Gate
 // ---------------------------------------------------------------------------
 
-export type Gate = { run<T>(fn: () => Promise<T>, signal?: AbortSignal): Promise<T>; readonly active: number; readonly waiting: number };
+/** `first`: someone is waiting for this call (a widget being built) — see createGate. */
+export type GateOpts = { first?: boolean };
+export type Gate = { run<T>(fn: () => Promise<T>, signal?: AbortSignal, opts?: GateOpts): Promise<T>; readonly active: number; readonly waiting: number };
 
-/** At most `max` at once, the rest in line (first come, first served). The slot is given back when `fn` ends — however it ends; a stopped (aborted) waiter leaves the line and rejects with ABORTED. */
+/**
+ * At most `max` at once, the rest in line (first come, first served). The slot is given back when `fn` ends — however it ends; a
+ * stopped (aborted) waiter leaves the line and rejects with ABORTED. A call someone waits for (`first`) goes ahead of the others
+ * in line, and one slot more is kept for such calls: it doesn't wait for the background's (news, mail reviews) to finish.
+ */
 export function createGate(max: number): Gate {
   let active = 0;
-  const line: { go: () => void }[] = [];
+  const line: { first: boolean; go: () => void }[] = [];
   const release = () => {
-    const next = line.shift();
+    // (The spare slot in use: only a call someone waits for takes it on.)
+    const at = active > max ? line.findIndex((e) => e.first) : 0;
+    const next = at >= 0 ? line.splice(at, 1)[0] : undefined;
     if (next) next.go(); // the slot passes on as it is
     else active--;
   };
-  const acquire = (signal?: AbortSignal): Promise<void> => {
+  const acquire = (signal?: AbortSignal, first = false): Promise<void> => {
     if (signal?.aborted) return Promise.reject(new Error(ABORTED));
-    if (active < max) {
+    if (active < max || (first && active < max + 1)) {
       active++;
       return Promise.resolve();
     }
     return new Promise<void>((resolve, reject) => {
       const entry = {
+        first,
         go: () => {
           signal?.removeEventListener("abort", onAbort);
           resolve();
@@ -96,12 +105,15 @@ export function createGate(max: number): Gate {
         reject(new Error(ABORTED));
       };
       signal?.addEventListener("abort", onAbort, { once: true });
-      line.push(entry);
+      // (Behind the others someone waits for, ahead of the rest.)
+      const behind = first ? line.findIndex((e) => !e.first) : -1;
+      if (behind >= 0) line.splice(behind, 0, entry);
+      else line.push(entry);
     });
   };
   return {
-    async run(fn, signal) {
-      await acquire(signal);
+    async run(fn, signal, opts) {
+      await acquire(signal, !!opts?.first);
       try {
         return await fn();
       } finally {

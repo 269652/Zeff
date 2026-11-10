@@ -8,8 +8,8 @@
 import { fillPrompt } from "@/lib/prompts";
 import { WIDGET_GUIDE } from "@/lib/widgets/guide";
 import { checkWidgetHtml, WIDGET_LIBS } from "@/lib/widgets/sandbox";
-import { wantsOf, type WidgetWants } from "@/lib/widgets/bridge";
-import { widgetContext } from "./widget-bridge";
+import { wantsOf, widgetKey, type WidgetGrant, type WidgetWants } from "@/lib/widgets/bridge";
+import { grantWidget, widgetContext, widgetGrant } from "./widget-bridge";
 import * as store from "./store";
 
 export type MadeWidget = { title: string; html: string; libs: string[]; wants: WidgetWants; /** One sentence: what it does (or why it couldn't). */ note: string };
@@ -92,7 +92,7 @@ export async function makeWidget(request: string, opts: { pageId?: number | null
   ].join("\n");
   let prompt = base;
   for (let round = 0; round < 2; round++) {
-    const r = await runAi<Answer>(prompt, SCHEMA, { task: "widget-make", timeoutMs: 6 * 60000, maxBudgetUsd: 1.5 });
+    const r = await runAi<Answer>(prompt, SCHEMA, { task: "widget-make", timeoutMs: 6 * 60000, maxBudgetUsd: 1.5, urgent: true });
     const a = r.output;
     if (!a) throw new Error("The AI gave no widget.");
     const problem = widgetProblem(a);
@@ -108,4 +108,19 @@ export async function makeWidget(request: string, opts: { pageId?: number | null
     prompt = `${base}\n\nDein letzter Entwurf ging nicht: ${problem}. Behebe genau das.`;
   }
   throw new Error("The AI's widget broke the sandbox's rules twice.");
+}
+
+/**
+ * A widget built at your request in a page (the block's ✨ — the route /api/workspace/widget-make): made, and allowed at once to
+ * write to the databases on this page it asks for and to what you had allowed the widget it was before.
+ */
+export async function buildWidget(request: string, pageId: number | null, current?: WidgetDraft): Promise<{ widget: MadeWidget; key: string; grant: WidgetGrant | null }> {
+  const made = await makeWidget(request, { pageId, ...(current?.html ? { current } : {}) });
+  const onPage = new Set(widgetContext(pageId).databases.filter((d) => "onPage" in d).map((d) => d.id));
+  const before = current?.html ? widgetGrant(widgetKey(current.html)) : null;
+  const here = made.wants.writes.filter((id) => onPage.has(id) || before?.dbs.includes(id));
+  const ai = !!(made.wants.ai && before?.ai);
+  const key = widgetKey(made.html);
+  const grant = here.length || ai ? grantWidget(key, { dbs: here, ...(ai ? { ai: true } : {}) }, made.title) : null;
+  return { widget: made, key, grant };
 }
