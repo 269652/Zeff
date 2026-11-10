@@ -96,7 +96,9 @@ export function SkillMap({
   };
   const curve = (p1: { x: number; y: number }, a1: number, p2: { x: number; y: number }, a2: number) => {
     const [c1x, c1y, c2x, c2y] = controls(p1, a1, p2, a2);
-    return `M${p1.x},${p1.y} C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
+    // (Rounded: the server and the browser then write the same path — no hydration mismatch.)
+    const f = (n: number) => Math.round(n * 10) / 10;
+    return `M${f(p1.x)},${f(p1.y)} C${f(c1x)},${f(c1y)} ${f(c2x)},${f(c2y)} ${f(p2.x)},${f(p2.y)}`;
   };
   // The red thread's stretches: soft curves through the white space (thread-route.ts) — around the circles, behind the
   // titles' cards if need be; ways sharing a gap between two columns moved a little apart. Each one's number on its way,
