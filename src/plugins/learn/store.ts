@@ -2,6 +2,7 @@
  * The learning platform's data (the Learn plugin), in the account's database: courses, the nodes of their plan, what
  * you earned (events), the teacher's widgets and your cards. Tables made on first use, as the plugins do. Server only.
  */
+import { courseRoute, skillGraph } from "./map";
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { localDay } from "@/lib/dates";
@@ -245,7 +246,17 @@ export const nodeLayers = (nodes: CourseNode[]): Map<string, number> => layers(t
 export function nextCourseSteps(courseId: number, limit = 8): CourseNode[] {
   const nodes = courseNodes(courseId);
   const byKey = new Map(nodes.map((n) => [n.key, n]));
-  return nextSteps(treeInput(nodes), getCourse(courseId)?.interests ?? {}, limit).map((n) => byKey.get(n.key)!);
+  const interests = getCourse(courseId)?.interests ?? {};
+  // In the red thread's order (map.ts courseRoute): what you're in first, then the foundations one after another, then
+  // the paths you care about most — the same way the skill map draws it.
+  const route = courseRoute(nodes, skillGraph(nodes), interests).keys;
+  const at = new Map(route.map((k, i) => [k, i]));
+  const rank = (n: CourseNode) => at.get(n.parent ?? "") ?? Number.MAX_SAFE_INTEGER;
+  const active = (n: CourseNode) => !!n.activeSince && !n.masteredAt;
+  return nextSteps(treeInput(nodes), interests, 1000)
+    .map((n) => byKey.get(n.key)!)
+    .sort((a, b) => Number(active(b)) - Number(active(a)) || rank(a) - rank(b))
+    .slice(0, limit);
 }
 
 /** A step's lesson began (it's "active" until mastered). */

@@ -6,7 +6,8 @@
 export type DagNode = { key: string; after: string[] };
 export type DagLayout = { pos: Map<string, { col: number; row: number }>; cols: number; rows: number };
 
-export function layoutDag(nodes: DagNode[], sweeps = 4): DagLayout {
+/** `firstColumn`: the first column's order, kept as given (a course's foundations, one after another). */
+export function layoutDag(nodes: DagNode[], sweeps = 4, opts: { firstColumn?: string[] } = {}): DagLayout {
   const byKey = new Map(nodes.map((n) => [n.key, n]));
   const preds = new Map(nodes.map((n) => [n.key, [...new Set(n.after)].filter((k) => k !== n.key && byKey.has(k))]));
   const succs = new Map<string, string[]>(nodes.map((n) => [n.key, []]));
@@ -28,6 +29,8 @@ export function layoutDag(nodes: DagNode[], sweeps = 4): DagLayout {
   const cols = nodes.length ? Math.max(...col.values()) + 1 : 0;
   const layers: string[][] = Array.from({ length: cols }, () => []);
   for (const n of nodes) layers[col.get(n.key)!].push(n.key);
+  const fixed = opts.firstColumn?.length ? new Map(opts.firstColumn.map((k, i) => [k, i])) : null;
+  if (fixed && layers[0]) layers[0].sort((a, b) => (fixed.get(a) ?? 1e9) - (fixed.get(b) ?? 1e9));
 
   // Rows: sweep right then left, each node to the mean row of its neighbours in the column before (after).
   const rowOf = new Map<string, number>();
@@ -46,7 +49,7 @@ export function layoutDag(nodes: DagNode[], sweeps = 4): DagLayout {
   };
   for (let s = 0; s < sweeps; s++) {
     for (let c = 1; c < cols; c++) order(layers[c], (k) => preds.get(k)!);
-    for (let c = cols - 2; c >= 0; c--) order(layers[c], (k) => succs.get(k)!);
+    for (let c = cols - 2; c >= (fixed ? 1 : 0); c--) order(layers[c], (k) => succs.get(k)!);
   }
   // Last, left to right once more — so a column follows the one before it.
   for (let c = 1; c < cols; c++) order(layers[c], (k) => preds.get(k)!);

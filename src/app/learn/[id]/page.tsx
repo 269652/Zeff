@@ -7,7 +7,7 @@ import { localDay } from "@/lib/dates";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { SkillTree, type SkillTreeSkill } from "@/components/skill-tree/SkillTree";
 import { SkillMap, type SkillMapNode } from "@/components/skill-tree/SkillMap";
-import { skillGraph } from "@/plugins/learn/map";
+import { courseRoute, skillGraph } from "@/plugins/learn/map";
 import { isInstalled } from "@/plugins/state";
 import { DailyGoal, DeleteCourse, InterestsEditor, ReplanCourse, RetryResearch, StudySlots } from "@/plugins/learn/ui/CourseControls";
 import { badgeLabel } from "@/plugins/learn/ui/badges";
@@ -104,6 +104,8 @@ export default async function CoursePage({ params }: Props) {
     };
   });
   const mapGroups = nodes.filter((n) => n.kind === "phase").map((p) => ({ key: p.key, title: p.title }));
+  // The red thread through the map: the way walked, then the plan ahead (map.ts courseRoute).
+  const route = courseRoute(nodes, skillGraph(nodes), course.interests);
 
   return (
     <div className="mx-auto w-full max-w-6xl space-y-6">
@@ -161,6 +163,11 @@ export default async function CoursePage({ params }: Props) {
         )}
       </header>
 
+      <section id="skill-map" className="scroll-mt-4 space-y-2">
+        <h2 className="text-base font-semibold">{t("Skill map")}</h2>
+        <SkillMap nodes={mapNodes} groups={mapGroups} route={route} label={t("Skill map: {course}", { course: course.title })} />
+      </section>
+
       {next.length > 0 && (
         <section className="space-y-2">
           <h2 className="text-base font-semibold">{t("Next steps")}</h2>
@@ -184,10 +191,6 @@ export default async function CoursePage({ params }: Props) {
         </section>
       )}
 
-      <section id="skill-map" className="scroll-mt-4 space-y-2">
-        <h2 className="text-base font-semibold">{t("Skill map")}</h2>
-        <SkillMap nodes={mapNodes} groups={mapGroups} label={t("Skill map: {course}", { course: course.title })} />
-      </section>
 
       <details className="space-y-3">
         <summary className="cursor-pointer text-sm font-medium text-zinc-600 dark:text-zinc-400">{t("By phase, as a list")}</summary>

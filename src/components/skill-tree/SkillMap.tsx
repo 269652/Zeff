@@ -31,9 +31,27 @@ const R = 28;
  * ring, coloured by its path, in columns after what it requires (src/lib/graph/layout.ts), the groups (phases) as bands
  * behind them, lines from what comes before. A node picked shows its steps below. Scrolls sideways on a phone.
  */
-export function SkillMap({ nodes, groups, label }: { nodes: SkillMapNode[]; groups: { key: string; title: string }[]; label: string }) {
+export function SkillMap({
+  nodes,
+  groups,
+  label,
+  route,
+}: {
+  nodes: SkillMapNode[];
+  groups: { key: string; title: string }[];
+  label: string;
+  /** The red thread: the nodes in the order they're walked (`walked` of them begun; the rest the plan ahead). */
+  route?: { keys: string[]; walked: number };
+}) {
   const t = useT();
-  const layout = useMemo(() => layoutDag(nodes.map((n) => ({ key: n.key, after: n.after }))), [nodes]);
+  // The foundations (nothing before them): one after another down the first column, in the red thread's order.
+  const foundations = useMemo(() => {
+    const roots = new Set(nodes.filter((n) => !n.after.some((a) => nodes.some((m) => m.key === a))).map((n) => n.key));
+    const inRoute = (route?.keys ?? []).filter((k) => roots.has(k));
+    return [...inRoute, ...nodes.filter((n) => roots.has(n.key) && !inRoute.includes(n.key)).map((n) => n.key)];
+  }, [nodes, route]);
+  const layout = useMemo(() => layoutDag(nodes.map((n) => ({ key: n.key, after: n.after })), 4, { firstColumn: foundations }), [nodes, foundations]);
+  const thread = useMemo(() => (route?.keys ?? []).filter((k) => layout.pos.has(k)), [route, layout]);
   const paths = useMemo(() => [...new Set(nodes.map((n) => n.path).filter((p): p is string => !!p))], [nodes]);
   const color = (p: string | null) => (p ? PALETTE[paths.indexOf(p) % PALETTE.length] : "#71717a");
   const first = nodes.find((n) => n.status === "active") ?? nodes.find((n) => n.status === "available") ?? nodes[0];
@@ -56,6 +74,15 @@ export function SkillMap({ nodes, groups, label }: { nodes: SkillMapNode[]; grou
 
   return (
     <div className="space-y-3">
+      {thread.length > 1 && (
+        <p className="flex items-center gap-2 text-xs text-zinc-600 dark:text-zinc-400">
+          <svg width="34" height="8" aria-hidden>
+            <line x1="1" y1="4" x2="15" y2="4" stroke="#dc2626" strokeWidth="3" strokeLinecap="round" />
+            <line x1="19" y1="4" x2="33" y2="4" stroke="#dc2626" strokeWidth="2" strokeDasharray="4 3" />
+          </svg>
+          {t("The red thread: your way through the map — walked, then the plan ahead (the foundations first, then what interests you most)")}
+        </p>
+      )}
       {paths.length > 1 && (
         <ul className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-zinc-600 dark:text-zinc-400" aria-label={t("Paths")}>
           {paths.map((p) => (
@@ -94,14 +121,37 @@ export function SkillMap({ nodes, groups, label }: { nodes: SkillMapNode[]; grou
                       strokeWidth={done ? 2.5 : 2}
                       strokeDasharray={locked ? "4 5" : undefined}
                       stroke={done ? "#10b981" : locked ? "#a1a1aa" : color(n.path)}
-                      strokeOpacity={locked ? 0.6 : 0.75}
+                      // (Faint: with the red thread on top, the map's own lines are the background.)
+                      strokeOpacity={locked ? (route ? 0.18 : 0.6) : route ? 0.4 : 0.75}
                     />
                   );
                 }),
             )}
+            {/* The foundations one after another: down the first column. */}
+            {foundations.slice(1).map((k, i) => {
+              const a = xy(foundations[i]);
+              const b = xy(k);
+              const done = byKey.get(foundations[i])?.status === "mastered";
+              return <line key={`seq-${k}`} x1={a.x} y1={a.y + R + 2} x2={b.x} y2={b.y - R - 6} stroke={done ? "#10b981" : "#a1a1aa"} strokeWidth={2} markerEnd="url(#seq-arrow)" />;
+            })}
+            <defs>
+              <marker id="seq-arrow" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse">
+                <path d="M0 0L10 5L0 10z" fill="#a1a1aa" />
+              </marker>
+            </defs>
+            {/* The red thread: the way through the map — walked solid, the plan ahead dashed. */}
+            {thread.slice(1).map((k, i) => {
+              const a = xy(thread[i]);
+              const b = xy(k);
+              const mx = (a.x + b.x) / 2;
+              const walked = i + 1 < (route?.walked ?? 0);
+              const d = a.x === b.x ? `M${a.x - 10},${a.y} C${a.x - 34},${a.y} ${b.x - 34},${b.y} ${b.x - 10},${b.y}` : `M${a.x},${a.y} C${mx},${a.y} ${mx},${b.y} ${b.x},${b.y}`;
+              return <path key={`thread-${k}`} d={d} fill="none" stroke="#dc2626" strokeWidth={walked ? 4 : 2.5} strokeOpacity={walked ? 0.75 : 0.5} strokeDasharray={walked ? undefined : "6 6"} strokeLinecap="round" />;
+            })}
           </svg>
-          {bands.map((b) => (
-            <span key={b.key} className="absolute truncate px-3 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase" style={{ left: b.from * COL + 6, top: 14, width: (b.to - b.from + 1) * COL - 12 }} title={b.title}>
+          {bands.map((b, i) => (
+            // Bands sharing columns (two phases side by side in one): their names one under the other, not on top of each other.
+            <span key={b.key} className="absolute truncate px-3 text-[11px] font-semibold tracking-wide text-zinc-500 uppercase" style={{ left: b.from * COL + 6, top: 14 + bands.slice(0, i).filter((o) => o.from <= b.to && b.from <= o.to).length * 14, width: (b.to - b.from + 1) * COL - 12 }} title={b.title}>
               {b.title}
             </span>
           ))}
