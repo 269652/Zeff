@@ -10,7 +10,9 @@ import { AiProgressBar, AiWorkingLabel } from "@/components/AiWorking";
 import { WidgetFrame, type WidgetCallHandler } from "@/components/widgets/WidgetFrame";
 import { MAX_STATE, missing, wantsOf, widgetKey, type WidgetGrant, type WidgetWants } from "@/lib/widgets/bridge";
 import { WIDGET_LIBS } from "@/lib/widgets/sandbox";
-import { allowWidgetAction, makeWidgetAction, revokeWidgetAction, widgetCallAction, widgetContextAction, widgetGrantAction } from "../actions";
+import { postJson } from "@/lib/post-json";
+import { allowWidgetAction, revokeWidgetAction, widgetCallAction, widgetContextAction, widgetGrantAction } from "../actions";
+import type { MadeWidget } from "../widget-make";
 import { GripBar } from "./app-nodes";
 import { WS_CHANGED } from "./ChatPanel";
 
@@ -174,6 +176,7 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
   const [busy, setBusy] = useState(false);
   const [code, setCode] = useState(html);
   const [ideas, setIdeas] = useState<{ id: number; title: string }[]>([]);
+  const elapsed = useElapsed(busy);
   const editable = editor.isEditable;
 
   useEffect(() => {
@@ -189,7 +192,12 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
     const said = ask.trim();
     if (!said || busy) return;
     setBusy(true);
-    const r = await makeWidgetAction(said, pageId, html ? { title, html, libs, writes: wants.writes, ai: wants.ai } : undefined);
+    // (A route, not the action: the page's saves don't wait for the minute it may take.)
+    const r = await postJson<{ ok: true; widget: MadeWidget } | { ok: false; error: string }>("/api/workspace/widget-make", {
+      request: said,
+      pageId,
+      current: html ? { title, html, libs, writes: wants.writes, ai: wants.ai } : undefined,
+    }).catch((e: unknown) => ({ ok: false as const, error: e instanceof Error ? e.message : String(e) }));
     setBusy(false);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     const w = r.widget;
@@ -254,7 +262,7 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
           {busy ? (
             <div className="space-y-1.5">
               <AiProgressBar />
-              <AiWorkingLabel label={html ? t("The AI is changing the widget …") : t("The AI is building the widget …")} />
+              <AiWorkingLabel label={html ? t("The AI is changing the widget …") : t("The AI is building the widget …")} detail={elapsed} />
             </div>
           ) : (
             <div className="flex gap-2">
@@ -333,3 +341,17 @@ export const ZeffApp = Node.create<{ pageId: number }>({
     return ReactNodeViewRenderer(AppView);
   },
 });
+
+/** How long it has been at it ("12 s", "1:05") while `on` — so a slow build shows it's still going. */
+function useElapsed(on: boolean): string {
+  const [secs, setSecs] = useState(0);
+  useEffect(() => {
+    if (!on) return;
+    const t0 = Date.now();
+    setSecs(0);
+    const id = setInterval(() => setSecs(Math.floor((Date.now() - t0) / 1000)), 1000);
+    return () => clearInterval(id);
+  }, [on]);
+  if (!on) return "";
+  return secs < 60 ? `${secs} s` : `${Math.floor(secs / 60)}:${String(secs % 60).padStart(2, "0")}`;
+}

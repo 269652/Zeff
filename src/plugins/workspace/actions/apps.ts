@@ -70,16 +70,7 @@ export async function addWidgetBlockAction(pageId: number, w: { title: string; h
  */
 export async function makeWidgetAction(request: string, pageId: number | null, current?: { title?: string; html: string; libs?: string[]; writes?: number[]; ai?: boolean }) {
   return run(async () => {
-    const { makeWidget } = await import("../widget-make");
-    const { grantWidget, widgetContext, widgetGrant } = await import("../widget-bridge");
-    const made = await makeWidget(String(request ?? ""), { pageId: pageId ? Number(pageId) : null, ...(current?.html ? { current } : {}) });
-    // What it may write to: the databases on this page it asks for, and what you allowed the widget it was before.
-    const onPage = new Set(widgetContext(pageId).databases.filter((d) => "onPage" in d).map((d) => d.id));
-    const before = current?.html ? widgetGrant(widgetKey(current.html)) : null;
-    const here = made.wants.writes.filter((id) => onPage.has(id) || before?.dbs.includes(id));
-    const ai = !!(made.wants.ai && before?.ai);
-    const key = widgetKey(made.html);
-    const grant = here.length || ai ? grantWidget(key, { dbs: here, ...(ai ? { ai: true } : {}) }, made.title) : null;
-    return { widget: made, key, grant };
+    const { buildWidget } = await import("../widget-make");
+    return buildWidget(String(request ?? ""), pageId ? Number(pageId) : null, current);
   });
 }
