@@ -2,7 +2,7 @@ import { claudeLiveDriver } from "@/plugins/claude-cli/live";
 import { codexLiveDriver } from "@/plugins/codex-cli/live";
 import type { LiveView } from "@/plugins/copilot-cli/live-state";
 import { runsByStatus } from "./store";
-import type { AskAnswer, ClaudeAsk, Effort, SessionLiveView, SessionMode, WorkResult } from "./shared";
+import { activeRunByTodo, type AskAnswer, type ClaudeAsk, type Effort, type SessionLiveView, type SessionMode, type WorkResult } from "./shared";
 
 /**
  * Live sessions, whatever CLI runs them: a driver per provider (Claude Code's in
@@ -127,6 +127,11 @@ export const liveIdle = (runId: number): boolean => liveDrivers().some((d) => d.
  */
 export function workingTodoIds(): number[] {
   return runsByStatus(["queued", "running"]).filter((r) => !liveIdle(r.id)).map((r) => r.todoId);
+}
+
+/** The same todos with the run working on each (todo id → run id; several runs: the running one, the newest) — its link. */
+export function workingRuns(): Record<number, number> {
+  return activeRunByTodo(runsByStatus(["queued", "running"]).filter((r) => !liveIdle(r.id)));
 }
 
 /** What it asks, in a few words (the attention bar, the sidebar). */

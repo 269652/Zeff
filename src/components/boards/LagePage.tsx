@@ -1,4 +1,4 @@
-import { workingTodoIds } from "@/lib/work/live-driver";
+import { workingRuns } from "@/lib/work/live-driver";
 import { healthLabel, type HealthState } from "@/lib/sync/source-health-shared";
 import { isInstalled, stepAvailable } from "@/plugins/state";
 import { getContextPrefs } from "@/lib/runs/context-prefs";
@@ -65,7 +65,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
   // With the todos on no ticket (from mails: a training, a form …).
   const todos = boardTodos([...keys, ""]);
   // (A live session waiting for you after its turn is idle: its todo is not "being worked on" - tick it off without stopping the session.)
-  const busy = workingTodoIds();
+  const busy = workingRuns();
   // The done ones whole only on their tab — the others count them (and their tickets for the cards).
   const doneSummary = doneTodoTickets();
   const done = tab === "done" ? doneTodos() : [];
@@ -84,7 +84,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
       contentClassName="flex-col overflow-y-auto pr-1"
       sidebar={
         <>
-          <WorkFollow active={busy.length > 0} />
+          <WorkFollow active={Object.keys(busy).length > 0} />
           <ViewTabs view={part === "tickets" ? "tickets" : "lage"} />
           {/* The heading and "Run now" in one row (no line of its own for the button — room for the todos on a phone); a
               long status while it runs ("… analyzing · Cancel") wraps below instead of squeezing the heading's column. */}
@@ -166,7 +166,7 @@ export async function LagePage({ searchParams, part }: { searchParams: Promise<L
           )}
           sources={todoSources([...todos, ...done, ...(tab === "worker" ? worker : [])], shown.tickets)}
           actionsDone={actionsDone(shown.id)}
-          runningTodos={busy}
+          runningRuns={busy}
           workOn={isInstalled("work")}
           showLede={false}
           filterSlot="todos-filter-slot"
