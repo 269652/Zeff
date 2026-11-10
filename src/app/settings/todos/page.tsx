@@ -14,6 +14,8 @@ import { saveTodoDisplayFormAction } from "@/plugins/todos/server-actions";
 import { isInstalled } from "@/plugins/state";
 import { DEFAULT_PICK_PROMPT } from "@/plugins/knowledge/repo-prompt";
 import { getPickPrompt } from "@/plugins/knowledge/repo-systems-store";
+import { TodoBadgeSettings } from "@/components/todos/TodoBadgeSettings";
+import { getTodoBadge, openTodoCounts } from "@/lib/todos/badge-store";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Todo settings") };
@@ -65,6 +67,14 @@ export default async function TodoSettingsPage() {
             .map((b) => b.name)}
           ai={`${AI_PROVIDER_INFO[ai.provider].label}${ai.model ? ` · ${ai.model}` : ""}`}
         />
+      </section>
+      {/* The Todos tab's badge: which numbers, their order and colours, with a preview — saved as you change it. */}
+      <section id="badge" className="card scroll-mt-4 space-y-3 p-4">
+        <div>
+          <h2 className="text-sm font-semibold text-zinc-500 uppercase">{t("Badge on the Todos tab")}</h2>
+          <p className="max-w-[75ch] text-sm text-zinc-500">{t("Which numbers the badge next to “Todos” shows, in which order and colours.")}</p>
+        </div>
+        <TodoBadgeSettings initial={getTodoBadge()} counts={openTodoCounts() ?? { open: 0, late: 0, today: 0 }} />
       </section>
       <form action={saveTodoDisplayFormAction} className="space-y-4">
         <section className="card space-y-3 p-4">

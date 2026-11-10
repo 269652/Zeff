@@ -658,3 +658,11 @@ export async function applyDayPlanAction(day: string, blocks: import("@/lib/heut
     return { ok: false, error: errorMessage(err) };
   }
 }
+
+/** The Todos tab's badge: which numbers, in which order and colours (Settings → Todo settings). Saved as you change it. */
+export async function saveTodoBadgeAction(config: unknown): Promise<ActionState> {
+  const { setTodoBadge } = await import("@/lib/todos/badge-store");
+  setTodoBadge(config);
+  revalidateAll();
+  return { ok: true, message: t("Saved.") };
+}

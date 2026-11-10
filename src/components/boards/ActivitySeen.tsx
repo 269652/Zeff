@@ -52,7 +52,7 @@ export function UnseenActivityBadge({ ids, className = "" }: { ids: number[]; cl
   if (!n) return null;
   return (
     <span
-      className={`inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-red-500 px-1 text-xs leading-4 font-semibold text-white normal-case ${className}`}
+      className={`inline-flex min-w-[1.1rem] items-center justify-center rounded-full bg-sky-100 px-1 text-xs leading-4 font-semibold text-sky-700 dark:bg-sky-950/60 dark:text-sky-300 normal-case ${className}`}
       title={n === 1 ? t("1 change to todos you haven't seen yet") : t("{n} changes to todos you haven't seen yet", { n })}
     >
       {n > 99 ? "99+" : n}

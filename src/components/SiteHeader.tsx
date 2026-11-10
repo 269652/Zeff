@@ -8,6 +8,8 @@ import { useEffect, useRef, useState, useTransition } from "react";
 import { saveMenuAction } from "@/app/actions";
 import { inOrder, type Placement } from "@/lib/layout-shared";
 import { useUnseenActivity } from "./boards/ActivitySeen";
+import { DEFAULT_BADGE, type BadgeConfig } from "@/lib/todos/badge";
+import { TodoBadgePill } from "./TodoBadgePill";
 import { SyncMenu } from "./SyncMenu";
 import { Search } from "./Search";
 import { openSearch } from "@/lib/search/shared";
@@ -56,34 +58,16 @@ const pill = (active: boolean) =>
  * `activityIds`: the recent todo events that are news — Boards shows how many you haven't seen.
  * `account`: the account you're in and the others (Accounts plugin installed).
  */
-/** The Todos tab's badge: one split pill — your open todos (red when some are late) | the changes you haven't seen. */
-function TodosTabBadge({ open, late, ids, className = "" }: { open: number; late: number; ids: number[]; className?: string }) {
-  const t = useT();
+/** The Todos tab's badge: one split pill — the numbers chosen under Settings → Todo settings, in their order and colours. */
+function TodosTabBadge({ counts, ids, config, className = "" }: { counts?: { open: number; late: number; today?: number }; ids: number[]; config?: BadgeConfig; className?: string }) {
   const unseen = useUnseenActivity(ids);
-  if (!(open > 0) && !unseen) return null;
-  const cap = (n: number) => (n > 999 ? "999+" : String(n));
-  return (
-    <span className={`inline-flex overflow-hidden rounded-full text-[11px] font-semibold leading-4 tabular-nums normal-case ${className}`}>
-      {open > 0 && (
-        <span
-          className={`px-1.5 ${late ? "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300" : "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300"}`}
-          title={late ? t("{n} open, {late} late", { n: open, late }) : t("{n} open todos", { n: open })}
-        >
-          {cap(open)}
-        </span>
-      )}
-      {!!unseen && (
-        <span className="bg-red-500 px-1.5 text-white" title={unseen === 1 ? t("1 unseen change") : t("{n} unseen changes", { n: unseen })}>
-          {cap(unseen)}
-        </span>
-      )}
-    </span>
-  );
+  return <TodoBadgePill config={config ?? DEFAULT_BADGE} counts={{ open: counts?.open ?? 0, late: counts?.late ?? 0, today: counts?.today ?? 0, activity: unseen }} className={className} />;
 }
 
 export function SiteHeader({
   openTodos,
   activityIds = [],
+  todoBadge,
   waiting = [],
   apps = [],
   pluginGroups = [],
@@ -96,8 +80,10 @@ export function SiteHeader({
   bare = false,
 }: {
   /** Your open todos (and how many are late) — the Todos tab's count. */
-  openTodos?: { open: number; late: number };
+  openTodos?: { open: number; late: number; today?: number };
   activityIds?: number[];
+  /** Which numbers the Todos tab's badge shows, in which order and colours (Settings → Todo settings). */
+  todoBadge?: BadgeConfig;
   /** What waits for you on a tab (a Work session's question or turn): a yellow dot on it. */
   waiting?: { href: string; title: string }[];
   /** Every application, with its place (the menu's "Apps" shows those put there). */
@@ -398,7 +384,7 @@ export function SiteHeader({
                     <>
                       <span className="sm:hidden">{tab.short}</span>
                       <span className="hidden sm:inline">{tab.label}</span>
-                      {tab.href === "/todos" && <TodosTabBadge open={openTodos?.open ?? 0} late={openTodos?.late ?? 0} ids={activityIds} className="ml-1 align-[1px]" />}
+                      {tab.href === "/todos" && <TodosTabBadge counts={openTodos} ids={activityIds} config={todoBadge} className="ml-1 align-[1px]" />}
                       {waiting.some((w) => w.href.startsWith(tab.href)) && (
                         <span
                           className="ml-1 inline-block size-2 rounded-full bg-amber-500 align-[1px]"
@@ -466,7 +452,7 @@ export function SiteHeader({
                   <path d={tab.icon} />
                 </svg>
                 <span className="max-w-full truncate">{tab.label}</span>
-                {tab.href === "/todos" && <TodosTabBadge open={openTodos?.open ?? 0} late={openTodos?.late ?? 0} ids={activityIds} className="absolute top-1 left-[calc(50%+0.75rem)]" />}
+                {tab.href === "/todos" && <TodosTabBadge counts={openTodos} ids={activityIds} config={todoBadge} className="absolute top-1 left-[calc(50%+0.75rem)]" />}
               </Link>
             );
           })}

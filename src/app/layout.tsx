@@ -4,26 +4,8 @@ import { HashHighlight } from "@/components/HashHighlight";
 import { AttentionBar } from "@/components/AttentionBar";
 import { listAttention } from "@/lib/attention";
 import { activityNewsIds } from "@/lib/todos/activity";
-import { boardTodos } from "@/lib/todos/store";
-import { lastGoodRun, latestRun } from "@/lib/runs/store";
-import { localDay } from "@/lib/dates";
-import { isInstalled } from "@/plugins/state";
-
-/** Your open todos (not those waiting on someone else) and how many are past their day — the Todos tab's count. */
-function openTodoCounts(): { open: number; late: number } | undefined {
-  if (!isInstalled("todos")) return undefined;
-  try {
-    const today = localDay();
-    // As the Todos tab counts "Your todos": on the briefing's tickets (or on none), not the workers' nor merged ones.
-    const last = latestRun();
-    const run = last?.status === "ok" ? last : lastGoodRun();
-    const mine = boardTodos([...(run?.tickets.map((x) => x.key) ?? []), ""]).filter((x) => x.status === "open" && x.owner === "me");
-    return { open: mine.length, late: mine.filter((x) => !!x.due && x.due < today).length };
-  } catch {
-    return undefined;
-  }
-}
 import { getWorkSettings } from "@/lib/work/store";
+import { getTodoBadge, openTodoCounts } from "@/lib/todos/badge-store";
 import type { Metadata } from "next";
 import { connection } from "next/server";
 import { headers } from "next/headers";
@@ -150,6 +132,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <SiteHeader
             openTodos={openTodoCounts()}
             activityIds={activityNewsIds()}
+            todoBadge={getTodoBadge()}
             waiting={attention.flatMap((a) => (a.kind === "question" && a.href?.startsWith("/work") ? [{ href: "/work", title: a.title }] : []))}
             apps={allApps().map((a) => ({ href: a.href, label: a.label, hint: a.hint, place: a.place }))}
             pluginGroups={pluginGroups()}
