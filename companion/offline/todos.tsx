@@ -5,6 +5,13 @@ import { fmtDay, today, tr } from "./words";
 
 const pendingKeys = (ops: { kind: string; todo?: unknown; tmp?: string }[]) => new Set(ops.map((o) => String(o.todo ?? o.tmp ?? "")));
 
+/** The day `n` days from today (YYYY-MM-DD, local). */
+const plusDays = (n: number) => {
+  const d = new Date();
+  d.setDate(d.getDate() + n);
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`;
+};
+
 /** A todo's reference as Zeff shows it (T-12) — a new one from the phone has none yet. */
 const refOf = (t: RTodo) => (typeof t.id === "number" && t.id > 0 ? `T-${t.id}` : "");
 
@@ -46,11 +53,14 @@ export function TodosView() {
   const waiting = pendingKeys(engine.pending() as never);
   const day = today();
   const openTodos = all.filter((t) => t.status === "open").sort((a, b) => Number(b.flagged) - Number(a.flagged) || (a.due ?? "9999").localeCompare(b.due ?? "9999") || a.createdAt.localeCompare(b.createdAt));
+  // Deferred ones apart, below (as the Todos tab puts them aside).
+  const now = openTodos.filter((t) => !t.deferred);
   const groups: [string, RTodo[], string][] = [
-    ["Overdue", openTodos.filter((t) => t.due && t.due < day), "bg-red-500"],
-    ["Today", openTodos.filter((t) => t.due === day), "bg-amber-500"],
-    ["Later", openTodos.filter((t) => t.due && t.due > day), "bg-sky-500"],
-    ["No date", openTodos.filter((t) => !t.due), "bg-zinc-400"],
+    ["Overdue", now.filter((t) => t.due && t.due < day), "bg-red-500"],
+    ["Today", now.filter((t) => t.due === day), "bg-amber-500"],
+    ["Later", now.filter((t) => t.due && t.due > day), "bg-sky-500"],
+    ["No date", now.filter((t) => !t.due), "bg-zinc-400"],
+    ["Deferred", openTodos.filter((t) => t.deferred), "bg-violet-400"],
   ];
   const [week] = useState(() => new Date(Date.now() - 7 * 864e5).toISOString());
   const done = all.filter((t) => t.status !== "open" && (t.doneAt ?? "") >= week).sort((a, b) => (b.doneAt ?? "").localeCompare(a.doneAt ?? ""));
@@ -163,6 +173,46 @@ function TodoDetail({ todo, onBack }: { todo: RTodo; onBack: () => void }) {
             {tr("Important")}
           </button>
           <span className="text-xs text-zinc-500">{[refOf(todo), todo.ticket].filter(Boolean).join(" · ")}</span>
+        </div>
+        {/* Due at a tap, as the Todos tab's date menu: today, tomorrow, next week, none. */}
+        <div className="flex flex-wrap gap-1.5">
+          {[
+            ["today", 0],
+            ["tomorrow", 1],
+            ["nextWeek", 7],
+          ].map(([w, d]) => (
+            <button key={w} type="button" className="btn btn-sm" onClick={() => void edit({ kind: "todo.set", todo: todo.id, field: "due", value: plusDays(Number(d)) })}>
+              {tr(String(w))}
+            </button>
+          ))}
+          {todo.due && (
+            <button type="button" className="btn btn-sm" onClick={() => void edit({ kind: "todo.set", todo: todo.id, field: "due", value: null })}>
+              {tr("noDate")}
+            </button>
+          )}
+        </div>
+        <div className="flex flex-wrap gap-2 border-t border-zinc-100 pt-3 dark:border-zinc-800">
+          {todo.status === "open" && (
+            <button type="button" className="btn" onClick={() => void edit({ kind: "todo.set", todo: todo.id, field: "deferred", value: !todo.deferred })}>
+              {todo.deferred ? tr("undefer") : tr("defer")}
+            </button>
+          )}
+          {todo.status === "dismissed" ? (
+            <button type="button" className="btn" onClick={() => void edit({ kind: "todo.set", todo: todo.id, field: "status", value: "open" })}>
+              {tr("reopen")}
+            </button>
+          ) : (
+            <button
+              type="button"
+              className="btn text-red-700 dark:text-red-400"
+              onClick={() => {
+                void edit({ kind: "todo.set", todo: todo.id, field: "status", value: "dismissed" });
+                onBack();
+              }}
+            >
+              {tr("dismiss")}
+            </button>
+          )}
         </div>
       </section>
       <section className="card space-y-2 p-4">

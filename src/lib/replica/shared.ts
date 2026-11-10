@@ -123,7 +123,7 @@ export function diffManifest(have: Manifest, now: Manifest): { fetch: string[]; 
 // ---------------------------------------------------------------------------------------------------------------------
 
 type Base = { id: string; at: string };
-export const TODO_FIELDS = ["status", "text", "due", "flagged"] as const;
+export const TODO_FIELDS = ["status", "text", "due", "flagged", "deferred"] as const;
 export const PAGE_FIELDS = ["title", "content", "icon"] as const;
 export const EVENT_FIELDS = ["title", "start", "end", "allDay", "location", "description"] as const;
 export type ReplicaOp = Base &

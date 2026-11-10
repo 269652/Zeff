@@ -187,13 +187,15 @@ export async function applyReplicaOps(ops: ReplicaOp[]): Promise<ApplyAnswer> {
             r = { id: o.id, ok: true, skipped: "todo gone" };
             break;
           }
-          const current = o.field === "flagged" ? !!t.flaggedAt : o.field === "status" ? t.status : o.field === "due" ? t.due : t.text;
-          const pcAt = o.field === "flagged" ? (t.flaggedAt ?? t.updatedAt) : t.updatedAt;
+          const current = o.field === "flagged" ? !!t.flaggedAt : o.field === "deferred" ? !!t.deferredAt : o.field === "status" ? t.status : o.field === "due" ? t.due : t.text;
+          const pcAt = o.field === "flagged" ? (t.flaggedAt ?? t.updatedAt) : o.field === "deferred" ? (t.deferredAt ?? t.updatedAt) : t.updatedAt;
           const d = decideField({ current, base: o.base, value: o.value, opAt: o.at, pcAt });
           if (d.apply) {
             if (o.field === "status") attributed("you", () => todos.setTodoStatus(t.id, o.value as RTodo["status"], o.value === "open" ? null : undefined));
             else if (o.field === "text") todos.setTodoText(t.id, String(o.value));
             else if (o.field === "due") todos.setTodoDue(t.id, (o.value as string | null) ?? null);
+            // "Later" from the phone, as the Todos tab defers one.
+            else if (o.field === "deferred") todos.setTodoDeferred(t.id, !!o.value);
             else todos.setTodoFlagged(t.id, !!o.value);
           } else r = { id: o.id, ok: true, skipped: d.same ? "unchanged" : "conflict: the PC's later edit stays" };
           conflictOf(o, `todo:${t.id}`, d.apply ? String(o.field === "text" ? o.value : t.text) : t.text, o.field, d, d.apply ? o.value : current);

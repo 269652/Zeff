@@ -183,3 +183,17 @@ test("a series' words changed from the phone (its times stay with the PC): every
   assert.equal((e.data as { title: string }).title, "Yoga am Abend");
   assert.ok((e.data as { recurrence: unknown }).recurrence, "still a series");
 });
+
+test("from the phone: a todo deferred (later) and back, and dismissed — as the Todos tab does it", async () => {
+  const { applyReplicaOps } = await import("@/lib/replica/server");
+  const { hashValue } = await import("@/lib/replica/shared");
+  const todos = await import("@/lib/todos/store");
+  const t = todos.addManualTodo({ ticket: "", text: "Steuer machen" });
+  const a = await applyReplicaOps([op({ kind: "todo.set", todo: t.id, field: "deferred", value: true, base: hashValue(false) })]);
+  assert.equal(a.results[0].ok, true, JSON.stringify(a.results));
+  assert.ok(todos.getTodo(t.id)!.deferredAt, "deferred");
+  await applyReplicaOps([op({ kind: "todo.set", todo: t.id, field: "deferred", value: false, base: hashValue(true) })]);
+  assert.equal(todos.getTodo(t.id)!.deferredAt, null, "back to now");
+  await applyReplicaOps([op({ kind: "todo.set", todo: t.id, field: "status", value: "dismissed", base: hashValue("open") })]);
+  assert.equal(todos.getTodo(t.id)!.status, "dismissed");
+});
