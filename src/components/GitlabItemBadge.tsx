@@ -138,6 +138,9 @@ export function GitlabItemBadge({
   const what = item.kind === "branch" ? item.ref : `${item.ref} ${item.title}`;
   // A branch that is on the remote (GitLab has it, or Zeff pushed it): with a check.
   const onRemote = item.kind === "branch" && item.state !== "not pushed";
+  // Only on this computer (not pushed): a card of its own look — grey, dashed, a screen in its icon — and no GitLab link
+  // (GitLab hasn't got it: its page would be a 404).
+  const local = item.kind === "branch" && item.state === "not pushed";
   const start = item.kind === "comment" ? item.body.replace(/[`*_>#]+|!?\[([^\]]*)\]\([^)]*\)/g, "$1").replace(/\s+/g, " ").trim() : "";
   const icon = (
     <>
@@ -146,6 +149,13 @@ export function GitlabItemBadge({
         {item.kind === "branch" ? (
           <>
             {onRemote && <path d="M12.5 15.5l2 2 3.5-4.25" />}
+            {local && (
+              <>
+                <title>{t("Only on this computer")}</title>
+                <rect x="11.25" y="12" width="7.5" height="5" rx="0.75" />
+                <path d="M13.25 19h3.5" />
+              </>
+            )}
             <circle cx="6" cy="4.5" r="1.75" />
             <circle cx="6" cy="15.5" r="1.75" />
             <circle cx="14" cy="7" r="1.75" />
@@ -168,11 +178,11 @@ export function GitlabItemBadge({
   const day = item.kind === "comment" ? item.createdAt : item.updatedAt;
   return (
     <SourceCard
-      tone="orange"
+      tone={local ? "zinc" : "orange"}
       icon={icon}
-      kind={kind}
+      kind={local ? t("Local branch") : kind}
       mark={item.kind === "comment" ? <GitlabResolveMark item={item} resolved={resolved} /> : undefined}
-      state={item.state ? { text: item.state, className: STATE_STYLE(item.state) } : undefined}
+      state={local ? { text: t("only on this PC"), className: "bg-zinc-200 text-zinc-700 dark:bg-zinc-700 dark:text-zinc-200" } : item.state ? { text: item.state, className: STATE_STYLE(item.state) } : undefined}
       when={day ? when(day) : undefined}
       title={(item.kind === "branch" ? item.ref : item.kind === "mr" ? item.title : item.title || item.ref) || kind}
       sub={[project, item.kind === "comment" ? item.ref : item.kind === "mr" ? item.ref : "", item.author].filter(Boolean).join(" · ") || undefined}
@@ -180,9 +190,9 @@ export function GitlabItemBadge({
       expanded={expanded}
       onToggle={onToggle}
       toggleTitle={expanded ? t("Fold") : t("Show all of it")}
-      href={item.url}
-      hrefTitle={t("Open in GitLab: {kind} {what} ({project})", { kind, what, project: item.project })}
-      className={className}
+      href={local ? undefined : item.url}
+      hrefTitle={local ? undefined : t("Open in GitLab: {kind} {what} ({project})", { kind, what, project: item.project })}
+      className={`${local ? "border-dashed" : ""} ${className}`.trim()}
     />
   );
 }
@@ -207,9 +217,13 @@ export function GitlabItemDetails({ item }: { item: GitlabItemView }) {
         </span>
         <span className="flex items-center gap-2">
           <GitlabResolve item={item} />
-          <a href={item.url} target="_blank" rel="noreferrer" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
-            {t("Open in GitLab")} ↗
-          </a>
+          {item.kind === "branch" && item.state === "not pushed" ? (
+            <span className="text-zinc-500">{t("Only on this computer — not pushed")}</span>
+          ) : (
+            <a href={item.url} target="_blank" rel="noreferrer" className="font-medium text-indigo-600 hover:underline dark:text-indigo-400">
+              {t("Open in GitLab")} ↗
+            </a>
+          )}
         </span>
       </div>
       <div className="font-medium leading-snug">

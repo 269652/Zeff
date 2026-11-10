@@ -9087,5 +9087,9 @@
   "e.g. more clinical cases; less statistics; pharmacology earlier": "p. ej. más casos clínicos; menos estadística; farmacología antes",
   "Saved — the red thread follows.": "Guardado — el hilo rojo lo sigue.",
   "Not saved.": "No guardado.",
-  "Saved as you change them.": "Se guarda al cambiarlo."
+  "Saved as you change them.": "Se guarda al cambiarlo.",
+  "Only on this computer": "Solo en este equipo",
+  "Local branch": "Rama local",
+  "only on this PC": "solo en este PC",
+  "Only on this computer — not pushed": "Por ahora solo en este equipo — sin push"
 }

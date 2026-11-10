@@ -9087,5 +9087,9 @@
   "e.g. more clinical cases; less statistics; pharmacology earlier": "z. B. mehr klinische Fälle; weniger Statistik; Pharmakologie früher",
   "Saved — the red thread follows.": "Gespeichert — der rote Faden folgt.",
   "Not saved.": "Nicht gespeichert.",
-  "Saved as you change them.": "Wird beim Ändern gespeichert."
+  "Saved as you change them.": "Wird beim Ändern gespeichert.",
+  "Only on this computer": "Nur auf diesem Rechner",
+  "Local branch": "Lokaler Branch",
+  "only on this PC": "nur auf diesem PC",
+  "Only on this computer — not pushed": "Bisher nur auf diesem Rechner — nicht gepusht"
 }
