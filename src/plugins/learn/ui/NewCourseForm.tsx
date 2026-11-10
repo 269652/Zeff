@@ -31,7 +31,8 @@ export function NewCourseForm({ space, spaces = [] }: { space?: number; spaces?:
             (e: unknown) => ({ ok: false as const, error: `${t("Couldn't reach Zeff — check the connection and try again.")} (${e instanceof Error ? e.message : String(e)})` }),
           );
           if (!r || !r.ok) return void toast(r?.error ?? t("Didn't work."), { tone: "error" });
-          router.push(`/learn/${r.id}`);
+          // (Made from a learning space's page in the Workspace: the course opens on its row there.)
+          router.push(space ? `/workspace/${r.id}` : `/learn/${r.id}`);
         });
       }}
     >

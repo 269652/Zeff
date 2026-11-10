@@ -21,7 +21,7 @@ export async function LearnSpaceApp({ pageId }: { pageId: number }) {
         </Link>
         <ExportSpace pageId={pageId} />
       </div>
-      <CourseCards courses={courses} />
+      <CourseCards courses={courses} inWorkspace />
       <NewCourseForm space={pageId} />
     </section>
   );

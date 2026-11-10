@@ -397,6 +397,13 @@ export function getNode(courseId: number, key: string): CourseNode | undefined {
   return courseNodes(courseId).find((n) => n.key === key);
 }
 
+/** What a row of Steps is in its course: the course and its node's key (null: no such row, or no course). */
+export function nodeOfRow(rowId: number): { courseId: number; key: string } | null {
+  const r = learnRows("steps").find((x) => x.id === Number(rowId));
+  const courseId = r ? ids(r.cells[P.course])[0] : undefined;
+  return r && courseId ? { courseId, key: keyOf(r) } : null;
+}
+
 /** A step's row (by its key) in a course. */
 const stepRow = (courseId: number, key: string | null): Row | undefined => {
   if (!key) return undefined;

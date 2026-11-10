@@ -7,15 +7,39 @@ import "./teacher";
 import { createElement } from "react";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { createLearnSpace, learnSpaceAt } from "./dbs";
+import { createLearnSpace, learnSpaceAt, spaceOfPage } from "./dbs";
 import { workspacePageApps, workspaceTemplates } from "@/plugins/workspace/page-apps-point";
 
 // A learning space (a page holding Learn's databases — told from them): Learn's courses on its page in the Workspace.
+// A course's row, a topic's (a year, a phase, a skill) or a step's: Learn's own screen right there — the course with its skill
+// map, the topic with its steps, the lesson with the teacher — and its links stay in the Workspace.
 workspacePageApps.contribute("learn", {
   async app(pageId) {
-    if (!learnSpaceAt(pageId)) return null;
-    const { LearnSpaceApp } = await import("./ui/LearnSpaceApp");
-    return createElement(LearnSpaceApp, { pageId });
+    if (learnSpaceAt(pageId)) {
+      const { LearnSpaceApp } = await import("./ui/LearnSpaceApp");
+      return createElement(LearnSpaceApp, { pageId });
+    }
+    const space = spaceOfPage(pageId);
+    if (!space || space.folder === pageId) return null;
+    const { getPage } = await import("@/plugins/workspace/store");
+    const dbId = getPage(pageId)?.dbId;
+    if (dbId === space.courses) {
+      const { CourseScreen } = await import("./ui/CourseScreen");
+      return createElement(CourseScreen, { courseId: pageId, where: "workspace" });
+    }
+    if (dbId === space.steps) {
+      const store = await import("./store");
+      const at = store.nodeOfRow(pageId);
+      const node = at ? store.getNode(at.courseId, at.key) : undefined;
+      if (!at || !node) return null;
+      if (node.kind === "step") {
+        const { LessonScreen } = await import("./ui/LessonScreen");
+        return createElement(LessonScreen, { courseId: at.courseId, stepKey: at.key, where: "workspace" });
+      }
+      const { TopicScreen } = await import("./ui/TopicScreen");
+      return createElement(TopicScreen, { courseId: at.courseId, nodeKey: at.key });
+    }
+    return null;
   },
 });
 

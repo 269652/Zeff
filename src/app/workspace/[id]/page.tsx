@@ -41,7 +41,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   const form = page.kind === "form" ? (await import("@/plugins/workspace/forms")).getForm(page.id) : null;
   const ofTemplates = !isRow && inTemplates(page.id);
   // A plugin's page (a learning space: Learn's courses above its text) — told from the page by the plugin (page-apps.ts).
-  const app = page.kind === "page" && !isRow && !ofTemplates ? await (await import("@/plugins/workspace/page-apps")).pageApp(page.id) : null;
+  // (A row of a plugin's database too: a course of Learn's shows its course, a step its lesson.)
+  const app = page.kind === "page" && !ofTemplates ? await (await import("@/plugins/workspace/page-apps")).pageApp(page.id) : null;
   const view = (
     <PageView
       key={page.id}

@@ -7,7 +7,7 @@ import { toast } from "@/components/Toaster";
 import { startLessonAction } from "@/app/learn/actions";
 
 /** Into a step's lesson (its chat with the teacher — made the first time). */
-export function LessonButton({ courseId, stepKey, label, primary = true, className = "" }: { courseId: number; stepKey: string; label?: string; primary?: boolean; className?: string }) {
+export function LessonButton({ courseId, stepKey, label, primary = true, className = "", stay = false }: { courseId: number; stepKey: string; label?: string; primary?: boolean; className?: string; /** Shown where the lesson is (its row in the Workspace): stay, and read the page again. */ stay?: boolean }) {
   const t = useT();
   const router = useRouter();
   const [pending, start] = useTransition();
@@ -20,7 +20,8 @@ export function LessonButton({ courseId, stepKey, label, primary = true, classNa
         start(async () => {
           const r = await startLessonAction(courseId, stepKey);
           if (!r.ok) return void toast(r.error, { tone: "error" });
-          router.push(`/learn/${courseId}/step/${encodeURIComponent(stepKey)}`);
+          if (stay) router.refresh();
+          else router.push(`/learn/${courseId}/step/${encodeURIComponent(stepKey)}`);
         })
       }
     >

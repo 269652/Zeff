@@ -576,12 +576,19 @@ export function PageView({ page, row, database, form, person, app }: { page: Pag
 
         {/* A row with a custom view (a person) shows its fields in that view. */}
         {/* A day's entry of a daily list's log: a table like the list, its fields folded away under it. */}
-        {row && !row.initial.extras?.rowView && <DayEntry rowId={page.id} fields={<RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />} />}
+        {/* (A row a plugin shows its own screen on — a course, a lesson: its fields folded away under that screen.) */}
+        {row && !row.initial.extras?.rowView && !app && <DayEntry rowId={page.id} fields={<RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />} />}
         {/* What the row stands for (its debt, its case): what settled it, the todos that would — and "Mark as paid" (todo-settle.ts). */}
         {row && <LinkedPanel target={{ rowId: page.id }} />}
 
         <SystemPageBar pageId={page.id} />
         {app}
+        {row && !row.initial.extras?.rowView && app && (
+          <details className="mb-6">
+            <summary className="cursor-pointer text-sm text-zinc-500">{t("Fields")}</summary>
+            <DayEntry rowId={page.id} fields={<RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />} />
+          </details>
+        )}
         {/* A person's page that is (nearly) empty: their todos, what is coming up, the facts and your rhythm on a click. */}
         {page.layoutFits && editable && (
           <button

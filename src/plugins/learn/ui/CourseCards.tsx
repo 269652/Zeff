@@ -32,13 +32,13 @@ export async function courseCards(space?: number | null): Promise<CourseCard[]> 
 }
 
 /** The cards, linking to each course (a server component). */
-export function CourseCards({ courses }: { courses: CourseCard[] }) {
+export function CourseCards({ courses, inWorkspace = false }: { courses: CourseCard[]; /** In the Workspace: a course opens its row there (Learn's screen on it). */ inWorkspace?: boolean }) {
   if (!courses.length) return null;
   return (
     <ul className="grid gap-3 sm:grid-cols-2">
       {courses.map((c) => (
         <li key={c.id}>
-          <Link href={`/learn/${c.id}`} className="card block h-full space-y-2 p-4 hover:border-indigo-300 dark:hover:border-indigo-700">
+          <Link href={inWorkspace ? `/workspace/${c.id}` : `/learn/${c.id}`} className="card block h-full space-y-2 p-4 hover:border-indigo-300 dark:hover:border-indigo-700">
             <div className="flex items-start gap-2">
               <span className="min-w-0 flex-1 font-semibold">{c.title}</span>
               {c.status === "ready" && <span className="shrink-0 rounded-full bg-indigo-100 px-2 text-xs font-medium text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">{t("Level {n}", { n: c.level })}</span>}

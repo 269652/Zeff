@@ -242,6 +242,22 @@ Zeff's phone companion.
 - **Plan anew:** researches the course again from scratch. **Progress, exercises and cards start over.**
 - **Remove course:** deletes the course with all its progress, exercises and cards.
 
+#### Learn inside the Workspace
+
+Learn's data are Workspace databases, and you can stay in the Workspace all the time. Opening a **course** (a row of
+*Courses*) shows the course right there — level, streak, skill map, next steps, study times, cards to review in place;
+a **topic** (a year, a phase or a skill — a row of *Steps*) shows its steps, each opening its own row; a **step** shows
+its **lesson**: the timeline with the teacher's chat, the exercises and the message box. Their links stay in the
+Workspace (the course's and the steps' rows), and the row's own fields are folded under it (**Fields**). Learn's own
+pages (`/learn/…`) show the same screens.
+
+Each Learn database also has a **view of its own**, first among its views — the table stays beside it: *Courses* as
+cards, *Steps* as the skill map of a course you pick, *Cards* with review now / a calendar of when they are due / the
+hard ones, *Activity* with a day-by-day XP heatmap, an XP table by course and kind and the timeline, *Exercises* as
+cards with their best score, *Conversations* as a searchable timeline. They are ordinary views (the **</>** code editor
+changes them, the assistant can rewrite them with the view template language — Learn's parts `learn.courses`,
+`learn.map`, `learn.review` are in its reference); a view you remove stays removed.
+
 ### Settings
 
 Learn has no settings page. Everything is set per course, on the course page:
@@ -388,6 +404,8 @@ flowchart LR
 | File | What it does |
 | --- | --- |
 | [plugin.ts](../../src/plugins/learn/plugin.ts) | The manifest |
+| [ui/CourseScreen.tsx](../../src/plugins/learn/ui/CourseScreen.tsx), [ui/LessonScreen.tsx](../../src/plugins/learn/ui/LessonScreen.tsx), [ui/TopicScreen.tsx](../../src/plugins/learn/ui/TopicScreen.tsx) | The course, lesson and topic screens — shared by Learn's pages and the Workspace rows (`where` is app or workspace) |
+| [view-template.meta.ts](../../src/plugins/learn/view-template.meta.ts), [view-actions.ts](../../src/plugins/learn/view-actions.ts), [ui/view-parts.tsx](../../src/plugins/learn/ui/view-parts.tsx) | Learn's views of its databases: templates per database, their data, the parts `learn.courses` / `learn.map` / `learn.review` |
 | [server.ts](../../src/plugins/learn/server.ts) | Loads the teacher's chat profile; hourly review/calendar upkeep; `tellTeacher` (a finished exercise to its lesson's session) |
 | [shared.ts](../../src/plugins/learn/shared.ts) | Shapes: `Plan`, `PlanNode`, `PlanSource`, node kinds and statuses, `DEFAULT_XP` |
 | [research.ts](../../src/plugins/learn/research.ts) | `PLAN_SCHEMA`, research/rework/update prompts, `runResearch`, `startResearch`, `runPlanUpdate`, `startPlanUpdate` |
@@ -528,6 +546,7 @@ installed, and a lesson's session gets them as `mcp__zeff__learn_*`:
 | [learn-day.test.ts](../../tests/learn-day.test.ts) | Study slots and events, review todos |
 | [learn-teacher.test.ts](../../tests/learn-teacher.test.ts) / [learn-history.test.ts](../../tests/learn-history.test.ts) | Teacher rules, chat profile, what earlier lessons showed |
 | [learn-timeline.test.ts](../../tests/learn-timeline.test.ts) | The lesson timeline |
+| [learn-in-workspace.test.ts](../../tests/learn-in-workspace.test.ts) | A row told apart as course / topic / lesson, each database's own view (once; draws without mistakes), the view's actions (courses, a map opening rows, cards due) |
 | [learn-widget.test.ts](../../tests/learn-widget.test.ts) | Sandbox page, libraries, message checks, results |
 | [learn-demo.test.ts](../../tests/learn-demo.test.ts) | The demo course |
 | [learn-spaces.test.ts](../../tests/learn-spaces.test.ts) | Spaces told from their databases, the template, courses and progress per space, the page app, export with rows and import, trashing |

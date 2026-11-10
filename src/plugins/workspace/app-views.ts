@@ -6,7 +6,7 @@ import type { DataType } from "./model";
  * the database's ("app" with its id). Each comes with its plugin: not installed, the view isn't offered and a database's
  * app view shows as a table.
  */
-export type AppView = { id: string; plugin: string; dataType: DataType; label: string; icon: string };
+export type AppView = { id: string; plugin: string; /** The databases of this type have it … */ dataType?: DataType; /** … or the databases this plugin owns (Learn's). */ owner?: string; label: string; icon: string };
 
 export const APP_VIEWS: AppView[] = [
   { id: "mail", plugin: "mail-client", dataType: "mail", label: "Mail", icon: "✉" },
@@ -18,7 +18,8 @@ export const APP_VIEWS: AppView[] = [
   { id: "cases", plugin: "cases", dataType: "cases", label: "Overview", icon: "📁" },
   { id: "debts", plugin: "finances", dataType: "debts", label: "Overview", icon: "💶" },
   { id: "agenda", plugin: "agenda", dataType: "agenda", label: "Agenda", icon: "📒" },
+  { id: "learn", plugin: "learn", owner: "learn", label: "Learn", icon: "🎓" },
 ];
 
 /** The app views a database of this type can have now (their plugins installed). */
-export const appViewsFor = (dataType: DataType | undefined): AppView[] => (dataType ? APP_VIEWS.filter((a) => a.dataType === dataType && isInstalled(a.plugin)) : []);
+export const appViewsFor = (dataType: DataType | undefined, owner?: string): AppView[] => APP_VIEWS.filter((a) => ((!!dataType && a.dataType === dataType) || (!!owner && a.owner === owner)) && isInstalled(a.plugin));

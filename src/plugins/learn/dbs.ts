@@ -15,6 +15,7 @@ import { WIDGET_LIBS } from "@/lib/widgets/sandbox";
 import { createPage, getDatabase, getPage, inTemplates, rawRows, restorePage, setOwner, updateSchema } from "@/plugins/workspace/store";
 import { newView, type DbSchema, type Property, type Row, type View } from "@/plugins/workspace/model";
 import { BADGES } from "./game";
+import { learnTemplate } from "./view-template.meta";
 
 /** The property ids Learn relies on (the same id may be used in several of its databases). */
 export const P = {
@@ -238,6 +239,25 @@ function specs(): Record<Which, { title: string; icon: string; titleName: string
 
 const ORDER: Which[] = ["courses", "steps", "exercises", "activity", "cards", "messages"];
 
+const VIEW_LABEL: Record<Which, () => string> = { courses: () => t("Courses"), steps: () => t("Skill map"), exercises: () => t("Exercises"), activity: () => t("Progress"), cards: () => t("Review"), messages: () => t("Conversations") };
+
+/**
+ * Learn's own view of one of its databases (view-template.meta.ts: the courses as cards, the skill map, review, the activity's
+ * heatmap …), first among its views — added once (a view you removed stays removed).
+ */
+function addLearnView(dbId: number, which: Which): void {
+  const done = getPref<number[]>("learn.viewsAdded", []);
+  if (done.includes(dbId)) return;
+  const schema = getDatabase(dbId)?.schema;
+  if (!schema) return;
+  if (!schema.views.some((v) => v.app === "learn")) {
+    const names = Object.fromEntries(schema.properties.map((p) => [p.id, p.name]));
+    const v: View = { ...newView(VIEW_LABEL[which](), "table"), type: "app", app: "learn", template: learnTemplate(which, names, t) };
+    updateSchema(dbId, { ...schema, views: [v, ...schema.views] });
+  }
+  setPref("learn.viewsAdded", [...done, dbId]);
+}
+
 // ---------------------------------------------------------------------------------------------------------------------
 // Reading the databases' rows: once per change of the account's database (not per node, per call)
 // ---------------------------------------------------------------------------------------------------------------------
@@ -457,6 +477,7 @@ export function ensureSpace(folder: number, had: Partial<LearnDbs> = {}, opts: {
       views = [v];
     }
     if (changed || fresh) updateSchema(all[w], { ...cur, titleName: fresh ? spec.titleName : cur.titleName, properties: props, views, dayList: false });
+    addLearnView(all[w], w);
     const owner = getDatabase(all[w])!.schema.owner;
     const propIds = spec.props.map((p) => p.id);
     if (!owner || owner.plugin !== "learn" || !owner.trashable !== first || propIds.some((id) => !owner.props.includes(id))) setOwner(all[w], { plugin: "learn", props: propIds, ...(first ? {} : { trashable: true as const }) });

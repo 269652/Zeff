@@ -9317,5 +9317,19 @@
   "Save as plugin": "Guardar como plugin",
   "Saved as the plugin „{id}“ (version {version}) in the plugins folder — switch it on under Plugins and the app is under New → templates.": "Guardado como el plugin «{id}» (versión {version}) en la carpeta de plugins — actívalo en Plugins y la app estará en Nuevo → plantillas.",
   "The app „{name}“ from the Workspace: its pages, databases, widgets and flows.": "La app «{name}» del Workspace: sus páginas, bases de datos, widgets y flujos.",
-  "The Workspace plugin is not installed.": "El plugin Workspace no está instalado."
+  "The Workspace plugin is not installed.": "El plugin Workspace no está instalado.",
+  "No courses yet — start one on the learning space's page.": "Aún no hay cursos — empieza uno en la página del espacio de aprendizaje.",
+  "Pick a course whose plan is ready.": "Elige un curso cuyo plan esté listo.",
+  "No cards due — well done.": "No hay tarjetas pendientes — bien hecho.",
+  "The Learn plugin is not installed (Menu → Plugins).": "El plugin Aprender no está instalado (Menú → Plugins).",
+  "No course with a plan yet": "Aún no hay ningún curso con plan",
+  "Start one on the learning space's page.": "Empieza uno en la página del espacio de aprendizaje.",
+  "When they're due": "Cuándo vencen",
+  "The hard ones": "Las difíciles",
+  "XP per day": "XP por día",
+  "Nothing learned yet.": "Aún no has aprendido nada.",
+  "No exercises yet — the teacher builds them in the lessons.": "Aún no hay ejercicios — el profesor los crea en las lecciones.",
+  "not done yet": "aún sin hacer",
+  "Search the conversations": "Buscar en las conversaciones",
+  "No conversations yet.": "Aún no hay conversaciones."
 }
