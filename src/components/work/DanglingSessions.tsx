@@ -1,7 +1,7 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState, useTransition } from "react";
+import { useEffect, useState, useTransition, type ReactNode } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { postJson } from "@/lib/post-json";
@@ -11,9 +11,10 @@ type Dangling = { id: number; ref: string; why: string };
 /**
  * "Kill all dangling sessions": the runs that count as running but aren't working (a session waiting for you or left
  * over from before a restart, a worker whose process is gone) — they hold workers, so new ones wait. Shown only while
- * there are some; `waiting`: this page's own message waits for a worker (said first, the button below it).
+ * there are some; `waiting`: this page's own message waits for a worker (said first, the button below it). `action`: what
+ * else this page can do about it while it waits (Learn: an extra worker of its own).
  */
-export function DanglingSessions({ waiting = false, className = "" }: { waiting?: boolean; className?: string }) {
+export function DanglingSessions({ waiting = false, className = "", action }: { waiting?: boolean; className?: string; action?: ReactNode }) {
   const t = useT();
   const router = useRouter();
   const [list, setList] = useState<Dangling[]>([]);
@@ -59,6 +60,7 @@ export function DanglingSessions({ waiting = false, className = "" }: { waiting?
         </>
       )}
       {waiting && !list.length && <p className="text-zinc-700 dark:text-zinc-300">{t("It starts as soon as one is free. More workers at once: Settings → Code.")}</p>}
+      {waiting && action && <div>{action}</div>}
     </section>
   );
 }

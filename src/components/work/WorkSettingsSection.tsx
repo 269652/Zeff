@@ -20,7 +20,7 @@ export async function WorkSettingsSection() {
         <ClaudeSessionSettingsForm s={claudeSessionSettings()} admin={isInstalled("work-elevated")} />
       </section>
       <section className="card p-4">
-        <WorkSettingsForm s={d.settings} repos={d.repos} defaultModel={d.defaultModel} models={d.models} provider={d.preferred} rulesPage={await (await import("@/lib/prompts")).promptHref("work-rules")} />
+        <WorkSettingsForm s={d.settings} repos={d.repos} defaultModel={d.defaultModel} models={d.models} provider={d.preferred} pools={d.pools} rulesPage={await (await import("@/lib/prompts")).promptHref("work-rules")} />
       </section>
     </>
   );
