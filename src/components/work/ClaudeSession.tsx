@@ -11,9 +11,18 @@ import { EditDiff } from "./Diff";
 type Post = (body: Record<string, unknown>) => Promise<{ ok: boolean; error?: string; out?: string; code?: number | null }>;
 
 /** Talk to the session over a plain request (the page refreshing meanwhile can't cancel it). */
-const usePost = (runId: number): Post => (body) =>
+const usePost = (runId: number, t: ReturnType<typeof useT>): Post => (body) =>
   fetch(`/api/work/${runId}/live`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })
-    .then((r) => r.json() as Promise<{ ok: boolean; error?: string }>)
+    .then(async (r) => {
+      const text = await r.text();
+      try {
+        return JSON.parse(text) as { ok: boolean; error?: string };
+      } catch {
+        // (Not Zeff's answer — an error page: mostly the proxy in between (zeff:1337) gave up while Zeff was busy; the message
+        // itself usually got through and shows in the conversation a moment later.)
+        return { ok: false, error: t("Zeff took too long to confirm (it is busy right now) — what you sent has most likely arrived and shows up in a moment. If not, send it again.") };
+      }
+    })
     .catch((e: unknown) => ({ ok: false, error: e instanceof Error ? e.message : String(e) }));
 
 /** A mode's tone, in colour: the riskier, the louder. */
@@ -31,7 +40,7 @@ export function ClaudeSession({ run }: { run: WorkRunView }) {
   const t = useT();
   const c = run.session!;
   const live = run.live!;
-  const post = usePost(run.id);
+  const post = usePost(run.id, t);
   const [pending, start] = useTransition();
   const act = (body: Record<string, unknown>, then?: (r: Awaited<ReturnType<Post>>) => void) =>
     start(async () => {

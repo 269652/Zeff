@@ -10,6 +10,7 @@ import { inOrder, type Placement } from "@/lib/layout-shared";
 import { useUnseenActivity } from "./boards/ActivitySeen";
 import { DEFAULT_BADGE, type BadgeConfig } from "@/lib/todos/badge";
 import { TodoBadgePill } from "./TodoBadgePill";
+import { LookDot } from "./BadgeLookProvider";
 import { SyncMenu } from "./SyncMenu";
 import { Search } from "./Search";
 import { openSearch } from "@/lib/search/shared";
@@ -58,7 +59,7 @@ const pill = (active: boolean) =>
  * `activityIds`: the recent todo events that are news — Boards shows how many you haven't seen.
  * `account`: the account you're in and the others (Accounts plugin installed).
  */
-/** The Todos tab's badge: one split pill — the numbers chosen under Settings → Todo settings, in their order and colours. */
+/** The Todos tab's badge: one split pill — the numbers chosen under Settings → Badges, in their order and colours. */
 function TodosTabBadge({ counts, ids, config, className = "" }: { counts?: { open: number; late: number; today?: number }; ids: number[]; config?: BadgeConfig; className?: string }) {
   const unseen = useUnseenActivity(ids);
   return <TodoBadgePill config={config ?? DEFAULT_BADGE} counts={{ open: counts?.open ?? 0, late: counts?.late ?? 0, today: counts?.today ?? 0, activity: unseen }} className={className} />;
@@ -82,9 +83,9 @@ export function SiteHeader({
   /** Your open todos (and how many are late) — the Todos tab's count. */
   openTodos?: { open: number; late: number; today?: number };
   activityIds?: number[];
-  /** Which numbers the Todos tab's badge shows, in which order and colours (Settings → Todo settings). */
+  /** Which numbers the Todos tab's badge shows, in which order and colours (Settings → Badges). */
   todoBadge?: BadgeConfig;
-  /** What waits for you on a tab (a Work session's question or turn): a yellow dot on it. */
+  /** What waits for you on a tab (a Work session's question or turn): a dot on it (amber unless set otherwise under Settings → Badges). */
   waiting?: { href: string; title: string }[];
   /** Every application, with its place (the menu's "Apps" shows those put there). */
   apps?: MenuApp[];
@@ -363,7 +364,7 @@ export function SiteHeader({
                   <path d="M3 5.5h14M3 10h14M3 14.5h14" />
                 </svg>
                 {/* On one of the menu's pages. */}
-                {inMenu && <span className="absolute top-1.5 right-1.5 size-1.5 rounded-full bg-indigo-500" aria-hidden />}
+                {inMenu && <LookDot id="menu" className="absolute top-1.5 right-1.5 size-1.5 rounded-full" aria-hidden />}
               </button>
             )}
             <Link href="/" className="flex shrink-0 items-baseline gap-2">
@@ -386,8 +387,9 @@ export function SiteHeader({
                       <span className="hidden sm:inline">{tab.label}</span>
                       {tab.href === "/todos" && <TodosTabBadge counts={openTodos} ids={activityIds} config={todoBadge} className="ml-1 align-[1px]" />}
                       {waiting.some((w) => w.href.startsWith(tab.href)) && (
-                        <span
-                          className="ml-1 inline-block size-2 rounded-full bg-amber-500 align-[1px]"
+                        <LookDot
+                          id="waiting"
+                          className="ml-1 inline-block size-2 rounded-full align-[1px]"
                           title={waiting
                             .filter((w) => w.href.startsWith(tab.href))
                             .map((w) => w.title)

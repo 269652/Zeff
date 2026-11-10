@@ -10,6 +10,7 @@ import type { SyncOverview, SyncView } from "@/lib/sync/shared";
 import { SyncIcon } from "./icons";
 import { currentLocale, formatAgo, formatTime } from "@/lib/format";
 import { useT } from "./I18nProvider";
+import { LookDot } from "./BadgeLookProvider";
 import type { T } from "@/lib/i18n/shared";
 import { useDismiss } from "@/components/useDismiss";
 import { RunMachines, canStart, isBusy } from "@/lib/run-state";
@@ -240,8 +241,9 @@ export function SyncMenu() {
       >
         <SyncIcon className={`size-5 ${running ? "animate-spin [animation-duration:1.5s]" : ""}`} />
         <span className="hidden sm:inline">{t("Sync")}</span>
-        {failed && <span className="absolute top-1.5 right-1 size-1.5 rounded-full bg-red-500" aria-hidden />}
-        {unwell && <span className="absolute top-1.5 right-1 size-1.5 rounded-full bg-amber-500" aria-hidden />}
+        {/* The dots' colours (or none) as set under Settings → Badges. */}
+        {failed && <LookDot id="syncFailed" className="absolute top-1.5 right-1 size-1.5 rounded-full" aria-hidden />}
+        {unwell && <LookDot id="syncUnwell" className="absolute top-1.5 right-1 size-1.5 rounded-full" aria-hidden />}
       </button>
       {open && (
         <div id="sync-menu" role="dialog" aria-label={t("Sync")} className="absolute right-0 z-50 mt-2 flex max-h-[calc(100dvh-5rem)] w-[22rem] max-w-[calc(100vw-2rem)] flex-col overflow-hidden rounded-lg border border-zinc-200 bg-white shadow-xl dark:border-zinc-800 dark:bg-zinc-950">

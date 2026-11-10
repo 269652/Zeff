@@ -6,6 +6,7 @@ import { installedPlugins, isInstalled } from "@/plugins/state";
 import { favorites, templateTree, tree } from "@/plugins/workspace/store";
 import { MobileAside } from "@/plugins/workspace/ui/MobileAside";
 import { Sidebar } from "@/plugins/workspace/ui/Sidebar";
+import { TreeBadgeLook } from "@/plugins/workspace/ui/TreeBadge";
 
 /** The one-time moves done for good (lib/once-done), by their version: a change to what one does takes a new one. */
 
@@ -56,7 +57,10 @@ export default async function WorkspaceLayout({ children }: { children: React.Re
     <div className="page">
       <div className="page-aside ws-aside lg:top-3 lg:max-h-none lg:pb-0">
         <MobileAside>
-          <Sidebar builtins={builtins} templateItems={templateTree()} appNav={appNav} items={tree()} favorites={favorites()} badges={badges} channels={channels} extSources={extSources} />
+          {/* The badges' colours as set under Settings → Badges. */}
+          <TreeBadgeLook tones={(await import("@/plugins/workspace/badge-config-store")).getWsBadges().tones}>
+            <Sidebar builtins={builtins} templateItems={templateTree()} appNav={appNav} items={tree()} favorites={favorites()} badges={badges} channels={channels} extSources={extSources} />
+          </TreeBadgeLook>
         </MobileAside>
       </div>
       {/* Room below the last card: the main area itself only leaves 12 px on a desktop. */}

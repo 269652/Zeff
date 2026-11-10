@@ -72,3 +72,36 @@ test("a rounded path; a number kept clear of those placed already", () => {
   const second = labelPoint(corners, [first]);
   assert.ok(Math.hypot(first.x - second.x, first.y - second.y) >= 22);
 });
+
+test("organic ways: soft curves (no right angles) that keep out of the other circles, and numbers clear of the ways", async () => {
+  const { organicWay, nodeDiscs, wayLabels } = await import("../src/components/skill-tree/thread-route");
+  const taken: [number, number][] = [[0, 0], [1, 0], [1, 1], [2, 1], [3, 0]];
+  const has = cells(...taken);
+  const pairs: [[number, number], [number, number]][] = [[[0, 0], [2, 1]], [[2, 1], [3, 0]], [[1, 1], [1, 0]]];
+  const ways = pairs.map(([a, b]) => {
+    const others = taken.filter(([c, r]) => !(c === a[0] && r === a[1]) && !(c === b[0] && r === b[1])).map(([col, row]) => ({ col, row }));
+    const discs = nodeDiscs(g, others);
+    const w = organicWay(g, threadCorners(g, { col: a[0], row: a[1] }, { col: b[0], row: b[1] }, has), discs);
+    assert.ok(w.d.includes(" C"), "a curve");
+    for (const p of w.samples) for (const d of discs) assert.ok(Math.hypot(p.x - d.x, p.y - d.y) >= d.r - 0.01, "kept out of a circle");
+    return w.samples;
+  });
+  const mids = wayLabels(ways, nodeDiscs(g, taken.map(([col, row]) => ({ col, row })), 2));
+  assert.equal(mids.length, 3);
+  for (let i = 0; i < mids.length; i++) for (let j = i + 1; j < mids.length; j++) assert.ok(Math.hypot(mids[i].x - mids[j].x, mids[i].y - mids[j].y) >= 20);
+});
+
+test("natural ways: straight where free, round a circle in the way, and off a way drawn before where it can", async () => {
+  const { naturalWay, nodeDiscs } = await import("../src/components/skill-tree/thread-route");
+  const a = centre(g, { col: 0, row: 0 });
+  const b = centre(g, { col: 2, row: 0 });
+  const free = naturalWay(g, a, b, [], []);
+  assert.ok(free.samples.every((p) => Math.abs(p.y - a.y) < 1), "straight across");
+  const blocked = nodeDiscs(g, [{ col: 1, row: 0 }]);
+  const round = naturalWay(g, a, b, blocked, []);
+  assert.ok(round.samples.length > 2);
+  for (const p of round.samples) for (const d of blocked) assert.ok(Math.hypot(p.x - d.x, p.y - d.y) >= d.r - 0.01, "kept out of the circle");
+  const again = naturalWay(g, a, b, blocked, [round.samples]);
+  const shared = again.samples.filter((p) => round.samples.some((q) => Math.hypot(p.x - q.x, p.y - q.y) < 7)).length;
+  assert.ok(shared < again.samples.length / 2, "not along the first one");
+});

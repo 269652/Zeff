@@ -21,6 +21,7 @@ export function settingsAreas(): SettingsAreaGroup[] {
     { href: "/settings/about", label: t("About me"), what: t("What Zeff and its AI should know about you") },
     { href: "/settings/ai", label: t("AI"), what: t("Backends and models, your instructions, the prompts, how useful each step is") },
     ...(on.has("todos") ? [{ href: "/settings/todos", label: t("Todo settings"), what: t("The briefing, what a todo shows, which kinds of knowledge count") }] : []),
+    { href: "/settings/badges", label: t("Badges and dots"), what: t("The numbers and dots on tabs, in the Workspace tree and the header: which, what they count, their colours") },
   ];
   const time: SettingsArea[] = [
     ...(on.has("zeiterfassung") ? [{ href: "/settings/time", label: t("Time-tracking settings"), what: t("Weekly hours, breaks, flex time, rules, absences") }] : []),
@@ -81,6 +82,10 @@ export function settingsSections(): SettingsArea[] {
     { href: "/settings/mail/add", label: t("Add mail account"), what: t("E-Mail accounts") },
     on.has("google-drive") && { href: "/settings/connections#google-drive", label: t("Google Drive"), what: conn },
     on.has("todos") && { href: "/settings/todos#boards", label: t("Todos (briefing)"), what: t("Todo settings") },
+    on.has("todos") && { href: "/settings/badges#todos", label: t("Badge on the Todos tab"), what: t("Badges and dots") },
+    on.has("todos") && { href: "/settings/badges#todo-activity", label: t("Unseen activity on the Todos page"), what: t("Badges and dots") },
+    on.has("workspace") && { href: "/settings/badges#workspace", label: t("Badges in the Workspace tree"), what: t("Badges and dots") },
+    { href: "/settings/badges#header", label: t("Dots in the header"), what: t("Badges and dots") },
     ...(on.has("zeiterfassung")
       ? [
           { href: "/settings/time#hours", label: t("Weekly hours"), what: time },

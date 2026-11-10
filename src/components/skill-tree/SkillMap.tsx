@@ -5,7 +5,7 @@ import { useMemo, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { layoutDag } from "@/lib/graph/layout";
 import type { SkillTreeStatus } from "./SkillTree";
-import { labelPoint, roundedPath, threadCorners, type Grid } from "./thread-route";
+import { naturalWay, nodeDiscs, organicWay, threadCorners, wayLabels, type Grid } from "./thread-route";
 
 export type SkillMapStep = { key: string; title: string; status: SkillTreeStatus; href?: string; minutes?: number | null };
 export type SkillMapNode = {
@@ -98,26 +98,43 @@ export function SkillMap({
     const [c1x, c1y, c2x, c2y] = controls(p1, a1, p2, a2);
     return `M${p1.x},${p1.y} C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
   };
-  // The red thread's stretches: through the white space between the nodes (thread-route.ts) — ways sharing a gap
-  // between two columns moved a little apart.
+  // The red thread's stretches: soft curves through the white space (thread-route.ts) — around the circles, behind the
+  // titles' cards if need be; ways sharing a gap between two columns moved a little apart. Each one's number on its way,
+  // clear of the circles, the other numbers and the other ways.
   const threadWays = useMemo(() => {
     const grid: Grid = { col: COL, row: ROW, top: TOP, r: R, width, height };
     const taken = new Set([...layout.pos.values()].map((p) => `${p.col}:${p.row}`));
     const has = (c: number, r: number) => taken.has(`${c}:${r}`);
     const uses = new Map<number, number>();
     const SHIFTS = [0, 5, -5, 9, -9];
-    const placed: { x: number; y: number }[] = [];
-    return thread.slice(1).map((k, i) => {
+    const cells = [...layout.pos.entries()];
+    const drawn: { x: number; y: number }[][] = [];
+    // The titles' cards (a little narrower than the cell: short titles are narrower still).
+    const titleBoxes = cells.map(([key]) => {
+      const c = xy(key);
+      return { x1: c.x - 62, x2: c.x + 62, y1: c.y + R + 4, y2: c.y + R + 40 };
+    });
+    const ways = thread.slice(1).map((k, i) => {
       const a = layout.pos.get(thread[i])!;
       const b = layout.pos.get(k)!;
-      const gaps = new Set(threadCorners(grid, a, b, has).slice(1, -1).map((p) => p.x).filter((x) => x % COL === 0));
+      const gaps = new Set(threadCorners(grid, a, b, has).slice(1, -1).map((p) => p.x).filter((x) => x % COL === 0 || x === 16 || x === width - 16));
       const n = Math.max(0, ...[...gaps].map((x) => uses.get(x) ?? 0));
       for (const x of gaps) uses.set(x, n + 1);
       const corners = threadCorners(grid, a, b, has, SHIFTS[n % SHIFTS.length]);
-      const mid = labelPoint(corners, placed);
-      placed.push(mid);
-      return { key: k, d: roundedPath(corners), mid };
+      const discs = nodeDiscs(grid, cells.filter(([key]) => key !== thread[i] && key !== k).map(([, p]) => p));
+      // A free, natural curve, keeping off the ways before it; where none fits, along the corridor.
+      const free = naturalWay(grid, xy(thread[i]), xy(k), discs, drawn, titleBoxes);
+      const way = free.samples.length ? free : organicWay(grid, corners, discs);
+      drawn.push(way.samples);
+      return { key: k, ...way };
     });
+    // (The numbers keep off the titles' cards too: those lie over the lines.)
+    const titles = cells.flatMap(([key]) => {
+      const c = xy(key);
+      return [-60, -30, 0, 30, 60].map((dx) => ({ x: c.x + dx, y: c.y + R + 20, r: 16 }));
+    });
+    const mids = wayLabels(ways.map((w) => w.samples), [...nodeDiscs(grid, cells.map(([, p]) => p), 2), ...titles]);
+    return ways.map((w, i) => ({ key: w.key, d: w.d, mid: mids[i] }));
   }, [thread, layout, width, height]);
   const bands = groups
     .map((g) => {
@@ -285,10 +302,10 @@ export function SkillMap({
                     style={n.status === "mastered" ? { background: c } : n.status === "locked" ? undefined : { color: c, boxShadow: `inset 0 0 0 2px ${c}` }}
                     aria-hidden
                   >
-                    {n.status === "mastered" ? "✓" : n.status === "locked" ? "🔒" : `${done}/${n.steps.length}`}
+                    {n.status === "mastered" ? "✓" : n.status === "locked" ? <span className="text-xl leading-none">🔒</span> : `${done}/${n.steps.length}`}
                   </span>
                 </span>
-                <span className={`line-clamp-2 text-center text-xs leading-snug ${n.status === "locked" ? "text-zinc-400 dark:text-zinc-500" : "font-medium text-zinc-800 dark:text-zinc-200"}`}>{n.title}</span>
+                <span className={`line-clamp-2 max-w-full rounded-md border border-zinc-200 bg-white/[0.32] px-1.5 py-0.5 text-center text-xs leading-snug shadow-sm dark:border-zinc-700 dark:bg-zinc-900/[0.32] ${n.status === "locked" ? "text-zinc-500 dark:text-zinc-400" : "font-medium text-zinc-800 dark:text-zinc-200"}`}>{n.title}</span>
               </button>
             );
           })}

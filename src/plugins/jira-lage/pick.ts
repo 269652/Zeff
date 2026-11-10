@@ -159,6 +159,10 @@ export type PickCriteria = {
   text?: string;
   sort?: PickSort;
   limit?: number;
+  /** Exactly these tickets (Jira keys), in this order — the assistant's own choice; the other criteria are then ignored. */
+  keys?: string[];
+  /** Per key: one line why the assistant picked it. */
+  why?: Record<string, string>;
   /** What the assistant calls this view, and why these tickets. */
   title?: string;
   reason?: string;
@@ -194,6 +198,10 @@ export function pickTickets(columns: Column[], tickets: Ticket[], me: readonly s
   const names = (s: Stage) => columns.filter((_, i) => stages[i] === s).map((x) => x.name);
   const base = { ready: names("ready"), done: names("done") };
   const mineOf = (x: Ticket) => isMe(x.assignee, me);
+  if (c.keys?.length) {
+    const chosen = c.keys.flatMap((k) => tickets.filter((x) => !!x.key && same(k, x.key)).slice(0, 1));
+    return { ...base, groups: [capped("match", chosen, c.limit)] };
+  }
   const pool = narrow(tickets, c);
   if (c.forMe) {
     const mine = pool.filter((x) => stageOf(x) === "active" && mineOf(x)).sort(sorter("progress"));
@@ -264,6 +272,17 @@ export function cleanCriteria(o: unknown): PickCriteria | null {
   if (typeof r.text === "string" && r.text.trim()) c.text = r.text.trim().slice(0, 100);
   if (SORTS.includes(r.sort as PickSort)) c.sort = r.sort as PickSort;
   if (typeof r.limit === "number" && r.limit >= 1) c.limit = Math.min(100, Math.floor(r.limit));
+  const keys = strs(r.keys)?.map((k) => k.slice(0, 40));
+  if (keys?.length) c.keys = keys;
+  if (c.keys && r.why && typeof r.why === "object") {
+    const why = Object.fromEntries(
+      Object.entries(r.why as Record<string, unknown>)
+        .filter(([k, v]) => typeof v === "string" && v.trim() && c.keys!.some((x) => same(x, k)))
+        .slice(0, 20)
+        .map(([k, v]) => [k, String(v).trim().slice(0, 240)]),
+    );
+    if (Object.keys(why).length) c.why = why;
+  }
   if (typeof r.title === "string" && r.title.trim()) c.title = r.title.trim().slice(0, 80);
   if (typeof r.reason === "string" && r.reason.trim()) c.reason = r.reason.trim().slice(0, 300);
   return c;

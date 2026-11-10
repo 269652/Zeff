@@ -3,6 +3,8 @@ import { getSqlite } from "@/db";
 import { currentAccountId, withAccount } from "@/db/accounts";
 import { onChange } from "@/lib/events";
 import { t } from "@/lib/i18n/server";
+import { keepParts, rowPartSource, type WsBadgeConfig } from "./badge-config";
+import { getWsBadges } from "./badge-config-store";
 import { badgeOf, noBadges, sumBadges, type Badge, type BadgePart, type PageBadges } from "./badge-shared";
 import type { DocNode } from "./doc";
 import { rowBadgeSources } from "./row-badge-point";
@@ -80,8 +82,9 @@ function widgetUses(): WidgetUse[] {
 }
 
 /** The widgets' parts, by page. A widget that fails or has no badge adds nothing. */
-async function widgetParts(): Promise<Map<number, BadgePart[]>> {
+async function widgetParts(config: WsBadgeConfig): Promise<Map<number, BadgePart[]>> {
   const out = new Map<number, BadgePart[]>();
+  if (!config.sources.widgets) return out;
   const uses = widgetUses();
   if (!uses.length) return out;
   const { checkedConfig, widgetById, widgetData } = await import("./widgets");
@@ -93,7 +96,7 @@ async function widgetParts(): Promise<Map<number, BadgePart[]>> {
         const raw = { ...u.config, __page: u.page };
         const data = await widgetData(u.widget, raw);
         if (data.kind === "error") return;
-        const parts = await w.badge(checkedConfig(w, raw), data);
+        const parts = keepParts(await w.badge(checkedConfig(w, raw), data), "widgets", config);
         if (parts?.length) out.set(u.page, [...(out.get(u.page) ?? []), ...parts]);
       } catch {
         // a badge is a bonus
@@ -104,7 +107,7 @@ async function widgetParts(): Promise<Map<number, BadgePart[]>> {
 }
 
 /** The rows that need you, by row (with its database and title): a date to remind of, and what the plugins say about their records. */
-async function rowParts(): Promise<Map<number, { db: number; title: string; parts: BadgePart[] }>> {
+async function rowParts(config: WsBadgeConfig): Promise<Map<number, { db: number; title: string; parts: BadgePart[] }>> {
   const out = new Map<number, { db: number; title: string; parts: BadgePart[] }>();
   const add = (row: number, db: number, title: string, parts: BadgePart[]) => {
     if (!parts.length) return;
@@ -114,22 +117,24 @@ async function rowParts(): Promise<Map<number, { db: number; title: string; part
   };
   try {
     const { deadlines } = await import("./deadlines");
-    for (const x of deadlines()) {
+    for (const x of config.sources.deadlines ? deadlines() : []) {
       const label = x.days < 0 ? t("{field} overdue", { field: x.field }) : x.days === 0 ? t("{field} today", { field: x.field }) : t("{field} in {n} d", { field: x.field, n: x.days });
-      add(x.rowId, x.dbId, x.title, [{ tone: x.days <= 0 ? "important" : "unread", count: 1, label }]);
+      add(x.rowId, x.dbId, x.title, keepParts([{ tone: x.days <= 0 ? "important" : "unread", count: 1, label }], "deadlines", config));
     }
   } catch {
     // no deadlines
   }
   const d = getSqlite();
-  for (const src of rowBadgeSources.list().flatMap((c) => c.impl)) {
+  // (Each part by what it is — a todo about the row, its unread messages, the rest — switched on or off of its own.)
+  const anyRow = config.sources.rowTodos || config.sources.rowMessages || config.sources.rowOther;
+  for (const src of anyRow ? rowBadgeSources.list().flatMap((c) => c.impl) : []) {
     try {
       const by = await src.badges();
       if (!by.size) continue;
       const rows = d.prepare("select id, db_id, title, json_extract(props, '$.srcref') ref from ws_pages where db_id is not null and archived_at is null and template = 0 and instr(props, ?) > 0").all(`"srcref":"${src.prefix}`) as { id: number; db_id: number; title: string; ref: string | null }[];
       for (const r of rows) {
         const parts = r.ref ? by.get(r.ref) : undefined;
-        if (parts) add(r.id, r.db_id, r.title, parts);
+        if (parts) add(r.id, r.db_id, r.title, parts.flatMap((p) => keepParts([p], rowPartSource(p), config)));
       }
     } catch (e) {
       console.error("[workspace] a row badge source failed", e);
@@ -160,31 +165,33 @@ function activityLines(): Map<number, { n: number; last: string }> {
 
 async function compute(): Promise<Kept> {
   const at = Date.now();
+  // What counts and what is shown (Settings → Badges).
+  const config = getWsBadges();
   const own: Record<number, Badge> = {};
   const inner: Record<number, Badge> = {};
   const rows: Record<number, Badge> = {};
   // A mail, chat or inbox database: its unread rows.
-  for (const [id, n] of Object.entries(unreadCounts())) {
-    const b = badgeOf([{ tone: "unread", count: n, label: t("{n} unread", { n }) }]);
+  for (const [id, n] of Object.entries(config.sources.unread ? unreadCounts() : {})) {
+    const b = badgeOf(keepParts([{ tone: "unread", count: n, label: t("{n} unread", { n }) }], "unread", config));
     if (b) own[Number(id)] = b;
   }
   // A day list: after 18:00, what is still open today (day-lists.ts).
   try {
     const { dayListBadges } = await import("./day-lists");
-    for (const [id, x] of dayListBadges()) {
-      const b = sumBadges([own[id], badgeOf([{ tone: "unread", count: x.count, label: x.label }])]);
+    for (const [id, x] of config.sources.dayLists ? dayListBadges() : []) {
+      const b = sumBadges([own[id], badgeOf(keepParts([{ tone: "unread", count: x.count, label: x.label }], "dayLists", config))]);
       if (b) own[id] = b;
     }
   } catch {
     // a badge is a bonus
   }
-  for (const [page, parts] of await widgetParts()) {
+  for (const [page, parts] of await widgetParts(config)) {
     const b = sumBadges([own[page], badgeOf(parts)]);
     if (b) own[page] = b;
   }
   // The rows' badges, and their sum on their database (each line said with the row's title).
   const byDb = new Map<number, Badge[]>();
-  for (const [row, r] of await rowParts()) {
+  for (const [row, r] of await rowParts(config)) {
     const b = badgeOf(r.parts);
     if (!b) continue;
     rows[row] = b;
@@ -194,7 +201,13 @@ async function compute(): Promise<Kept> {
     const b = sumBadges(list);
     if (b) inner[db] = b;
   }
-  return { at, own, inner, rows, activity: activityLines() };
+  // The changes since you last opened a page: only with their source and their dot on.
+  return { at, own, inner, rows, activity: config.sources.activity && config.tones.activity.on ? activityLines() : new Map() };
+}
+
+/** The settings changed (Settings → Badges): this account's badges are worked out anew at the next reading. */
+export function forgetPageBadges(): void {
+  kept.delete(currentAccountId());
 }
 
 /** Worked out again — one at a time per account (a second asker waits for the same). */

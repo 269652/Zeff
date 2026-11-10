@@ -1,14 +1,15 @@
 /**
  * The badge on the Todos tab (the header, the phone's bar): which numbers it shows — your open todos, the late ones, the
- * ones due today, the activity you haven't seen — in which order, each in its colour. Set under Settings → Todo settings,
+ * ones due today, the activity you haven't seen — in which order, each in its colour. Set under Settings → Badges,
  * kept per account (its pref, todos/badge-store.ts). Client-safe (pure).
  */
+
+import { parseColor, type BadgeColor } from "@/lib/badges/palette";
 
 export const BADGE_PARTS = ["open", "late", "today", "activity"] as const;
 export type BadgePartId = (typeof BADGE_PARTS)[number];
 
-export const BADGE_COLORS = ["indigo", "sky", "emerald", "amber", "red", "rose", "violet", "zinc"] as const;
-export type BadgeColor = (typeof BADGE_COLORS)[number];
+export { BADGE_COLORS, BADGE_TONES, type BadgeColor } from "@/lib/badges/palette";
 
 export type BadgePart = { id: BadgePartId; on: boolean; color: BadgeColor };
 export type BadgeConfig = BadgePart[];
@@ -21,18 +22,6 @@ export const DEFAULT_BADGE: BadgeConfig = [
   { id: "activity", on: true, color: "sky" },
 ];
 
-/** Each colour as a soft pill segment (whole class names, so Tailwind sees them). */
-export const BADGE_TONES: Record<BadgeColor, string> = {
-  indigo: "bg-indigo-100 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300",
-  sky: "bg-sky-100 text-sky-700 dark:bg-sky-950/60 dark:text-sky-300",
-  emerald: "bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300",
-  amber: "bg-amber-100 text-amber-800 dark:bg-amber-950/60 dark:text-amber-300",
-  red: "bg-red-100 text-red-700 dark:bg-red-950/60 dark:text-red-300",
-  rose: "bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300",
-  violet: "bg-violet-100 text-violet-700 dark:bg-violet-950/60 dark:text-violet-300",
-  zinc: "bg-zinc-200 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300",
-};
-
 /** A config as stored (anything): every part once, known ids and colours, missing ones added at the end as the default has them. */
 export function parseBadge(raw: unknown): BadgeConfig {
   const list = Array.isArray(raw) ? raw : [];
@@ -41,7 +30,7 @@ export function parseBadge(raw: unknown): BadgeConfig {
     const o = (x ?? {}) as Partial<BadgePart>;
     if (!o.id || !BADGE_PARTS.includes(o.id) || out.some((p) => p.id === o.id)) continue;
     const def = DEFAULT_BADGE.find((p) => p.id === o.id)!;
-    out.push({ id: o.id, on: typeof o.on === "boolean" ? o.on : def.on, color: o.color && BADGE_COLORS.includes(o.color) ? o.color : def.color });
+    out.push({ id: o.id, on: typeof o.on === "boolean" ? o.on : def.on, color: parseColor(o.color, def.color) });
   }
   for (const d of DEFAULT_BADGE) if (!out.some((p) => p.id === d.id)) out.push({ ...d });
   return out;

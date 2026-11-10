@@ -1,41 +1,21 @@
 "use client";
 
-import { useRef, useState, useTransition } from "react";
 import { useT } from "@/components/I18nProvider";
+import { BadgeColorPicker, RestoreDefault, useAutoSave } from "@/components/BadgeSettingsKit";
+import { Switch } from "@/components/Switch";
 import { TodoBadgePill } from "@/components/TodoBadgePill";
-import { BADGE_COLORS, BADGE_TONES, DEFAULT_BADGE, type BadgeColor, type BadgeConfig, type BadgeCounts, type BadgePartId } from "@/lib/todos/badge";
+import { DEFAULT_BADGE, type BadgeConfig, type BadgeCounts, type BadgePartId } from "@/lib/todos/badge";
 import { saveTodoBadgeAction } from "@/plugins/todos/server-actions";
 
-/** Settings → Todo settings: which numbers the Todos tab's badge shows, their order (↑↓) and colours — with a preview; saved as you change it. */
+/** Settings → Badges: which numbers the Todos tab's badge shows, their order (↑↓) and colours — with a preview; saved as you change it. */
 export function TodoBadgeSettings({ initial, counts }: { initial: BadgeConfig; counts: Omit<BadgeCounts, "activity"> }) {
   const t = useT();
-  const [config, setConfig] = useState(initial);
-  const [saved, setSaved] = useState<string | null>(null);
-  const [pending, start] = useTransition();
-  const seq = useRef(0);
+  const { value: config, save, status } = useAutoSave(initial, saveTodoBadgeAction);
   const labels: Record<BadgePartId, { label: string; hint: string }> = {
     open: { label: t("Open"), hint: t("Your open todos.") },
     late: { label: t("Overdue"), hint: t("Open todos past their due date.") },
     today: { label: t("Due today"), hint: t("Open todos due today.") },
     activity: { label: t("Activity"), hint: t("Changes on your todos you haven't seen yet.") },
-  };
-  const colorNames: Record<BadgeColor, string> = {
-    indigo: t("Indigo"),
-    sky: t("Sky blue"),
-    emerald: t("Green"),
-    amber: t("Amber"),
-    red: t("Red"),
-    rose: t("Rose"),
-    violet: t("Violet"),
-    zinc: t("Grey"),
-  };
-  const save = (next: BadgeConfig) => {
-    setConfig(next);
-    const mine = ++seq.current;
-    start(async () => {
-      const r = await saveTodoBadgeAction(next);
-      if (mine === seq.current) setSaved(r?.ok ? t("Saved.") : (r?.error ?? null));
-    });
   };
   const move = (i: number, by: -1 | 1) => {
     const j = i + by;
@@ -74,47 +54,23 @@ export function TodoBadgeSettings({ initial, counts }: { initial: BadgeConfig; c
         {config.map((p, i) => (
           <li key={p.id} className="flex flex-wrap items-center gap-x-3 gap-y-2 px-3 py-2">
             <div className="flex flex-col">
-              <button type="button" className="rounded px-1 text-xs leading-4 text-zinc-500 hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t("Move up")}>
+              <button type="button" className="rounded px-1 text-xs leading-4 text-zinc-500 hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800" disabled={i === 0} onClick={() => move(i, -1)} aria-label={t("Move {part} up", { part: labels[p.id].label })}>
                 ▲
               </button>
-              <button type="button" className="rounded px-1 text-xs leading-4 text-zinc-500 hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800" disabled={i === config.length - 1} onClick={() => move(i, 1)} aria-label={t("Move down")}>
+              <button type="button" className="rounded px-1 text-xs leading-4 text-zinc-500 hover:bg-zinc-100 disabled:opacity-30 dark:hover:bg-zinc-800" disabled={i === config.length - 1} onClick={() => move(i, 1)} aria-label={t("Move {part} down", { part: labels[p.id].label })}>
                 ▼
               </button>
             </div>
-            <label className="flex min-w-[12rem] flex-1 items-start gap-2 text-sm">
-              <input type="checkbox" checked={p.on} onChange={(e) => patch(i, { on: e.target.checked })} className="mt-1" />
-              <span>
-                <span className="font-medium">{labels[p.id].label}</span>
-                <span className="block text-xs text-zinc-500">{labels[p.id].hint}</span>
-              </span>
-            </label>
-            <div className="flex flex-wrap gap-1" role="radiogroup" aria-label={t("Colour of {part}", { part: labels[p.id].label })}>
-              {BADGE_COLORS.map((c) => (
-                <button
-                  key={c}
-                  type="button"
-                  role="radio"
-                  aria-checked={p.color === c}
-                  title={colorNames[c]}
-                  aria-label={colorNames[c]}
-                  onClick={() => patch(i, { color: c })}
-                  className={`h-6 min-w-6 rounded-full px-1.5 text-[11px] font-semibold leading-6 tabular-nums ${BADGE_TONES[c]} ${p.color === c ? "ring-2 ring-zinc-900 ring-offset-1 dark:ring-zinc-100 dark:ring-offset-zinc-900" : ""}`}
-                >
-                  {p.color === c ? "✓" : "3"}
-                </button>
-              ))}
+            <div className="min-w-[12rem] flex-1 text-sm">
+              <span className="font-medium">{labels[p.id].label}</span>
+              <span className="block text-xs text-zinc-500">{labels[p.id].hint}</span>
             </div>
+            <Switch checked={p.on} onChange={(on) => patch(i, { on })} labelOn={t("Shown")} labelOff={t("Hidden")} label={labels[p.id].label} />
+            <BadgeColorPicker value={p.color} onChange={(color) => patch(i, { color })} label={t("Colour of {part}", { part: labels[p.id].label })} />
           </li>
         ))}
       </ul>
-      <div className="flex items-center gap-3">
-        <button type="button" className="btn" disabled={isDefault} onClick={() => save(DEFAULT_BADGE.map((x) => ({ ...x })))}>
-          {t("Restore the default")}
-        </button>
-        <span className="text-xs text-zinc-500" aria-live="polite">
-          {pending ? t("Saving…") : saved}
-        </span>
-      </div>
+      <RestoreDefault isDefault={isDefault} onRestore={() => save(DEFAULT_BADGE.map((x) => ({ ...x })))} status={status} />
     </div>
   );
 }

@@ -163,3 +163,14 @@ test("the tools: tickets for me read, a filtered board shown (embed for the assi
   assert.equal((await t.workspace_board_filter({ board: plain })).isError, true);
   assert.equal(JSON.stringify(store.rawRows(dbId)), before, "read-only: the board is as it was");
 });
+
+test("the assistant's own pick: exactly the keys, in its order, with its why kept by cleanCriteria", async () => {
+  const { pickTickets, cleanCriteria } = await import("@/plugins/jira-lage/pick");
+  const ts = [tk("AB-1", 1), tk("AB-2", 1, "", "High"), tk("AB-3", 2, "Me"), tk("AB-4", 4)];
+  const c = cleanCriteria({ keys: ["ab-2", "AB-3", "AB-9"], why: { "AB-2": "blocks the release", "XX-1": "not picked" }, forMe: true });
+  assert.deepEqual(c?.keys, ["ab-2", "AB-3", "AB-9"]);
+  assert.deepEqual(c?.why, { "AB-2": "blocks the release" });
+  const r = pickTickets(COLS, ts, ["Me"], c!);
+  assert.equal(r.groups.length, 1);
+  assert.deepEqual(r.groups[0].tickets.map((x) => x.key), ["AB-2", "AB-3"]);
+});
