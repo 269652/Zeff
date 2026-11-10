@@ -9091,5 +9091,6 @@
   "Only on this computer": "Solo en este equipo",
   "Local branch": "Rama local",
   "only on this PC": "solo en este PC",
-  "Only on this computer — not pushed": "Por ahora solo en este equipo — sin push"
+  "Only on this computer — not pushed": "Por ahora solo en este equipo — sin push",
+  "This didn't get an answer — the run failed.": "Esto no recibió respuesta — la ejecución falló."
 }

@@ -257,11 +257,12 @@ export function dispatchTodo(
   if (provider === "codex" && !live) {
     throw new ValidationError(t("ChatGPT workers need Live sessions — switch them on in the Code settings (Claude sessions)."));
   }
-  // (A message that never ran — taken out of the queue — has no session of its own: the conversation goes on from the
-  // newest run of the todo that has one.)
-  const earlier = prev && !prev.sessionId ? runsForTodos([todoId]).get(todoId)?.find((r) => r.id < prev.id && r.sessionId && r.provider === provider) : undefined;
-  const from = (earlier && getRun(earlier.id)) || prev;
-  const resume = from && !waitFor && resumes(provider, from) && fs.existsSync(/*turbopackIgnore: true*/ from.cwd!) ? from : undefined;
+  // The conversation goes on from the newest run of the todo that really had one — a message that never ran (taken out of
+  // the queue) has none, and neither has a run that failed before Claude began (Docker down): its session id was given
+  // ahead, and resuming it failed every message after with "No conversation found".
+  const talked = prev ? runsForTodos([todoId]).get(todoId)?.find((r) => r.id <= prev.id && r.sessionId && r.provider === provider && hadConversation(r.id)) : undefined;
+  const from = (talked && getRun(talked.id)) || prev;
+  const resume = from && !waitFor && resumes(provider, from) && hadConversation(from.id) && fs.existsSync(/*turbopackIgnore: true*/ from.cwd!) ? from : undefined;
   const modes = driver?.modes({ allowBypass: cs.allowBypass }) ?? [];
   // (Claude's from the Code settings — yours or Zeff's own runs; another provider's: its first.)
   const liveMode = so.permissionMode ?? (provider === "claude" ? (opts.conversation || prev ? cs.mode : cs.autoMode) : (modes[0]?.id ?? ""));
@@ -354,6 +355,19 @@ export function pump(): void {
  * its session in any mode (--resume); another provider's only while sessions run live (its driver
  * resumes the thread).
  */
+/** Whether a run's conversation exists: its CLI got as far as starting it (its log has the session's first lines). */
+function hadConversation(id: number): boolean {
+  try {
+    const fd = fs.openSync(/*turbopackIgnore: true*/ logPath(id), "r");
+    const buf = Buffer.alloc(65536);
+    const n = fs.readSync(fd, buf, 0, buf.length, 0);
+    fs.closeSync(fd);
+    return /"type"\s*:\s*"(system|assistant|result)"/.test(buf.toString("utf8", 0, n));
+  } catch {
+    return false;
+  }
+}
+
 const resumes = (provider: string, from: Pick<WorkRun, "provider" | "sessionId" | "cwd">): boolean =>
   from.provider === provider &&
   !!from.sessionId &&

@@ -293,6 +293,28 @@ const names = (env = process.env) => ({
 
 const docker = (args, opts = {}) => spawnSync("docker", args, { encoding: "utf8", windowsHide: true, ...opts });
 
+const dockerUp = () => docker(["version", "--format", "{{.Server.Version}}"]).status === 0;
+
+/** Docker Desktop started (Windows, macOS) and waited for — up to two minutes. Whether Docker answers now. */
+function startDocker() {
+  const exe = process.platform === "win32" ? path.join(process.env.ProgramFiles || "C:\\Program Files", "Docker", "Docker", "Docker Desktop.exe") : null;
+  try {
+    if (exe && fs.existsSync(exe)) spawn(exe, [], { detached: true, stdio: "ignore", windowsHide: false }).unref();
+    else if (process.platform === "darwin") spawnSync("open", ["-a", "Docker"]);
+    else return false;
+  } catch {
+    return false;
+  }
+  process.stderr.write("[claude-docker] Docker wasn't running — starting Docker Desktop and waiting for it …\n");
+  const until = Date.now() + 120_000;
+  const pause = new Int32Array(new SharedArrayBuffer(4));
+  while (Date.now() < until) {
+    Atomics.wait(pause, 0, 0, 3000);
+    if (dockerUp()) return true;
+  }
+  return false;
+}
+
 const imageExists = (image) => docker(["image", "inspect", image]).status === 0;
 const running = (container) => docker(["inspect", "-f", "{{.State.Running}}", container]).stdout?.trim() === "true";
 
@@ -306,8 +328,9 @@ function build() {
 function ensureUp() {
   const { image, container, home } = names();
   const mounts = defaultMounts();
-  // Docker itself not running (Docker Desktop not started yet): say so — "the image is missing" sent people the wrong way.
-  if (docker(["version", "--format", "{{.Server.Version}}"]).status !== 0) throw new Error("Docker is not running — start Docker Desktop (Claude runs in Docker: Launcher → Docker)");
+  // Docker itself not running (Docker Desktop not started yet): started here and waited for — a lesson, a chat sent
+  // meanwhile failed after five seconds, with nobody told. Still not: say so — "the image is missing" sent people the wrong way.
+  if (!dockerUp() && !startDocker()) throw new Error("Docker is not running and couldn't be started — start Docker Desktop (Claude runs in Docker: Launcher → Docker)");
   if (!imageExists(image)) {
     process.stderr.write(`[claude-docker] the image ${image} is missing — building it (docker/claude/Dockerfile) …\n`);
     if (build() !== 0) throw new Error("the image could not be built");
