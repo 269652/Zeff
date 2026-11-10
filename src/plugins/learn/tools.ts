@@ -58,7 +58,7 @@ export function learnWidget(a: { course_id: number; node_key: string; title: str
     html = specHtml({ ...set, title: set.title ?? String(a.title ?? "") });
     if (specHasMath(set)) libs = [...new Set([...libs, "katex"])];
   } else if (!html.trim()) throw new Error("Give either spec (an exercise set) or html (a widget of your own).");
-  const id = addWidget({ courseId: c.id, nodeKey: String(a.node_key), title: String(a.title ?? ""), html, libs });
+  const id = addWidget({ courseId: c.id, nodeKey: String(a.node_key), title: String(a.title ?? ""), html, libs, ...(spec !== undefined && spec !== null && spec !== "" ? { spec: { ...(spec as ExerciseSet), title: (spec as ExerciseSet).title ?? String(a.title ?? "") } } : {}) });
   return `Widget #${id} is shown in the lesson now. When it's finished its result comes to you as a message; if something breaks in it, you hear of that too — then send a fixed one.`;
 }
 

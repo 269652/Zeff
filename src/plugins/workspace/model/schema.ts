@@ -191,6 +191,11 @@ export type DbSchema = {
   rowTemplate?: string;
   /** Its rows' lifecycle: a status (or select) field's values as states, the transitions between them (flows/lifecycle.ts). */
   lifecycle?: Lifecycle;
+  /**
+   * A plugin keeps its data in this database (Learn's courses, steps …) and relies on these properties (their ids): they can't be removed
+   * or change their type, and the database isn't trashed or deleted while the plugin is installed. Your own properties and views are free.
+   */
+  owner?: { plugin: string; props: string[] };
 };
 
 /**
@@ -431,11 +436,20 @@ const hiddenRowsOf = (v: unknown): number[] | undefined => {
   return ids.length ? ids : undefined;
 };
 
+/** A plugin's mark on its database, as kept: its id and the property ids it relies on. */
+function ownerOf(raw: unknown): DbSchema["owner"] {
+  if (!raw || typeof raw !== "object") return undefined;
+  const r = raw as Record<string, unknown>;
+  const plugin = typeof r.plugin === "string" ? r.plugin.trim().slice(0, 80) : "";
+  if (!plugin) return undefined;
+  return { plugin, props: Array.isArray(r.props) ? [...new Set(r.props.filter((x): x is string => typeof x === "string"))].slice(0, 200) : [] };
+}
+
 export function normalizeSchema(raw: unknown): DbSchema {
   const o = (raw && typeof raw === "object" ? raw : {}) as Partial<DbSchema>;
   const props = (Array.isArray(o.properties) ? o.properties : []).filter((p): p is Property => !!p && typeof p.id === "string" && (PROP_TYPES as readonly string[]).includes(p.type)).map(withAiColors);
   const views = (Array.isArray(o.views) ? o.views : []).filter((v): v is View => !!v && typeof v.id === "string" && (VIEW_TYPES as readonly string[]).includes(v.type)).map((v) => ({ ...v, name: v.name || "View", filter: v.filter && isFilter(v.filter) ? v.filter : emptyFilter(), sorts: Array.isArray(v.sorts) ? v.sorts : [], hidden: Array.isArray(v.hidden) ? v.hidden : [], card: typeof v.card === "string" && v.card.trim() ? v.card.slice(0, 8000) : undefined, nav: (v.nav === "workspace" || v.nav === "off") && v.app ? v.nav : undefined, navHidden: Array.isArray(v.navHidden) && v.navHidden.length ? v.navHidden.filter((x): x is string => typeof x === "string").slice(0, 100) : undefined }));
-  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(Number.isInteger(o.entryForm) && o.entryForm! > 0 ? { entryForm: o.entryForm } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(lifecycleOf(o.lifecycle, props) ? { lifecycle: lifecycleOf(o.lifecycle, props) } : {}),...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}), ...(shareOf(o.share) ? { share: shareOf(o.share)! } : {}) };
+  return { titleName: typeof o.titleName === "string" && o.titleName ? o.titleName : "Name", properties: props, views: views.length ? views : [newView("Table")], ...(typeof o.personProp === "string" && props.some((p) => p.id === o.personProp) ? { personProp: o.personProp } : {}), ...(Array.isArray(o.detail) ? { detail: [...new Set(o.detail.filter(isDetailModule))] } : {}), ...(o.review && typeof o.review === "object" ? { review: normalizeReview(o.review as Record<string, unknown>) } : {}), ...(o.pipeline && typeof o.pipeline === "object" ? { pipeline: normalizePipeline(o.pipeline) } : {}), ...((DATA_TYPES as readonly unknown[]).includes(o.dataType) ? { dataType: o.dataType } : {}), ...(receiveOf(o.receive, props) ? { receive: receiveOf(o.receive, props) } : {}), ...(Number.isInteger(o.entryForm) && o.entryForm! > 0 ? { entryForm: o.entryForm } : {}), ...(protectOf(o.protect, props) ? { protect: protectOf(o.protect, props) } : {}), ...(todoListOf(o.todoList, props) ? { todoList: todoListOf(o.todoList, props) } : {}), ...(lifecycleOf(o.lifecycle, props) ? { lifecycle: lifecycleOf(o.lifecycle, props) } : {}),...(o.rules === true ? { rules: true } : {}), ...(hiddenRowsOf(o.hiddenRows) ? { hiddenRows: hiddenRowsOf(o.hiddenRows) } : {}), ...(typeof o.rowTemplate === "string" && o.rowTemplate.trim() ? { rowTemplate: o.rowTemplate.slice(0, 20000) } : {}), ...(o.jobs === true ? { jobs: true } : {}), ...(typeof o.dayList === "boolean" ? { dayList: o.dayList } : {}), ...(agentsOf(o.agents) ? { agents: agentsOf(o.agents) } : {}), ...(shareOf(o.share) ? { share: shareOf(o.share)! } : {}), ...(ownerOf(o.owner) ? { owner: ownerOf(o.owner)! } : {}) };
 }
 
 export const propById = (props: Property[], id: string): Property | undefined => props.find((p) => p.id === id);

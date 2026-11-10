@@ -1,47 +1,82 @@
 /**
- * The learning platform's data (the Learn plugin), in the account's database: courses, the nodes of their plan, what
- * you earned (events), the teacher's widgets and your cards. Tables made on first use, as the plugins do. Server only.
+ * The learning platform's data (the Learn plugin): courses, the nodes of their plan with your progress, what you earned
+ * (activity), the teacher's widgets and your cards — kept in Learn's Workspace databases (dbs.ts), which are the source of
+ * truth: read from there and written there through the Workspace's store, so what you change in them is what Learn goes on
+ * with (a step ticked "Mastered", a title, a card's due date). Only the snapshots of exercises (HTML as it looked) stay in a
+ * table of their own (learn_snapshots). Ids are the rows' ids; a row moved from Learn's old tables answers to its old id too
+ * (`learnlegacy`: old links, old teacher sessions). Server only.
  */
 import { courseRoute, skillGraph } from "./map";
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { localDay } from "@/lib/dates";
 import { checkWidgetHtml, xpForResult, WIDGET_LIBS, type WidgetMessage } from "@/lib/widgets/sandbox";
+import { specHtml, type ExerciseSet } from "@/lib/widgets/spec";
+import { addRow, archivePage, getPage, setCell, updatePage } from "@/plugins/workspace/store";
+import type { Row } from "@/plugins/workspace/model";
 import { badgesFor, nextStreak, type BadgeId } from "./game";
 import { normalizePlan } from "./plan";
 import { review, newCard, type Grade } from "./srs";
 import { computeTree, layers, nextSteps, type Tree, type TreeInput, type TreeNode } from "./tree";
+import { learnDbs, learnRows, memo, P } from "./dbs";
 import type { NodeKind, PlanSource } from "./shared";
 
-function db() {
+/** The snapshots of exercises (the HTML as it looked when you were done): blobs, kept in a table of their own. */
+function snapshots() {
   const d = getSqlite();
-  d.exec(`
-    create table if not exists learn_courses (id integer primary key autoincrement, topic text not null, goal text not null default '', level text not null default '', status text not null default 'researching', title text not null default '', summary text not null default '', years real not null default 0, sources text not null default '[]', problems text not null default '[]', error text, interests text not null default '{}', daily_goal integer not null default 50, xp integer not null default 0, streak integer not null default 0, last_day text, today text, today_xp integer not null default 0, badges text not null default '[]', created_at text not null, updated_at text not null);
-    create table if not exists learn_nodes (id integer primary key autoincrement, course_id integer not null references learn_courses(id) on delete cascade, key text not null, kind text not null, parent_key text, title text not null, summary text not null default '', objectives text not null default '[]', requires text not null default '[]', path text, xp integer not null default 0, minutes integer, sources text not null default '[]', ord integer not null default 0, mastered_at text, active_since text, lesson_todo_id integer, unique (course_id, key));
-    create table if not exists learn_events (id integer primary key autoincrement, course_id integer not null references learn_courses(id) on delete cascade, node_key text, kind text not null, xp integer not null default 0, detail text not null default '{}', at text not null);
-    create table if not exists learn_snapshots (id integer primary key autoincrement, course_id integer not null, widget_id integer not null, html text not null, at text not null);
-    create index if not exists learn_events_course on learn_events (course_id, at);
-    create table if not exists learn_widgets (id integer primary key autoincrement, course_id integer not null references learn_courses(id) on delete cascade, node_key text, run_id integer, title text not null, html text not null, libs text not null default '[]', best_score real, xp integer not null default 0, created_at text not null);
-    create index if not exists learn_widgets_node on learn_widgets (course_id, node_key);
-    create table if not exists learn_cards (id integer primary key autoincrement, course_id integer not null references learn_courses(id) on delete cascade, node_key text, front text not null, back text not null, reps integer not null default 0, lapses integer not null default 0, ease real not null default 2.5, interval integer not null default 0, due text not null, last text, created_at text not null);
-    create index if not exists learn_cards_due on learn_cards (course_id, due);
-  `);
-  // Added later: a course's study times (schedule.ts) and the todo its reviews due are in.
-  const cols = (d.prepare("pragma table_info(learn_courses)").all() as { name: string }[]).map((c) => c.name);
-  if (!cols.includes("slots")) d.exec("alter table learn_courses add column slots text not null default '[]'");
-  if (!cols.includes("review_todo_id")) d.exec("alter table learn_courses add column review_todo_id integer");
+  d.exec("create table if not exists learn_snapshots (id integer primary key autoincrement, course_id integer not null, widget_id integer not null, html text not null, at text not null)");
   return d;
 }
 
 const nowIso = () => new Date().toISOString();
 const changed = () => emitChange("learn");
-const json = <T>(s: string | null | undefined, fallback: T): T => {
+const json = <T>(s: unknown, fallback: T): T => {
   try {
-    return s ? (JSON.parse(s) as T) : fallback;
+    return typeof s === "string" && s ? (JSON.parse(s) as T) : fallback;
   } catch {
     return fallback;
   }
 };
+const str = (v: unknown): string => (typeof v === "string" ? v : v === null || v === undefined ? "" : String(v));
+const num = (v: unknown, d = 0): number => (typeof v === "number" && Number.isFinite(v) ? v : v !== null && v !== undefined && v !== "" && Number.isFinite(Number(v)) ? Number(v) : d);
+const ids = (v: unknown): number[] => (Array.isArray(v) ? v : v === null || v === undefined ? [] : [v]).map(Number).filter((n) => Number.isInteger(n) && n > 0);
+const first = (v: unknown): number | null => ids(v)[0] ?? null;
+const inTx = <T>(fn: () => T): T => getSqlite().transaction(fn)();
+
+const pad = (n: number) => String(n).padStart(2, "0");
+/** A time as a date cell holds it: local, to the minute ("2026-11-08T11:00"). */
+export function timeCell(iso: string | null | undefined): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
+/** A date cell's time (a day: its midnight, local) as an ISO time; null: none. */
+export function cellTime(v: unknown): string | null {
+  const s = typeof v === "string" ? v : v && typeof v === "object" && "start" in v ? str((v as { start: unknown }).start) : "";
+  if (!s) return null;
+  const d = new Date(/^\d{4}-\d{2}-\d{2}$/.test(s) ? `${s}T00:00` : s);
+  return Number.isNaN(d.getTime()) ? null : d.toISOString();
+}
+const dayCell = (v: unknown): string | null => {
+  const s = typeof v === "string" ? v : v && typeof v === "object" && "start" in v ? str((v as { start: unknown }).start) : "";
+  return /^\d{4}-\d{2}-\d{2}/.test(s) ? s.slice(0, 10) : null;
+};
+
+/** Cells of a row set — only those that change (each through the Workspace's store: its log, search, routines). */
+function setCells(row: Row | number, cells: Record<string, unknown>): void {
+  const r = typeof row === "number" ? null : row;
+  const id = typeof row === "number" ? row : row.id;
+  const blank = (v: unknown) => v === undefined || v === null || v === "" || (Array.isArray(v) && !v.length);
+  for (const [k, v] of Object.entries(cells)) {
+    const was = r ? r.cells[k] : undefined;
+    if (r && (blank(v) ? blank(was) : JSON.stringify(was) === JSON.stringify(v))) continue;
+    setCell(id, k, blank(v) ? null : v, { quiet: true });
+  }
+}
+
+/** Only the cells with a value (for a new row). */
+const filled = (cells: Record<string, unknown>) => Object.fromEntries(Object.entries(cells).filter(([, v]) => v !== undefined && v !== null && v !== "" && !(Array.isArray(v) && !v.length)));
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Courses
@@ -73,57 +108,82 @@ export type Course = {
   slots: StudySlot[];
   reviewTodoId: number | null;
   createdAt: string;
+  /** Its id in Learn's old tables (before the move into the Workspace) — null: made since. */
+  legacyId: number | null;
 };
-type CourseRow = Record<string, unknown> & { id: number };
 
-const toCourse = (r: CourseRow): Course => ({
-  id: r.id,
-  topic: String(r.topic),
-  goal: String(r.goal ?? ""),
-  level: String(r.level ?? ""),
-  status: r.status as CourseStatus,
-  title: String(r.title ?? "") || String(r.topic),
-  summary: String(r.summary ?? ""),
-  years: Number(r.years ?? 0),
-  sources: json<PlanSource[]>(r.sources as string, []),
-  problems: json<string[]>(r.problems as string, []),
-  error: (r.error as string | null) ?? null,
-  interests: json<Record<string, number>>(r.interests as string, {}),
-  dailyGoal: Number(r.daily_goal ?? 50),
-  xp: Number(r.xp ?? 0),
-  streak: Number(r.streak ?? 0),
-  lastDay: (r.last_day as string | null) ?? null,
-  today: (r.today as string | null) ?? null,
-  todayXp: Number(r.today_xp ?? 0),
-  badges: json<BadgeId[]>(r.badges as string, []),
-  slots: json<StudySlot[]>(r.slots as string, []),
-  reviewTodoId: (r.review_todo_id as number | null) ?? null,
-  createdAt: String(r.created_at),
-});
+const STATUSES: CourseStatus[] = ["researching", "ready", "failed"];
+
+const toCourse = (r: Row): Course => {
+  const c = r.cells;
+  const topic = str(c[P.topic]) || r.title;
+  return {
+    id: r.id,
+    topic,
+    goal: str(c[P.goal]),
+    level: str(c[P.level]),
+    status: STATUSES.includes(c[P.status] as CourseStatus) ? (c[P.status] as CourseStatus) : "ready",
+    title: r.title || topic,
+    summary: str(c[P.summary]),
+    years: num(c[P.years]),
+    sources: json<PlanSource[]>(c[P.sources], []),
+    problems: json<string[]>(c[P.problems], []),
+    error: str(c[P.error]) || null,
+    interests: json<Record<string, number>>(c[P.interests], {}),
+    dailyGoal: num(c[P.dailyGoal], 50),
+    xp: num(c[P.xp]),
+    streak: num(c[P.streak]),
+    lastDay: dayCell(c[P.lastDay]),
+    today: dayCell(c[P.today]),
+    todayXp: num(c[P.todayXp]),
+    badges: (Array.isArray(c[P.badges]) ? (c[P.badges] as BadgeId[]) : []),
+    slots: json<StudySlot[]>(c[P.slots], []),
+    reviewTodoId: first(c[P.reviewTodo]),
+    createdAt: r.createdAt,
+    legacyId: c[P.legacy] !== undefined ? num(c[P.legacy]) : null,
+  };
+};
+
+const courses = (): Course[] => memo("learn:courses", () => learnRows("courses").map(toCourse));
+
+/** A course's row: by its id — or by the id it had before the move (an old link, an old session). */
+function courseRow(id: number): Row | undefined {
+  const rows = learnRows("courses");
+  return rows.find((r) => r.id === id) ?? rows.find((r) => r.cells[P.legacy] !== undefined && num(r.cells[P.legacy]) === id);
+}
+/** The course's id now (the row's) — an old id followed; the id itself when there's no such course. */
+const cid = (id: number): number => courseRow(Number(id))?.id ?? Number(id);
 
 export function createCourse(v: { topic: string; goal: string; level: string }): number {
   const topic = v.topic.trim().slice(0, 200);
   if (!topic) throw new Error("What do you want to learn?");
-  const t = nowIso();
-  const r = db()
-    .prepare("insert into learn_courses (topic, goal, level, status, created_at, updated_at) values (?, ?, ?, 'researching', ?, ?)")
-    .run(topic, v.goal.trim().slice(0, 1000), v.level.trim().slice(0, 300), t, t);
+  const id = addRow(learnDbs().courses, { title: topic, cells: filled({ [P.topic]: topic, [P.goal]: v.goal.trim().slice(0, 1000), [P.level]: v.level.trim().slice(0, 300), [P.status]: "researching", [P.dailyGoal]: 50, [P.xp]: 0, [P.streak]: 0 }) });
   changed();
-  return Number(r.lastInsertRowid);
+  return id;
 }
 
 export function getCourse(id: number): Course | undefined {
-  const r = db().prepare("select * from learn_courses where id = ?").get(id) as CourseRow | undefined;
-  return r ? toCourse(r) : undefined;
+  const r = courseRow(Number(id));
+  return r ? courses().find((c) => c.id === r.id) : undefined;
 }
 
-export const listCourses = (): Course[] => (db().prepare("select * from learn_courses order by updated_at desc").all() as CourseRow[]).map(toCourse);
+export const listCourses = (): Course[] => [...courses()].sort((a, b) => {
+  const ra = learnRows("courses").find((r) => r.id === a.id)!;
+  const rb = learnRows("courses").find((r) => r.id === b.id)!;
+  return rb.updatedAt.localeCompare(ra.updatedAt) || b.id - a.id;
+});
 
+/** Rows of a Learn database that belong to a course (its relation). */
+const ofCourse = (which: "steps" | "exercises" | "activity" | "cards" | "messages", courseId: number): Row[] =>
+  memo(`learn:of:${which}:${courseId}`, () => learnRows(which).filter((r) => ids(r.cells[P.course]).includes(courseId)));
+
+/** A course gone — with its steps, exercises, activity, cards and conversations (to the Workspace's trash: they can come back). */
 export function deleteCourse(id: number): void {
-  const d = db();
-  // (Each table by hand: the account's database may run without foreign keys.)
-  for (const t of ["learn_cards", "learn_widgets", "learn_events", "learn_snapshots", "learn_nodes"]) d.prepare(`delete from ${t} where course_id = ?`).run(id);
-  d.prepare("delete from learn_courses where id = ?").run(id);
+  const c = cid(id);
+  inTx(() => {
+    for (const w of ["messages", "cards", "activity", "exercises", "steps"] as const) for (const r of ofCourse(w, c)) archivePage(r.id);
+    if (courseRow(c)) archivePage(c);
+  });
   changed();
 }
 
@@ -131,71 +191,91 @@ export function deleteCourse(id: number): void {
 /** `keepProgress`: an updated plan (the same steps, revised) — what was done stays with each key it still has. */
 export function savePlan(id: number, raw: unknown, opts: { keepProgress?: boolean } = {}): { problems: string[] } {
   const { plan, problems } = normalizePlan(raw);
+  const courseId = cid(id);
   if (!plan.nodes.length) {
-    failResearch(id, problems[0] ?? "The plan has no steps.");
+    failResearch(courseId, problems[0] ?? "The plan has no steps.");
     return { problems };
   }
-  const d = db();
-  // What was done kept for every key the new plan has too (an updated plan — "Update planning" — keeps the progress):
-  // mastered, begun, its lesson's conversation.
-  const kept = new Map(
-    (!opts.keepProgress ? [] : d.prepare("select key, mastered_at, active_since, lesson_todo_id from learn_nodes where course_id = ?").all(id) as { key: string; mastered_at: string | null; active_since: string | null; lesson_todo_id: number | null }[]).map((r) => [r.key, r] as const),
-  );
-  d.transaction(() => {
-    d.prepare("delete from learn_nodes where course_id = ?").run(id);
-    const ins = d.prepare(
-      "insert into learn_nodes (course_id, key, kind, parent_key, title, summary, objectives, requires, path, xp, minutes, sources, ord) values (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-    );
-    plan.nodes.forEach((n, i) =>
-      ins.run(id, n.key, n.kind, n.parent, n.title, n.summary ?? "", JSON.stringify(n.objectives ?? []), JSON.stringify(n.requires ?? []), n.path ?? null, n.xp ?? 0, n.minutes ?? null, JSON.stringify(n.sources ?? []), i),
-    );
-    const restore = d.prepare("update learn_nodes set mastered_at = ?, active_since = ?, lesson_todo_id = ? where course_id = ? and key = ?");
-    for (const n of plan.nodes) {
-      const k = kept.get(n.key);
-      if (k && (k.mastered_at || k.active_since || k.lesson_todo_id)) restore.run(k.mastered_at, k.active_since, k.lesson_todo_id, id, n.key);
+  const dbs = learnDbs();
+  inTx(() => {
+    // Each key keeps its row (what links to it — its exercises, cards, conversation — stays linked); a key the plan
+    // doesn't have any more goes to the trash. A new plan (not an update) starts without progress.
+    const had = new Map<string, Row>();
+    for (const r of ofCourse("steps", courseId)) {
+      const k = str(r.cells[P.key]);
+      if (k && !had.has(k)) had.set(k, r);
+      else archivePage(r.id);
     }
-    d.prepare("update learn_courses set status = 'ready', title = ?, summary = ?, years = ?, sources = ?, problems = ?, error = null, updated_at = ? where id = ?").run(
-      plan.title,
-      plan.summary,
-      plan.years,
-      JSON.stringify(plan.sources),
-      JSON.stringify(problems),
-      nowIso(),
-      id,
-    );
-  })();
+    const rowOf = new Map<string, number>();
+    plan.nodes.forEach((n, i) => {
+      const cells: Record<string, unknown> = {
+        [P.course]: [courseId],
+        [P.key]: n.key,
+        [P.kind]: n.kind,
+        [P.summary]: n.summary ?? "",
+        [P.objectives]: (n.objectives ?? []).join("\n"),
+        [P.path]: n.path ?? "",
+        [P.xp]: n.xp ?? 0,
+        [P.minutes]: n.minutes ?? null,
+        [P.sourceIds]: (n.sources ?? []).join(", "),
+        [P.order]: i,
+        ...(n.parent && rowOf.has(n.parent) ? { [P.parent]: [rowOf.get(n.parent)!] } : {}),
+        ...(!opts.keepProgress ? { [P.mastered]: false, [P.masteredAt]: null, [P.activeSince]: null, [P.lessonTodo]: null } : {}),
+      };
+      const row = had.get(n.key);
+      if (row) {
+        if (row.title !== n.title) setCell(row.id, "title", n.title, { quiet: true });
+        setCells(row, cells);
+        rowOf.set(n.key, row.id);
+      } else rowOf.set(n.key, addRow(dbs.steps, { title: n.title, cells: filled(cells) }));
+    });
+    for (const [k, r] of had) if (!rowOf.has(k)) archivePage(r.id);
+    // What links the steps: each one's parent and what it requires (rows of this course).
+    const now = new Map(learnRows("steps").map((r) => [r.id, r]));
+    for (const n of plan.nodes) {
+      const row = now.get(rowOf.get(n.key)!);
+      if (!row) continue;
+      setCells(row, { [P.parent]: n.parent && rowOf.has(n.parent) ? [rowOf.get(n.parent)!] : null, [P.requires]: (n.requires ?? []).filter((k) => rowOf.has(k)).map((k) => rowOf.get(k)!) });
+    }
+    const course = courseRow(courseId)!;
+    if (course.title !== plan.title && plan.title) setCell(courseId, "title", plan.title, { quiet: true });
+    setCells(courseRow(courseId)!, { [P.status]: "ready", [P.summary]: plan.summary, [P.years]: plan.years, [P.sources]: JSON.stringify(plan.sources), [P.problems]: JSON.stringify(problems), [P.error]: null });
+  });
   changed();
   return { problems };
 }
 
-export function failResearch(id: number, error: string): void {
-  db().prepare("update learn_courses set status = 'failed', error = ?, updated_at = ? where id = ?").run(error.slice(0, 2000), nowIso(), id);
+const setCourse = (id: number, cells: Record<string, unknown>) => {
+  const r = courseRow(Number(id));
+  if (!r) return;
+  setCells(r, cells);
   changed();
+};
+
+export function failResearch(id: number, error: string): void {
+  setCourse(id, { [P.status]: "failed", [P.error]: error.slice(0, 2000) });
 }
 
 export function setResearching(id: number): void {
-  db().prepare("update learn_courses set status = 'researching', error = null, updated_at = ? where id = ?").run(nowIso(), id);
-  changed();
+  setCourse(id, { [P.status]: "researching", [P.error]: null });
 }
 
 export function setInterests(id: number, weights: Record<string, number>): void {
   const clean = Object.fromEntries(Object.entries(weights).filter(([k, v]) => k.trim() && Number.isFinite(v) && v >= 0).map(([k, v]) => [k.trim().slice(0, 80), Math.min(10, v)]));
-  db().prepare("update learn_courses set interests = ?, updated_at = ? where id = ?").run(JSON.stringify(clean), nowIso(), id);
-  changed();
+  setCourse(id, { [P.interests]: JSON.stringify(clean) });
 }
 
 export function setCourseSlots(id: number, slots: StudySlot[]): void {
-  db().prepare("update learn_courses set slots = ?, updated_at = ? where id = ?").run(JSON.stringify(slots), nowIso(), id);
-  changed();
+  setCourse(id, { [P.slots]: JSON.stringify(slots) });
 }
 
 export function setReviewTodo(id: number, todoId: number | null): void {
-  db().prepare("update learn_courses set review_todo_id = ? where id = ?").run(todoId, id);
+  const r = courseRow(Number(id));
+  if (r) setCells(r, { [P.reviewTodo]: todoId ? [todoId] : null });
 }
 
 export function setDailyGoal(id: number, xp: number): void {
-  db().prepare("update learn_courses set daily_goal = ?, updated_at = ? where id = ?").run(Math.max(5, Math.min(1000, Math.round(xp))), nowIso(), id);
-  changed();
+  setCourse(id, { [P.dailyGoal]: Math.max(5, Math.min(1000, Math.round(xp))) });
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
@@ -212,32 +292,56 @@ export type CourseNode = TreeNode & {
   activeSince: string | null;
   lessonTodoId: number | null;
 };
-type NodeRow = Record<string, unknown> & { id: number; key: string };
 
-const toNode = (r: NodeRow): CourseNode => ({
-  id: r.id,
-  key: r.key,
-  kind: r.kind as NodeKind,
-  parent: (r.parent_key as string | null) ?? null,
-  requires: json<string[]>(r.requires as string, []),
-  path: (r.path as string | null) ?? null,
-  xp: Number(r.xp ?? 0),
-  title: String(r.title),
-  summary: String(r.summary ?? ""),
-  objectives: json<string[]>(r.objectives as string, []),
-  minutes: (r.minutes as number | null) ?? null,
-  sources: json<string[]>(r.sources as string, []),
-  masteredAt: (r.mastered_at as string | null) ?? null,
-  activeSince: (r.active_since as string | null) ?? null,
-  lessonTodoId: (r.lesson_todo_id as number | null) ?? null,
-});
+const KINDS: NodeKind[] = ["year", "phase", "skill", "step"];
+/** A step's key: its own, or one made from its row (a step you added in the database by hand). */
+const keyOf = (r: Row) => str(r.cells[P.key]).trim() || `r${r.id}`;
 
-export const courseNodes = (courseId: number): CourseNode[] => (db().prepare("select * from learn_nodes where course_id = ? order by ord").all(courseId) as NodeRow[]).map(toNode);
+/** A course's nodes, in the plan's order — from its rows in Steps (read once until something changes). */
+export const courseNodes = (courseId: number): CourseNode[] => {
+  const c = cid(courseId);
+  return memo(`learn:nodes:${c}`, () => {
+    const rows = ofCourse("steps", c);
+    const keyById = new Map(rows.map((r) => [r.id, keyOf(r)]));
+    const at = new Map(rows.map((r, i) => [r.id, i]));
+    const order = (r: Row) => (r.cells[P.order] !== undefined && r.cells[P.order] !== null ? num(r.cells[P.order]) : Number.MAX_SAFE_INTEGER);
+    return [...rows]
+      .sort((a, b) => order(a) - order(b) || at.get(a.id)! - at.get(b.id)!)
+      .map((r): CourseNode => {
+        const c = r.cells;
+        const mastered = c[P.mastered] === true;
+        return {
+          id: r.id,
+          key: keyOf(r),
+          kind: KINDS.includes(c[P.kind] as NodeKind) ? (c[P.kind] as NodeKind) : "step",
+          parent: ids(c[P.parent]).map((x) => keyById.get(x)).find(Boolean) ?? null,
+          requires: ids(c[P.requires]).map((x) => keyById.get(x)).filter((x): x is string => !!x),
+          path: str(c[P.path]) || null,
+          xp: num(c[P.xp]),
+          title: r.title,
+          summary: str(c[P.summary]),
+          objectives: str(c[P.objectives]).split("\n").map((x) => x.trim()).filter(Boolean),
+          minutes: c[P.minutes] === undefined || c[P.minutes] === null ? null : num(c[P.minutes]),
+          sources: str(c[P.sourceIds]).split(/[,\s]+/).filter(Boolean),
+          // Ticked "Mastered" in the database is mastered (its time: when it was, else when the row was changed).
+          masteredAt: mastered ? (cellTime(c[P.masteredAt]) ?? r.updatedAt) : null,
+          activeSince: cellTime(c[P.activeSince]),
+          lessonTodoId: first(c[P.lessonTodo]),
+        };
+      });
+  });
+};
 
 export function getNode(courseId: number, key: string): CourseNode | undefined {
-  const r = db().prepare("select * from learn_nodes where course_id = ? and key = ?").get(courseId, key) as NodeRow | undefined;
-  return r ? toNode(r) : undefined;
+  return courseNodes(courseId).find((n) => n.key === key);
 }
+
+/** A step's row (by its key) in a course. */
+const stepRow = (courseId: number, key: string | null): Row | undefined => {
+  if (!key) return undefined;
+  const id = getNode(courseId, key)?.id;
+  return id ? learnRows("steps").find((r) => r.id === id) : undefined;
+};
 
 const treeInput = (nodes: CourseNode[]): TreeInput => {
   const kids = new Set(nodes.map((n) => n.parent).filter(Boolean));
@@ -247,8 +351,11 @@ const treeInput = (nodes: CourseNode[]): TreeInput => {
 
 /** A course's nodes and its tree (statuses, progress, paths). */
 export function courseTree(courseId: number): { nodes: CourseNode[]; tree: Tree } {
-  const nodes = courseNodes(courseId);
-  return { nodes, tree: computeTree(treeInput(nodes)) };
+  const c = cid(courseId);
+  return memo(`learn:tree:${c}`, () => {
+    const nodes = courseNodes(c);
+    return { nodes, tree: computeTree(treeInput(nodes)) };
+  });
 }
 
 /** The tree's columns (src/plugins/learn/tree.ts layers) for these nodes of a course. */
@@ -272,9 +379,9 @@ export function nextCourseSteps(courseId: number, limit = 8): CourseNode[] {
 
 /** A step's lesson began (it's "active" until mastered). */
 export function startNode(courseId: number, key: string, lessonTodoId?: number): void {
-  db()
-    .prepare("update learn_nodes set active_since = coalesce(active_since, ?), lesson_todo_id = coalesce(?, lesson_todo_id) where course_id = ? and key = ?")
-    .run(nowIso(), lessonTodoId ?? null, courseId, key);
+  const r = stepRow(cid(courseId), key);
+  if (!r) return;
+  setCells(r, { ...(r.cells[P.activeSince] ? {} : { [P.activeSince]: timeCell(nowIso()) }), ...(lessonTodoId ? { [P.lessonTodo]: [lessonTodoId] } : {}) });
   changed();
 }
 
@@ -283,199 +390,337 @@ export function startNode(courseId: number, key: string, lessonTodoId?: number):
  * mastered before isn't counted again). A step whose requirements aren't mastered yet can't be.
  */
 export function masterNode(courseId: number, key: string, at: Date = new Date(), note = ""): { xp: number; mastered: string[]; badges: BadgeId[] } {
-  const before = courseTree(courseId);
+  const c = cid(courseId);
+  const before = courseTree(c);
   const node = before.nodes.find((n) => n.key === key);
   if (!node) throw new Error(`No step "${key}" in this course.`);
   const status = before.tree.status.get(key);
   if (status === "mastered") return { xp: 0, mastered: [], badges: [] };
   if (status === "locked") throw new Error(`"${node.title}" is still locked: what it requires isn't mastered yet.`);
   if (before.nodes.some((n) => n.parent === key)) throw new Error(`"${node.title}" is mastered through its steps.`);
-  const d = db();
-  d.prepare("update learn_nodes set mastered_at = ? where course_id = ? and key = ?").run(at.toISOString(), courseId, key);
-  const after = courseTree(courseId);
-  const newly = after.nodes.filter((n) => after.tree.status.get(n.key) === "mastered" && before.tree.status.get(n.key) !== "mastered");
-  // Containers completed with it: marked too (their date of mastery).
-  for (const n of newly) if (n.key !== key) d.prepare("update learn_nodes set mastered_at = ? where course_id = ? and key = ?").run(at.toISOString(), courseId, n.key);
-  const xp = newly.reduce((s, n) => s + n.xp, 0);
-  const badges = awardXp(courseId, xp, "mastered", { keys: newly.map((n) => n.key), note: note.slice(0, 500) }, at, key);
-  return { xp, mastered: newly.map((n) => n.key), badges };
+  return inTx(() => {
+    const mark = (k: string) => {
+      const r = stepRow(c, k);
+      if (r) setCells(r, { [P.mastered]: true, [P.masteredAt]: timeCell(at.toISOString()) });
+    };
+    mark(key);
+    const after = courseTree(c);
+    const newly = after.nodes.filter((n) => after.tree.status.get(n.key) === "mastered" && before.tree.status.get(n.key) !== "mastered");
+    // Containers completed with it: marked too (their date of mastery).
+    for (const n of newly) if (n.key !== key) mark(n.key);
+    const xp = newly.reduce((s, n) => s + n.xp, 0);
+    const badges = awardXp(c, xp, "mastered", { keys: newly.map((n) => n.key), note: note.slice(0, 500) }, at, key);
+    return { xp, mastered: newly.map((n) => n.key), badges };
+  });
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Experience, streak, badges
+// Experience, streak, badges — each event a row of Activity
 // ---------------------------------------------------------------------------------------------------------------------
+
+/** What an Activity row says (its title). */
+function eventTitle(kind: string, courseId: number, nodeKey: string | null, detail: Record<string, unknown>): string {
+  const step = nodeKey ? (getNode(courseId, nodeKey)?.title ?? nodeKey) : "";
+  if (kind === "mastered") return `✓ ${step}`;
+  if (kind === "widget") return `${getWidget(Number(detail.widget))?.title ?? "Widget"} — ${Math.round(num(detail.score) * 100)} %`;
+  if (kind === "review") return `↻ ${getCard(Number(detail.card))?.front.slice(0, 120) ?? ""}`;
+  return kind;
+}
+
+/** Details kept as JSON in a cell (20 000 characters at most): long answers shortened rather than the JSON cut. */
+function detailCell(detail: Record<string, unknown>): string {
+  let s = JSON.stringify(detail);
+  if (s.length <= 19000) return s;
+  const answers = Array.isArray(detail.answers) ? (detail.answers as { q: string; a: string; ok?: boolean }[]).map((x) => ({ ...x, q: str(x.q).slice(0, 200), a: str(x.a).slice(0, 200) })) : undefined;
+  s = JSON.stringify({ ...detail, ...(answers ? { answers } : {}), note: str(detail.note).slice(0, 500) });
+  return s.length <= 19000 ? s : JSON.stringify({ ...detail, answers: undefined, note: str(detail.note).slice(0, 500) });
+}
 
 /** Experience earned (logged): the course's total, today's, the streak — and the badges it earned now. */
 export function awardXp(courseId: number, xp: number, kind: string, detail: Record<string, unknown>, at: Date = new Date(), nodeKey: string | null = null): BadgeId[] {
-  const d = db();
   const c = getCourse(courseId);
   if (!c) throw new Error("No such course.");
-  const day = localDay(at);
-  d.prepare("insert into learn_events (course_id, node_key, kind, xp, detail, at) values (?, ?, ?, ?, ?, ?)").run(courseId, nodeKey, kind, xp, JSON.stringify(detail), at.toISOString());
-  const s = nextStreak({ streak: c.streak, lastDay: c.lastDay }, day);
-  const todayXp = (c.today === day ? c.todayXp : 0) + xp;
-  const earned = badgesFor(stats(courseId, s.streak));
-  const fresh = earned.filter((b) => !c.badges.includes(b));
-  d.prepare("update learn_courses set xp = xp + ?, streak = ?, last_day = ?, today = ?, today_xp = ?, badges = ?, updated_at = ? where id = ?").run(
-    xp,
-    s.streak,
-    s.lastDay,
-    day,
-    todayXp,
-    JSON.stringify([...c.badges, ...fresh]),
-    nowIso(),
-    courseId,
-  );
-  changed();
-  return fresh;
+  return inTx(() => {
+    const day = localDay(at);
+    const step = stepRow(c.id, nodeKey);
+    addRow(learnDbs().activity, {
+      title: eventTitle(kind, c.id, nodeKey, detail),
+      cells: filled({
+        [P.event]: kind,
+        [P.at]: timeCell(at.toISOString()),
+        [P.xp]: xp,
+        [P.course]: [c.id],
+        [P.step]: step ? [step.id] : null,
+        [P.stepKey]: nodeKey ?? "",
+        [P.exercise]: kind === "widget" && detail.widget ? [Number(detail.widget)] : null,
+        [P.card]: kind === "review" && detail.card ? [Number(detail.card)] : null,
+        [P.score]: typeof detail.score === "number" ? detail.score : null,
+        [P.snapshot]: detail.snapshot ? Number(detail.snapshot) : null,
+        [P.detail]: detailCell(detail),
+      }),
+    });
+    const s = nextStreak({ streak: c.streak, lastDay: c.lastDay }, day);
+    const todayXp = (c.today === day ? c.todayXp : 0) + xp;
+    const earned = badgesFor(stats(c.id, s.streak));
+    const fresh = earned.filter((b) => !c.badges.includes(b));
+    setCells(courseRow(c.id)!, { [P.xp]: c.xp + xp, [P.streak]: s.streak, [P.lastDay]: s.lastDay, [P.today]: day, [P.todayXp]: todayXp, [P.badges]: [...c.badges, ...fresh] });
+    changed();
+    return fresh;
+  });
 }
 
 function stats(courseId: number, streak: number) {
   const { nodes, tree } = courseTree(courseId);
   const m = (k: NodeKind) => nodes.filter((n) => n.kind === k && tree.status.get(n.key) === "mastered").length;
-  const d = db();
-  const count = (sql: string) => Number((d.prepare(sql).get(courseId) as { n: number }).n);
   return {
     stepsMastered: m("step"),
     skillsMastered: m("skill"),
     phasesMastered: m("phase"),
     yearsMastered: m("year"),
     streak,
-    reviews: count("select count(*) as n from learn_events where course_id = ? and kind = 'review'"),
-    widgets: count("select count(*) as n from learn_widgets where course_id = ? and best_score is not null"),
+    reviews: ofCourse("activity", courseId).filter((r) => r.cells[P.event] === "review").length,
+    widgets: ofCourse("exercises", courseId).filter((r) => r.cells[P.best] !== undefined && r.cells[P.best] !== null).length,
     courseDone: tree.progress.steps > 0 && tree.progress.mastered === tree.progress.steps,
   };
 }
 
+type Event = { id: number; kind: string; xp: number; nodeKey: string | null; at: string; detail: Record<string, unknown> };
+
+/** A course's activity, oldest first (as it was logged). */
+function events(courseId: number): Event[] {
+  const c = cid(courseId);
+  return memo(`learn:events:${c}`, () => {
+    const keyById = new Map(ofCourse("steps", c).map((r) => [r.id, keyOf(r)]));
+    return ofCourse("activity", c)
+      .map((r): Event => {
+        const x = r.cells;
+        const step = first(x[P.step]);
+        return {
+          id: r.id,
+          kind: str(x[P.event]) || "other",
+          xp: num(x[P.xp]),
+          nodeKey: (step && keyById.get(step)) || str(x[P.stepKey]) || null,
+          at: cellTime(x[P.at]) ?? r.createdAt,
+          detail: json<Record<string, unknown>>(x[P.detail], {}),
+        };
+      })
+      .sort((a, b) => a.id - b.id);
+  });
+}
+
 /** What was earned lately (for the course page's log). */
 export function recentEvents(courseId: number, limit = 30): { kind: string; xp: number; nodeKey: string | null; at: string; detail: Record<string, unknown> }[] {
-  return (db().prepare("select kind, xp, node_key, at, detail from learn_events where course_id = ? order by id desc limit ?").all(courseId, limit) as Record<string, unknown>[]).map((r) => ({
-    kind: String(r.kind),
-    xp: Number(r.xp),
-    nodeKey: (r.node_key as string | null) ?? null,
-    at: String(r.at),
-    detail: json<Record<string, unknown>>(r.detail as string, {}),
-  }));
+  return [...events(courseId)].reverse().slice(0, limit).map(({ kind, xp, nodeKey, at, detail }) => ({ kind, xp, nodeKey, at, detail }));
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Widgets
+// Widgets — rows of Exercises (an exercise set's spec in a cell, else the HTML on the row's page)
 // ---------------------------------------------------------------------------------------------------------------------
 
 export type Widget = { id: number; courseId: number; nodeKey: string | null; runId: number | null; title: string; html: string; libs: string[]; bestScore: number | null; createdAt: string };
-const toWidget = (r: Record<string, unknown>): Widget => ({
-  id: Number(r.id),
-  courseId: Number(r.course_id),
-  nodeKey: (r.node_key as string | null) ?? null,
-  runId: (r.run_id as number | null) ?? null,
-  title: String(r.title),
-  html: String(r.html),
-  libs: json<string[]>(r.libs as string, []),
-  bestScore: (r.best_score as number | null) ?? null,
-  createdAt: String(r.created_at),
-});
 
-/** A widget the teacher made (checked: sandbox.ts) — its id, for the lesson to show it. */
-export function addWidget(v: { courseId: number; nodeKey: string | null; title: string; html: string; libs?: string[]; runId?: number | null }): number {
+/** A widget's HTML on its row's page: one code block (in pieces of 100 000 characters — what a text of a page holds). */
+export function htmlDoc(html: string): unknown {
+  const parts: { type: "text"; text: string }[] = [];
+  for (let i = 0; i < html.length; i += 100000) parts.push({ type: "text", text: html.slice(i, i + 100000) });
+  return { type: "doc", content: [{ type: "codeBlock", attrs: { language: "html" }, content: parts }] };
+}
+/** The HTML of a widget's page (its first code block). */
+function pageHtml(id: number): string {
+  const doc = getPage(id)?.content as { content?: { type: string; content?: { text?: string }[] }[] } | undefined;
+  const block = doc?.content?.find((n) => n.type === "codeBlock");
+  return (block?.content ?? []).map((t) => t.text ?? "").join("");
+}
+
+/** A widget from its row (`withHtml`: its HTML too — from the spec, else its page). */
+function toWidget(r: Row, withHtml: boolean): Widget {
+  const c = r.cells;
+  const courseId = first(c[P.course]) ?? 0;
+  const step = first(c[P.step]);
+  const keyOf2 = step ? (ofCourse("steps", courseId).find((x) => x.id === step) ?? null) : null;
+  let html = "";
+  if (withHtml) {
+    const spec = json<ExerciseSet | null>(c[P.spec], null);
+    html = spec && Array.isArray(spec.items) ? specHtml({ ...spec, title: spec.title ?? r.title }) : pageHtml(r.id);
+  }
+  return {
+    id: r.id,
+    courseId,
+    nodeKey: keyOf2 ? keyOf(keyOf2) : null,
+    runId: c[P.run] === undefined ? null : num(c[P.run]),
+    title: r.title || "Widget",
+    html,
+    libs: Array.isArray(c[P.libs]) ? (c[P.libs] as string[]) : [],
+    bestScore: c[P.best] === undefined || c[P.best] === null ? null : num(c[P.best]),
+    createdAt: r.createdAt,
+  };
+}
+
+const widgetRow = (id: number): Row | undefined => {
+  const rows = learnRows("exercises");
+  return rows.find((r) => r.id === id) ?? rows.find((r) => r.cells[P.legacy] !== undefined && num(r.cells[P.legacy]) === id);
+};
+
+/** A widget the teacher made (checked: sandbox.ts) — its id, for the lesson to show it. `spec`: the exercise set it was made from. */
+export function addWidget(v: { courseId: number; nodeKey: string | null; title: string; html: string; libs?: string[]; runId?: number | null; spec?: unknown }): number {
   const ok = checkWidgetHtml(v.html);
   if (!ok.ok) throw new Error(`The widget can't be shown: ${ok.why}.`);
   const libs = (v.libs ?? []).filter((l) => Object.prototype.hasOwnProperty.call(WIDGET_LIBS, l));
-  const r = db()
-    .prepare("insert into learn_widgets (course_id, node_key, run_id, title, html, libs, created_at) values (?, ?, ?, ?, ?, ?, ?)")
-    .run(v.courseId, v.nodeKey, v.runId ?? null, v.title.trim().slice(0, 200) || "Widget", v.html, JSON.stringify(libs), nowIso());
-  changed();
-  return Number(r.lastInsertRowid);
+  const courseId = cid(v.courseId);
+  const step = stepRow(courseId, v.nodeKey);
+  const spec = v.spec && typeof v.spec === "object" ? JSON.stringify(v.spec) : "";
+  return inTx(() => {
+    const id = addRow(learnDbs().exercises, {
+      title: v.title.trim().slice(0, 200) || "Widget",
+      cells: filled({ [P.course]: [courseId], [P.step]: step ? [step.id] : null, [P.libs]: libs, [P.run]: v.runId ?? null, [P.spec]: spec.length <= 19000 ? spec : "" }),
+    });
+    // The HTML on its page (an exercise set's too: shown as it was made, should the set be changed into something unreadable).
+    updatePage(id, { content: htmlDoc(v.html) });
+    changed();
+    return id;
+  });
 }
 
 export function getWidget(id: number): Widget | undefined {
-  const r = db().prepare("select * from learn_widgets where id = ?").get(id) as Record<string, unknown> | undefined;
-  return r ? toWidget(r) : undefined;
+  const r = widgetRow(Number(id));
+  return r ? toWidget(r, true) : undefined;
 }
 
-export const nodeWidgets = (courseId: number, nodeKey: string): Widget[] =>
-  (db().prepare("select * from learn_widgets where course_id = ? and node_key = ? order by id").all(courseId, nodeKey) as Record<string, unknown>[]).map(toWidget);
+export const nodeWidgets = (courseId: number, nodeKey: string): Widget[] => {
+  const c = cid(courseId);
+  const step = getNode(c, nodeKey)?.id;
+  if (!step) return [];
+  return ofCourse("exercises", c)
+    .filter((r) => ids(r.cells[P.step]).includes(step))
+    .sort((a, b) => a.id - b.id)
+    .map((r) => toWidget(r, true));
+};
 
 /** A widget's result: kept as its best, worth experience only for doing better than before (5 at most per widget). */
 export function widgetResult(id: number, r: Extract<WidgetMessage, { type: "result" }>, at: Date = new Date()): { xp: number; best: number } {
-  const d = db();
-  const w = d.prepare("select course_id, node_key, best_score, xp from learn_widgets where id = ?").get(id) as { course_id: number; node_key: string | null; best_score: number | null; xp: number } | undefined;
-  if (!w) throw new Error("No such widget.");
-  const best = Math.max(w.best_score ?? 0, r.score);
-  const xp = Math.max(0, xpForResult({ type: "result", score: best }) - w.xp);
-  d.prepare("update learn_widgets set best_score = ?, xp = xp + ? where id = ?").run(best, xp, id);
-  // The widget as it looked (its drawing, what was typed): kept beside the event, its id in it.
-  const snapshot = r.snapshot ? Number(d.prepare("insert into learn_snapshots (course_id, widget_id, html, at) values (?, ?, ?, ?)").run(w.course_id, id, r.snapshot, at.toISOString()).lastInsertRowid) : null;
-  awardXp(w.course_id, xp, "widget", { widget: id, score: r.score, ...(r.correct !== undefined ? { correct: r.correct, total: r.total } : {}), ...(r.note ? { note: r.note } : {}), ...(r.answers ? { answers: r.answers } : {}), ...(snapshot ? { snapshot } : {}) }, at, w.node_key);
-  return { xp, best };
+  const row = widgetRow(Number(id));
+  if (!row) throw new Error("No such widget.");
+  const w = toWidget(row, false);
+  const best = Math.max(w.bestScore ?? 0, r.score);
+  const xp = Math.max(0, xpForResult({ type: "result", score: best }) - num(row.cells[P.xp]));
+  return inTx(() => {
+    setCells(row, { [P.best]: best, [P.xp]: num(row.cells[P.xp]) + xp });
+    // The widget as it looked (its drawing, what was typed): kept beside the event, its id in it.
+    const snapshot = r.snapshot ? Number(snapshots().prepare("insert into learn_snapshots (course_id, widget_id, html, at) values (?, ?, ?, ?)").run(w.courseId, row.id, r.snapshot, at.toISOString()).lastInsertRowid) : null;
+    awardXp(w.courseId, xp, "widget", { widget: row.id, score: r.score, ...(r.correct !== undefined ? { correct: r.correct, total: r.total } : {}), ...(r.note ? { note: r.note } : {}), ...(r.answers ? { answers: r.answers } : {}), ...(snapshot ? { snapshot } : {}) }, at, w.nodeKey);
+    return { xp, best };
+  });
 }
 
 /** Every result a step's exercises reported (each try, oldest first) — the lesson's timeline (timeline.ts). */
 export function widgetResults(courseId: number, nodeKey: string): import("./timeline").TimelineResult[] {
-  const rows = db().prepare("select detail, at from learn_events where course_id = ? and node_key = ? and kind = 'widget' order by at").all(courseId, nodeKey) as { detail: string; at: string }[];
-  return rows.map((r) => {
-    const d = json<{ widget?: number; score?: number; correct?: number; total?: number; note?: string; answers?: { q: string; a: string; ok?: boolean }[]; snapshot?: number }>(r.detail, {});
-    return { at: r.at, widget: Number(d.widget ?? 0), score: Number(d.score ?? 0), ...(d.correct !== undefined ? { correct: d.correct, total: d.total } : {}), ...(d.note ? { note: d.note } : {}), ...(d.answers ? { answers: d.answers } : {}), ...(d.snapshot ? { snapshotId: Number(d.snapshot) } : {}) };
-  });
+  return events(courseId)
+    .filter((e) => e.kind === "widget" && e.nodeKey === nodeKey)
+    .sort((a, b) => a.at.localeCompare(b.at) || a.id - b.id)
+    .map((e) => {
+      const d = e.detail as { widget?: number; score?: number; correct?: number; total?: number; note?: string; answers?: { q: string; a: string; ok?: boolean }[]; snapshot?: number };
+      return { at: e.at, widget: Number(d.widget ?? 0), score: Number(d.score ?? 0), ...(d.correct !== undefined ? { correct: d.correct, total: d.total } : {}), ...(d.note ? { note: d.note } : {}), ...(d.answers ? { answers: d.answers } : {}), ...(d.snapshot ? { snapshotId: Number(d.snapshot) } : {}) };
+    });
 }
 
 /** A try's snapshot: the widget's body as it looked, with its title and the libraries it was drawn with (null: none such). */
 export function widgetSnapshot(id: number): { html: string; title: string; libs: string[]; at: string } | null {
-  const r = db().prepare("select s.html, s.at, w.title, w.libs from learn_snapshots s join learn_widgets w on w.id = s.widget_id where s.id = ?").get(id) as { html: string; at: string; title: string; libs: string } | undefined;
-  return r ? { html: r.html, title: r.title, libs: json<string[]>(r.libs, []), at: r.at } : null;
+  const s = snapshots().prepare("select html, at, widget_id from learn_snapshots where id = ?").get(id) as { html: string; at: string; widget_id: number } | undefined;
+  if (!s) return null;
+  // Its widget: the one whose result names this snapshot (Activity), else by the id it was kept with.
+  const ev = learnRows("activity").find((r) => r.cells[P.snapshot] !== undefined && num(r.cells[P.snapshot]) === Number(id));
+  const row = (ev && first(ev.cells[P.exercise]) ? widgetRow(first(ev.cells[P.exercise])!) : undefined) ?? widgetRow(s.widget_id);
+  const w = row ? toWidget(row, false) : null;
+  return { html: s.html, title: w?.title ?? "Widget", libs: w?.libs ?? [], at: s.at };
 }
 
 // ---------------------------------------------------------------------------------------------------------------------
-// Cards (spaced repetition)
+// Cards (spaced repetition) — rows of Cards
 // ---------------------------------------------------------------------------------------------------------------------
 
 export type Card = { id: number; courseId: number; nodeKey: string | null; front: string; back: string; reps: number; lapses: number; ease: number; interval: number; due: string; last: string | null };
-const toCard = (r: Record<string, unknown>): Card => ({
-  id: Number(r.id),
-  courseId: Number(r.course_id),
-  nodeKey: (r.node_key as string | null) ?? null,
-  front: String(r.front),
-  back: String(r.back),
-  reps: Number(r.reps),
-  lapses: Number(r.lapses),
-  ease: Number(r.ease),
-  interval: Number(r.interval),
-  due: String(r.due),
-  last: (r.last as string | null) ?? null,
-});
+
+const toCard = (r: Row): Card => {
+  const c = r.cells;
+  const courseId = first(c[P.course]) ?? 0;
+  const step = first(c[P.step]);
+  const sr = step ? ofCourse("steps", courseId).find((x) => x.id === step) : undefined;
+  return {
+    id: r.id,
+    courseId,
+    nodeKey: sr ? keyOf(sr) : null,
+    front: str(c[P.front]) || r.title,
+    back: str(c[P.back]),
+    reps: num(c[P.reps]),
+    lapses: num(c[P.lapses]),
+    ease: num(c[P.ease], 2.5),
+    interval: num(c[P.interval]),
+    // (No due date: due now — a card you added by hand.)
+    due: cellTime(c[P.due]) ?? r.createdAt,
+    last: cellTime(c[P.last]),
+  };
+};
+
+const cards = (): Card[] => memo("learn:cards", () => learnRows("cards").map(toCard));
+const cardRow = (id: number): Row | undefined => {
+  const rows = learnRows("cards");
+  return rows.find((r) => r.id === id) ?? rows.find((r) => r.cells[P.legacy] !== undefined && num(r.cells[P.legacy]) === id);
+};
+const getCard = (id: number): Card | undefined => {
+  const r = cardRow(id);
+  return r ? cards().find((c) => c.id === r.id) : undefined;
+};
 
 /** Cards to review (a front and a back each), due at once. How many were added. */
-export function addCards(courseId: number, nodeKey: string | null, cards: { front: string; back: string }[], now: Date = new Date()): number {
-  const d = db();
-  const ins = d.prepare("insert into learn_cards (course_id, node_key, front, back, due, created_at) values (?, ?, ?, ?, ?, ?)");
+export function addCards(courseId: number, nodeKey: string | null, list: { front: string; back: string }[], now: Date = new Date()): number {
+  const c = cid(courseId);
+  const step = stepRow(c, nodeKey);
   let n = 0;
-  for (const c of cards.slice(0, 100)) {
-    const front = String(c.front ?? "").trim().slice(0, 2000);
-    const back = String(c.back ?? "").trim().slice(0, 4000);
-    if (!front || !back) continue;
-    ins.run(courseId, nodeKey, front, back, newCard(now).due, nowIso());
-    n++;
-  }
+  inTx(() => {
+    for (const x of list.slice(0, 100)) {
+      const front = String(x.front ?? "").trim().slice(0, 2000);
+      const back = String(x.back ?? "").trim().slice(0, 4000);
+      if (!front || !back) continue;
+      const s = newCard(now);
+      addRow(learnDbs().cards, {
+        title: front.slice(0, 300),
+        cells: filled({ [P.front]: front.length > 300 ? front : "", [P.back]: back, [P.due]: timeCell(s.due), [P.reps]: 0, [P.lapses]: 0, [P.ease]: s.ease, [P.interval]: 0, [P.course]: [c], [P.step]: step ? [step.id] : null }),
+      });
+      n++;
+    }
+  });
   if (n) changed();
   return n;
 }
 
-export const dueCards = (courseId: number, now: Date = new Date(), limit = 200): Card[] =>
-  (db().prepare("select * from learn_cards where course_id = ? and due <= ? order by due limit ?").all(courseId, now.toISOString(), limit) as Record<string, unknown>[]).map(toCard);
+const isDueBy = (c: Card, now: Date) => Date.parse(c.due) <= now.getTime();
+
+export const dueCards = (courseId: number, now: Date = new Date(), limit = 200): Card[] => {
+  const c = cid(courseId);
+  return cards()
+    .filter((x) => x.courseId === c && isDueBy(x, now))
+    .sort((a, b) => a.due.localeCompare(b.due) || a.id - b.id)
+    .slice(0, limit);
+};
 
 /** How many cards are due, per course. */
-export const dueCount = (now: Date = new Date()): { courseId: number; due: number }[] =>
-  (db().prepare("select course_id, count(*) as n from learn_cards where due <= ? group by course_id").all(now.toISOString()) as { course_id: number; n: number }[]).map((r) => ({ courseId: r.course_id, due: r.n }));
+export const dueCount = (now: Date = new Date()): { courseId: number; due: number }[] => {
+  const by = new Map<number, number>();
+  for (const c of cards()) if (c.courseId && isDueBy(c, now)) by.set(c.courseId, (by.get(c.courseId) ?? 0) + 1);
+  return [...by].map(([courseId, due]) => ({ courseId, due }));
+};
 
 /** A card reviewed: its next date (srs.ts), a point of experience. */
 export function reviewCard(cardId: number, grade: Grade, now: Date = new Date()): { xp: number; card: Card } {
-  const d = db();
-  const r = d.prepare("select * from learn_cards where id = ?").get(cardId) as Record<string, unknown> | undefined;
-  if (!r) throw new Error("No such card.");
-  const c = toCard(r);
+  const row = cardRow(Number(cardId));
+  if (!row) throw new Error("No such card.");
+  const c = toCard(row);
   const next = review({ reps: c.reps, lapses: c.lapses, ease: c.ease, interval: c.interval, due: c.due, last: c.last }, grade, now);
-  d.prepare("update learn_cards set reps = ?, lapses = ?, ease = ?, interval = ?, due = ?, last = ? where id = ?").run(next.reps, next.lapses, next.ease, next.interval, next.due, next.last, cardId);
-  awardXp(c.courseId, 1, "review", { card: cardId, grade }, now, c.nodeKey);
-  return { xp: 1, card: { ...c, ...next } };
+  return inTx(() => {
+    setCells(row, { [P.reps]: next.reps, [P.lapses]: next.lapses, [P.ease]: next.ease, [P.interval]: next.interval, [P.due]: timeCell(next.due), [P.last]: timeCell(next.last) });
+    awardXp(c.courseId, 1, "review", { card: row.id, grade }, now, c.nodeKey);
+    return { xp: 1, card: { ...c, ...next } };
+  });
 }
 
 /**
@@ -484,21 +729,14 @@ export function reviewCard(cardId: number, grade: Grade, now: Date = new Date())
  * with its score and answers). Plain lines, German like the teacher's rules; at most ~3000 characters.
  */
 export function courseHistory(courseId: number, exceptKey?: string): string[] {
-  const rows = db()
-    .prepare("select node_key, kind, detail, at from learn_events where course_id = ? and kind in ('mastered', 'widget') order by id desc limit 60")
-    .all(courseId) as { node_key: string | null; kind: string; detail: string; at: string }[];
+  const rows = [...events(courseId)].reverse().filter((e) => e.kind === "mastered" || e.kind === "widget").slice(0, 60);
   const titles = new Map(courseNodes(courseId).map((n) => [n.key, n.title]));
   const out: string[] = [];
   let size = 0;
   for (const r of rows) {
-    if (r.node_key && r.node_key === exceptKey) continue;
-    let d: { note?: string; score?: number; correct?: number; total?: number; answers?: { q: string; a: string; ok?: boolean }[] } = {};
-    try {
-      d = JSON.parse(r.detail);
-    } catch {
-      // an old row: its kind and step say enough
-    }
-    const step = r.node_key ? `„${titles.get(r.node_key) ?? r.node_key}“ (${r.node_key})` : "";
+    if (r.nodeKey && r.nodeKey === exceptKey) continue;
+    const d = r.detail as { note?: string; score?: number; correct?: number; total?: number; answers?: { q: string; a: string; ok?: boolean }[] };
+    const step = r.nodeKey ? `„${titles.get(r.nodeKey) ?? r.nodeKey}“ (${r.nodeKey})` : "";
     const line =
       r.kind === "mastered"
         ? `- Einheit ${step} gemeistert${d.note ? `: ${d.note}` : ""}`
@@ -514,6 +752,12 @@ export function courseHistory(courseId: number, exceptKey?: string): string[] {
 
 /** A plan update that didn't work: the plan stays as it was (ready), the error said. */
 export function failPlanUpdate(id: number, error: string): void {
-  db().prepare("update learn_courses set status = 'ready', error = ?, updated_at = ? where id = ?").run(`Planung aktualisieren: ${error}`.slice(0, 2000), nowIso(), id);
-  changed();
+  setCourse(id, { [P.status]: "ready", [P.error]: `Planung aktualisieren: ${error}`.slice(0, 2000) });
+}
+
+/** The step whose lesson is this todo (its course and key) — null: none. */
+export function lessonOfTodo(todoId: number): { courseId: number; key: string } | null {
+  const r = learnRows("steps").find((x) => ids(x.cells[P.lessonTodo]).includes(todoId));
+  const courseId = r ? first(r.cells[P.course]) : null;
+  return r && courseId ? { courseId, key: keyOf(r) } : null;
 }

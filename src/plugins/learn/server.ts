@@ -35,11 +35,10 @@ if (!g.__zeffLearnTimer && process.env.NODE_ENV !== "test" && !process.env.DATAB
  */
 export async function tellTeacher(widgetId: number, r: Extract<import("@/lib/widgets/sandbox").WidgetMessage, { type: "result" }>): Promise<boolean> {
   try {
-    const { getSqlite } = await import("@/db");
-    const w = getSqlite().prepare("select course_id, node_key, title from learn_widgets where id = ?").get(widgetId) as { course_id: number; node_key: string | null; title: string } | undefined;
-    if (!w?.node_key) return false;
     const store = await import("./store");
-    const node = store.getNode(w.course_id, w.node_key);
+    const w = store.getWidget(widgetId);
+    if (!w?.nodeKey) return false;
+    const node = store.getNode(w.courseId, w.nodeKey);
     if (!node?.lessonTodoId) return false;
     const { runsForTodos } = await import("@/lib/work/store");
     const last = runsForTodos([node.lessonTodoId]).get(node.lessonTodoId)?.[0];

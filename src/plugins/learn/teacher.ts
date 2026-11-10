@@ -4,10 +4,10 @@
  * mastered (learn_master_step) and leaves cards to review (learn_add_cards). Its rules are made here from the course and
  * the step; it works in Zeff only, like every chat. Server only.
  */
-import { getDb, getSqlite, schema } from "@/db";
+import { getDb, schema } from "@/db";
 import { CHAT_ALLOWED_TOOLS, CHAT_DISALLOWED_TOOLS, chatSource, registerChatProfile } from "@/lib/chat";
 import { WIDGET_LIBS } from "@/lib/widgets/sandbox";
-import { courseHistory, courseNodes, getCourse, getNode, startNode, type Course, type CourseNode } from "./store";
+import { courseHistory, courseNodes, getCourse, getNode, lessonOfTodo, startNode, type Course, type CourseNode } from "./store";
 
 export const LEARN_KIND = "learn";
 export const LEARN_SOURCE = chatSource(LEARN_KIND);
@@ -81,10 +81,10 @@ ${KIT_GUIDE}
 /** The node a lesson's todo belongs to. */
 function lessonOf(todoId: number): { course: Course; node: CourseNode } | null {
   try {
-    const r = getSqlite().prepare("select course_id, key from learn_nodes where lesson_todo_id = ?").get(todoId) as { course_id: number; key: string } | undefined;
-    if (!r) return null;
-    const course = getCourse(r.course_id);
-    const node = getNode(r.course_id, r.key);
+    const l = lessonOfTodo(todoId);
+    if (!l) return null;
+    const course = getCourse(l.courseId);
+    const node = getNode(l.courseId, l.key);
     return course && node ? { course, node } : null;
   } catch {
     return null;

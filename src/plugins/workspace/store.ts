@@ -8,6 +8,8 @@ import { afterJobChange } from "./jobs";
 import { syncLinkedFrom } from "./links";
 import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
+import { isInstalled } from "@/plugins/state";
+import { isPluginId } from "@/plugins/catalog";
 import { isSystemPage, systemPageIds } from "@/lib/prompts/system-pages";
 import { inAgentScope, runAgentGuards } from "./agent-scope";
 import { emitChange } from "@/lib/events";
@@ -457,6 +459,7 @@ function keepSystem(id: number, parentId?: number | null): void {
 
 export function archivePage(id: number): void {
   keepSystem(id);
+  keepOwned([id, ...subtree(id)]);
   const target = getPage(id);
   if (target?.dbId) protectCheck(target.dbId, "remove");
   logChange(id, "trash");
@@ -529,6 +532,7 @@ export function deletePage(id: number): void {
   keepSystem(id);
   const d = db();
   const ids = [id, ...subtree(id)];
+  keepOwned(ids);
   d.transaction(() => {
     for (const x of ids) {
       d.prepare("delete from ws_fts where rowid = ?").run(x);
@@ -599,7 +603,8 @@ export function duplicatePage(id: number, opts: { parentId?: number | null; dbId
       icon: src.icon,
       content: src.content,
       props: src.props,
-      schema: src.schema ?? undefined,
+      // (A copy is yours: not the plugin's database it was made from.)
+      schema: src.schema ? (({ owner: _o, ...x }) => x)(src.schema) : undefined,
       template: top && opts.template !== undefined ? opts.template : src.template,
     });
     idMap.set(src.id, nid);
@@ -834,7 +839,12 @@ export function updateSchema(id: number, next: unknown): DbSchema {
   const cur = getDatabase(id);
   if (!cur) throw new Error("No such database.");
   // (Renamed fields: the formulas follow; a checkbox recording the time: its field filled by itself — auto-fill.ts.)
-  const schema = withStamps(followRenames(cur.schema, normalizeSchema(next)), t("at"));
+  const incoming = withStamps(followRenames(cur.schema, normalizeSchema(next)), t("at"));
+  // A plugin's database (schema.owner): its mark stays as it is (only setOwner sets it), and so do the properties it relies on.
+  const { owner: _ignored, ...rest } = incoming;
+  void _ignored;
+  const schema: DbSchema = cur.schema.owner ? { ...rest, owner: cur.schema.owner } : rest;
+  if (cur.schema.owner) ownerKeeps(cur.schema, schema);
   const ids = new Set(schema.properties.map((p) => p.id));
   for (const p of schema.properties) {
     if (p.type === "relation" && p.relationDb !== undefined && !getDatabase(p.relationDb)) throw new Error(`Relation "${p.name}" points to a database that isn't there.`);
@@ -864,6 +874,39 @@ export function updateSchema(id: number, next: unknown): DbSchema {
   })();
   changed();
   return schema;
+}
+
+/** A plugin's database: none of the properties it relies on removed or turned into another kind (renamed is fine). */
+function ownerKeeps(before: DbSchema, after: DbSchema): void {
+  const owner = before.owner!;
+  for (const id of owner.props) {
+    const was = before.properties.find((p) => p.id === id);
+    if (!was) continue;
+    const now = after.properties.find((p) => p.id === id);
+    if (!now) throw new Error(t("“{name}” belongs to the {plugin} plugin — it can't be removed (hide it in a view instead).", { name: was.name, plugin: pluginName(owner.plugin) }));
+    if (now.type !== was.type) throw new Error(t("“{name}” belongs to the {plugin} plugin — its kind can't be changed.", { name: was.name, plugin: pluginName(owner.plugin) }));
+  }
+}
+
+const pluginName = (id: string): string => id.charAt(0).toUpperCase() + id.slice(1);
+
+/** A database marked as a plugin's (its data lives there): the properties it relies on (see DbSchema.owner). Set by the plugin's code only. */
+export function setOwner(dbId: number, owner: { plugin: string; props: string[] }): void {
+  const d = getDatabase(dbId);
+  if (!d) throw new Error("No such database.");
+  const schema = normalizeSchema({ ...d.schema, owner });
+  db().prepare("update ws_pages set schema = ? where id = ?").run(JSON.stringify(schema), dbId);
+  changed();
+}
+
+/** A plugin's databases (installed) among these pages: they aren't trashed or deleted — the plugin keeps its data there. */
+function keepOwned(ids: number[]): void {
+  if (!ids.length) return;
+  const rows = db().prepare(`select id, title, schema from ws_pages where kind = 'database' and schema like '%"owner":%' and id in (${ids.map(() => "?").join(",")})`).all(...ids) as { id: number; title: string; schema: string | null }[];
+  for (const r of rows) {
+    const owner = normalizeSchema(parse(r.schema, null)).owner;
+    if (owner && isPluginId(owner.plugin) && isInstalled(owner.plugin)) throw new Error(t("“{title}” keeps the {plugin} plugin's data — it can't be deleted while the plugin is installed.", { title: r.title || t("Untitled"), plugin: pluginName(owner.plugin) }));
+  }
 }
 
 /** A schema saved, with what hangs on it: a relation asked to show on the other side gets its back property there (computed from this one). */
