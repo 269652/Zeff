@@ -61,7 +61,9 @@ The extension installs itself when you save the first such account; you don't ne
   inbox leaves out. **Archive read** archives every read conversation of your IMAP / POP3 inboxes at once (after a confirm) —
   on IMAP every read mail of the server's inbox, also older ones Zeff hasn't read in.
 - **Read on open.** With *Mark a mail read when I open it* on (the default), a mail you open and look at in the inbox is marked
-  read in Zeff and, over IMAP, on the server. POP3 has no read state on the server: Zeff only.
+  read in Zeff and, over IMAP, on the server. POP3 has no read state on the server: Zeff only. Turn it off per account
+  (**Settings → E-Mail accounts** → the account → untick the box → **Save**) and opening a mail changes nothing — neither in
+  Zeff nor on the server. Reading mails in never marks them: Zeff opens the folders read-only (IMAP `EXAMINE`).
 - **A todo's mail.** The AI can propose a *Write mail (E-Mail)* action on a todo that came from such a mail. On the todo it opens
   your mail program (a `mailto:` link) for you to send; the real **Send** over SMTP is the inbox's reply form.
 - **Check an account.** Settings → E-Mail accounts shows each account with how it is read, ✓ *works* / ⚠ *failed* (hover for

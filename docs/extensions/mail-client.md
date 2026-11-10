@@ -50,8 +50,10 @@ add your own views and inboxes.
    (out of the inbox, on the mail server too).
 4. Below: **What you should know** about the people and the topic (with **Sum up**), the conversation oldest first, the AI's
    suggested actions, and the reply.
-5. An unread mail you look at for a moment (1.5 s) counts as read — in Zeff, and for an IMAP account on its server when the
-   account's "mark read when opened" is on.
+5. An unread mail of an [IMAP / POP3](imap-mail.md) account that you pick and look at for a moment (1.5 s) is marked read —
+   in Zeff and, over IMAP, on its server — as long as that account's *Mark a mail read when I open it* is on (the default;
+   Settings → E-Mail accounts → the account). Mails and chats of the other channels (Gmail, Outlook, WhatsApp …) stay as
+   they are when you open them.
 
 **Archive what is read** (shown while there are IMAP / POP3 accounts) archives every read conversation in those accounts'
 inboxes.
