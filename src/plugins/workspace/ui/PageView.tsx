@@ -8,7 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
-import { applyRowLayoutAction, archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, historyAction, makeRoutineAction, restoreVersionAction, saveAsTemplateAction, savePageAction, setTemplateAction, versionAction } from "../actions";
+import { applyRowLayoutAction, archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, savePageAsPluginAction, historyAction, makeRoutineAction, restoreVersionAction, saveAsTemplateAction, savePageAction, setTemplateAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { CRUMB_SLOT, DatabaseView, RowProperties } from "./DatabaseView";
 import { DayEntry } from "./day-entry";
@@ -426,6 +426,18 @@ export function PageView({ page, row, database, form, person, app }: { page: Pag
                   }}
                 >
                   📦 {t("Export as package")}
+                </MenuItem>
+              )}
+              {page.kind === "page" && (
+                <MenuItem
+                  onClick={async () => {
+                    close();
+                    const r = await savePageAsPluginAction(page.id);
+                    if (r.ok) toast(t("Saved as the plugin „{id}“ (version {version}) in the plugins folder — switch it on under Plugins and the app is under New → templates.", { id: r.id, version: r.version }), { tone: "ok", ms: 9000 });
+                    else toast(r.error, { tone: "error" });
+                  }}
+                >
+                  🧩 {t("Save as plugin")}
                 </MenuItem>
               )}
               <MenuItem

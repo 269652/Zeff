@@ -12,7 +12,7 @@ import { emitChange } from "@/lib/events";
 import { localDay } from "@/lib/dates";
 import { checkWidgetHtml, xpForResult, WIDGET_LIBS, type WidgetMessage } from "@/lib/widgets/sandbox";
 import { specHtml, type ExerciseSet } from "@/lib/widgets/spec";
-import { addRow, archivePage, getPage, rawRows, setCell, updatePage } from "@/plugins/workspace/store";
+import { addRow, archivePage, getDatabase, getPage, rawRows, setCell, updatePage, updateSchema } from "@/plugins/workspace/store";
 import type { Row } from "@/plugins/workspace/model";
 import { badgesFor, nextStreak, type BadgeId } from "./game";
 import { normalizePlan } from "./plan";
@@ -644,7 +644,14 @@ export function addWidget(v: { courseId: number; nodeKey: string | null; title: 
   const step = stepRow(courseId, v.nodeKey);
   const spec = v.spec && typeof v.spec === "object" ? JSON.stringify(v.spec) : "";
   return inTx(() => {
-    const id = addRow(dbsFor(courseId).exercises, {
+    // (A library newer than the Exercises database's choices — the science libraries — becomes one of them.)
+    const exDb = dbsFor(courseId).exercises;
+    const schema = getDatabase(exDb)?.schema;
+    const libsProp = schema?.properties.find((p) => p.id === P.libs);
+    const lacking = libs.filter((l) => !libsProp?.options?.some((o) => o.id === l));
+    if (schema && libsProp && lacking.length)
+      updateSchema(exDb, { ...schema, properties: schema.properties.map((p) => (p.id === P.libs ? { ...p, options: [...(p.options ?? []), ...lacking.map((l) => ({ id: l, name: l, color: "blue" }))] } : p)) });
+    const id = addRow(exDb, {
       title: v.title.trim().slice(0, 200) || "Widget",
       cells: filled({ [P.course]: [courseId], [P.step]: step ? [step.id] : null, [P.libs]: libs, [P.run]: v.runId ?? null, [P.spec]: spec.length <= 19000 ? spec : "" }),
     });

@@ -5,6 +5,8 @@ import { pageKind, type DbSchema, type PageKind } from "./model";
 import { workspacePackages } from "./packages-point";
 import { createRoutine, getRoutine, type RoutineConfig, type Step, type Trigger } from "./routines";
 import { addRow, createPage, getPage, rawRows, setCell, setPageProps, tree, updatePage, updateSchema } from "./store";
+import { pageState, setPageState } from "./widget-bridge";
+import { adoptFlow, getFlow } from "./flows/store";
 
 /**
  * Packages: a whole app — pages, databases with fields and views, the blocks of the pages, the routines — as one JSON thing. It is made
@@ -30,6 +32,10 @@ export type PackageItem = {
    */
   rows?: PackageRow[];
   routine?: Pick<RoutineConfig, "kind" | "triggers" | "permissions" | "steps"> & { provider?: RoutineConfig["provider"] };
+  /** What the widgets on this page share (zeff.page), as it was. */
+  widgetState?: Record<string, unknown>;
+  /** A flow's page: its definition (permissions left out — granted again by whoever installs it). */
+  flow?: Record<string, unknown>;
 };
 export type PackageRow = { id?: string; title: string; icon?: string; cells: Record<string, unknown>; content?: DocNode };
 export type WorkspacePackage = { format: 1; name: string; description?: string; icon?: string; items: PackageItem[] };
@@ -69,7 +75,38 @@ function mapSchema(schema: DbSchema, f: Mapper): DbSchema {
 }
 
 /** A document with the databases and pages its blocks name put right; a block that names something outside is dropped. */
+/**
+ * A widget's references to databases moved with the package: in its code (`db: 12`, `zeff.db.rows(12` …) a database of the package
+ * becomes a placeholder (__zeffdb_i3__) on export and the new id on install; `writes` the same (one outside the package is left
+ * out); its versions' id (wid) is new — a copy has a history of its own.
+ */
+const DB_IN_CODE = /(\bdb\s*:\s*|zeff\.db\.(?:rows|schema|add|update)\(\s*)(\d+)\b/g;
+const DB_TOKEN = /__zeffdb_([a-z0-9]+)__/g;
+function mapWidget(attrs: Record<string, unknown>, f: Mapper): Record<string, unknown> {
+  const token = (r: Ref) => (typeof r === "string" ? `__zeffdb_${r}__` : String(r));
+  const html = String(attrs.html ?? "")
+    .replace(DB_TOKEN, (m, local: string) => {
+      const r = f(local);
+      return r === undefined ? m : token(r);
+    })
+    .replace(DB_IN_CODE, (m, pre: string, id: string) => {
+      const r = f(Number(id));
+      return r === undefined ? m : pre + token(r);
+    });
+  const writes = String(attrs.writes ?? "")
+    .split(",")
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .flatMap((x) => {
+      const r = f(/^\d+$/.test(x) ? Number(x) : x);
+      return r === undefined ? [] : [String(r)];
+    })
+    .join(",");
+  return { ...attrs, html, writes, wid: "" };
+}
+
 function mapDoc(doc: DocNode, f: Mapper): DocNode | null {
+  if (doc.type === "zeffApp" && doc.attrs) return { ...doc, attrs: mapWidget(doc.attrs as Record<string, unknown>, f) };
   const attrs = doc.attrs ? { ...doc.attrs } : undefined;
   if (attrs) {
     for (const k of ["dbId", "pageId", "formId"]) {
@@ -151,6 +188,14 @@ export function exportPackage(rootId: number, opts: { name: string; description?
     } else if (p.content) {
       item.content = mapDoc(p.content as DocNode, f) ?? undefined;
     }
+    const shared = pageState(id) as Record<string, unknown>;
+    if (shared && Object.keys(shared).length) item.widgetState = shared;
+    const fl = getFlow(id);
+    if (fl) {
+      const { pageId: _p, lastRunAt: _l, nextRunAt: _n, permissions: _perm, ...def } = fl;
+      void _p, _l, _n, _perm;
+      item.flow = { ...def, requested: fl.requested ?? fl.permissions };
+    }
     const rt = getRoutine(id);
     if (rt) item.routine = { kind: rt.kind, triggers: mapTriggers(rt.triggers, f), permissions: rt.permissions, steps: mapSteps(rt.steps, f), ...(rt.provider ? { provider: rt.provider } : {}) };
     return item;
@@ -204,6 +249,21 @@ export function installPackage(pkg: WorkspacePackage, parentId: number | null): 
       const c = mapDoc(i.content, f);
       if (c) updatePage(id, { content: sanitizeDoc(c) });
     }
+    if (i.widgetState && typeof i.widgetState === "object") for (const [k, v] of Object.entries(i.widgetState).slice(0, 100)) {
+      try {
+        setPageState(id, k, v);
+      } catch {
+        /* (too big, too many: left out) */
+      }
+    }
+    // A flow keeps its name when it is free (the widgets call it by it); taken: the package's page stays a plain page — the flow there is used.
+    if (i.flow && typeof i.flow === "object") {
+      try {
+        adoptFlow(id, { ...i.flow, permissions: {} });
+      } catch {
+        /* (a flow of that name is there already) */
+      }
+    }
     if (i.routine) createRoutine(id, i.routine.kind, { enabled: false, triggers: mapTriggers(i.routine.triggers ?? [], f), permissions: i.routine.permissions, steps: mapSteps(i.routine.steps ?? [], f), provider: i.routine.provider });
   }
   for (const l of links) {
@@ -218,5 +278,5 @@ const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(
 
 /** The packages plugins bring (Zeff's own ready-made things are the templates). */
 export function listPackages(): (PackageMeta & { pkg: WorkspacePackage })[] {
-  return workspacePackages.list().flatMap((c) => c.impl.map((p) => ({ id: `${c.plugin}.${slug(p.name)}`, name: p.name, icon: p.icon ?? "📦", description: p.description ?? "", pkg: p })));
+  return workspacePackages.list().flatMap((c) => (typeof c.impl === "function" ? c.impl() : c.impl).map((p) => ({ id: `${c.plugin}.${slug(p.name)}`, name: p.name, icon: p.icon ?? "📦", description: p.description ?? "", pkg: p })));
 }

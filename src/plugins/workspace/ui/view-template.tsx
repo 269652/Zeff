@@ -22,6 +22,7 @@ import { AskBox, DossierBox } from "./view-notebook";
 import { FlowData, runFlowButton, transitionButton, TransitionsBlock } from "./view-flows";
 import { WidgetBlock } from "./widget-node";
 import { useBlockDefs } from "./use-blocks";
+import { useWidgetOutputs } from "./use-outputs";
 
 /**
  * A view drawn from its template (view-template.ts): the nodes as this page's own components — tiles, tabs, lists, a table of cells,
@@ -58,6 +59,7 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
   const setState = useCallback((name: string, value: string) => setOwn((s) => ({ ...s, [name]: value })), []);
   const app = module.useAppData(props, state);
   const blocks = useBlockDefs();
+  const outputs = useWidgetOutputs();
   // What flows gave (a <data>'s output, a button's into=): data.<name>.
   const [flowData, setFlowData] = useState<Record<string, unknown>>({});
   const setData = useCallback((_name: string, patch: Record<string, unknown>) => setFlowData((d) => ({ ...d, ...patch })), []);
@@ -66,8 +68,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
   const previews = props.data.extras?.previews;
   const texts = useMemo(() => Object.fromEntries(Object.entries(previews ?? {}).map(([id, lines]) => [id, lines.map((l) => (l.kind === "task" ? `${l.checked ? "☑" : "☐"} ${l.text}` : l.text)).join("\n")])), [previews]);
   const r = useMemo(
-    () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, data: flowData, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE", current, texts }, { parts: meta.parts, actions: meta.actions, blocks }),
-    [src, props.rows, schema, state, app.data, flowData, props.data.id, props.data.title, labels, meta, current, texts, blocks],
+    () => renderView(src, { rows: props.rows, props: schema.properties, titleName: schema.titleName, state, app: app.data, data: flowData, db: { id: props.data.id, title: props.data.title }, labels, locale: typeof navigator !== "undefined" ? navigator.language : "de-DE", current, texts, outputs }, { parts: meta.parts, actions: meta.actions, blocks }),
+    [src, props.rows, schema, state, app.data, flowData, props.data.id, props.data.title, labels, meta, current, texts, blocks, outputs],
   );
   // Its sidebar (a <nav>): beside the view — or, the view's setting, in the Workspace tree, whose entry picked (?nav=) sets the state.
   const nav = useMemo(() => navOf(r.nodes), [r.nodes]);

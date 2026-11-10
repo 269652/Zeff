@@ -14,7 +14,7 @@ export async function POST(req: Request) {
   const { t } = await import("@/lib/i18n/server");
   const { isInstalled } = await import("@/plugins/state");
   if (!isInstalled("workspace")) return Response.json({ ok: false, error: t("The Workspace plugin is not installed.") }, { status: 404 });
-  const v = ((await req.json().catch(() => null)) ?? {}) as { request?: unknown; pageId?: unknown; current?: { title?: string; html?: unknown; libs?: unknown; writes?: unknown; ai?: unknown } };
+  const v = ((await req.json().catch(() => null)) ?? {}) as { request?: unknown; pageId?: unknown; wid?: unknown; fix?: unknown; current?: { title?: string; html?: unknown; libs?: unknown; writes?: unknown; ai?: unknown; flows?: unknown } };
   // (Building takes longer than the proxy in front of an account's pages waits on a silent connection (30 s): slowJson keeps it
   // open with a space every few seconds — spaces before JSON are still JSON.)
   return slowJson(async () => {
@@ -23,10 +23,11 @@ export async function POST(req: Request) {
       const { wantsOf } = await import("@/lib/widgets/bridge");
       const c = v.current && typeof v.current.html === "string" && v.current.html ? v.current : null;
       const current = c
-        ? { title: String(c.title ?? ""), html: c.html as string, libs: Array.isArray(c.libs) ? c.libs.map(String) : [], writes: wantsOf(c.writes).writes, ai: c.ai === true }
+        ? { title: String(c.title ?? ""), html: c.html as string, libs: Array.isArray(c.libs) ? c.libs.map(String) : [], writes: wantsOf(c.writes).writes, ai: c.ai === true, flows: wantsOf([], false, c.flows).flows ?? [] }
         : undefined;
       const pageId = Number.isInteger(v.pageId) && (v.pageId as number) > 0 ? (v.pageId as number) : null;
-      return { ok: true, ...(await buildWidget(String(v.request ?? ""), pageId, current)) };
+      const wid = typeof v.wid === "string" ? v.wid : undefined;
+      return { ok: true, ...(await buildWidget(String(v.request ?? ""), pageId, current, { wid, fix: v.fix === true })) };
     } catch (e) {
       const { errorMessage } = await import("@/lib/errors");
       return { ok: false, error: errorMessage(e) };

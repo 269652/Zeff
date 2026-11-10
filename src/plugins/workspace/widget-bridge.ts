@@ -11,7 +11,8 @@
  */
 import { mayRead } from "@/lib/boundaries";
 import { getPref, setPref } from "@/lib/prefs";
-import { CALL_METHODS, MAX_STATE, type CallName, type WidgetGrant } from "@/lib/widgets/bridge";
+import { CALL_METHODS, flowsOf, MAX_STATE, type CallName, type WidgetGrant } from "@/lib/widgets/bridge";
+import { getSqlite } from "@/db";
 import { CREATED, UPDATED, cellText, isComputed, sortRows, TITLE, type DbSchema, type Property, type Row } from "./model";
 import { pageLabel } from "./sensitivity";
 import * as store from "./store";
@@ -31,28 +32,35 @@ const all = (): Record<string, Kept> => getPref<Record<string, Kept>>(PREF, {});
 /** What the user allowed the widget with this key (null: nothing yet). */
 export function widgetGrant(key: string): WidgetGrant | null {
   const g = all()[key];
-  return g ? { dbs: g.dbs ?? [], ...(g.ai ? { ai: true } : {}) } : null;
+  return g ? { dbs: g.dbs ?? [], ...(g.ai ? { ai: true } : {}), ...(g.flows?.length ? { flows: g.flows } : {}) } : null;
 }
 
-/** The user allows this widget's code to write to these databases (and to ask the AI) — added to what it may already. */
+/** The user allows this widget's code to write to these databases (to ask the AI, to run these flows) — added to what it may already. */
 export function grantWidget(key: string, add: WidgetGrant, title?: string): WidgetGrant {
   if (!/^w[0-9a-f]{14}$/.test(key)) throw new Error("Not a widget.");
   const dbs = add.dbs.filter((id) => !!store.getDatabase(id));
   const had = all();
   const cur = had[key];
-  const next: Kept = { dbs: [...new Set([...(cur?.dbs ?? []), ...dbs])], ...(add.ai || cur?.ai ? { ai: true } : {}), at: new Date().toISOString(), ...(title || cur?.title ? { title: (title || cur?.title || "").slice(0, 80) } : {}) };
+  const flows = [...new Set([...(cur?.flows ?? []), ...flowsOf(add.flows)])];
+  const next: Kept = {
+    dbs: [...new Set([...(cur?.dbs ?? []), ...dbs])],
+    ...(add.ai || cur?.ai ? { ai: true } : {}),
+    ...(flows.length ? { flows } : {}),
+    at: new Date().toISOString(),
+    ...(title || cur?.title ? { title: (title || cur?.title || "").slice(0, 80) } : {}),
+  };
   const entries = Object.entries({ ...had, [key]: next }).sort((a, b) => b[1].at.localeCompare(a[1].at)).slice(0, MAX_GRANTS);
   setPref(PREF, Object.fromEntries(entries));
   return widgetGrant(key)!;
 }
 
 /** Takes back what a widget was allowed (a database, or the AI; nothing named: all of it). */
-export function revokeWidget(key: string, what?: { db?: number; ai?: boolean }): WidgetGrant | null {
+export function revokeWidget(key: string, what?: { db?: number; ai?: boolean; flow?: string }): WidgetGrant | null {
   const had = all();
   const cur = had[key];
   if (!cur) return null;
-  if (!what || (what.db === undefined && !what.ai)) delete had[key];
-  else had[key] = { ...cur, dbs: cur.dbs.filter((d) => d !== what.db), ...(what.ai ? { ai: undefined } : {}) };
+  if (!what || (what.db === undefined && !what.ai && !what.flow)) delete had[key];
+  else had[key] = { ...cur, dbs: cur.dbs.filter((d) => d !== what.db), ...(what.ai ? { ai: undefined } : {}), ...(what.flow ? { flows: (cur.flows ?? []).filter((f) => f !== what.flow) } : {}) };
   setPref(PREF, had);
   return widgetGrant(key);
 }
@@ -219,8 +227,71 @@ export async function widgetCall(key: string, method: CallName, args: Record<str
     }
     case "ai":
       return askAi(key, args);
+    case "values.get":
+      return (await import("./widget-outputs")).getOutput(String(args.name ?? ""))?.value ?? null;
+    case "values.list":
+      return (await import("./widget-outputs")).listOutputs({ values: false }).map((o) => ({ name: o.key, label: o.label, kind: o.kind, unit: o.unit, widget: o.widget, updatedAt: o.updatedAt }));
+    case "flow.list": {
+      const { listFlows } = await import("./flows/store");
+      return listFlows().map((f) => ({ name: f.name, title: f.title, description: f.description ?? "", inputs: f.inputs.map((i) => ({ name: i.name, type: i.type, ...(i.required ? { required: true } : {}) })) }));
+    }
+    case "flow.run": {
+      const name = flowsOf([args.flow])[0];
+      if (!name) throw new Refused("flow.run: name the flow.");
+      if (!(widgetGrant(key)?.flows ?? []).includes(name)) throw new Refused(`Not allowed: this widget may not run the flow "${name}" (the user allows it).`);
+      const input = args.input && typeof args.input === "object" && !Array.isArray(args.input) ? (args.input as Record<string, unknown>) : {};
+      const { runFlow } = await import("./flows/engine");
+      const r = await runFlow(name, input, { trigger: { kind: "widget", widget: key } });
+      return { status: r.status, output: r.output, ...(r.error ? { error: r.error } : {}) };
+    }
   }
   throw new Refused(`Unknown call "${String(method)}".`);
+}
+
+// ---------------------------------------------------------------------------
+// What the widgets on one page share (zeff.page): kept with the page, by key
+// ---------------------------------------------------------------------------
+
+const MAX_PAGE_KEYS = 100;
+
+function pageStateDb() {
+  const d = getSqlite();
+  d.exec("create table if not exists ws_widget_page_state (page_id integer not null, key text not null, value text not null, updated_at text not null, primary key (page_id, key))");
+  return d;
+}
+
+/** A page's shared value (no key: all of them, as an object). */
+export function pageState(pageId: number, key?: string): unknown {
+  const d = pageStateDb();
+  const parse = (s: string) => {
+    try {
+      return JSON.parse(s) as unknown;
+    } catch {
+      return null;
+    }
+  };
+  if (key !== undefined) {
+    const r = d.prepare("select value from ws_widget_page_state where page_id = ? and key = ?").get(pageId, String(key)) as { value: string } | undefined;
+    return r ? parse(r.value) : null;
+  }
+  return Object.fromEntries((d.prepare("select key, value from ws_widget_page_state where page_id = ? order by key").all(pageId) as { key: string; value: string }[]).map((r) => [r.key, parse(r.value)]));
+}
+
+/** A page's shared value kept (null: removed). */
+export function setPageState(pageId: number, key: string, value: unknown): void {
+  const k = String(key ?? "").trim().slice(0, 80);
+  if (!k) throw new Refused("page.set: a key.");
+  if (!store.getPage(pageId)) throw new Refused("page.set: no such page.");
+  const d = pageStateDb();
+  if (value === null || value === undefined) {
+    d.prepare("delete from ws_widget_page_state where page_id = ? and key = ?").run(pageId, k);
+    return;
+  }
+  const json = stateOk(value);
+  if (json === null) throw new Refused(`Too much to keep (${MAX_STATE} characters at most).`);
+  const n = (d.prepare("select count(*) n from ws_widget_page_state where page_id = ? and key != ?").get(pageId, k) as { n: number }).n;
+  if (n >= MAX_PAGE_KEYS) throw new Refused(`A page keeps ${MAX_PAGE_KEYS} shared values at most.`);
+  d.prepare("insert into ws_widget_page_state (page_id, key, value, updated_at) values (?, ?, ?, ?) on conflict(page_id, key) do update set value = excluded.value, updated_at = excluded.updated_at").run(pageId, k, json, new Date().toISOString());
 }
 
 /** Whether a widget's state may be kept: JSON, MAX_STATE characters at most. */

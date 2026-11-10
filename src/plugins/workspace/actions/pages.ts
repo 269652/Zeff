@@ -222,6 +222,40 @@ export async function exportPackageAction(pageId: number, includeRows = false) {
   });
 }
 
+/**
+ * A page and what is below it saved as a plugin: a folder in Zeff's plugins folder (zeff-plugin.json + app.json) whose app is
+ * offered under New → templates once the plugin is switched on — to keep, to hand on (copy the folder), to install elsewhere.
+ * Saved again: the same plugin, its version one up.
+ */
+export async function savePageAsPluginAction(pageId: number, includeRows = false) {
+  return run(async () => {
+    const p = store.getPage(Number(pageId));
+    if (!p) throw new Error(t("No such page."));
+    const fs = await import("node:fs");
+    const path = await import("node:path");
+    const { pluginsRoot, scanPlugins } = await import("@/lib/ext/registry");
+    const { API_VERSION } = await import("@/lib/ext/manifest");
+    const name = p.title || t("Untitled");
+    const slug = `app-${name.toLowerCase().normalize("NFKD").replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "").slice(0, 40) || p.id}`;
+    const pkg = (await import("../packages")).exportPackage(p.id, { name, icon: p.icon || undefined, includeRows: !!includeRows });
+    const dir = path.join(pluginsRoot(), slug);
+    let version = "1.0.0";
+    try {
+      const had = JSON.parse(fs.readFileSync(path.join(dir, "zeff-plugin.json"), "utf8")) as { version?: string };
+      const [a, b, c] = String(had.version ?? "1.0.0").split(".").map((x) => Number(x) || 0);
+      version = `${a}.${b}.${c + 1}`;
+    } catch {
+      /* (new) */
+    }
+    fs.mkdirSync(dir, { recursive: true });
+    const manifest = { id: slug, name: name.slice(0, 60), version, description: t("The app „{name}“ from the Workspace: its pages, databases, widgets and flows.", { name }).slice(0, 300), apiVersion: API_VERSION, permissions: [], contributes: { workspacePackages: ["app.json"] } };
+    fs.writeFileSync(path.join(dir, "zeff-plugin.json"), JSON.stringify(manifest, null, 2));
+    fs.writeFileSync(path.join(dir, "app.json"), JSON.stringify(pkg, null, 2));
+    scanPlugins(true);
+    return { id: slug, dir, version };
+  });
+}
+
 /** A package file (its text) made into pages below a page (or at the top). */
 export async function installPackageAction(json: string, parentId: number | null) {
   return run(async () => {

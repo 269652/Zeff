@@ -12,7 +12,7 @@
  * The grant belongs to the widget's code (widgetKey: changed code, asked again) — wherever it is shown. Client-safe (pure).
  */
 
-export type CallNeed = "read" | "write" | "ai" | "host";
+export type CallNeed = "read" | "write" | "ai" | "flow" | "host";
 export type CallMethod = { need: CallNeed; args: string; returns: string; what: string };
 
 export const CALL_METHODS = {
@@ -27,6 +27,14 @@ export const CALL_METHODS = {
   "db.add": { need: "write", args: "{ db, values }", returns: "{ id }", what: "a new row — values by field name (the title under its name or \"title\"; choices by name, a new name makes the option)" },
   "db.update": { need: "write", args: "{ db, row, values }", returns: "{ id }", what: "change a row of that database (row: its id)" },
   ai: { need: "ai", args: "{ prompt, schema? }", returns: "{ text } — or the object of the JSON schema", what: "ask the AI (a few times an hour)" },
+  "flow.list": { need: "read", args: "", returns: "[{ name, title, description, inputs: [{ name, type }] }]", what: "the flows there are (Zeff's server side)" },
+  "flow.run": { need: "flow", args: "{ flow, input? }", returns: "{ status: done|waiting|failed, output, error }", what: "run a flow — the server side: web requests and APIs, reading web pages, lookups, AI extraction, writing rows (what the flow may reach are the flow's own permissions)" },
+  "page.get": { need: "host", args: "{ key? }", returns: "the value (no key: all of them as an object)", what: "what the widgets on this page share — kept with the page" },
+  "page.set": { need: "host", args: "{ key, value }", returns: "true", what: 'share a value with the other widgets on the page (JSON, 50 000 characters at most); they hear zeff.on("page", ({ key, value }) => …)' },
+  publish: { need: "host", args: "{ name, value, unit?, label? }", returns: "true", what: "publish a value for the whole of Zeff — a number, a text, a list, a table (a list of rows): other widgets anywhere read it (values.get, and hear zeff.on(\"value\", ({ name, value }) => …)), views show it, a number is a Kennzahl (formulas: kennzahl(\"name\")), the assistant can pour a table into a database. A name is this widget's once it published it; null removes it" },
+  "values.get": { need: "read", args: "{ name }", returns: "the value (null: nothing published by that name)", what: "a value a widget published (anywhere in Zeff)" },
+  "values.list": { need: "read", args: "", returns: "[{ name, label, kind: number|text|list|table|json, unit, widget, updatedAt }]", what: "the values widgets published" },
+  emit: { need: "host", args: "{ name, detail? }", returns: "true", what: "a message to the other widgets on this page: they hear zeff.on(name, detail => …)" },
   "state.get": { need: "host", args: "", returns: "the value", what: "what this widget kept (its own memory — survives a reload)" },
   "state.set": { need: "host", args: "{ value }", returns: "true", what: "keep a value (JSON, 50 000 characters at most)" },
   toast: { need: "host", args: "{ text }", returns: "true", what: "a short note at the edge of the page" },
@@ -42,23 +50,31 @@ export const MAX_CALL_ARGS = 200_000;
 export const MAX_STATE = 50_000;
 
 /** What a widget asks to be allowed (kept with it: the block, the chat's answer, the Markdown) — the user grants it, or not. */
-export type WidgetWants = { writes: number[]; ai?: boolean };
-/** What the user allowed a widget's code: the databases it may write to, and whether it may ask the AI. */
-export type WidgetGrant = { dbs: number[]; ai?: boolean };
+export type WidgetWants = { writes: number[]; ai?: boolean; /** Flows it runs (by name). */ flows?: string[] };
+/** What the user allowed a widget's code: the databases it may write to, whether it may ask the AI, the flows it may run. */
+export type WidgetGrant = { dbs: number[]; ai?: boolean; flows?: string[] };
+
+/** Flow names as kept (a list, or a block's "a.b,c"), cleaned: a flow's name, each once, 20 at most. */
+export function flowsOf(v: unknown): string[] {
+  const raw = Array.isArray(v) ? v : typeof v === "string" ? v.split(",") : [];
+  return [...new Set(raw.map((x) => String(x).trim().toLowerCase()).filter((x) => /^[a-z0-9_-]+(\.[a-z0-9_-]+)*$/.test(x)))].slice(0, 20);
+}
 
 export const noWants: WidgetWants = { writes: [] };
 
 /** Wants as kept (a list of ids, or a block's "12,7"), cleaned: whole ids above 0, each once, 20 at most. */
-export function wantsOf(writes: unknown, ai?: unknown): WidgetWants {
+export function wantsOf(writes: unknown, ai?: unknown, flows?: unknown): WidgetWants {
   const raw = Array.isArray(writes) ? writes : typeof writes === "string" ? writes.split(",") : typeof writes === "number" ? [writes] : [];
   const ids = [...new Set(raw.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 20);
-  return { writes: ids, ...(ai === true || ai === "true" ? { ai: true } : {}) };
+  const f = flowsOf(flows);
+  return { writes: ids, ...(ai === true || ai === "true" ? { ai: true } : {}), ...(f.length ? { flows: f } : {}) };
 }
 
 /** What of a widget's wants isn't granted yet (nothing: it may do all it asks). */
 export function missing(wants: WidgetWants, grant: WidgetGrant | null): WidgetWants {
   const dbs = new Set(grant?.dbs ?? []);
-  return { writes: wants.writes.filter((d) => !dbs.has(d)), ...(wants.ai && !grant?.ai ? { ai: true } : {}) };
+  const flows = (wants.flows ?? []).filter((f) => !(grant?.flows ?? []).includes(f));
+  return { writes: wants.writes.filter((d) => !dbs.has(d)), ...(wants.ai && !grant?.ai ? { ai: true } : {}), ...(flows.length ? { flows } : {}) };
 }
 
 /**

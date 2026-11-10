@@ -663,8 +663,10 @@ function appAttrs(raw: Record<string, unknown>): Record<string, unknown> | null 
     state = "";
   }
   const libs = String(raw.libs ?? "").split(",").map((s) => s.trim()).filter((l) => Object.prototype.hasOwnProperty.call(WIDGET_LIBS, l));
-  const w = wantsOf(raw.writes, raw.ai);
-  return { title: String(raw.title ?? "").trim().slice(0, 80), prompt: String(raw.prompt ?? "").slice(0, 4000), html, libs: [...new Set(libs)].join(","), writes: w.writes.join(","), ai: !!w.ai, state };
+  const w = wantsOf(raw.writes, raw.ai, raw.flows);
+  // (wid: the block's own id — its versions are kept by it, widget-versions.ts.)
+  const wid = typeof raw.wid === "string" && /^[a-z0-9]{8,24}$/.test(raw.wid) ? raw.wid : "";
+  return { title: String(raw.title ?? "").trim().slice(0, 80), prompt: String(raw.prompt ?? "").slice(0, 4000), html, libs: [...new Set(libs)].join(","), writes: w.writes.join(","), ai: !!w.ai, flows: (w.flows ?? []).join(","), wid, state };
 }
 
 /** A widget block from its Markdown: the head's JSON (title, prompt, libs, writes, ai) and its code. */
@@ -683,14 +685,14 @@ function appNode(head: string, code: string): DocNode | null {
 /** A widget block as Markdown: `:::app {…}`, its code, `:::` (a line of its code that is just ":::" gets a space). */
 function appMarkdown(attrs: Record<string, unknown>): string {
   const libs = String(attrs.libs ?? "").split(",").filter(Boolean);
-  const w = wantsOf(attrs.writes, attrs.ai);
+  const w = wantsOf(attrs.writes, attrs.ai, attrs.flows);
   let state: unknown;
   try {
     state = attrs.state ? JSON.parse(String(attrs.state)) : undefined;
   } catch {
     state = undefined;
   }
-  const head = { ...(attrs.title ? { title: String(attrs.title) } : {}), ...(attrs.prompt ? { prompt: String(attrs.prompt).replace(/\n/g, " ") } : {}), ...(libs.length ? { libs } : {}), ...(w.writes.length ? { writes: w.writes } : {}), ...(w.ai ? { ai: true } : {}), ...(state !== undefined && state !== null ? { state } : {}) };
+  const head = { ...(attrs.title ? { title: String(attrs.title) } : {}), ...(attrs.prompt ? { prompt: String(attrs.prompt).replace(/\n/g, " ") } : {}), ...(libs.length ? { libs } : {}), ...(w.writes.length ? { writes: w.writes } : {}), ...(w.ai ? { ai: true } : {}), ...(w.flows?.length ? { flows: w.flows } : {}), ...(attrs.wid ? { wid: String(attrs.wid) } : {}), ...(state !== undefined && state !== null ? { state } : {}) };
   return `:::app ${JSON.stringify(head)}\n${String(attrs.html ?? "").replace(/^:::$/gm, " :::")}\n:::`;
 }
 

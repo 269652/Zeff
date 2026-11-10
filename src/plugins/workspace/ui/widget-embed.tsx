@@ -38,7 +38,7 @@ export function WidgetEmbedCard({ embed, pageId }: { embed: WidgetEmbed; pageId?
         )}
         {placed === pageId && pageId && <span className="text-zinc-500">{t("On this page")}</span>}
       </div>
-      <AppWidget html={embed.html} libs={embed.libs} title={embed.title} wants={wantsOf(embed.writes, embed.ai)} pageId={pageId ?? embed.pageId} />
+      <AppWidget html={embed.html} libs={embed.libs} title={embed.title} wants={wantsOf(embed.writes, embed.ai, embed.flows)} pageId={pageId ?? embed.pageId} />
     </div>
   );
 }

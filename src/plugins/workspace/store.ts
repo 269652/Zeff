@@ -601,7 +601,8 @@ export function duplicatePage(id: number, opts: { parentId?: number | null; dbId
       kind: src.kind,
       title: top && opts.suffix !== false ? `${src.title || "Untitled"} (copy)` : src.title,
       icon: src.icon,
-      content: src.content,
+      // (A widget in the copy is a widget of its own: its versions start anew — the block's wid is dropped.)
+      content: JSON.stringify(src.content).includes('"zeffApp"') ? (JSON.parse(JSON.stringify(src.content), (k, v) => (k === "wid" ? "" : v)) as typeof src.content) : src.content,
       props: src.props,
       // (A copy is yours: not the plugin's database it was made from.)
       schema: src.schema ? (({ owner: _o, ...x }) => x)(src.schema) : undefined,

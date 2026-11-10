@@ -75,6 +75,16 @@ export function createFlow(raw: unknown, parentId: number | null = null): Flow {
   return getFlow(page)!;
 }
 
+/** An existing page made a flow (a package installed: the page is made first). The name must be free. */
+export function adoptFlow(pageId: number, raw: unknown): Flow {
+  const def = normalizeFlow(raw);
+  if (flowByName(def.name)) throw new Error(`There is a flow named “${def.name}” already.`);
+  if (getFlow(pageId)) throw new Error("This page is a flow already.");
+  db().prepare("insert into ws_flows (page_id, name, def, enabled) values (?, ?, ?, ?)").run(pageId, def.name, stored(def), def.enabled === false ? 0 : 1);
+  emitChange("workspace");
+  return getFlow(pageId)!;
+}
+
 /** A flow's definition replaced (its name may change, if the new one is free). */
 export function saveFlow(pageId: number, raw: unknown): Flow {
   const cur = getFlow(pageId);

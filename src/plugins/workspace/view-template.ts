@@ -46,6 +46,8 @@ export type ViewData = {
   current?: Row;
   /** What the rows' pages say (their first lines), by row id — `text` in a row. */
   texts?: Record<number, string>;
+  /** What widgets published for the whole of Zeff (zeff.publish), by name — outputs.<name>. */
+  outputs?: Record<string, unknown>;
 };
 
 export const MAX_VIEW_TEMPLATE = 20000;
@@ -266,6 +268,14 @@ function resolve(ctx: Ctx, path: string): { found: boolean; value: unknown } {
     return { found: true, value: ctx.prefix ? Object.fromEntries(Object.entries(ctx.state).filter(([k]) => k.startsWith(ctx.prefix)).map(([k, v]) => [k.slice(ctx.prefix.length), v])) : ctx.state };
   }
   if (h === "app") return { found: true, value: walk(ctx.data.app, rest) ?? null };
+  if (h === "outputs") {
+    const all = ctx.data.outputs ?? {};
+    if (!rest.length) return { found: true, value: all };
+    // (By its name as published — "Monthly total" — or its key: monthly-total, monthly_total.)
+    const want = rest[0].toLowerCase().replace(/[^a-z0-9]+/g, "-");
+    const k = Object.keys(all).find((x) => x === rest[0] || x.toLowerCase().replace(/[^a-z0-9]+/g, "-") === want);
+    return { found: true, value: k === undefined ? null : rest.length > 1 ? (walk(all[k], rest.slice(1)) ?? null) : all[k] };
+  }
   if (h === "data") return { found: true, value: (rest.length ? walk(ctx.data.data ?? {}, [ctx.prefix + rest[0], ...rest.slice(1)]) : ctx.data.data) ?? null };
   if (h === "db") return { found: true, value: walk(ctx.data.db, rest) ?? null };
   if (h === "now") return { found: true, value: localDay(ctx.data.now ?? new Date()) };
@@ -1144,7 +1154,7 @@ function drawList(list: TNode[], outer: Ctx): VNode[] {
       // A name for a value, for what comes after it here (and inside that).
       const raw = Object.fromEntries(n.attrs);
       if (!raw.name || !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(raw.name)) ctx.errors.push({ line: n.line, message: '<let> needs name="…" (letters, digits, _).' });
-      else if (["rows", "state", "app", "data", "db", "now", "this", "props", "title", "id"].includes(norm(raw.name))) ctx.errors.push({ line: n.line, message: `<let name="${raw.name}">: that name is taken — pick another.` });
+      else if (["rows", "state", "app", "data", "db", "outputs", "now", "this", "props", "title", "id"].includes(norm(raw.name))) ctx.errors.push({ line: n.line, message: `<let name="${raw.name}">: that name is taken — pick another.` });
       else {
         const expr = (raw.value ?? "").trim().replace(/^\{\{([\s\S]*)\}\}$/, "$1").trim();
         ctx = { ...ctx, vars: new Map(ctx.vars).set(norm(raw.name), expr ? pipe(expr, ctx, n.line) : null) };
@@ -1240,7 +1250,7 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
   return [
     "VIEW TEMPLATE LANGUAGE — tags from this list only, {{ value | filter }}, {{#if …}}…{{#else}}…{{/if}}, {{#each …}}…{{/each}}, {{! a comment }}. No HTML, no script.",
     "",
-    "NAMES: rows (the view's rows — a collection), a row's properties by name ([Name with spaces]) inside a row (a list's item, {{#each rows}}, <selected>), title, id, text (what the row's page says — its first lines; show it with <text pre=true>), state.<name> (the view's state), app.<path> (the app's data), db.title, now, this (the current item).",
+    "NAMES: rows (the view's rows — a collection), a row's properties by name ([Name with spaces]) inside a row (a list's item, {{#each rows}}, <selected>), title, id, text (what the row's page says — its first lines; show it with <text pre=true>), state.<name> (the view's state), app.<path> (the app's data), db.title, now, this (the current item), outputs.<name> (what a widget published for the whole of Zeff — a number, a text, a list, a table: {{ outputs.total | euro }}, <datatable source=\"outputs.results\">).",
     "",
     "LAYOUT: <row gap=2 align=center justify=between wrap=true fill=true>, <col gap=2 fill=true width=120> (fill: takes the room left in a row; width: a fixed width in pixels — a column that lines the rows up), <grid cols=3 gap=3 min=220>, <section title=\"…\" aside=\"… (right of the title)\" collapsible=true open=false scroll=20> (open=wide: open on a wide screen, folded on a phone; scroll: at most 20rem high), <box title=\"…\" tone=muted|good|warn|bad>, <heading level=1|2|3>, <text tone=muted pre=true> (pre: keeps the line breaks), <split ratio=1:2> or <split side=right width=352> (two children side by side — a side column of a fixed width; stacked on a phone), <hr/>, <grow/>. Any element: phone=\"hide\" (not on a phone — a second button for what the toolbar does) or phone=\"only\" (only there).",
     "TEXT: <b> <i> <small> <muted> <code> <mono> <truncate> (one line, cut) <strike> — tip=\"…\" on text, tiles, buttons, rows: a tooltip; <clamp lines=3> <chip color=…> <badge color=…> <bar value= max= fill=\"#hex\"/> <dot color=\"#hex or name\"/> <img src= h=/> <a href=…>, <printonly>…</printonly> (only on paper), <noprint>…</noprint>.",

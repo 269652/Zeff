@@ -104,6 +104,7 @@ const contributes = z.object({
   workPanels: z.array(panel).max(20).default([]).describe("Views in Code, shown in a sandboxed frame."),
   apps: z.array(app).max(10).default([]).describe("Entries in Zeff's menu (Apps) that open one of its panels as a page of its own — you can put them in the header (Menu → Customize)."),
   hooks: z.record(eventId, hook).default({}).describe("Programs Zeff runs when something happens. Needs the exec permission."),
+  workspacePackages: z.array(relPath).max(20).default([]).describe("Workspace apps it brings: package files (JSON — a page exported with its databases, widgets, flows), offered under New → templates and made with one click."),
 });
 
 export const manifestSchema = z
@@ -117,7 +118,7 @@ export const manifestSchema = z
     homepage: z.url().optional(),
     apiVersion: z.number().int().min(1).max(API_VERSION).describe(`The extension API version it was written for (this Zeff speaks up to ${API_VERSION}).`),
     permissions: z.array(permissionId).max(30).default([]).describe("What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, workspace.write …)."),
-    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], apps: [], hooks: {} }),
+    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], apps: [], hooks: {}, workspacePackages: [] }),
   })
   .superRefine((m, ctx) => {
     const has = (p: Permission) => m.permissions.includes(p);

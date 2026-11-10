@@ -115,6 +115,24 @@ const BRIDGE = `<script>
     ai: function (prompt, opts) { return call("ai", { prompt: String(prompt || ""), schema: opts && opts.schema }); },
     toast: function (text) { return call("toast", { text: String(text || "") }); },
     open: function (row) { return call("open", { row: row }); },
+    // Zeff's server side: flows (web requests, lookups, AI extraction, rows written) — the ones the user allowed this widget.
+    flow: {
+      list: function () { return call("flow.list"); },
+      run: function (name, input) { return call("flow.run", { flow: name, input: input || {} }); }
+    },
+    // What the widgets on one page share (kept with the page): the others hear zeff.on("page", ({ key, value }) => …).
+    page: {
+      get: function (key) { return call("page.get", key == null ? {} : { key: key }); },
+      set: function (key, value) { return call("page.set", { key: key, value: value }); }
+    },
+    // A value for the whole of Zeff (other widgets anywhere, views, Kennzahlen, the assistant): zeff.publish("Total", 42, { unit: "€" }).
+    publish: function (name, value, opts) { opts = opts || {}; return call("publish", { name: String(name || ""), value: value === undefined ? null : value, unit: opts.unit, label: opts.label }); },
+    values: {
+      get: function (name) { return call("values.get", { name: String(name || "") }); },
+      list: function () { return call("values.list"); }
+    },
+    // A message to the other widgets on the page: they hear zeff.on(name, detail => …).
+    emit: function (name, detail) { return call("emit", { name: String(name || ""), detail: detail }); },
     // "changed": something in the workspace changed (this widget's write, another's, the assistant's) — read again.
     on: function (name, fn) { (listeners[name] = listeners[name] || []).push(fn); },
     context: window.zeffContext || {}

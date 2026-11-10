@@ -13,7 +13,7 @@ export type EmbedTicket = { rowId: number; key: string; title: string; status: s
 export type TicketsEmbed = { kind: "tickets"; dbId: number; board: string; href: string; criteria: PickCriteria; groups: { id: PickGroupId; total: number; tickets: EmbedTicket[] }[] };
 
 /** A widget the assistant built (workspace_widget): its code, what it asks to be allowed, the page it was put into (if any). */
-export type WidgetEmbed = { kind: "widget"; href: string; title: string; html: string; libs: string[]; writes: number[]; ai: boolean; pageId: number | null };
+export type WidgetEmbed = { kind: "widget"; href: string; title: string; html: string; libs: string[]; writes: number[]; ai: boolean; flows?: string[]; pageId: number | null };
 
 export type ChatEmbed = TicketsEmbed | WidgetEmbed;
 

@@ -44,8 +44,11 @@ export function WidgetFrame({
   context,
   errorNote,
   pulse,
+  bus,
   className = "",
 }: {
+  /** Events from outside (the other widgets on the page): called once with a sender; what it returns ends it. */
+  bus?: (send: (name: string, detail: unknown) => void) => () => void;
   html: string;
   libs?: string[];
   title: string;
@@ -108,6 +111,11 @@ export function WidgetFrame({
     window.addEventListener("message", onMessage);
     return () => window.removeEventListener("message", onMessage);
   }, []);
+
+  useEffect(() => {
+    if (!bus) return;
+    return bus((name, detail) => frame.current?.contentWindow?.postMessage({ zeffHost: 1, type: "event", name, detail }, "*"));
+  }, [bus]);
 
   // (Not on the first render: only a change is news.)
   const seen = useRef(pulse);
