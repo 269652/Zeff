@@ -163,3 +163,36 @@ test("a widget of its own that throws: a friendly note in it, the error told to 
     await browser.close();
   }
 });
+
+test("Ctrl+Enter checks a task — from a long answer too — and goes on once it's checked; Enter in a one-line answer the same", { skip: !CHROME && "no Chrome" }, async () => {
+  const { chromium } = await import("playwright-core");
+  const { buildSrcdoc } = await import("@/lib/widgets/sandbox");
+  const { specHtml } = await import("@/lib/widgets/spec");
+  const { libBundle } = await import("@/lib/widgets/libs");
+  const browser = await chromium.launch({ executablePath: CHROME, headless: true });
+  try {
+    const page = await browser.newPage();
+    const set = {
+      lang: "de",
+      items: [
+        { type: "text", q: "Erkläre kurz", answer: ["Hippocampus"], match: "keywords", long: true },
+        { type: "number", q: "2+2", answer: 4 },
+      ],
+    };
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const doc = buildSrcdoc(specHtml(set as any), { inline: libBundle([]), lang: "de" });
+    await page.route("http://kit.test/", (r) => r.fulfill({ contentType: "text/html", body: doc }));
+    await page.goto("http://kit.test/");
+    await page.locator("textarea").fill("Der Hippocampus speichert Neues");
+    await page.locator("textarea").press("Control+Enter");
+    await page.locator(".zk-fb.ok").waitFor();
+    await page.keyboard.press("Control+Enter"); // on
+    await page.locator("input.zk-in").fill("4");
+    await page.locator("input.zk-in").press("Enter");
+    await page.locator(".zk-fb.ok").waitFor();
+    await page.locator("input.zk-in").press("Enter"); // on: the summary
+    await page.locator(".zk-sum").waitFor();
+  } finally {
+    await browser.close();
+  }
+});

@@ -1163,6 +1163,14 @@
     var queue = all.slice();
     var results = {};
     var pos = 0;
+    // Ctrl+Enter / ⌘+Enter: check the task, or go on once it's checked — wherever the cursor is in the frame.
+    var keys = { go: null };
+    doc.addEventListener("keydown", function (e) {
+      if (e.key !== "Enter" || !(e.ctrlKey || e.metaKey) || !keys.go) return;
+      if (!root.isConnected) return;
+      e.preventDefault();
+      keys.go();
+    });
 
     var head = h("div", { cls: "zk-head" }, h("div", { cls: "zk-title", html: fmt(spec.title || "") }), h("div", { cls: "zk-count" }));
     var bar = h("div", { cls: "zk-bar" }, h("i", { style: "width:0" }));
@@ -1178,6 +1186,7 @@
     };
 
     function showItem() {
+      keys.go = null;
       progress();
       card.innerHTML = "";
       if (pos >= queue.length) return summary();
@@ -1197,7 +1206,9 @@
         report_error(e, item);
         box.innerHTML = "";
         box.appendChild(h("div", { cls: "zk-broken", text: W.broken }));
-        box.appendChild(h("div", { cls: "zk-row" }, h("button", { type: "button", cls: "zk-btn pri", text: W.next, onclick: function () { results[item._i] = { item: item, skipped: true }; pos++; showItem(); } })));
+        var skip = function () { results[item._i] = { item: item, skipped: true }; pos++; showItem(); };
+        box.appendChild(h("div", { cls: "zk-row" }, h("button", { type: "button", cls: "zk-btn pri", text: W.next, onclick: skip })));
+        keys.go = skip;
         return;
       }
       var fb = h("div", { "aria-live": "polite" });
@@ -1277,15 +1288,20 @@
           );
         } else settle(r);
       };
-      box.submit = check;
+      var next = function () { pos++; showItem(); };
+      // Enter in a one-line answer: check — and once it's answered, on to the next.
+      box.submit = function () { if (box.locked) next(); else check(); };
       box.autoCheck = check;
       checkBtn.onclick = check;
       if (item.type === "code") checkBtn.textContent = "▶ " + W.run;
-      nextBtn.onclick = function () { pos++; showItem(); };
+      nextBtn.onclick = next;
+      // Ctrl+Enter (⌘+Enter) anywhere in the exercise: the same — from a long answer or the code too.
+      keys.go = function () { if (box.locked) { if (!nextBtn.hidden) next(); } else if (!checkBtn.hidden && !checkBtn.disabled) check(); };
       if (api.focus && pos > 0) setTimeout(function () { try { api.focus.focus({ preventScroll: true }); } catch (e) {} }, 30);
     }
 
     function summary() {
+      keys.go = null;
       bar.firstChild.style.width = "100%";
       var done = Object.keys(results).map(function (k) { return results[k]; });
       var graded = done.filter(function (r) { return !r.skipped && !r.ungraded; });
