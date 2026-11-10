@@ -71,3 +71,51 @@ export function CardTodos({ k, ticket, open: initiallyOpen = false }: { k: strin
     </div>
   );
 }
+
+const ME = "zeff.jira.me";
+const readMe = () => {
+  try {
+    return localStorage.getItem(ME) ?? "";
+  } catch {
+    return "";
+  }
+};
+
+/**
+ * "Assign to me" on a mirrored Jira board's card: the ticket assigned to you in Jira and on the card at once (POST
+ * /api/workspace/jira-assign). Not shown once it's yours (who you are in Jira: learnt from the first assignment).
+ */
+export function AssignToMe({ rowId, assignee }: { rowId: number; assignee: string }) {
+  const t = useT();
+  const [busy, setBusy] = useState(false);
+  const [me] = useState(readMe);
+  if (me && assignee.trim() === me) return null;
+  return (
+    <button
+      type="button"
+      className="inline-flex items-center gap-1 rounded px-1.5 py-0.5 text-xs text-indigo-700 hover:bg-indigo-50 disabled:opacity-50 dark:text-indigo-300 dark:hover:bg-indigo-950/50"
+      disabled={busy}
+      title={t("Assign this ticket to you — in Jira and here")}
+      onClick={async (e) => {
+        e.stopPropagation();
+        setBusy(true);
+        const r = await fetch("/api/workspace/jira-assign", { method: "POST", headers: { "content-type": "application/json" }, body: JSON.stringify({ rowId }) })
+          .then((x) => x.json() as Promise<{ ok: boolean; key?: string; assignee?: string; error?: string }>)
+          .catch((err: unknown) => ({ ok: false, error: String(err) }) as { ok: boolean; key?: string; assignee?: string; error?: string });
+        setBusy(false);
+        const { toast } = await import("@/components/Toaster");
+        if (!r.ok) return void toast(r.error ?? t("Didn't work."), { tone: "error" });
+        try {
+          if (r.assignee) localStorage.setItem(ME, r.assignee);
+        } catch {
+          // remembered next time, then
+        }
+        toast(t("{key} is assigned to you — in Jira too.", { key: r.key ?? "" }), { tone: "ok" });
+        window.dispatchEvent(new Event(WS_CHANGED));
+      }}
+      onKeyDown={(e) => e.stopPropagation()}
+    >
+      {busy ? "…" : "👤"} {t("Assign to me")}
+    </button>
+  );
+}

@@ -36,7 +36,8 @@ const WRITES: Record<string, string[]> = {
   jira_add_comment: ["src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts", "src/lib/runs/actions.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
   jira_transition_issue: ["src/lib/runs/actions.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
   // (note-sync.ts: the pictures of your note uploaded as attachments to its ticket, right before its comment — the same "Sync to Jira" click.)
-  jira_update_issue: ["src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts", "src/lib/runs/actions.ts", "src/lib/work/runner.ts", "src/plugins/jira/run.ts"],
+  // (jira-lage/assign.ts: "Assign to me" on a mirrored Jira board's card — your click.)
+  jira_update_issue: ["src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts", "src/lib/runs/actions.ts", "src/lib/work/runner.ts", "src/plugins/jira-lage/assign.ts", "src/plugins/jira/run.ts"],
   jira_create_issue_link: ["src/plugins/jira/run.ts"],
   jira_edit_comment: ["src/lib/jira/context-sync.ts", "src/lib/jira/note-sync.ts"],
   jira_create_issue: ["src/plugins/jira/run.ts"],

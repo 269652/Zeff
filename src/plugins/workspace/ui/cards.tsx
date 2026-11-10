@@ -6,7 +6,7 @@ import { cellText, dueTone, type Property, type Row } from "../model";
 import { scopeFor } from "./card-editor";
 import { TemplateBody } from "./card-template";
 import { JobPanel } from "./job-panel";
-import { CardKey, CardLead, CardTodos, extrasOf, SubtaskBadge } from "./card-extras";
+import { AssignToMe, CardKey, CardLead, CardTodos, extrasOf, SubtaskBadge } from "./card-extras";
 import { CellView, type CellCtx } from "./cells";
 
 /**
@@ -141,6 +141,8 @@ export function RowCard({ row, visible, all, ctx, mode, template }: { row: Row; 
           )}
         </div>
       )}
+      {/* A mirrored Jira board's card: "Assign to me" — in Jira and here at once. */}
+      {!gallery && x.key && (ctx.data.extras?.source ?? "").startsWith("jira") && <AssignToMe rowId={row.id} assignee={String(row.cells.jiraassignee ?? "")} />}
       {!gallery && x.key && ctx.data.extras?.todosOn && <CardTodos k={x.key} ticket={x.ticket} />}
       {!gallery && ctx.data.extras?.jobs?.[row.id] && <JobPanel rowId={row.id} panel={ctx.data.extras.jobs[row.id]} todosShown={!!x.key && !!ctx.data.extras.todosOn} />}
     </>

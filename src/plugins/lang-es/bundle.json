@@ -9092,5 +9092,11 @@
   "Local branch": "Rama local",
   "only on this PC": "solo en este PC",
   "Only on this computer — not pushed": "Por ahora solo en este equipo — sin push",
-  "This didn't get an answer — the run failed.": "Esto no recibió respuesta — la ejecución falló."
+  "This didn't get an answer — the run failed.": "Esto no recibió respuesta — la ejecución falló.",
+  "This card isn't from a Jira board.": "Esta tarjeta no es de un tablero de Jira.",
+  "This card has no Jira key.": "Esta tarjeta no tiene clave de Jira.",
+  "Zeff doesn't know your Jira user — its Jira connection has no JIRA_USERNAME.": "Zeff no conoce tu usuario de Jira — a su conexión de Jira le falta JIRA_USERNAME.",
+  "Assign this ticket to you — in Jira and here": "Asignarte este ticket — en Jira y aquí",
+  "{key} is assigned to you — in Jira too.": "{key} está asignado a ti — también en Jira.",
+  "Assign to me": "Asignarme"
 }
