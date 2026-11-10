@@ -32,19 +32,21 @@ export const laneY = (g: Grid, row: number) => Math.min(g.height - 10, Math.max(
  * a gap kept apart).
  */
 export function threadCorners(g: Grid, a: Cell, b: Cell, taken: (col: number, row: number) => boolean, shift = 0): Pt[] {
+  // (The gaps at the map's edges: a little inside it, not on its border.)
+  const gap = (x: number) => Math.min(g.width - 16, Math.max(16, x));
   const pa = centre(g, a);
   const pb = centre(g, b);
   if (a.col === b.col) {
     // One above the other: out to the right, down (or up) the gap after the column, back in.
-    const x = (a.col + 1) * g.col + shift;
+    const x = gap((a.col + 1) * g.col + shift);
     return [{ x: pa.x + g.r, y: pa.y }, { x, y: pa.y }, { x, y: pb.y }, { x: pb.x + g.r, y: pb.y }];
   }
   const d = b.col > a.col ? 1 : -1;
   const start = { x: pa.x + d * g.r, y: pa.y };
   const end = { x: pb.x - d * g.r, y: pb.y };
   // The gap right after a and the one right before b (in the direction of travel).
-  const xa = (d > 0 ? a.col + 1 : a.col) * g.col + shift;
-  const xb = (d > 0 ? b.col : b.col + 1) * g.col + shift;
+  const xa = gap((d > 0 ? a.col + 1 : a.col) * g.col + shift);
+  const xb = gap((d > 0 ? b.col : b.col + 1) * g.col + shift);
   const between: number[] = [];
   for (let c = Math.min(a.col, b.col) + 1; c < Math.max(a.col, b.col); c++) between.push(c);
   const free = (row: number) => between.every((c) => !taken(c, row));
@@ -130,4 +132,135 @@ export function halfway(corners: Pt[]): Pt {
     left -= lens[i];
   }
   return pts[0] ?? { x: 0, y: 0 };
+}
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Organic ways: a soft curve along the corridor, cut short where the map is free — only the circles are in the way (the
+// titles sit on cards of their own over the lines, so a line may run behind them)
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** Something a way keeps out of: a node's circle (a little more), a number's badge. */
+export type Disc = { x: number; y: number; r: number };
+
+/** The circles of the nodes as discs to keep out of, `pad` around them. */
+export const nodeDiscs = (g: Grid, cells: Cell[], pad = 6): Disc[] => cells.map((c) => ({ ...centre(g, c), r: g.r + pad }));
+
+const inDisc = (p: Pt, discs: Disc[]) => discs.some((d) => Math.hypot(p.x - d.x, p.y - d.y) < d.r);
+
+/** Whether the straight way a → b stays out of the discs and inside the map. */
+function clearLine(a: Pt, b: Pt, discs: Disc[], g: Grid): boolean {
+  const n = Math.max(8, Math.ceil(Math.hypot(b.x - a.x, b.y - a.y) / 6));
+  for (let i = 1; i < n; i++) {
+    const p = { x: a.x + ((b.x - a.x) * i) / n, y: a.y + ((b.y - a.y) * i) / n };
+    if (inDisc(p, discs) || p.x < 4 || p.x > g.width - 4 || p.y < 4 || p.y > g.height - 4) return false;
+  }
+  return true;
+}
+
+type Seg = [Pt, Pt, Pt, Pt];
+
+const bez = ([p0, p1, p2, p3]: Seg, t: number): Pt => {
+  const u = 1 - t;
+  return {
+    x: u * u * u * p0.x + 3 * u * u * t * p1.x + 3 * u * t * t * p2.x + t * t * t * p3.x,
+    y: u * u * u * p0.y + 3 * u * u * t * p1.y + 3 * u * t * t * p2.y + t * t * t * p3.y,
+  };
+};
+
+/** Cubic pieces through the points (Catmull-Rom), leaving the first along `out` and coming into the last along `into`. */
+function spline(pts: Pt[], out: Pt, into: Pt, tension: number): Seg[] {
+  const unit = (v: Pt) => {
+    const l = Math.hypot(v.x, v.y) || 1;
+    return { x: v.x / l, y: v.y / l };
+  };
+  const tan = pts.map((p, i) => {
+    const len = Math.hypot((pts[i + 1] ?? p).x - (pts[i - 1] ?? p).x, (pts[i + 1] ?? p).y - (pts[i - 1] ?? p).y);
+    if (i === 0) {
+      const u = unit(out);
+      const l = Math.hypot(pts[1].x - p.x, pts[1].y - p.y);
+      return { x: u.x * l * tension * 1.2, y: u.y * l * tension * 1.2 };
+    }
+    if (i === pts.length - 1) {
+      const u = unit(into);
+      const l = Math.hypot(p.x - pts[i - 1].x, p.y - pts[i - 1].y);
+      return { x: u.x * l * tension * 1.2, y: u.y * l * tension * 1.2 };
+    }
+    const u = unit({ x: pts[i + 1].x - pts[i - 1].x, y: pts[i + 1].y - pts[i - 1].y });
+    return { x: (u.x * len * tension) / 2, y: (u.y * len * tension) / 2 };
+  });
+  return pts.slice(1).map((p, i) => [pts[i], { x: pts[i].x + tan[i].x / 3, y: pts[i].y + tan[i].y / 3 }, { x: p.x - tan[i + 1].x / 3, y: p.y - tan[i + 1].y / 3 }, p] as Seg);
+}
+
+const sampleSegs = (segs: Seg[], per = 18): Pt[] => [segs[0][0], ...segs.flatMap((s) => Array.from({ length: per }, (_, i) => bez(s, (i + 1) / per)))];
+
+/** The corners with the detours left out that the map doesn't need: from each point on to the farthest one in plain sight. */
+function pulled(pts: Pt[], discs: Disc[], g: Grid): Pt[] {
+  const out = [pts[0]];
+  let i = 0;
+  while (i < pts.length - 1) {
+    let j = pts.length - 1;
+    while (j > i + 1 && !clearLine(pts[i], pts[j], discs, g)) j--;
+    out.push(pts[j]);
+    i = j;
+  }
+  return out;
+}
+
+/**
+ * The red thread's way as a soft curve: the corridor's corners (threadCorners) cut short where the map is free, a smooth
+ * curve through what is left — leaving and entering the circles level, as the corridor does. Checked: a curve that would
+ * touch a circle (`discs`: the other nodes') is drawn tighter, then along all the corners; failing that, the corridor with
+ * wide round corners. `samples`: points along it (for its number, and to keep the others' numbers off it).
+ */
+export function organicWay(g: Grid, corners: Pt[], discs: Disc[]): { d: string; samples: Pt[] } {
+  const all = tidy(corners);
+  if (all.length < 2) return { d: roundedPath(corners), samples: all };
+  const out = { x: all[1].x - all[0].x, y: all[1].y - all[0].y };
+  const into = { x: all[all.length - 1].x - all[all.length - 2].x, y: all[all.length - 1].y - all[all.length - 2].y };
+  // (Level out of the circle: its first stretch is level in the corridor.)
+  const lvl = (v: Pt) => (Math.abs(v.y) < 0.5 ? v : { x: Math.sign(v.x) || 1, y: 0 });
+  const ok = (s: Pt[]) => s.every((p) => !inDisc(p, discs) && p.x >= 3 && p.x <= g.width - 3 && p.y >= 3 && p.y <= g.height - 3);
+  for (const pts of [pulled(all, discs, g), all]) {
+    for (const tension of [1, 0.7, 0.45]) {
+      const segs = spline(pts, lvl(out), lvl(into), tension);
+      const samples = sampleSegs(segs);
+      if (!ok(samples)) continue;
+      const f = (n: number) => Math.round(n * 10) / 10;
+      const d = `M${f(pts[0].x)},${f(pts[0].y)}` + segs.map(([, c1, c2, p]) => ` C${f(c1.x)},${f(c1.y)} ${f(c2.x)},${f(c2.y)} ${f(p.x)},${f(p.y)}`).join("");
+      return { d, samples };
+    }
+  }
+  const dense = all.slice(1).flatMap((p, i) => Array.from({ length: 12 }, (_, k) => ({ x: all[i].x + ((p.x - all[i].x) * (k + 1)) / 12, y: all[i].y + ((p.y - all[i].y) * (k + 1)) / 12 })));
+  return { d: roundedPath(corners, 24), samples: [all[0], ...dense] };
+}
+
+/** The point at `frac` of the way along sampled points. */
+export function alongWay(samples: Pt[], frac: number): Pt {
+  const lens = samples.slice(1).map((p, i) => Math.hypot(p.x - samples[i].x, p.y - samples[i].y));
+  let left = lens.reduce((s, l) => s + l, 0) * frac;
+  for (let i = 0; i < lens.length; i++) {
+    if (left <= lens[i] && lens[i] > 0) {
+      const t = left / lens[i];
+      return { x: samples[i].x + (samples[i + 1].x - samples[i].x) * t, y: samples[i].y + (samples[i + 1].y - samples[i].y) * t };
+    }
+    left -= lens[i];
+  }
+  return samples[samples.length - 1] ?? { x: 0, y: 0 };
+}
+
+/**
+ * Where each way's number goes: on its way, as near its middle as can be, clear of the circles, of the numbers placed
+ * before and of the other ways (no line runs through another's badge).
+ */
+export function wayLabels(ways: Pt[][], discs: Disc[], badge = 10): Pt[] {
+  const placed: Pt[] = [];
+  const near = (p: Pt, pts: Pt[], d: number) => pts.some((q) => Math.hypot(p.x - q.x, p.y - q.y) < d);
+  ways.forEach((samples, i) => {
+    const others = ways.filter((_, j) => j !== i).flat();
+    const fracs = [0.5, 0.42, 0.58, 0.34, 0.66, 0.26, 0.74, 0.18, 0.82];
+    const clear = (p: Pt, strict: boolean) => !inDisc(p, discs.map((d) => ({ ...d, r: d.r + badge }))) && !near(p, placed, badge * 2.4) && (!strict || !near(p, others, badge + 3));
+    const p = fracs.map((f) => alongWay(samples, f)).find((q) => clear(q, true)) ?? fracs.map((f) => alongWay(samples, f)).find((q) => clear(q, false)) ?? alongWay(samples, 0.5);
+    placed.push(p);
+  });
+  return placed;
 }
