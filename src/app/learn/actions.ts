@@ -25,6 +25,24 @@ export async function updatePlanAction(id: number, note: string): Promise<Ok> {
   }
 }
 
+/** A lesson waits for a worker: one more, reserved for Learn's lessons (work/runner.ts reserveWorkerFor) — it starts now. */
+export async function reserveLessonWorkerAction(): Promise<Ok<{ reserved: number }>> {
+  try {
+    guard();
+    const { LEARN_SOURCE } = await import("@/plugins/learn/teacher");
+    const { reserveWorkerFor } = await import("@/lib/work/runner");
+    const reserved = reserveWorkerFor(LEARN_SOURCE);
+    if (reserved === null) {
+      const { MAX_RESERVED } = await import("@/lib/work/slots");
+      throw new Error(t("All {n} workers reserved for Learn are busy — end a lesson's session, or wait.", { n: MAX_RESERVED }));
+    }
+    revalidatePath("/learn", "layout");
+    return { ok: true, reserved };
+  } catch (e) {
+    return { ok: false, error: errorMessage(e) };
+  }
+}
+
 export async function retryResearchAction(id: number): Promise<Ok> {
   try {
     guard();

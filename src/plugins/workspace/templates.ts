@@ -8,6 +8,7 @@
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { installPackage, listPackages } from "./packages";
+import { workspaceTemplates } from "./page-apps-point";
 import { createRoutine, getRoutine } from "./routines";
 import { createTicketCockpit } from "./ticket-cockpit";
 import { journalPage } from "./templates-journal";
@@ -200,6 +201,8 @@ function builtins(): (TemplateMeta & { build: (parentId: number | null) => numbe
       .map(({ key, name, icon, description, kind, category, build }) => ({ key, name, icon, description, kind, category, build, featured: FEATURED.includes(key) }))
       .sort((a, b) => rank(a.key) - rank(b.key)),
     ...listPackages().map((p) => ({ key: `pkg:${p.id}`, name: t(p.name), icon: p.icon, description: p.description ? t(p.description) : "", kind: "page" as const, category: "packages" as const, build: (parentId: number | null) => installPackage(p.pkg, parentId).rootId })),
+    // (A plugin's own, made by its code: Learn's learning space.)
+    ...workspaceTemplates.list().flatMap((c) => c.impl.map((x) => ({ key: `plugin:${c.plugin}.${x.key}`, name: x.name, icon: x.icon, description: x.description, kind: x.kind, category: "packages" as const, build: x.build }))),
   ];
 }
 const builtin = (key: string) => {

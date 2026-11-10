@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { actionHref } from "@/plugins/actions/catalog";
 import { useT } from "@/components/I18nProvider";
 import { Fragment, useState, useTransition } from "react";
@@ -33,7 +34,7 @@ import { LinkedPanel } from "@/plugins/workspace/ui/linked-panel";
 import { LastError } from "./LastError";
 import { TodoQuickButtons, TodoQuickPanel, type QuickPanel } from "./TodoQuick";
 import { useTodoNew } from "./todo-seen";
-import { formatMinutes } from "@/lib/work/shared";
+import { formatMinutes, workRef } from "@/lib/work/shared";
 import { amountIn, ibansIn } from "@/lib/girocode";
 import { TodoCheck } from "@/components/TodoCheck";
 
@@ -127,7 +128,7 @@ export function TodoItem({
   cards = {},
   sources = {},
   anchor = false,
-  running = false,
+  workRun,
   workOn = true,
 }: {
   /** The Work plugin installed — else no ✨ instruction (no worker to take it). */
@@ -137,10 +138,11 @@ export function TodoItem({
   cards?: Record<string, TicketCard>;
   sources?: Record<string, TodoSource>;
   anchor?: boolean;
-  /** A run has it (queued or running): its operations are being done. */
-  running?: boolean;
+  /** The run that has it (queued or running): it's being worked on — linked, to watch or answer it. */
+  workRun?: number;
 }) {
   const t = useT();
+  const running = workRun != null;
   // Shown at once; the server's say once it answers (and when it changes).
   const [status, setStatus] = useState<TodoStatus>(todo.status);
   const [from, setFrom] = useState(todo.status);
@@ -281,6 +283,19 @@ export function TodoItem({
           <CopyButton text={todo.ref} className="font-mono text-zinc-400 hover:text-indigo-600 hover:underline dark:hover:text-indigo-400" title={t("Copy “{text}” — for Copilot / Claude Code", { text: todo.ref })}>
             {todo.ref}
           </CopyButton>
+          {/* Being worked on: the run that has it, to watch it (its live session, its log) or answer it. */}
+          {workRun != null && (
+            <>
+              {" · "}
+              <Link
+                href={`/work?run=${workRun}`}
+                className="font-medium text-indigo-600 hover:underline dark:text-indigo-400"
+                title={t("Open the run working on it on the Code tab")}
+              >
+                {t("{ref} working ↗", { ref: workRef(workRun) })}
+              </Link>
+            </>
+          )}
           {/* Linked to more than one ticket (the same thing on both): all of them, the main one first. */}
           {!todo.ticket && <> · <span title={origin === "Calendar" ? t("From an appointment — no ticket") : origin === "WhatsApp" ? t("From WhatsApp — no ticket") : origin === "Signal" ? t("From Signal — no ticket") : t("From a mail — no ticket")}>{origin === "Calendar" ? t("from Calendar") : origin === "WhatsApp" ? t("from WhatsApp") : origin === "Signal" ? t("from Signal") : t("from Mail")}</span></>}
           {todo.ticket && (showTicket || todo.alsoTickets.length > 0) && (

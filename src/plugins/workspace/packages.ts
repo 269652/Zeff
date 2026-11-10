@@ -4,7 +4,7 @@ import { normalizeForm, type FormDef } from "./form-spec";
 import { pageKind, type DbSchema, type PageKind } from "./model";
 import { workspacePackages } from "./packages-point";
 import { createRoutine, getRoutine, type RoutineConfig, type Step, type Trigger } from "./routines";
-import { addRow, createPage, getPage, rawRows, setPageProps, tree, updatePage, updateSchema } from "./store";
+import { addRow, createPage, getPage, rawRows, setCell, setPageProps, tree, updatePage, updateSchema } from "./store";
 
 /**
  * Packages: a whole app — pages, databases with fields and views, the blocks of the pages, the routines — as one JSON thing. It is made
@@ -24,9 +24,14 @@ export type PackageItem = {
   schema?: DbSchema;
   /** A form: what it asks (form-spec.ts) — its database by local number. */
   form?: FormDef;
-  rows?: { title: string; icon?: string; cells: Record<string, unknown> }[];
+  /**
+   * Its rows (exported with rows): `id` their number inside the package, a relation's cell the numbers of the rows it links (the
+   * ones in the package), `content` the row's own page.
+   */
+  rows?: PackageRow[];
   routine?: Pick<RoutineConfig, "kind" | "triggers" | "permissions" | "steps"> & { provider?: RoutineConfig["provider"] };
 };
+export type PackageRow = { id?: string; title: string; icon?: string; cells: Record<string, unknown>; content?: DocNode };
 export type WorkspacePackage = { format: 1; name: string; description?: string; icon?: string; items: PackageItem[] };
 export type PackageMeta = { id: string; name: string; icon: string; description: string };
 
@@ -118,14 +123,27 @@ export function exportPackage(rootId: number, opts: { name: string; description?
   walk(rootId, new Set());
   const local = new Map(order.map((id, i) => [id, `i${i + 1}`]));
   const f: Mapper = (id) => local.get(Number(id));
+  // (With rows: each row a number of its own, so a relation between rows of the package stays — one outside it is left out.)
+  const rowLocal = new Map<number, string>();
+  if (opts.includeRows) for (const id of order) if (getPage(id)?.kind === "database") for (const r of rawRows(id)) rowLocal.set(r.id, `r${rowLocal.size + 1}`);
   const items: PackageItem[] = order.map((id) => {
     const p = getPage(id)!;
     const item: PackageItem = { id: local.get(id)!, ...(id !== rootId && p.parentId ? { parent: local.get(p.parentId) } : {}), kind: p.kind, title: p.title, ...(p.icon ? { icon: p.icon } : {}) };
     if (p.kind === "database" && p.schema) {
       item.schema = mapSchema(p.schema, f);
       if (opts.includeRows) {
-        const skip = new Set(p.schema.properties.filter((x) => ["relation", "person", "todo", "ticket"].includes(x.type)).map((x) => x.id));
-        item.rows = rawRows(id).map((r) => ({ title: r.title, ...(r.icon ? { icon: r.icon } : {}), cells: Object.fromEntries(Object.entries(r.cells).filter(([k]) => !skip.has(k))) }));
+        const inside = new Set(p.schema.properties.filter((x) => x.type === "relation" && x.relationDb !== undefined && local.has(Number(x.relationDb))).map((x) => x.id));
+        const skip = new Set(p.schema.properties.filter((x) => ["relation", "person", "todo", "ticket"].includes(x.type) && !inside.has(x.id)).map((x) => x.id));
+        const linked = (v: unknown) => (Array.isArray(v) ? v : v === null || v === undefined ? [] : [v]).flatMap((x) => rowLocal.get(Number(x)) ?? []);
+        item.rows = rawRows(id).map((r) => {
+          const content = getPage(r.id)?.content as DocNode | undefined;
+          const cells = Object.fromEntries(
+            Object.entries(r.cells)
+              .filter(([k]) => !skip.has(k))
+              .map(([k, v]) => [k, inside.has(k) ? linked(v) : v]),
+          );
+          return { id: rowLocal.get(r.id)!, title: r.title, ...(r.icon ? { icon: r.icon } : {}), cells, ...(content?.content?.length ? { content: mapDoc(content, f) ?? undefined } : {}) };
+        });
       }
     } else if (p.kind === "form") {
       const def = normalizeForm(p.props.form);
@@ -161,11 +179,24 @@ export function installPackage(pkg: WorkspacePackage, parentId: number | null): 
   for (const i of sorted) {
     made.set(String(i.id), createPage({ parentId: i.parent === undefined ? parentId : made.get(String(i.parent)), title: String(i.title ?? ""), icon: i.icon, kind: pageKind(i.kind) }));
   }
+  // Rows: made first without their links, then the links (a row may link one made after it).
+  const rowMade = new Map<string, number>();
+  const links: { row: number; prop: string; to: unknown[] }[] = [];
   for (const i of pkg.items) {
     const id = made.get(String(i.id))!;
     if (i.kind === "database" && i.schema) {
-      updateSchema(id, mapSchema(i.schema, f));
-      for (const r of i.rows ?? []) addRow(id, { title: r.title, cells: r.cells });
+      const schema = updateSchema(id, mapSchema(i.schema, f));
+      const rel = new Set(schema.properties.filter((x) => x.type === "relation").map((x) => x.id));
+      for (const r of i.rows ?? []) {
+        const cells = Object.fromEntries(Object.entries(r.cells ?? {}).filter(([k]) => !rel.has(k)));
+        const rowId = addRow(id, { title: String(r.title ?? ""), cells });
+        if (r.id !== undefined) rowMade.set(String(r.id), rowId);
+        for (const [k, v] of Object.entries(r.cells ?? {})) if (rel.has(k) && Array.isArray(v) && v.length) links.push({ row: rowId, prop: k, to: v });
+        if (r.content) {
+          const c = mapDoc(r.content, f);
+          if (c) updatePage(rowId, { content: sanitizeDoc(c) });
+        }
+      }
     } else if (i.kind === "form" && i.form) {
       // (Its database by the new id — one outside the package: none, chosen again in the designer.)
       setPageProps(id, { form: normalizeForm({ ...i.form, dbId: f(i.form.dbId) ?? null }) });
@@ -174,6 +205,10 @@ export function installPackage(pkg: WorkspacePackage, parentId: number | null): 
       if (c) updatePage(id, { content: sanitizeDoc(c) });
     }
     if (i.routine) createRoutine(id, i.routine.kind, { enabled: false, triggers: mapTriggers(i.routine.triggers ?? [], f), permissions: i.routine.permissions, steps: mapSteps(i.routine.steps ?? [], f), provider: i.routine.provider });
+  }
+  for (const l of links) {
+    const to = l.to.flatMap((x) => rowMade.get(String(x)) ?? []);
+    if (to.length) setCell(l.row, l.prop, to, { quiet: true });
   }
   const first = sorted.find((i) => i.parent === undefined) ?? sorted[0];
   return { rootId: made.get(String(first.id))!, ids: [...made.values()] };

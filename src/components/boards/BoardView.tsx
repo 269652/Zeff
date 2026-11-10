@@ -165,7 +165,7 @@ function TicketRow({
   gitlab,
   mails = [],
   sources,
-  runningTodos,
+  runningRuns,
   runId,
   actionsDone,
   workOn = true,
@@ -179,7 +179,8 @@ function TicketRow({
   doneComments: Set<string>;
   gitlab: GitlabItemView[];
   sources: Record<string, TodoSource>;
-  runningTodos: number[];
+  /** The run working on each todo being worked on (todo id → run id). */
+  runningRuns: Record<number, number>;
   runId: number;
   actionsDone: Record<string, ActionDone>;
   workOn?: boolean;
@@ -252,7 +253,7 @@ function TicketRow({
                   t={t}
                   cards={cards}
                   sources={sources}
-                  running={runningTodos.includes(t.id)}
+                  workRun={runningRuns[t.id]}
                 />
               ))}
           </ul>
@@ -273,7 +274,7 @@ function TicketRow({
                     t={t}
                     cards={cards}
                     sources={sources}
-                    running={runningTodos.includes(t.id)}
+                    workRun={runningRuns[t.id]}
                   />
                 ))}
             </ul>
@@ -461,7 +462,7 @@ export function BoardView({
   mails = {},
   sources = {},
   actionsDone = {},
-  runningTodos = [],
+  runningRuns = {},
   activity = [],
   activityIds = [],
   workOn = true,
@@ -497,8 +498,8 @@ export function BoardView({
   sources?: Record<string, TodoSource>;
   /** What was done with the run's suggested ticket changes, by "<ticket>#<index>". */
   actionsDone?: Record<string, ActionDone>;
-  /** Todos a run has right now (queued or running). */
-  runningTodos?: number[];
+  /** Todos a run has right now (queued or running), with that run (todo id → run id). */
+  runningRuns?: Record<number, number>;
   /** What happened to the todos lately (the "Aktivität" tab). */
   activity?: TodoEventView[];
   /** The recent events that are news, for the unseen badge. */
@@ -673,7 +674,7 @@ export function BoardView({
             {workerShown.length > 0 ? (
               <ul className="space-y-0.5">
                 {workerShown.map((t) => (
-                  <TodoItem workOn={workOn} key={t.id} t={t} showTicket cards={cards} sources={sources} anchor running={runningTodos.includes(t.id)} />
+                  <TodoItem workOn={workOn} key={t.id} t={t} showTicket cards={cards} sources={sources} anchor workRun={runningRuns[t.id]} />
                 ))}
               </ul>
             ) : (
@@ -692,7 +693,7 @@ export function BoardView({
                   cards={cards}
                   sources={sources}
                   anchor
-                  running={runningTodos.includes(t.id)}
+                  workRun={runningRuns[t.id]}
                 />
               ))}
             </ul>
@@ -712,7 +713,7 @@ export function BoardView({
                     </h2>
                     <ul className="space-y-0.5">
                       {g.items.map((t) => (
-                        <TodoItem workOn={workOn} key={t.id} t={t} showTicket cards={cards} sources={sources} anchor running={runningTodos.includes(t.id)} />
+                        <TodoItem workOn={workOn} key={t.id} t={t} showTicket cards={cards} sources={sources} anchor workRun={runningRuns[t.id]} />
                       ))}
                     </ul>
                   </section>
@@ -738,7 +739,7 @@ export function BoardView({
                       cards={cards}
                       sources={sources}
                       anchor
-                      running={runningTodos.includes(t.id)}
+                      workRun={runningRuns[t.id]}
                     />
                   ))}
                 </ul>
@@ -764,7 +765,7 @@ export function BoardView({
             gitlab={gitlab[key] ?? []}
             mails={mails[key] ?? []}
             sources={sources}
-            runningTodos={runningTodos}
+            runningRuns={runningRuns}
             workOn={workOn}
             runId={run.id}
             actionsDone={actionsDone}

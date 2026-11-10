@@ -40,7 +40,8 @@ import { errPath, logPath, readErrors, readLog, readOutput, workDir } from "./lo
 import { applyOutcome, normalizeResult } from "./outcome";
 import { ensureActions } from "./ensure-actions";
 import { approvedToolsFor, grantTools } from "./approved-tools";
-import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, runsForTodos, toRunView, updateRun } from "./store";
+import { claudeSessionSettings, createRun, getRun, getWorkSettings, runsByStatus, runsForTodos, setReservedWorkers, todoSources, toRunView, updateRun } from "./store";
+import { MAX_RESERVED, SlotPool } from "./slots";
 import { parseMrTarget, WORK_RESULT_SCHEMA, workModeOf, workRef, type SessionOptions, type WorkResult, type WorkRunView } from "./shared";
 import { lastJson } from "@/lib/ai/json";
 import { chatProfileFor, isChatTodo } from "@/lib/chat";
@@ -304,6 +305,34 @@ ${instruction}`
 }
 
 /**
+ * The runs that hold a worker. Agents outside Zeff (through its MCP) work on top of its own workers; a live session
+ * waiting for you doesn't hold one either — like a Claude Code tab you left open.
+ */
+function holdingWorkers(): WorkRun[] {
+  return runsByStatus(["running"]).filter((r) => r.provider !== "agent" && !liveIdle(r.id));
+}
+
+/**
+ * One more worker for this todo source's runs (Learn's "Start on a worker of its own"): its reserved workers raised
+ * until one is free for it — as many as its runs hold now, plus one (at most MAX_RESERVED) — and the queue pumped, so
+ * its waiting run starts now. The reservation stays (Settings → Code shows it). Returns the reserved count, or null
+ * when it is at the most already and all of them are taken.
+ */
+export function reserveWorkerFor(source: string): number | null {
+  const s = getWorkSettings();
+  const running = holdingWorkers();
+  const sources = todoSources(running.map((r) => r.todoId));
+  const held = running.map((r) => sources.get(r.todoId) ?? null);
+  let n = s.reserved[source] ?? 0;
+  const free = (k: number) => new SlotPool(s.parallel, { ...s.reserved, [source]: k }, held).reservedFree(source) > 0;
+  while (!free(n) && n < MAX_RESERVED) n++;
+  if (!free(n)) return null;
+  if (n !== (s.reserved[source] ?? 0)) setReservedWorkers(source, n);
+  pump();
+  return n;
+}
+
+/**
  * Start what's queued while workers are free (the settings' number) — oldest first. Working in
  * the checkout (not in worktrees), one code run per repo at a time.
  */
@@ -327,15 +356,20 @@ export function pump(): void {
       setTimeout(pump, 4000);
     }
   }
-  // Agents outside Zeff (through its MCP) work on top of its own workers.
-  // (A live session waiting for you doesn't hold a worker — like a Claude Code tab you left open.)
-  const running = runsByStatus(["running"]).filter((r) => r.provider !== "agent" && !liveIdle(r.id));
-  let free = s.parallel - running.length;
-  if (free <= 0) return;
+  const running = holdingWorkers();
+  const queued = runsByStatus(["queued"]);
+  if (!queued.length) return;
+  // The general workers, and those reserved for one todo source on top of them (Learn's lessons — slots.ts).
+  const sources = todoSources([...running, ...queued].map((r) => r.todoId));
+  const slots = new SlotPool(s.parallel, s.reserved, running.map((r) => sources.get(r.todoId) ?? null));
+  if (slots.free <= 0) return;
   const inPlace = (r: WorkRun) => (r.workspace ?? s.isolation) === "checkout";
   const busy = new Set(running.filter((r) => codeLike(r.mode) && inPlace(r)).map((r) => r.repo));
-  for (const r of runsByStatus(["queued"])) {
-    if (free <= 0) break;
+  for (const r of queued) {
+    if (slots.free <= 0) break;
+    const source = sources.get(r.todoId) ?? null;
+    // (No slot for this one — a later one may still have its reserved slot.)
+    if (!slots.freeFor(source)) continue;
     // A message sent while the run before it still worked waits for that run.
     if (r.afterRun) {
       const before = getRun(r.afterRun);
@@ -345,7 +379,7 @@ export function pump(): void {
       if (busy.has(r.repo)) continue;
       busy.add(r.repo);
     }
-    free--;
+    slots.take(source);
     void start(r.id);
   }
 }

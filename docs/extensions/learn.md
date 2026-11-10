@@ -196,6 +196,28 @@ and answers), so it doesn't quiz you again on what you already know.
 The grade decides when the card comes back (spaced repetition, SM-2, see *Technical reference*). Each review is worth
 1 XP. The review todo always shows how many cards are due, and it is done when none are left.
 
+#### Learning spaces
+
+Learn keeps its data in the Workspace, in a page with six databases: Courses, Steps, Exercises, Activity, Cards and
+Conversations. Such a page is a **learning space**, and its page in the Workspace shows Learn itself: the courses as
+cards, **Learn something new** (a course started there stays in that space) and **Export**. The databases stay below it
+as sub-pages, to filter, sort or extend with your own fields.
+
+- **The first space** ("Learn") is made the first time you use Learn. It can't go to the trash while Learn is installed.
+- **More spaces:** **New → templates → Learning space** (in the *Packages* tab) makes another page with its own six
+  databases. Each space has its own courses, progress, streak, badges and cards. Rename it as you like; move it anywhere in
+  the tree. You can trash a space you made.
+- **How Zeff knows:** a page is a learning space because of the databases in it, nothing else. A space you imported or
+  copied with its databases is one at once.
+- **/learn** shows every space with its courses; the new-course form there asks which space when you have several. A
+  course's page leads back to its space.
+- **Export:** the **Export** button on the space's page saves it as a package file (`….zeff-package.json`): its databases
+  with every row — courses, steps with what you mastered, exercises with their code, activity, cards, conversations —
+  and the links between them. **Import package** in the Workspace tree makes it a new learning space, in this or another
+  Zeff or account. Not in the file: the lesson and review todos and the "As it looked" pictures; a new lesson starts a
+  new todo.
+- **Backup:** every space is in the account's database, so every backup holds all of them, with their progress.
+
 #### On a phone
 
 ![The lesson "Curvature of plane curves" on a phone: the breadcrumb and title with "Goals", the JSXGraph exercise full width (κ(0.80) = 0.476 · r = 2.10, "Got it"), then in one column the teacher's "Drag the slider …", the result "The osculating circle 100 %", the teacher's closing words with r = 1 typeset, the message box and the bottom bar Todos · Chat · More](img/learn-phone.png)
@@ -408,6 +430,27 @@ Also outside these tables:
 - **Review todos:** source `Learn`.
 - **Calendar:** `zeff:learn` in the calendar store.
 
+#### Learning spaces (the Workspace)
+
+Since the move into the Workspace, the tables above are only read once, by `to-workspace.ts`, to move old data in. Learn's
+data are Workspace databases (`dbs.ts`):
+
+- **One space** is a page with six databases. Each is told by a property only it has: `learntopic` (Courses),
+  `learnkey` (Steps), `learnspec` (Exercises), `learnevent` (Activity), `learnback` (Cards), `learnrole` (Conversations).
+  `learnSpaces()` finds every page holding a Courses database, except trashed pages and templates. It is memoized until
+  the database changes.
+- **The first space:** `learnDbs()` (pref `learn.databases`), made on first use. A course that names no space goes there.
+- **Reads:** `learnRows(which)` reads every space's database of that kind. Course, step and row ids are unique, so
+  everything keyed by a course works across spaces.
+- **Writes:** writes go to the course's own space (`dbsFor(courseId)`: the space whose Courses holds the course's row).
+- **Completing a space:** `learnSpaceAt(pageId)` and `ensureSpace` complete a space. They add a missing database, add
+  the plugin's properties and the `schema.owner` mark. Every space but the first gets `owner.trashable`, so it may go to
+  the trash.
+- **Template:** `createLearnSpace(parentId)` behind the template `plugin:learn.learning-space`.
+- **Export:** `exportPackage(…, { includeRows: true })` gives each row a package-local id. Relations between rows of the
+  package keep their links, and a row's own page (an exercise's code, a long message) comes along. `installPackage` makes
+  the rows first, then the links.
+
 ### Sync, jobs & AI tasks
 
 - **Sync steps:** none.
@@ -467,7 +510,9 @@ installed, and a lesson's session gets them as `mcp__zeff__learn_*`:
   - The skill-map and skill-tree components.
   - The widget sandbox and exercise kit (`src/lib/widgets`). These are generic building blocks, and other code can
     render widgets with them too.
-- **Contributions to other plugins' points:** none.
+- **Contributions to other plugins' points:**
+  - `workspace.pageApps` (`page-apps-point.ts`): a learning space's page shows `LearnSpaceApp`.
+  - `workspace.templates`: the template *Learning space*.
 
 ### Tests
 
@@ -485,6 +530,7 @@ installed, and a lesson's session gets them as `mcp__zeff__learn_*`:
 | [learn-timeline.test.ts](../../tests/learn-timeline.test.ts) | The lesson timeline |
 | [learn-widget.test.ts](../../tests/learn-widget.test.ts) | Sandbox page, libraries, message checks, results |
 | [learn-demo.test.ts](../../tests/learn-demo.test.ts) | The demo course |
+| [learn-spaces.test.ts](../../tests/learn-spaces.test.ts) | Spaces told from their databases, the template, courses and progress per space, the page app, export with rows and import, trashing |
 | [widget-kit.test.ts](../../tests/widget-kit.test.ts), [widget-kit-browser.test.ts](../../tests/widget-kit-browser.test.ts), [widget-libs.test.ts](../../tests/widget-libs.test.ts) | Exercise kit checks, every item type in a real browser, served libraries |
 
 Run one with `node --import tsx --test tests/learn-tree.test.ts`.

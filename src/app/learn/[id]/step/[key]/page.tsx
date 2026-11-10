@@ -15,6 +15,7 @@ import { StuckRun } from "@/app/chat/StuckRun";
 import { FailedRun } from "@/app/chat/FailedRun";
 import { DanglingSessions } from "@/components/work/DanglingSessions";
 import { LessonButton } from "@/plugins/learn/ui/LessonButton";
+import { ExtraWorkerButton } from "@/plugins/learn/ui/ExtraWorkerButton";
 import { LessonTimeline, type TimelineRun } from "@/plugins/learn/ui/LessonTimeline";
 
 type Props = { params: Promise<{ id: string; key: string }> };
@@ -112,8 +113,9 @@ export default async function StepPage({ params }: Props) {
             {!liveRun && (last.status === "failed" || last.status === "interrupted") && (
               <FailedRun runId={last.id} error={last.error} text={timelineRuns[timelineRuns.length - 1]?.prompts.at(-1) ?? ""} />
             )}
-            {/* Your message waits for a worker: said here — and what holds the workers, with the button that frees them. */}
-            {!liveRun && last.status === "queued" && <DanglingSessions waiting className="mb-2" />}
+            {/* Your message waits for a worker: said here — and what holds the workers, with the button that frees them, and one
+                that starts a worker more, reserved for Learn (Settings → Code). */}
+            {!liveRun && last.status === "queued" && <DanglingSessions waiting className="mb-2" action={<ExtraWorkerButton />} />}
             {liveRun ? <ClaudeSession key={liveRun.id} run={liveRun} /> : <ChatComposer runId={last.id} stay placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Answer the teacher …")} />}
           </div>
         </>

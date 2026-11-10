@@ -1,16 +1,18 @@
 /**
- * Where Learn keeps its data: ordinary Workspace databases in a folder page "Learn" ("Lernen"), made once per account — Courses,
+ * Where Learn keeps its data: ordinary Workspace databases in a page — a learning space. The first ("Learn") is made once per
+ * account; more come from the template "Learning space", an imported package or a copy, each with its own courses and progress
+ * (learnSpaces: found from the databases a page holds, nothing else to keep). Each space has Courses,
  * Steps (the plan's nodes with your progress), Exercises (the teacher's widgets), Activity (what you earned: mastered, exercises,
  * reviews), Cards (spaced repetition) and Conversations (each lesson's messages, one row per message). They are the source of truth:
  * the Learn pages read them, its tools write them, and what you change in them (a step ticked mastered, a title, a message
- * deleted) is what Learn goes on with. Their ids are kept in the pref `learn.databases`; their properties have fixed ids (learn…)
+ * deleted) is what Learn goes on with. The first space's ids are kept in the pref `learn.databases`; their properties have fixed ids (learn…)
  * and are marked as the plugin's (schema.owner): you may add your own properties and views, not remove these. Server only.
  */
 import { getSqlite } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
 import { t } from "@/lib/i18n/server";
 import { WIDGET_LIBS } from "@/lib/widgets/sandbox";
-import { createPage, getDatabase, getPage, rawRows, restorePage, setOwner, updateSchema } from "@/plugins/workspace/store";
+import { createPage, getDatabase, getPage, inTemplates, rawRows, restorePage, setOwner, updateSchema } from "@/plugins/workspace/store";
 import { newView, type DbSchema, type Property, type Row, type View } from "@/plugins/workspace/model";
 import { BADGES } from "./game";
 
@@ -264,11 +266,102 @@ export function memo<T>(key: string, fn: () => T): T {
   return value;
 }
 
-/** A Learn database's rows (as stored; read once until something changes). Don't change what comes back. */
+
+/** A Learn database's rows — of every learning space (as stored; read once until something changes). Don't change what comes back. */
 export const learnRows = (which: Which): Row[] => {
-  const id = learnDbs()[which];
-  return memo(`rows:${id}`, () => rawRows(id));
+  learnDbs(); // (the first space made, Learn's old tables moved in)
+  const ids = learnSpaces()
+    .map((s) => s[which])
+    .filter((id) => id > 0);
+  return memo(`rows:${which}:${ids.join(",")}`, () => ids.flatMap((id) => rawRows(id)));
 };
+
+// ---------------------------------------------------------------------------------------------------------------------
+// Learning spaces: a page whose children are Learn's databases — found from them (by the properties only Learn has), so a
+// space made from the template, imported from a package or copied is one at once. Each has its own courses and progress.
+// ---------------------------------------------------------------------------------------------------------------------
+
+/** The property that tells which of Learn's databases a database is (each is in that one only). */
+const MARK: Record<Which, string> = { courses: P.topic, steps: P.key, exercises: P.spec, activity: P.event, cards: P.back, messages: P.role };
+
+/** Which of Learn's databases this is (by its properties), or null. */
+export function roleOf(schema: { properties: { id: string }[] } | null | undefined): Which | null {
+  if (!schema) return null;
+  const has = new Set(schema.properties.map((p) => p.id));
+  return ORDER.find((w) => has.has(MARK[w])) ?? null;
+}
+
+/** Learn's databases by the page they sit in (not the archived, not the templates' rows). */
+function scan(): Map<number, Partial<LearnDbs>> {
+  const rows = getSqlite()
+    .prepare(`select id, parent_id, schema from ws_pages where kind = 'database' and archived_at is null and template = 0 and db_id is null and parent_id is not null and schema like '%"learn%'`)
+    .all() as { id: number; parent_id: number; schema: string | null }[];
+  const by = new Map<number, Partial<LearnDbs>>();
+  for (const r of rows) {
+    let role: Which | null = null;
+    try {
+      role = roleOf(JSON.parse(r.schema ?? "null"));
+    } catch {
+      continue;
+    }
+    if (!role) continue;
+    const s = by.get(r.parent_id) ?? {};
+    // (Two of a kind in one page — a copy: the older one counts.)
+    if (!s[role] || r.id < s[role]!) s[role] = r.id;
+    by.set(r.parent_id, s);
+  }
+  return by;
+}
+
+/** Every learning space: a page (not a template) with Learn's Courses in it; a database it lacks is 0 until it's used. */
+export function learnSpaces(): LearnDbs[] {
+  return memo("learn:spaces", () => {
+    const out: LearnDbs[] = [];
+    for (const [folder, s] of scan()) {
+      if (!s.courses) continue;
+      const p = getPage(folder);
+      if (!p || p.archivedAt || p.kind === "database" || p.dbId !== null || inTemplates(folder)) continue;
+      out.push({ folder, courses: s.courses, steps: s.steps ?? 0, exercises: s.exercises ?? 0, activity: s.activity ?? 0, cards: s.cards ?? 0, messages: s.messages ?? 0 });
+    }
+    return out.sort((a, b) => a.folder - b.folder);
+  });
+}
+
+const checked = new WeakMap<object, Set<number>>();
+
+/** The learning space this page is (complete: a database it lacked made, its properties and mark put right once), or null. */
+export function learnSpaceAt(pageId: number): LearnDbs | null {
+  const s = learnSpaces().find((x) => x.folder === Number(pageId));
+  if (!s) return null;
+  const d = getSqlite();
+  let seen = checked.get(d);
+  if (!seen) checked.set(d, (seen = new Set()));
+  if (seen.has(s.folder) && ORDER.every((w) => s[w] > 0)) return s;
+  if (d.inTransaction && ORDER.every((w) => s[w] > 0)) return s;
+  return ensureSpace(s.folder, s);
+}
+
+/** The space a course is in (its row's database) — the first space when it's in none. */
+export function dbsFor(courseId: number): LearnDbs {
+  const r = getSqlite().prepare("select db_id from ws_pages where id = ?").get(Number(courseId)) as { db_id: number | null } | undefined;
+  const s = r?.db_id ? learnSpaces().find((x) => x.courses === r.db_id) : undefined;
+  return (s && learnSpaceAt(s.folder)) || learnDbs();
+}
+
+/** The space a page of Learn's is in: the space itself, one of its databases, or a row of one (a course, a step …) — or null. */
+export function spaceOfPage(pageId: number): LearnDbs | null {
+  const r = getSqlite().prepare("select parent_id, db_id from ws_pages where id = ?").get(Number(pageId)) as { parent_id: number | null; db_id: number | null } | undefined;
+  if (!r) return null;
+  const db = r.db_id ?? Number(pageId);
+  return learnSpaces().find((s) => s.folder === Number(pageId) || ORDER.some((w) => s[w] === db)) ?? null;
+}
+
+/** A new learning space: a page with Learn's databases in it (under `parentId`, or at the top). Its page's id. */
+export function createLearnSpace(parentId: number | null = null, title?: string): number {
+  const folder = createPage({ ...(parentId ? { parentId } : {}), title: title?.trim() || t("Learning space"), icon: "🎓" });
+  ensureSpace(folder);
+  return folder;
+}
 
 // ---------------------------------------------------------------------------------------------------------------------
 // Made once per account (and repaired: a property of a newer version added, a database gone made again)
@@ -281,7 +374,7 @@ let mover: (() => void) | null = null;
 const moveTried = new WeakSet<object>();
 export const setMover = (fn: () => void): void => void (mover = fn);
 
-/** The databases (made the first time they're needed; checked to be there at each call — one query). */
+/** The first learning space (made the first time it's needed; checked to be there at each call — one query): where a course goes that names no space. */
 export function learnDbs(): LearnDbs {
   const d = getSqlite();
   let k = known.get(d);
@@ -313,17 +406,27 @@ const live = (id: number | undefined): boolean => {
   return true;
 };
 
+/** The first space: the one kept in the pref (made when there is none). */
 export function ensureLearnDatabases(): LearnDbs {
   const had = knownLearnDbs();
+  const folder = had && live(had.folder) ? had.folder : createPage({ title: t("Learn"), icon: "🎓" });
+  const all = ensureSpace(folder, had && had.folder === folder ? had : {}, { first: true });
+  if (!had || ORDER.some((w) => had[w] !== all[w]) || had.folder !== all.folder) setPref(PREF, all);
+  return all;
+}
+
+/** A learning space made complete: its databases (the ones it has, else made), each with Learn's properties and mark. */
+/** `first`: the first space — kept (it can't go to the trash while Learn is installed); the others can. */
+export function ensureSpace(folder: number, had: Partial<LearnDbs> = {}, opts: { first?: boolean } = {}): LearnDbs {
+  const first = opts.first ?? knownLearnDbs()?.folder === folder;
   const s = specs();
-  const ids: Partial<LearnDbs> = {};
-  ids.folder = had && live(had.folder) ? had.folder : createPage({ title: t("Learn"), icon: "🎓" });
+  const found = scan().get(folder) ?? {};
+  const ids: Partial<LearnDbs> = { folder };
   for (const w of ORDER) {
-    const id = had?.[w];
-    ids[w] = id && live(id) && getDatabase(id) ? id : createPage({ parentId: ids.folder, kind: "database", title: s[w].title, icon: s[w].icon, schema: { titleName: s[w].titleName, properties: [], views: [newView(t("Table"), "table")] } as DbSchema });
+    const keep = [had[w], found[w]].find((id) => !!id && live(id) && !!getDatabase(id));
+    ids[w] = keep ?? createPage({ parentId: folder, kind: "database", title: s[w].title, icon: s[w].icon, schema: { titleName: s[w].titleName, properties: [], views: [newView(t("Table"), "table")] } as DbSchema });
   }
   const all = ids as LearnDbs;
-  if (!had || ORDER.some((w) => had[w] !== all[w]) || had.folder !== all.folder) setPref(PREF, all);
   // Each database's properties: the plugin's (with their relations' targets), the ones you added after them; its mark.
   for (const w of ORDER) {
     const spec = s[w];
@@ -356,7 +459,11 @@ export function ensureLearnDatabases(): LearnDbs {
     if (changed || fresh) updateSchema(all[w], { ...cur, titleName: fresh ? spec.titleName : cur.titleName, properties: props, views, dayList: false });
     const owner = getDatabase(all[w])!.schema.owner;
     const propIds = spec.props.map((p) => p.id);
-    if (!owner || owner.plugin !== "learn" || propIds.some((id) => !owner.props.includes(id))) setOwner(all[w], { plugin: "learn", props: propIds });
+    if (!owner || owner.plugin !== "learn" || !owner.trashable !== first || propIds.some((id) => !owner.props.includes(id))) setOwner(all[w], { plugin: "learn", props: propIds, ...(first ? {} : { trashable: true as const }) });
   }
+  const d = getSqlite();
+  let seen = checked.get(d);
+  if (!seen) checked.set(d, (seen = new Set()));
+  seen.add(folder);
   return all;
 }

@@ -6,13 +6,17 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { postJson } from "@/lib/post-json";
 
-/** A new course: what to learn, the goal, what you know already — Claude researches it and writes the plan. */
-export function NewCourseForm() {
+/**
+ * A new course: what to learn, the goal, what you know already — Claude researches it and writes the plan. `space`: the learning
+ * space it goes into (its page); `spaces`: the ones to choose from (shown when there are several).
+ */
+export function NewCourseForm({ space, spaces = [] }: { space?: number; spaces?: { id: number; title: string }[] } = {}) {
   const t = useT();
   const router = useRouter();
   const [topic, setTopic] = useState("");
   const [goal, setGoal] = useState("");
   const [level, setLevel] = useState("");
+  const [into, setInto] = useState<number | null>(space ?? spaces[0]?.id ?? null);
   const [pending, start] = useTransition();
   const examples = [t("Differential geometry"), t("French"), t("Music theory"), t("Machine learning")];
   return (
@@ -23,7 +27,7 @@ export function NewCourseForm() {
         start(async () => {
           // Through a route (not a Server Action): it answers even from a page opened before Zeff was rebuilt — and
           // whatever goes wrong (no connection to the PC, a server error) is said, never swallowed.
-          const r = await postJson<{ ok: true; id: number } | { ok: false; error: string }>("/api/learn/courses", { topic, goal, level }).catch(
+          const r = await postJson<{ ok: true; id: number } | { ok: false; error: string }>("/api/learn/courses", { topic, goal, level, space: into }).catch(
             (e: unknown) => ({ ok: false as const, error: `${t("Couldn't reach Zeff — check the connection and try again.")} (${e instanceof Error ? e.message : String(e)})` }),
           );
           if (!r || !r.ok) return void toast(r?.error ?? t("Didn't work."), { tone: "error" });
@@ -51,6 +55,18 @@ export function NewCourseForm() {
         <span className="label">{t("What you know already")}</span>
         <input className="input w-full" value={level} onChange={(e) => setLevel(e.target.value)} placeholder={t("e.g. calculus and linear algebra; school French")} maxLength={300} />
       </label>
+      {!space && spaces.length > 1 && (
+        <label className="block">
+          <span className="label">{t("Learning space")}</span>
+          <select className="input w-full" value={into ?? ""} onChange={(e) => setInto(Number(e.target.value))}>
+            {spaces.map((s) => (
+              <option key={s.id} value={s.id}>
+                {s.title}
+              </option>
+            ))}
+          </select>
+        </label>
+      )}
       <p className="text-xs text-zinc-500">{t("Claude researches the topic (scholarly sources and curricula) and writes a plan over years, phases and small steps — it takes a few minutes.")}</p>
       <button type="submit" className="btn btn-primary" disabled={pending || !topic.trim()}>
         {pending ? t("Starting …") : t("Research and plan")}

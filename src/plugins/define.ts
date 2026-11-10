@@ -60,6 +60,11 @@ export type PluginShape<Id extends string = string> = {
   actionsOrder?: number;
   /** The AI provider it is. */
   aiProvider?: "copilot" | "claude" | "codex" | "local";
+  /**
+   * Workers that can be reserved for its runs (by their todo's source) on top of the general ones — Settings → Code
+   * shows a field for each (src/lib/work/slots.ts).
+   */
+  workerPools?: { source: string; label: string }[];
   /** What it brings to other plugins — extensions (see extensions.ts), there while all their plugins are. */
   extensions?: ExtensionShape[];
   /** Experimental: not an official integration of the service (it drives its web page or internals) — why it can break or be refused; shown with the liability disclaimer (Plugins page, before installing, where it acts). */

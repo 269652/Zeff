@@ -11,5 +11,7 @@ export default definePlugin({
   defaultInstalled: false,
   apps: [{ href: "/learn", label: "Learn", short: "Learn", hint: "Courses, skill trees, lessons with Claude" }],
   routes: ["/learn"],
+  // Workers just for the lessons (their todos' source: chatSource("learn") — teacher.ts), on top of the general ones.
+  workerPools: [{ source: "Zeff-Chat:learn", label: "Learn" }],
   beta: "New: the research and the lessons use your Claude subscription (a plan's research takes a few minutes and some of your usage). Widgets run sandboxed — no network, no access to Zeff — and only report a score.",
 });

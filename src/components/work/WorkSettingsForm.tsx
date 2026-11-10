@@ -5,6 +5,7 @@ import { useActionState } from "react";
 import { saveWorkSettingsAction } from "@/plugins/work/server-actions";
 import type { ActionState } from "@/app/action-helpers";
 import { COPILOT_MODES, copilotModeLabels, PERMISSION_MODES, permissionModeInfo, type WorkSettingsView } from "@/lib/work/shared";
+import { MAX_PARALLEL, MAX_RESERVED } from "@/lib/work/slots";
 import { SubmitButton } from "../SubmitButton";
 import { useT } from "@/components/I18nProvider";
 
@@ -19,6 +20,7 @@ export function WorkSettingsForm({
   defaultModel,
   models,
   provider,
+  pools = [],
   rulesPage = null,
 }: {
   s: WorkSettingsView;
@@ -27,6 +29,8 @@ export function WorkSettingsForm({
   defaultModel: string;
   models: { value: string; label: string }[];
   provider: "claude" | "copilot";
+  /** The installed plugins' pools workers can be reserved for (Learn's lessons). */
+  pools?: { source: string; label: string }[];
   /** The house rules as a page of the Workspace (System → Prompts) — changed there. */
   rulesPage?: string | null;
 }) {
@@ -59,7 +63,17 @@ export function WorkSettingsForm({
           <label className="label" htmlFor="work-parallel">
             {t("Workers at once")}
           </label>
-          <input id="work-parallel" name="parallel" type="number" min={1} max={8} className="input" defaultValue={s.parallel} />
+          <input id="work-parallel" name="parallel" type="number" min={1} max={MAX_PARALLEL} className="input" defaultValue={s.parallel} />
+          <p className="mt-1 text-xs text-zinc-500">{t("1 to {max} — each is a session of its own (more at once: more of your usage).", { max: MAX_PARALLEL })}</p>
+          {pools.map((p) => (
+            <div key={p.source} className="mt-3">
+              <label className="label" htmlFor={`work-reserved-${p.source}`}>
+                {t("Reserved for {name}", { name: p.label })}
+              </label>
+              <input id={`work-reserved-${p.source}`} name={`reserved:${p.source}`} type="number" min={0} max={MAX_RESERVED} className="input" defaultValue={s.reserved[p.source] ?? 0} />
+              <p className="mt-1 text-xs text-zinc-500">{t("On top of the workers at once — only {name}'s runs take them, so they never wait for the others.", { name: p.label })}</p>
+            </div>
+          ))}
         </div>
         <fieldset>
           <legend className="label">{t("What a worker may do (Claude)")}</legend>

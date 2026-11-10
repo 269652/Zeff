@@ -4,7 +4,36 @@
  * plugins' server modules (contributions.ts).
  */
 import "./teacher";
+import { createElement } from "react";
+import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
+import { createLearnSpace, learnSpaceAt } from "./dbs";
+import { workspacePageApps, workspaceTemplates } from "@/plugins/workspace/page-apps-point";
+
+// A learning space (a page holding Learn's databases — told from them): Learn's courses on its page in the Workspace.
+workspacePageApps.contribute("learn", {
+  async app(pageId) {
+    if (!learnSpaceAt(pageId)) return null;
+    const { LearnSpaceApp } = await import("./ui/LearnSpaceApp");
+    return createElement(LearnSpaceApp, { pageId });
+  },
+});
+
+// "New → templates": a learning space of its own — its own courses, progress, cards.
+workspaceTemplates.contribute("learn", [
+  {
+    key: "learning-space",
+    get name() {
+      return t("Learning space");
+    },
+    icon: "🎓",
+    get description() {
+      return t("Learn on a page of its own: its own courses, progress, streak and cards — Claude researches each topic and teaches it step by step.");
+    },
+    kind: "page",
+    build: (parentId) => createLearnSpace(parentId),
+  },
+]);
 
 const g = globalThis as { __zeffLearnTimer?: ReturnType<typeof setInterval> };
 if (!g.__zeffLearnTimer && process.env.NODE_ENV !== "test" && !process.env.DATABASE_PATH?.includes("zeff-test-")) {

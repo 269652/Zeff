@@ -31,6 +31,7 @@ import { ZeffTimeline } from "@/plugins/timeline/ui/node";
 import { CalendarEmbedNode } from "@/plugins/calendar/ui/calendar-embed";
 import { ZeffRoutine } from "./routine-node";
 import { ZeffWidget } from "./widget-node";
+import { ZeffApp } from "./app-widget";
 import { ZeffForm, ZeffIf } from "./form-nodes";
 import { PageEmbedNode } from "./page-embed";
 import { SlashCommand, type SlashContext } from "./slash";
@@ -375,6 +376,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       ZeffModuleNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffRoutine.configure({ pageId }),
       ZeffWidget.configure({ pageId: contextRowId ?? pageId }),
+      ZeffApp.configure({ pageId: contextRowId ?? pageId }),
       ZeffForm.configure({ pageId }),
       ZeffIf.configure({ pageId: contextRowId ?? pageId }),
       RowViewNode.configure({ pageId: contextRowId ?? pageId }),

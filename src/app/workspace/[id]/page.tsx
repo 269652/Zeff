@@ -40,6 +40,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   const database = page.kind === "database" ? await loadDatabaseAction(page.id) : null;
   const form = page.kind === "form" ? (await import("@/plugins/workspace/forms")).getForm(page.id) : null;
   const ofTemplates = !isRow && inTemplates(page.id);
+  // A plugin's page (a learning space: Learn's courses above its text) — told from the page by the plugin (page-apps.ts).
+  const app = page.kind === "page" && !isRow && !ofTemplates ? await (await import("@/plugins/workspace/page-apps")).pageApp(page.id) : null;
   const view = (
     <PageView
       key={page.id}
@@ -71,6 +73,7 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
       person={person as never}
       database={database?.ok ? database.data : null}
       form={form}
+      app={app}
     />
   );
   // The Jira briefing's run buttons over its databases (Meine Lage, a Jira board's).

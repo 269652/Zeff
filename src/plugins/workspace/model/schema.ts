@@ -193,9 +193,10 @@ export type DbSchema = {
   lifecycle?: Lifecycle;
   /**
    * A plugin keeps its data in this database (Learn's courses, steps …) and relies on these properties (their ids): they can't be removed
-   * or change their type, and the database isn't trashed or deleted while the plugin is installed. Your own properties and views are free.
+   * or change their type, and the database isn't trashed or deleted while the plugin is installed — unless `trashable` (one of several
+   * the plugin keeps its data in, which you made: an extra learning space). Your own properties and views are free.
    */
-  owner?: { plugin: string; props: string[] };
+  owner?: { plugin: string; props: string[]; trashable?: true };
 };
 
 /**
@@ -442,7 +443,7 @@ function ownerOf(raw: unknown): DbSchema["owner"] {
   const r = raw as Record<string, unknown>;
   const plugin = typeof r.plugin === "string" ? r.plugin.trim().slice(0, 80) : "";
   if (!plugin) return undefined;
-  return { plugin, props: Array.isArray(r.props) ? [...new Set(r.props.filter((x): x is string => typeof x === "string"))].slice(0, 200) : [] };
+  return { plugin, props: Array.isArray(r.props) ? [...new Set(r.props.filter((x): x is string => typeof x === "string"))].slice(0, 200) : [], ...(r.trashable === true ? { trashable: true as const } : {}) };
 }
 
 export function normalizeSchema(raw: unknown): DbSchema {

@@ -15,7 +15,7 @@ import { getRun, runsForTodos } from "@/lib/work/store";
 import { isActive, type WorkLogLine } from "@/lib/work/shared";
 import { addRow, getPage, updatePage } from "@/plugins/workspace/store";
 import type { Row } from "@/plugins/workspace/model";
-import { learnDbs, learnRows, memo, P } from "./dbs";
+import { dbsFor, learnRows, memo, P } from "./dbs";
 import { getNode, lessonOfTodo, nodeWidgets, timeCell, cellTime } from "./store";
 import { isMessageLine } from "./timeline";
 
@@ -77,7 +77,7 @@ const titleOf = (role: Role, kind: MsgKind, text: string) => {
 /** A message written into Conversations (a long one kept whole on its row's page). */
 function writeMessage(v: { courseId: number; stepRowId: number; run: number | null; seq: number; role: Role; kind: MsgKind; text: string; at: string; exercise?: number | null }): number {
   const long = v.text.length >= CELL;
-  const id = addRow(learnDbs().messages, {
+  const id = addRow(dbsFor(v.courseId).messages, {
     title: titleOf(v.role, v.kind, v.text),
     cells: {
       [P.role]: v.role,

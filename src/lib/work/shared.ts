@@ -29,6 +29,21 @@ export const isActive = (s: WorkStatus) => s === "queued" || s === "running";
 /** A work run's reference: "W-12". */
 export const workRef = (id: number) => `W-${id}`;
 
+/**
+ * The run working on each todo (todo id → run id), from its queued or running runs: a running one before a queued
+ * one, then the newest — the one a "being worked on" todo links to.
+ */
+export function activeRunByTodo(runs: { id: number; todoId: number; status: string }[]): Record<number, number> {
+  const best = new Map<number, { id: number; status: string }>();
+  for (const r of runs) {
+    if (!isActive(r.status as WorkStatus)) continue;
+    const had = best.get(r.todoId);
+    const rank = (x: { status: string }) => (x.status === "running" ? 1 : 0);
+    if (!had || rank(r) > rank(had) || (rank(r) === rank(had) && r.id > had.id)) best.set(r.todoId, r);
+  }
+  return Object.fromEntries([...best].map(([todo, r]) => [todo, r.id]));
+}
+
 /** A time record on a todo (one stretch of work, as an agent or you reported it). */
 export type TimeRecord = {
   id: number;
@@ -353,6 +368,8 @@ export const copilotModeLabels = (t: T): Record<CopilotMode, string> => ({
 
 export type WorkSettingsView = {
   parallel: number;
+  /** Workers reserved per todo source on top of `parallel` (slots.ts): only that source's runs take them. */
+  reserved: Record<string, number>;
   copilotMode: CopilotMode;
   permissionMode: PermissionMode;
   isolation: WorkIsolation;

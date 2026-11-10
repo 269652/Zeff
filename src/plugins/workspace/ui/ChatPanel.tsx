@@ -11,6 +11,7 @@ import { askWorkspace } from "./chat-client";
 import type { ChatStep } from "../agent";
 import type { ChatEmbed } from "../chat-embed";
 import { TicketsEmbedCard } from "@/plugins/jira-lage/TicketPick";
+import { WidgetEmbedCard } from "./widget-embed";
 
 /** Tell this to the editors and databases on screen: the workspace was changed by the assistant - read it again. */
 export const WS_CHANGED = "ws-changed";
@@ -154,7 +155,7 @@ export function ChatPanel() {
                   </details>
                 )}
                 <div className="whitespace-pre-wrap">{m.text}</div>
-                {m.role === "assistant" && m.embeds?.map((e, j) => (e.kind === "tickets" ? <TicketsEmbedCard key={j} embed={e} /> : null))}
+                {m.role === "assistant" && m.embeds?.map((e, j) => (e.kind === "tickets" ? <TicketsEmbedCard key={j} embed={e} /> : e.kind === "widget" ? <WidgetEmbedCard key={j} embed={e} pageId={pageId} /> : null))}
                 {m.role === "assistant" && m.undoId && (
                   <button
                     type="button"

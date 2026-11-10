@@ -36,9 +36,13 @@ export default async function CoursePage({ params }: Props) {
   // (An old link — the course's id from before Learn's data moved into the Workspace: to where it is now.)
   if (course.id !== asked) redirect(`/learn/${course.id}`);
   const id = course.id;
+  // Back to its learning space (its page in the Workspace) — when there are several; else to Learn.
+  const { learnSpaces, spaceOfPage } = await import("@/plugins/learn/dbs");
+  const space = isInstalled("workspace") && learnSpaces().length > 1 ? spaceOfPage(id) : null;
+  const spaceTitle = space ? (await import("@/plugins/workspace/store")).getPage(space.folder)?.title || t("Learning space") : null;
   const back = (
-    <Link href="/learn" className="text-sm text-zinc-500 hover:underline">
-      ← {t("Learn")}
+    <Link href={space ? `/workspace/${space.folder}` : "/learn"} className="text-sm text-zinc-500 hover:underline">
+      ← {spaceTitle ?? t("Learn")}
     </Link>
   );
 
