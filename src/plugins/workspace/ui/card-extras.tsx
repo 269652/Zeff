@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { isMe } from "@/plugins/jira-lage/pick";
 import { useT } from "@/components/I18nProvider";
 import type { TicketExtras } from "@/lib/items/shared";
 import type { DatabaseData } from "../actions";
@@ -85,11 +86,11 @@ const readMe = () => {
  * "Assign to me" on a mirrored Jira board's card: the ticket assigned to you in Jira and on the card at once (POST
  * /api/workspace/jira-assign). Not shown once it's yours (who you are in Jira: learnt from the first assignment).
  */
-export function AssignToMe({ rowId, assignee }: { rowId: number; assignee: string }) {
+export function AssignToMe({ rowId, assignee, jiraMe = [] }: { rowId: number; assignee: string; /** The names Zeff knows you by in Jira (server side). */ jiraMe?: string[] }) {
   const t = useT();
   const [busy, setBusy] = useState(false);
   const [me] = useState(readMe);
-  if (me && assignee.trim() === me) return null;
+  if ((me && assignee.trim() === me) || isMe(assignee, jiraMe)) return null;
   return (
     <button
       type="button"

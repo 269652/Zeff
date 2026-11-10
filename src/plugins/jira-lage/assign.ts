@@ -9,16 +9,13 @@ import { resultToPayload, runStdioSession } from "@/lib/jira/mcp-client";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
 import { databaseSource, KEY_PROP } from "@/plugins/workspace/collections";
 import { getPage, rawRows, setCell } from "@/plugins/workspace/store";
+import { jiraUsername, rememberJiraName } from "./me";
 
 /** The card's Assignee property (to-workspace.ts). */
 const ASSIGNEE = "jiraassignee";
 
 /** Who you are in Jira — the user Zeff's Jira connection signs in as (its JIRA_USERNAME: your login or e-mail). */
-function me(): string | null {
-  const cfg = getJiraSyncConfig();
-  const env = (cfg as { env?: Record<string, string | undefined> }).env ?? {};
-  return env.JIRA_USERNAME?.trim() || process.env.JIRA_USERNAME?.trim() || null;
-}
+const me = jiraUsername;
 
 /** The ticket of a mirrored Jira board's card assigned to you — in Jira and on the card. Its key and who has it now. */
 export async function assignJiraRowToMe(rowId: number): Promise<{ key: string; assignee: string }> {
@@ -47,5 +44,7 @@ export async function assignJiraRowToMe(rowId: number): Promise<{ key: string; a
     60000,
   );
   setCell(rowId, ASSIGNEE, assignee);
+  // How Jira names you — "Find tickets for me" knows your tickets by it (pick.ts).
+  rememberJiraName(assignee);
   return { key, assignee };
 }

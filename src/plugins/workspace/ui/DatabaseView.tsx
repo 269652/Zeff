@@ -40,6 +40,8 @@ import { TableView } from "./database/table-view";
 import { BoardView } from "./database/board-view";
 import { ListView } from "./database/list-view";
 import { CalendarView } from "./database/calendar-view";
+import { TicketPickBar, useForMe, useTicketPick } from "@/plugins/jira-lage/TicketPick";
+import { decodePick, pickedIds, type PickCriteria } from "@/plugins/jira-lage/pick";
 
 const noSubscribe = () => () => {};
 
@@ -121,6 +123,28 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false, 
   const [people, setPeople] = useState<Set<string>>(new Set());
   const [mine, setMine] = useState(false);
   const personProp = data ? personPropOf(data.schema) : undefined;
+  // A mirrored Jira board: "Find tickets for me" (remembered per board), or the assistant's filter (?pick=…) — the rows it picks, in its order.
+  const jiraBoard = (data?.extras?.source ?? "").startsWith("jira");
+  const [forMe, setForMe] = useForMe(dbId);
+  const pickParam = search.get("pick");
+  const [urlPick, setUrlPick] = useState<PickCriteria | null>(() => decodePick(pickParam));
+  useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect -- follows the address (a link from the assistant)
+    setUrlPick(decodePick(pickParam));
+  }, [pickParam]);
+  const pickCriteria = useMemo<PickCriteria | null>(() => (!jiraBoard ? null : (urlPick ?? (forMe ? { forMe: true } : null))), [jiraBoard, urlPick, forMe]);
+  const jiraMe = useMemo(() => [...(data?.extras?.jiraMe ?? []), ...(data?.extras?.me.names ?? [])], [data]);
+  const pickRows = useMemo(() => (data && view ? shownRows(data.rows, data.schema, view) : undefined), [data, view]);
+  const ticketPick = useTicketPick(data?.schema, pickRows, jiraMe, pickCriteria);
+  const pickOff = () => {
+    setForMe(false);
+    setUrlPick(null);
+    const u = new URL(window.location.href);
+    if (u.searchParams.has("pick")) {
+      u.searchParams.delete("pick");
+      window.history.replaceState(null, "", u);
+    }
+  };
   const rows = useMemo(() => {
     if (!data || !view) return [];
     const props = data.schema.properties;
@@ -131,8 +155,13 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false, 
     if (personProp && (onlyMine || people.size)) r = filterByPeople(r, personProp, onlyMine ? mineKeys(personProp, data.extras?.me ?? { names: [], ids: [] }) : people);
     const w = q.trim().toLowerCase();
     if (w) r = r.filter((x) => x.title.toLowerCase().includes(w) || props.some((p) => cellText(p, x.cells[p.id], labels).toLowerCase().includes(w)) || !!onPage?.has(x.id));
+    if (ticketPick) {
+      // Only the picked tickets, in the pick's order (yours first, then by priority).
+      const at = new Map(pickedIds(ticketPick).map((id, i) => [id, i]));
+      return r.filter((x) => at.has(x.id)).sort((a, b) => at.get(a.id)! - at.get(b.id)!);
+    }
     return sortRows(r, view.sorts, props);
-  }, [data, view, q, labels, personProp, mine, people, onPage]);
+  }, [data, view, q, labels, personProp, mine, people, onPage, ticketPick]);
   // How many of its rows the database hides.
   const hiddenCount = data?.schema.hiddenRows?.length ? data.rows.filter((r) => data.schema.hiddenRows!.includes(r.id)).length : 0;
 
@@ -543,6 +572,17 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false, 
         </div>
       </div>
 
+      {jiraBoard && !dayTab && view.type !== "app" && (
+        <TicketPickBar
+          on={!!pickCriteria?.forMe}
+          onToggle={() => (pickCriteria?.forMe ? pickOff() : (pickOff(), setForMe(true)))}
+          pick={ticketPick}
+          criteria={pickCriteria}
+          meKnown={jiraMe.length > 0}
+          openRow={(id) => openRow(id)}
+          onOff={pickOff}
+        />
+      )}
       {/* Not over an app's view (the creditors overview, the cases): it has its own say of whom it shows. */}
       {personProp && !dayTab && view.type !== "app" && (
         <PeopleBar

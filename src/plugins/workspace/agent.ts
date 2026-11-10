@@ -12,11 +12,13 @@ import { registerWorkspaceTools } from "./mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
 import { registerBrowserTools } from "@/plugins/browser/mcp";
 import { registerEntityTools } from "@/plugins/entities/mcp";
+import { registerJiraPickTools } from "@/plugins/jira-lage/mcp";
+import { embedsOf, type ChatEmbed } from "./chat-embed";
 import * as store from "./store";
 
 export type ChatMessage = { role: "user" | "assistant"; text: string };
 export type ChatStep = { tool: string; summary: string; ok: boolean };
-export type ChatResult = { reply: string; steps: ChatStep[]; changed: boolean };
+export type ChatResult = { reply: string; steps: ChatStep[]; changed: boolean; /** What tools showed the user (a filtered board): drawn under the answer. */ embeds?: ChatEmbed[] };
 
 type Tool = { name: string; description: string; schema: z.ZodType; handler: (args: unknown) => Promise<{ content: { type: string; text?: string }[]; isError?: boolean }> | { content: { type: string; text?: string }[]; isError?: boolean }; readOnly: boolean };
 
@@ -47,6 +49,8 @@ function collectTools(): Map<string, Tool> {
   registerBrowserTools(stand, helpers);
   // Organisations, projects and places (while that plugin is installed): which customer, which project a ticket is.
   registerEntityTools(stand, helpers);
+  // Tickets for you on the mirrored Jira boards: read them, show a board filtered (its tickets under the answer).
+  registerJiraPickTools(stand, helpers);
   return tools;
 }
 
@@ -99,6 +103,7 @@ So arbeitest du: In jeder Runde gibst du JSON zurück: calls (Werkzeugaufrufe, d
 - Schreibst du Text für Seiten, dann gut und vollständig (Überschriften, Listen, Tabellen, Callouts) in der Sprache des Nutzers, nur mit dem, was du weißt oder gefunden hast — sonst frag.
 - Wünscht sich jemand eine eigene Darstellung einer Datenbank (Karten mit Bildern, ein Dashboard, ein eigenes Layout): Lies workspace_view_template_docs und lege mit workspace_update_database eine neue Ansicht an (add_view mit template). Sie kommt zu den vorhandenen dazu, nichts daran wird überschrieben; soll sie weg, entfernt remove_view sie wieder. Schlägt die Vorlage fehl, steht in der Meldung die Zeile: korrigiere sie.
 - Soll eine App etwas tun (Daten aus dem Web holen, etwas nachschlagen, Felder mit der KI füllen, Zeilen schreiben, auf eine Freigabe warten, zu einer Zeit laufen): Lies workspace_flow_docs und lege mit workspace_save_flow einen Flow an, probiere ihn mit workspace_run_flow (dry: true, solange er schreiben würde). In einer Ansicht startet ihn <button run=…>, <data> lädt seine Ausgabe. Ein Status mit festen Schritten wird mit workspace_set_lifecycle ein Lebenszyklus. Rechte (Web-Adressen, Schreiben, KI, Senden) beantragst du nur: der Nutzer gibt sie in der Studio frei — sag ihm, welche und warum.
+- Fragt der Nutzer nach Tickets für sich (was er als Nächstes machen kann, was für ihn ansteht): Lies workspace_tickets_for_me (seine offenen Tickets zuerst, dann die Kandidaten aus Ready) und zeig ihm mit workspace_board_filter das gefilterte Board — die Kriterien wählst du (forMe, Status, Zuständigkeit, Priorität, Typ, Text). Der Nutzer sieht die Tickets unter deiner Antwort; sag in reply kurz, welches du nehmen würdest und warum. Beide ändern nichts an Jira oder am Board.
 - Bilder: Nutze nur echte Adressen, die du gefunden hast (web_search, browser_open) oder die schon in den Daten stehen. Erfinde keine Bild-Adressen und nimm keine Platzhalter-Dienste. Findest du keins, lass das Feld leer und sag es.
 - Mehrere Dinge: so viele calls pro Runde, wie sinnvoll (höchstens 6). Schlägt ein Aufruf fehl, steht die Meldung im Ergebnis: korrigiere und versuche es noch einmal, oder sag dem Nutzer, was nicht ging.`;
 
@@ -121,6 +126,7 @@ export async function workspaceChat(messages: ChatMessage[], pageId?: number, as
   const catalog = [...tools.values()].map((t) => `### ${t.name}\n${t.description}\nargs: ${shape(z.toJSONSchema(t.schema) as JsonSchema)}`).join("\n\n");
   const talk = messages.slice(-12).map((m) => `${m.role === "user" ? "Nutzer" : "Du"}: ${m.text.slice(0, 4000)}`).join("\n");
   const steps: ChatStep[] = [];
+  const embeds: ChatEmbed[] = [];
   let changed = false;
   let log = "";
   for (let round = 1; round <= MAX_ROUNDS; round++) {
@@ -131,7 +137,7 @@ export async function workspaceChat(messages: ChatMessage[], pageId?: number, as
       // Out of rounds with more to do: it says so, it doesn't pass for done.
       const unfinished = round === MAX_ROUNDS && !!out.calls?.length;
       const reply = unfinished ? `Ich bin nach ${steps.length} Schritten nicht fertig geworden. Sag „weiter“, dann mache ich weiter.` : String(out.reply ?? "").trim();
-      return { reply: reply || (steps.length ? "Erledigt." : "…"), steps, changed };
+      return { reply: reply || (steps.length ? "Erledigt." : "…"), steps, changed, ...(embeds.length ? { embeds: embeds.slice(-4) } : {}) };
     }
     for (const c of calls) {
       const tool = tools.get(String(c.tool ?? ""));
@@ -150,6 +156,8 @@ export async function workspaceChat(messages: ChatMessage[], pageId?: number, as
             const res = await tool.handler(parsed.data);
             text = res.content.map((x) => x.text ?? "").join("\n");
             ok = !res.isError;
+            // (The same board shown again replaces the earlier one.)
+            if (ok) for (const e of embedsOf(res)) embeds.splice(0, embeds.length, ...embeds.filter((x) => x.href !== e.href), e);
             if (ok && !tool.readOnly) changed = true;
           } catch (e) {
             text = e instanceof Error ? e.message : String(e);
@@ -162,5 +170,5 @@ export async function workspaceChat(messages: ChatMessage[], pageId?: number, as
       log += `\n- ${String(c.tool)}(${JSON.stringify(c.args ?? {}).slice(0, 600)}) → ${ok ? "" : "FEHLER: "}${text.slice(0, resultCap(c.tool))}`;
     }
   }
-  return { reply: "", steps, changed };
+  return { reply: "", steps, changed, ...(embeds.length ? { embeds: embeds.slice(-4) } : {}) };
 }

@@ -9118,5 +9118,20 @@
   "no badge": "sin píldora",
   "A number that is 0 is left out. The preview fills in sample numbers where you have none right now.": "Un número que es 0 se omite. La vista previa usa números de ejemplo donde ahora no tienes ninguno.",
   "Colour of {part}": "Color de {part}",
-  "Restore the default": "Restablecer lo predeterminado"
+  "Restore the default": "Restablecer lo predeterminado",
+  "Only your unfinished tickets and what is ready to pick up": "Solo tus tickets sin terminar y lo que está listo para tomar",
+  "Find tickets for me": "Buscar tickets para mí",
+  "Tickets for you": "Tickets para ti",
+  "Filtered by the assistant": "Filtrado por el asistente",
+  "{n} still open for you": "{n} aún abiertos para ti",
+  "{n} ready to pick up": "{n} listos para tomar",
+  "1 ticket matches": "1 ticket coincide",
+  "{n} tickets match": "{n} tickets coinciden",
+  "Still open for you": "Aún abiertos para ti",
+  "Zeff doesn't know your Jira name yet — use “Assign to me” on a card once; until then only unassigned tickets show.": "Zeff aún no conoce tu nombre en Jira — usa una vez «Asignarme» en una tarjeta; hasta entonces solo se muestran tickets sin asignar.",
+  "This board has no Ready column — nothing to pick up from.": "Este tablero no tiene columna Ready — no hay nada que tomar.",
+  "Ready to pick up": "Listos para tomar",
+  "Matching tickets": "Tickets que coinciden",
+  "+{n} more on the board": "+{n} más en el tablero",
+  "Open the board filtered like this": "Abrir el tablero con este filtro"
 }

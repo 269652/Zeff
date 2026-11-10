@@ -71,6 +71,8 @@ export const CHAT_ALLOWED_TOOLS = zeff([
   "workspace_add_row_from_url",
   "workspace_ask_database",
   "workspace_database_dossier",
+  "workspace_tickets_for_me",
+  "workspace_board_filter",
   "workspace_routines",
   "workspace_routine_runs",
   "web_search",

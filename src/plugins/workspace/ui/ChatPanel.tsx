@@ -9,11 +9,13 @@ import { AiProgressBar, AiWorkingLabel, announceAiWorking } from "@/components/A
 import { undoAction } from "../actions";
 import { askWorkspace } from "./chat-client";
 import type { ChatStep } from "../agent";
+import type { ChatEmbed } from "../chat-embed";
+import { TicketsEmbedCard } from "@/plugins/jira-lage/TicketPick";
 
 /** Tell this to the editors and databases on screen: the workspace was changed by the assistant - read it again. */
 export const WS_CHANGED = "ws-changed";
 
-export type Msg = { role: "user" | "assistant"; text: string; steps?: ChatStep[]; error?: boolean; /** The history entry of what this answer changed (Undo). */ undoId?: number | null; undone?: boolean };
+export type Msg = { role: "user" | "assistant"; text: string; steps?: ChatStep[]; error?: boolean; /** The history entry of what this answer changed (Undo). */ undoId?: number | null; undone?: boolean; /** What its tools showed (a filtered Jira board). */ embeds?: ChatEmbed[] };
 
 /** A talk begun in the page's ✨ composer (ai-composer.tsx) goes on here: the panel opens with it. */
 const WS_CHAT = "ws-chat";
@@ -97,7 +99,7 @@ export function ChatPanel() {
       const r = await askWorkspace(next.map((m) => ({ role: m.role, text: m.text })), pageId, setLive);
       if (!r.ok) setMsgs([...next, { role: "assistant", text: r.error, error: true }]);
       else {
-        setMsgs([...next, { role: "assistant", text: r.reply || t("Done."), steps: r.steps, undoId: r.undoId }]);
+        setMsgs([...next, { role: "assistant", text: r.reply || t("Done."), steps: r.steps, undoId: r.undoId, ...(r.embeds?.length ? { embeds: r.embeds } : {}) }]);
         if (r.changed) {
           router.refresh();
           window.dispatchEvent(new Event(WS_CHANGED));
@@ -152,6 +154,7 @@ export function ChatPanel() {
                   </details>
                 )}
                 <div className="whitespace-pre-wrap">{m.text}</div>
+                {m.role === "assistant" && m.embeds?.map((e, j) => (e.kind === "tickets" ? <TicketsEmbedCard key={j} embed={e} /> : null))}
                 {m.role === "assistant" && m.undoId && (
                   <button
                     type="button"

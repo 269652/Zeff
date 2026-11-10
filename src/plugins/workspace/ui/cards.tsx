@@ -142,7 +142,7 @@ export function RowCard({ row, visible, all, ctx, mode, template }: { row: Row; 
         </div>
       )}
       {/* A mirrored Jira board's card: "Assign to me" — in Jira and here at once. */}
-      {!gallery && x.key && (ctx.data.extras?.source ?? "").startsWith("jira") && <AssignToMe rowId={row.id} assignee={String(row.cells.jiraassignee ?? "")} />}
+      {!gallery && x.key && (ctx.data.extras?.source ?? "").startsWith("jira") && <AssignToMe rowId={row.id} assignee={String(row.cells.jiraassignee ?? "")} jiraMe={ctx.data.extras?.jiraMe} />}
       {!gallery && x.key && ctx.data.extras?.todosOn && <CardTodos k={x.key} ticket={x.ticket} />}
       {!gallery && ctx.data.extras?.jobs?.[row.id] && <JobPanel rowId={row.id} panel={ctx.data.extras.jobs[row.id]} todosShown={!!x.key && !!ctx.data.extras.todosOn} />}
     </>

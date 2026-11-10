@@ -8,6 +8,7 @@ import { registerBrowserTools } from "@/plugins/browser/mcp";
 import { registerAiQualityTool } from "@/lib/learning/mcp";
 import { registerCorrelationTools } from "@/plugins/correlations/mcp";
 import { registerEntityTools } from "@/plugins/entities/mcp";
+import { registerJiraPickTools } from "@/plugins/jira-lage/mcp";
 import { registerQuestionTools } from "@/plugins/questions/mcp";
 import { registerTimelineTools } from "@/plugins/timeline/mcp";
 import { registerKnowTools } from "@/plugins/know/mcp";
@@ -83,6 +84,8 @@ export function registerZeffTools(server: McpServer): void {
   registerWebSearchTools(server, { run, ok, fail } as never);
   registerBrowserTools(server, { run, ok, fail } as never);
   registerEntityTools(server, { run, ok, fail } as never);
+  // Which tickets of the mirrored Jira boards come next for you (read-only).
+  registerJiraPickTools(server, { run, ok, fail } as never);
   registerQuestionTools(server, { run, ok, fail } as never);
   registerGmailTools(server, { run, ok, fail } as never);
   // The mailboxes (IMAP / POP3): their inboxes read, archived.
