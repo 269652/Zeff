@@ -6,13 +6,15 @@
  *   ```plot    { fn | fns, params?, x?, y?, vectors?, points? } — curves y = f(x) with a slider per parameter, vectors as
  *              arrows ({ x, y, from?: [x, y], label?, color? }), labelled points
  *   ```chart   a Chart.js configuration ({ type, data, options })
- *   ```widget  { spec } (an exercise set — lib/widgets/spec.ts) or { html, libs? } (a widget of its own)
+ *   ```widget  { spec } (an exercise set — lib/widgets/spec.ts) or { html, libs?, title?, writes?, ai? } (a widget of its
+ *              own — writes: the ids of the databases it asks to write to, ai: whether it asks the AI; the user allows it)
  *
  * splitBlocks cuts a text into its prose and these blocks; blockWidget makes a block's widget (its HTML and libraries)
  * or says what's wrong with it. Client-safe (pure).
  */
 import { checkSpec, specHasMath, specHtml, type ExerciseSet } from "./spec";
 import { checkWidgetHtml } from "./sandbox";
+import { noWants, wantsOf, type WidgetWants } from "./bridge";
 
 export const BLOCK_KINDS = ["svg", "plot", "chart", "widget"] as const;
 export type BlockKind = (typeof BLOCK_KINDS)[number];
@@ -32,7 +34,7 @@ export function splitBlocks(text: string): Segment[] {
   return out.filter((s) => !("text" in s) || s.text.trim());
 }
 
-export type BlockWidget = { ok: true; html: string; libs: string[]; title: string } | { ok: false; why: string };
+export type BlockWidget = { ok: true; html: string; libs: string[]; title: string; /** What it asks to be allowed. */ wants: WidgetWants } | { ok: false; why: string };
 
 const json = (body: string): unknown => JSON.parse(body);
 const esc = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
@@ -98,7 +100,7 @@ function plotWidget(c: PlotCfg): BlockWidget {
   });
 })();
 </script>`;
-  return { ok: true, html, libs: [], title: c.title ?? "Plot" };
+  return { ok: true, html, libs: [], title: c.title ?? "Plot", wants: noWants };
 }
 
 /** A block's widget, or what's wrong with it (said in the message, and to the agent). */
@@ -108,25 +110,25 @@ export function blockWidget(kind: BlockKind, body: string): BlockWidget {
       const svg = body.trim();
       if (!/^<svg[\s>]/i.test(svg)) return { ok: false, why: "svg: the block must be one <svg …>…</svg>" };
       const clean = svg.replace(/<script[\s\S]*?<\/script>/gi, "").replace(/\son\w+\s*=\s*("[^"]*"|'[^']*'|[^\s>]+)/gi, "");
-      return { ok: true, html: `<div style="text-align:center">${clean}</div><style>svg{max-width:100%;height:auto}</style>`, libs: [], title: "Drawing" };
+      return { ok: true, html: `<div style="text-align:center">${clean}</div><style>svg{max-width:100%;height:auto}</style>`, libs: [], title: "Drawing", wants: noWants };
     }
     if (kind === "plot") return plotWidget(json(body) as PlotCfg);
     if (kind === "chart") {
       const cfg = json(body) as { type?: unknown; data?: unknown };
       if (!cfg || typeof cfg.type !== "string" || !cfg.data) return { ok: false, why: "chart: a Chart.js configuration { type, data, options? }" };
-      return { ok: true, html: `<div style="position:relative;max-width:640px;margin:0 auto"><canvas id="c"></canvas></div><script>new Chart(document.getElementById("c"), ${data(cfg)});</script>`, libs: ["chart"], title: "Chart" };
+      return { ok: true, html: `<div style="position:relative;max-width:640px;margin:0 auto"><canvas id="c"></canvas></div><script>new Chart(document.getElementById("c"), ${data(cfg)});</script>`, libs: ["chart"], title: "Chart", wants: noWants };
     }
-    const w = json(body) as { spec?: unknown; html?: unknown; libs?: unknown; title?: unknown };
+    const w = json(body) as { spec?: unknown; html?: unknown; libs?: unknown; title?: unknown; writes?: unknown; ai?: unknown };
     if (w.spec) {
       const problems = checkSpec(w.spec);
       if (problems.length) return { ok: false, why: `widget: ${problems.join("; ")}` };
       const set = w.spec as ExerciseSet;
-      return { ok: true, html: specHtml(set), libs: specHasMath(set) ? ["katex"] : [], title: set.title ?? String(w.title ?? "Exercise") };
+      return { ok: true, html: specHtml(set), libs: specHasMath(set) ? ["katex"] : [], title: set.title ?? String(w.title ?? "Exercise"), wants: noWants };
     }
     if (typeof w.html === "string") {
       const c = checkWidgetHtml(w.html);
       if (!c.ok) return { ok: false, why: `widget: ${c.why}` };
-      return { ok: true, html: w.html, libs: Array.isArray(w.libs) ? w.libs.map(String) : [], title: String(w.title ?? "Widget") };
+      return { ok: true, html: w.html, libs: Array.isArray(w.libs) ? w.libs.map(String) : [], title: String(w.title ?? "Widget"), wants: wantsOf(w.writes, w.ai) };
     }
     return { ok: false, why: "widget: { spec } or { html, libs? }" };
   } catch (e) {

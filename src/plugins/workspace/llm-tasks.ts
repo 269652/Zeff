@@ -13,6 +13,8 @@ export const WORKSPACE_LLM_TASKS = (t: T) =>
     { plugin: "workspace", id: "page-assist", label: t("Think along (pages)"), what: t("“✨ Think along” on a page: understands what a block is about, asks what is missing and proposes what to set up (a plan calendar, todos, widgets, text).") },
     { plugin: "workspace", id: "workspace-chat", label: t("Workspace assistant"), what: t("Does what you ask in the Workspace's sidebar with the workspace's tools — rows, views, pages, columns (Workspace).") },
     { plugin: "workspace", id: "ai-block", label: t("AI blocks (pages)"), what: t("Writes an AI block's section of a page by its instruction, from the page and the databases it shows (Workspace).") },
+    { plugin: "workspace", id: "widget-make", label: t("Widgets (build)"), what: t("Builds a widget — a small app in a page, a chat or a lesson: a form, a table, a calculator — from what you describe (Workspace).") },
+    { plugin: "workspace", id: "widget-ai", label: t("Widgets (questions)"), what: t("Answers a widget that may ask the AI (you allowed it), a few times an hour (Workspace).") },
     { plugin: "workspace", id: "workspace-flow", label: t("Flows"), what: t("The AI steps of your flows and apps: picks fields out of a text, answers, sorts into labels (Workspace).") },
     { plugin: "workspace", id: "view-template",label: t("View templates"), what: t("Writes or fixes a database's view template at your request, checked until it renders without errors (Workspace).") },
   ] as const;

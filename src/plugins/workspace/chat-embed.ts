@@ -12,7 +12,10 @@ export type EmbedTicket = { rowId: number; key: string; title: string; status: s
 /** A filtered Jira board: its tickets in groups, and the address that opens the board with the same filter. */
 export type TicketsEmbed = { kind: "tickets"; dbId: number; board: string; href: string; criteria: PickCriteria; groups: { id: PickGroupId; total: number; tickets: EmbedTicket[] }[] };
 
-export type ChatEmbed = TicketsEmbed;
+/** A widget the assistant built (workspace_widget): its code, what it asks to be allowed, the page it was put into (if any). */
+export type WidgetEmbed = { kind: "widget"; href: string; title: string; html: string; libs: string[]; writes: number[]; ai: boolean; pageId: number | null };
+
+export type ChatEmbed = TicketsEmbed | WidgetEmbed;
 
 /** The embeds a tool's result carries (none: []). */
 export const embedsOf = (res: unknown): ChatEmbed[] => (res && typeof res === "object" ? ((res as { [CHAT_EMBED]?: ChatEmbed[] })[CHAT_EMBED] ?? []) : []);

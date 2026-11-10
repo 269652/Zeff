@@ -151,7 +151,7 @@ test("the tools: tickets for me read, a filtered board shown (embed for the assi
 
   const shown = await t.workspace_board_filter({ board: "Team Board", stages: ["ready"], assignee: "unassigned", title: "Up for grabs", reason: "Nobody has them" });
   const { embedsOf } = await import("@/plugins/workspace/chat-embed");
-  const embeds = embedsOf(shown);
+  const embeds = embedsOf(shown).filter((e) => e.kind === "tickets");
   assert.equal(embeds.length, 1);
   assert.equal(embeds[0].dbId, dbId);
   assert.deepEqual(embeds[0].groups[0].tickets.map((x) => x.key), ["T-3", "T-2"]);

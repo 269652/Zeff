@@ -7,6 +7,8 @@
 
 import { legacyDataBlock, LEGACY_DATA_BLOCKS } from "./legacy-blocks";
 import { COLORS } from "./model";
+import { MAX_STATE, wantsOf } from "@/lib/widgets/bridge";
+import { MAX_WIDGET_HTML, WIDGET_LIBS } from "@/lib/widgets/sandbox";
 
 export type Mark = { type: string; attrs?: Record<string, unknown> };
 export type DocNode = { type: string; attrs?: Record<string, unknown>; content?: DocNode[]; marks?: Mark[]; text?: string };
@@ -254,6 +256,8 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
       return `:::tabs\n${kids.map((c) => block(c)).join("\n")}\n:::`;
     case "zeffTab":
       return `:::tab ${String(n.attrs?.title ?? "Tab")}\n${blocks(kids)}\n:::`;
+    case "zeffApp":
+      return appMarkdown(n.attrs ?? {});
     case "zeffWidget": {
       // A widget as one line: which, its settings, its own title and header (lossless - written back it is the same block).
       let config: unknown = {};
@@ -445,6 +449,18 @@ export function markdownToDoc(md: string): Doc {
         i++;
         continue;
       }
+      // :::app {"title":"…","libs":["chart"],"writes":[12]} / its HTML / :::  - a widget an AI wrote (a form, a table, a small app)
+      const ap = /^:::app(?:\s+(\{.*\}))?\s*$/.exec(l);
+      if (ap) {
+        const code: string[] = [];
+        i++;
+        // (Its end: a line that is ":::" from its start — one of its code's own was written with a space before it.)
+        while (i < lines.length && lines[i].trimEnd() !== ":::") code.push(lines[i++]);
+        i++;
+        const made = appNode(ap[1] ?? "", code.join("\n"));
+        if (made) out.push(made);
+        continue;
+      }
       // :::widget calendar.agenda {"config":{"days":3},"title":"Next"}  - a plugin's widget
       const wg = /^:::widget\s+([\w.-]+)\s*(\{.*\})?\s*$/.exec(l);
       if (wg) {
@@ -627,10 +643,56 @@ const NODE_ATTRS: Record<string, string[]> = {
   rowView: [],
   aiBlock: ["prompt", "text", "at", "auto"],
   assistCard: ["id", "state"],
+  zeffApp: ["title", "prompt", "html", "libs", "writes", "ai", "state"],
 };
 
 /** At most this much of a "✨ Think along" card's state (its questions, answers, proposal) is kept. */
 const ASSIST_STATE_MAX = 20000;
+
+/**
+ * A widget block's attributes as they may be kept: its code whole (as long as the sandbox allows — longer than other
+ * attributes), only libraries Zeff has, what it asks to write to as ids, its state as JSON. null: no widget.
+ */
+function appAttrs(raw: Record<string, unknown>): Record<string, unknown> | null {
+  const html = typeof raw.html === "string" ? raw.html : "";
+  if (html.length > MAX_WIDGET_HTML) return null;
+  let state = typeof raw.state === "string" ? raw.state : "";
+  try {
+    if (state && JSON.stringify(JSON.parse(state)).length > MAX_STATE) state = "";
+  } catch {
+    state = "";
+  }
+  const libs = String(raw.libs ?? "").split(",").map((s) => s.trim()).filter((l) => Object.prototype.hasOwnProperty.call(WIDGET_LIBS, l));
+  const w = wantsOf(raw.writes, raw.ai);
+  return { title: String(raw.title ?? "").trim().slice(0, 80), prompt: String(raw.prompt ?? "").slice(0, 4000), html, libs: [...new Set(libs)].join(","), writes: w.writes.join(","), ai: !!w.ai, state };
+}
+
+/** A widget block from its Markdown: the head's JSON (title, prompt, libs, writes, ai) and its code. */
+function appNode(head: string, code: string): DocNode | null {
+  let a: Record<string, unknown> = {};
+  try {
+    a = head ? (JSON.parse(head) as Record<string, unknown>) : {};
+  } catch {
+    a = {};
+  }
+  if (!a || typeof a !== "object" || Array.isArray(a)) a = {};
+  const attrs = appAttrs({ ...a, libs: Array.isArray(a.libs) ? a.libs.join(",") : a.libs, html: code.replace(/^ :::$/gm, ":::"), state: a.state === undefined ? "" : JSON.stringify(a.state) });
+  return attrs ? { type: "zeffApp", attrs } : null;
+}
+
+/** A widget block as Markdown: `:::app {…}`, its code, `:::` (a line of its code that is just ":::" gets a space). */
+function appMarkdown(attrs: Record<string, unknown>): string {
+  const libs = String(attrs.libs ?? "").split(",").filter(Boolean);
+  const w = wantsOf(attrs.writes, attrs.ai);
+  let state: unknown;
+  try {
+    state = attrs.state ? JSON.parse(String(attrs.state)) : undefined;
+  } catch {
+    state = undefined;
+  }
+  const head = { ...(attrs.title ? { title: String(attrs.title) } : {}), ...(attrs.prompt ? { prompt: String(attrs.prompt).replace(/\n/g, " ") } : {}), ...(libs.length ? { libs } : {}), ...(w.writes.length ? { writes: w.writes } : {}), ...(w.ai ? { ai: true } : {}), ...(state !== undefined && state !== null ? { state } : {}) };
+  return `:::app ${JSON.stringify(head)}\n${String(attrs.html ?? "").replace(/^:::$/gm, " :::")}\n:::`;
+}
 
 /** The modules a page can hold as a block (what Zeff knows about a ticket — of its row, or the key given). */
 export const BLOCK_MODULES = ["briefing", "todos", "questions", "actions", "flags", "context", "chat", "properties", "subtasks", "suggested", "page", "timeline", "know"] as const;
@@ -684,6 +746,13 @@ export function sanitizeDoc(input: unknown): Doc {
       if (o.type === "zeffModule") {
         if (!(BLOCK_MODULES as readonly unknown[]).includes(attrs.module)) return null;
         attrs.key = String(attrs.key ?? "").trim().toUpperCase().slice(0, 40);
+      }
+      if (o.type === "zeffApp") {
+        // Its code and state whole (longer than other attributes): from the node as given, checked in appAttrs.
+        const made = appAttrs(o.attrs as Record<string, unknown>);
+        if (!made) return null;
+        out.attrs = made;
+        return out;
       }
       if (o.type === "zeffForm") {
         // A form page it shows (`formId`); else none yet (the block offers to make one).
@@ -832,7 +901,7 @@ export function previewLines(doc: DocNode | null | undefined, max = 12): Preview
         }
       } else if (n.type === "bulletList" || n.type === "orderedList") {
         for (const item of n.content ?? []) if (out.length < max) out.push({ kind: "text", text: `• ${docText(item).trim()}` });
-      } else if (n.type === "aiBlock" || n.type === "zeffModule" || n.type === "rowView" || n.type === "databaseView" || n.type === "pageEmbed" || n.type === "todoListEmbed" || n.type === "image") {
+      } else if (n.type === "aiBlock" || n.type === "zeffApp" || n.type === "zeffModule" || n.type === "rowView" || n.type === "databaseView" || n.type === "pageEmbed" || n.type === "todoListEmbed" || n.type === "image") {
         continue;
       } else if (n.type === "details" || n.type === "blockquote" || n.type === "callout") {
         walk(n.content ?? []);
