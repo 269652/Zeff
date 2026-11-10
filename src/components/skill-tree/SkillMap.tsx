@@ -5,6 +5,7 @@ import { useMemo, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { layoutDag } from "@/lib/graph/layout";
 import type { SkillTreeStatus } from "./SkillTree";
+import { labelPoint, roundedPath, threadCorners, type Grid } from "./thread-route";
 
 export type SkillMapStep = { key: string; title: string; status: SkillTreeStatus; href?: string; minutes?: number | null };
 export type SkillMapNode = {
@@ -82,21 +83,42 @@ export function SkillMap({
     const c = xy(k);
     return { x: c.x + R * Math.cos(angle), y: c.y + R * Math.sin(angle) };
   };
-  /** A curve leaving p1 in the direction a1 and coming into p2 from a2 (the angles point away from each node). */
+  const width = Math.max(1, layout.cols) * COL;
+  const height = TOP + Math.max(1, layout.rows) * ROW;
+  /**
+   * A curve leaving p1 in the direction a1 and coming into p2 from a2 (the angles point away from each node). Its
+   * control points kept inside the map's bands — a curve stays inside them, so no line swings out of the panel.
+   */
+  const inside = (x: number, y: number) => [Math.min(width - 8, Math.max(8, x)), Math.min(height - 8, Math.max(8, y))] as const;
   const controls = (p1: { x: number; y: number }, a1: number, p2: { x: number; y: number }, a2: number) => {
     const k = Math.max(30, Math.hypot(p2.x - p1.x, p2.y - p1.y) / 2.6);
-    return [p1.x + Math.cos(a1) * k, p1.y + Math.sin(a1) * k, p2.x + Math.cos(a2) * k, p2.y + Math.sin(a2) * k] as const;
+    return [...inside(p1.x + Math.cos(a1) * k, p1.y + Math.sin(a1) * k), ...inside(p2.x + Math.cos(a2) * k, p2.y + Math.sin(a2) * k)] as const;
   };
   const curve = (p1: { x: number; y: number }, a1: number, p2: { x: number; y: number }, a2: number) => {
     const [c1x, c1y, c2x, c2y] = controls(p1, a1, p2, a2);
     return `M${p1.x},${p1.y} C${c1x},${c1y} ${c2x},${c2y} ${p2.x},${p2.y}`;
   };
-  const midpoint = (p1: { x: number; y: number }, a1: number, p2: { x: number; y: number }, a2: number) => {
-    const [c1x, c1y, c2x, c2y] = controls(p1, a1, p2, a2);
-    return { x: (p1.x + 3 * c1x + 3 * c2x + p2.x) / 8, y: (p1.y + 3 * c1y + 3 * c2y + p2.y) / 8 };
-  };
-  const width = Math.max(1, layout.cols) * COL;
-  const height = TOP + Math.max(1, layout.rows) * ROW;
+  // The red thread's stretches: through the white space between the nodes (thread-route.ts) — ways sharing a gap
+  // between two columns moved a little apart.
+  const threadWays = useMemo(() => {
+    const grid: Grid = { col: COL, row: ROW, top: TOP, r: R, width, height };
+    const taken = new Set([...layout.pos.values()].map((p) => `${p.col}:${p.row}`));
+    const has = (c: number, r: number) => taken.has(`${c}:${r}`);
+    const uses = new Map<number, number>();
+    const SHIFTS = [0, 5, -5, 9, -9];
+    const placed: { x: number; y: number }[] = [];
+    return thread.slice(1).map((k, i) => {
+      const a = layout.pos.get(thread[i])!;
+      const b = layout.pos.get(k)!;
+      const gaps = new Set(threadCorners(grid, a, b, has).slice(1, -1).map((p) => p.x).filter((x) => x % COL === 0));
+      const n = Math.max(0, ...[...gaps].map((x) => uses.get(x) ?? 0));
+      for (const x of gaps) uses.set(x, n + 1);
+      const corners = threadCorners(grid, a, b, has, SHIFTS[n % SHIFTS.length]);
+      const mid = labelPoint(corners, placed);
+      placed.push(mid);
+      return { key: k, d: roundedPath(corners), mid };
+    });
+  }, [thread, layout, width, height]);
   const bands = groups
     .map((g) => {
       const cols = nodes.filter((n) => n.group === g.key).map((n) => layout.pos.get(n.key)!.col);
@@ -212,22 +234,12 @@ export function SkillMap({
               </marker>
             </defs>
             {/* The red thread: the way through the map — walked solid, the plan ahead dashed. */}
-            {thread.slice(1).map((k, i) => {
-              // Out of the one node and into the next in its own direction (a little turned, off the map's lines).
-              const a = xy(thread[i]);
-              const b = xy(k);
-              const ta = Math.atan2(b.y - a.y, b.x - a.x) - 0.35;
-              const tb = Math.atan2(a.y - b.y, a.x - b.x) + 0.35;
+            {threadWays.map(({ key: k, d }, i) => {
               const walked = i + 1 < (route?.walked ?? 0);
-              return <path key={`thread-${k}`} d={curve(port(thread[i], ta), ta, port(k, tb), tb)} fill="none" stroke="#dc2626" strokeWidth={walked ? 4 : 2.5} strokeOpacity={walked ? 0.75 : 0.55} strokeDasharray={walked ? undefined : "6 6"} strokeLinecap="round" />;
+              return <path key={`thread-${k}`} d={d} fill="none" stroke="#dc2626" strokeWidth={walked ? 4 : 2.5} strokeOpacity={walked ? 0.75 : 0.55} strokeDasharray={walked ? undefined : "6 6"} strokeLinecap="round" strokeLinejoin="round" />;
             })}
             {/* Its order: a number on each stretch — where the thread goes next. */}
-            {thread.slice(1).map((k, i) => {
-              const a = xy(thread[i]);
-              const b = xy(k);
-              const ta = Math.atan2(b.y - a.y, b.x - a.x) - 0.35;
-              const tb = Math.atan2(a.y - b.y, a.x - b.x) + 0.35;
-              const m = midpoint(port(thread[i], ta), ta, port(k, tb), tb);
+            {threadWays.map(({ key: k, mid: m }, i) => {
               const walked = i + 1 < (route?.walked ?? 0);
               return (
                 <g key={`n-${k}`}>
