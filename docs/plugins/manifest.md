@@ -152,6 +152,21 @@ Programs to run when an event happens, by event name. Needs `exec`.
 `command` is the program and its arguments (no shell); `timeoutMs` is 200–30000 (default 5000). The events and
 what a hook receives are in [hooks](hooks.md).
 
+### `workspacePackages`
+
+Workspace apps the plugin brings: package files (JSON, relative to the plugin folder) — a page with its sub-pages,
+databases (and their rows, if exported with them), widgets, flows and the values its widgets share. While the plugin
+is on, each is offered under **New → templates** in the Workspace and made with one click. No permission needed: what
+an app's widgets and flows may do is asked of whoever installs it.
+
+```json
+"workspacePackages": ["app.json"]
+```
+
+The easiest way to make one: open the page in the Workspace, **⋯ → Save as plugin** — Zeff writes the folder
+(`app-<name>/zeff-plugin.json` and `app.json`) into the plugins folder; saved again, its version goes one up. Copy
+the folder to hand the app on.
+
 ## Rules the validator applies
 
 - the folder is named like `id`; ids are unique among plugins

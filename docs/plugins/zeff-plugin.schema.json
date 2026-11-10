@@ -291,6 +291,17 @@
               "command"
             ]
           }
+        },
+        "workspacePackages": {
+          "default": [],
+          "description": "Workspace apps it brings: package files (JSON — a page exported with its databases, widgets, flows), offered under New → templates and made with one click.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
         }
       }
     }

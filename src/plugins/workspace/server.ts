@@ -65,7 +65,7 @@ workspaceFieldTypes.contribute("workspace", CORE_FIELD_TYPES);
 
 // The Workspace apps external plugins bring (contributes.workspacePackages: package files in the plugin's folder) — of the plugins
 // switched on, read when the templates are listed.
-workspacePackages.contribute("ext", () => {
+workspacePackages.contribute("workspace", () => {
   try {
     const out: WorkspacePackage[] = [];
     for (const p of scanPlugins().plugins) {
