@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
 import { localDay } from "@/lib/dates";
@@ -30,8 +30,11 @@ export default async function CoursePage({ params }: Props) {
   if (!isInstalled("learn")) return <PluginNotInstalled id="learn" />;
   const store = await import("@/plugins/learn/store");
   const { levelOf, dailyProgress, BADGES } = await import("@/plugins/learn/game");
-  const course = store.getCourse(Number((await params).id));
+  const asked = Number((await params).id);
+  const course = store.getCourse(asked);
   if (!course) notFound();
+  // (An old link — the course's id from before Learn's data moved into the Workspace: to where it is now.)
+  if (course.id !== asked) redirect(`/learn/${course.id}`);
   const id = course.id;
   const back = (
     <Link href="/learn" className="text-sm text-zinc-500 hover:underline">

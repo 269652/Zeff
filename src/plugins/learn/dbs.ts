@@ -273,18 +273,30 @@ export const learnRows = (which: Which): Row[] => {
 
 const known = new WeakMap<object, LearnDbs>();
 
+/** What moves Learn's old tables in (to-workspace.ts) — run when the databases are first used in an account. */
+let mover: (() => void) | null = null;
+const moveTried = new WeakSet<object>();
+export const setMover = (fn: () => void): void => void (mover = fn);
+
 /** The databases (made the first time they're needed; checked to be there at each call — one query). */
 export function learnDbs(): LearnDbs {
   const d = getSqlite();
-  const k = known.get(d);
+  let k = known.get(d);
   if (k) {
-    const ids = [k.folder, ...ORDER.map((w) => k[w])];
+    const ids = [k.folder, ...ORDER.map((w) => k![w])];
     const n = (d.prepare(`select count(*) as n from ws_pages where archived_at is null and id in (${ids.map(() => "?").join(",")})`).get(...ids) as { n: number }).n;
-    if (n === ids.length) return k;
+    if (n !== ids.length) k = undefined;
   }
-  const v = ensureLearnDatabases();
-  known.set(d, v);
-  return v;
+  if (!k) {
+    k = ensureLearnDatabases();
+    known.set(d, k);
+  }
+  // (Learn's old tables not moved in yet — Learn used before the server's start moved them: moved now, once.)
+  if (mover && !moveTried.has(d) && !d.inTransaction) {
+    moveTried.add(d);
+    mover();
+  }
+  return k;
 }
 
 /** The ids kept (null: not made yet in this account). */

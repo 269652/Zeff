@@ -20,6 +20,8 @@ import { review, newCard, type Grade } from "./srs";
 import { computeTree, layers, nextSteps, type Tree, type TreeInput, type TreeNode } from "./tree";
 import { learnDbs, learnRows, memo, P } from "./dbs";
 import type { NodeKind, PlanSource } from "./shared";
+// (Learn's old tables moved into the databases the first time they're used: to-workspace.ts registers how.)
+import "./to-workspace";
 
 /** The snapshots of exercises (the HTML as it looked when you were done): blobs, kept in a table of their own. */
 function snapshots() {

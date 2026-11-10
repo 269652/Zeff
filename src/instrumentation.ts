@@ -84,6 +84,13 @@ export async function register() {
         const { isInstalled } = await import("./plugins/state");
         if (isInstalled("jira-lage") && isInstalled("workspace")) await (await import("./plugins/jira-lage/to-workspace")).replaceBriefingOnce();
       }).catch((e) => console.error("[jira] Meine Lage as a pipeline database failed", e));
+      // Learn's data from its own tables into its Workspace databases — once, after a copy of the database (learn/to-workspace.ts).
+      await withAccount(a.id, async () => {
+        const { isInstalled } = await import("./plugins/state");
+        if (!isInstalled("learn")) return;
+        const r = (await import("./plugins/learn/to-workspace")).moveLearnOnce();
+        if (r) console.log(`[learn] moved ${r.moved} course(s) into the Workspace${r.failed ? `, ${r.failed} failed (tried again at the next start)` : ""} — backup ${r.backup}`);
+      }).catch((e) => console.error("[learn] moving Learn's data into the Workspace failed", e));
     }
   } catch (e) {
     console.error("[workspace] setting up the accounts failed", e);

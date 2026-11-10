@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { connection } from "next/server";
 import { t } from "@/lib/i18n/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
@@ -18,6 +18,7 @@ export default async function ReviewPage({ params }: { params: Promise<{ id: str
   const store = await import("@/plugins/learn/store");
   const course = store.getCourse(Number((await params).id));
   if (!course) notFound();
+  if (String(course.id) !== (await params).id) redirect(`/learn/${course.id}/review`);
   const cards = store.dueCards(course.id).map((c) => ({ id: c.id, front: c.front, back: c.back }));
   return (
     <div className="mx-auto w-full max-w-2xl space-y-4">

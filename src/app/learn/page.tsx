@@ -21,11 +21,20 @@ export default async function LearnPage() {
   const { levelOf } = await import("@/plugins/learn/game");
   const due = new Map(store.dueCount().map((d) => [d.courseId, d.due]));
   const courses = store.listCourses().map((c) => ({ c, progress: c.status === "ready" ? store.courseTree(c.id).tree.progress : null }));
+  // (Where it's all kept: Learn's databases in the Workspace — to look at, filter, change.)
+  const folder = isInstalled("workspace") ? (await import("@/plugins/learn/dbs")).learnDbs().folder : null;
   return (
     <div className="mx-auto w-full max-w-4xl space-y-6">
       <header className="space-y-1">
         <h1 className="text-lg font-semibold">{t("Learn")}</h1>
         <p className="max-w-[75ch] text-sm text-zinc-500">{t("Pick a topic: Claude researches it and plans it as a skill tree — years, phases, skills and small steps. Claude teaches each step in a chat, with exercises it builds for you.")}</p>
+        {folder && (
+          <p className="text-sm">
+            <Link href={`/workspace/${folder}`} className="text-indigo-700 hover:underline dark:text-indigo-300">
+              {t("Your courses, steps, conversations and cards as databases in the Workspace")} →
+            </Link>
+          </p>
+        )}
       </header>
       {courses.length > 0 && (
         <ul className="grid gap-3 sm:grid-cols-2">
