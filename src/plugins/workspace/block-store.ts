@@ -1,5 +1,6 @@
 import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
+import { createPage } from "./store";
 import { blockFlowName, normalizeBlock, type BlockDef } from "./blocks";
 
 /**
@@ -10,6 +11,9 @@ import { blockFlowName, normalizeBlock, type BlockDef } from "./blocks";
 function db() {
   const d = getSqlite();
   d.exec("create table if not exists ws_blocks (name text primary key, def text not null, updated_at text not null)");
+  d.exec(
+    "create table if not exists ws_block_versions (name text not null, n integer not null, at text not null, source text not null, note text not null default '', def text not null, primary key (name, n))",
+  );
   return d;
 }
 
@@ -33,15 +37,53 @@ export function getBlock(name: string): BlockDef | null {
   return r ? toBlock(r) : null;
 }
 
-/** A block made or replaced (by its name). */
-export function saveBlock(raw: unknown): BlockDef {
+export const MAX_BLOCK_VERSIONS = 40;
+export type BlockVersionSource = "ai" | "edit" | "restore" | "package" | "first";
+export type BlockVersion = { n: number; at: string; source: BlockVersionSource; note: string; size: number };
+
+/** A block made or replaced (by its name); every change is kept as a version (the same as the newest: not again). */
+export function saveBlock(raw: unknown, opts: { source?: BlockVersionSource; note?: string } = {}): BlockDef {
   const b = normalizeBlock(raw);
   const at = new Date().toISOString();
   const { updatedAt: _drop, ...def } = b;
   void _drop;
+  const json = JSON.stringify(def);
+  const last = db().prepare("select n, def from ws_block_versions where name = ? order by n desc limit 1").get(b.name) as { n: number; def: string } | undefined;
+  if (!last || last.def !== json) {
+    db().prepare("insert into ws_block_versions (name, n, at, source, note, def) values (?, ?, ?, ?, ?, ?)").run(b.name, (last?.n ?? 0) + 1, at, opts.source ?? (last ? "edit" : "first"), (opts.note ?? "").slice(0, 300), json);
+    db().prepare("delete from ws_block_versions where name = ? and n <= (select max(n) from ws_block_versions where name = ?) - ?").run(b.name, b.name, MAX_BLOCK_VERSIONS);
+  }
   db().prepare("insert into ws_blocks (name, def, updated_at) values (?, ?, ?) on conflict(name) do update set def = excluded.def, updated_at = excluded.updated_at").run(b.name, JSON.stringify(def), at);
   emitChange("workspace");
   return { ...b, updatedAt: at };
+}
+
+/** A block's versions, the newest first. */
+export function listBlockVersions(name: string): BlockVersion[] {
+  return (db().prepare("select n, at, source, note, length(def) size from ws_block_versions where name = ? order by n desc").all(name.trim().toLowerCase()) as BlockVersion[]).map((r) => ({ ...r }));
+}
+
+/** One version's definition. */
+export function getBlockVersion(name: string, n: number): BlockDef | null {
+  const r = db().prepare("select def from ws_block_versions where name = ? and n = ?").get(name.trim().toLowerCase(), n) as { def: string } | undefined;
+  if (!r) return null;
+  try {
+    return normalizeBlock({ ...JSON.parse(r.def), name: name.trim().toLowerCase() });
+  } catch {
+    return null;
+  }
+}
+
+/** An older version brought back (kept as a new version, so nothing is lost). */
+export function restoreBlockVersion(name: string, n: number): BlockDef {
+  const v = getBlockVersion(name, n);
+  if (!v) throw new Error(`There is no version ${n} of the block “${name}”.`);
+  return saveBlock(v, { source: "restore", note: `back to version ${n}` });
+}
+
+/** Blocks that were removed but have versions left — they can be brought back. */
+export function removedBlocks(): { name: string; at: string }[] {
+  return db().prepare("select v.name, max(v.at) at from ws_block_versions v where v.name not in (select name from ws_blocks) group by v.name order by at desc").all() as { name: string; at: string }[];
 }
 
 /** A block removed — and its flows (block.<name>.*), when `flows`. Whether it was there. */
@@ -58,10 +100,9 @@ export async function deleteBlock(name: string, opts: { flows?: boolean } = {}):
 }
 
 /** The page the blocks' flows stand under ("Blocks", made the first time) — so they don't fill the top of the tree. */
-export async function blocksFolder(): Promise<number> {
+export function blocksFolder(): number {
   const found = db().prepare("select id from ws_pages where parent_id is null and kind = 'page' and title = 'Blocks' and icon = '🧩' and archived_at is null order by id limit 1").get() as { id: number } | undefined;
   if (found) return found.id;
-  const { createPage } = await import("./store");
   return createPage({ title: "Blocks", icon: "🧩" });
 }
 

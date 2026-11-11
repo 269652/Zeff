@@ -17,8 +17,26 @@ export async function saveBlockAction(def: unknown) {
     const { checkBlock } = await import("../block-check");
     const r = checkBlock(def);
     if (r.errors.length) throw new Error(r.errors.map((e) => `${e.line}: ${e.message}`).join(" · "));
-    return { block: (await import("../block-store")).saveBlock(r.block) };
+    return { block: (await import("../block-store")).saveBlock(r.block, { source: "edit" }) };
   });
+}
+
+/** A block's versions, the newest first; and the removed blocks that can be brought back. */
+export async function blockVersionsAction(name: string) {
+  return run(async () => {
+    const s = await import("../block-store");
+    return { versions: s.listBlockVersions(String(name)), flows: await s.blockFlows(String(name)) };
+  });
+}
+
+/** The blocks that were removed but kept their versions. */
+export async function removedBlocksAction() {
+  return run(async () => ({ removed: (await import("../block-store")).removedBlocks() }));
+}
+
+/** An older version of a block brought back (as the newest). */
+export async function restoreBlockVersionAction(name: string, n: number) {
+  return run(async () => ({ block: (await import("../block-store")).restoreBlockVersion(String(name), Number(n)) }));
 }
 
 /** A block removed — with its flows, when `flows`. */

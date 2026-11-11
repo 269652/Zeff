@@ -19,7 +19,7 @@ export function checkBlock(raw: unknown, opts: { dbId?: number } = {}): { block:
   } catch (e) {
     return { block: { name: "", description: "", params: [], template: "" }, errors: [{ line: 0, message: (e as Error).message }], flowsUsed: [] };
   }
-  const parsed = parseView(block.template);
+  const parsed = parseView(block.template || " ");
   if (parsed.errors.length) return { block, errors: parsed.errors, flowsUsed: [] };
   const blocks = [...listBlocks().filter((b) => b.name !== block.name), block];
   const use =

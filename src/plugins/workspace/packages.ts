@@ -6,7 +6,9 @@ import { workspacePackages } from "./packages-point";
 import { createRoutine, getRoutine, type RoutineConfig, type Step, type Trigger } from "./routines";
 import { addRow, createPage, getPage, rawRows, setCell, setPageProps, tree, updatePage, updateSchema } from "./store";
 import { pageState, setPageState } from "./widget-bridge";
-import { adoptFlow, getFlow } from "./flows/store";
+import { adoptFlow, createFlow, flowByName, getFlow, listFlows } from "./flows/store";
+import { blockFlowName, type BlockDef } from "./blocks";
+import { blocksFolder, getBlock, saveBlock } from "./block-store";
 
 /**
  * Packages: a whole app — pages, databases with fields and views, the blocks of the pages, the routines — as one JSON thing. It is made
@@ -38,7 +40,9 @@ export type PackageItem = {
   flow?: Record<string, unknown>;
 };
 export type PackageRow = { id?: string; title: string; icon?: string; cells: Record<string, unknown>; content?: DocNode };
-export type WorkspacePackage = { format: 1; name: string; description?: string; icon?: string; items: PackageItem[] };
+/** A block of your own the package's views use (blocks.ts), with its flows (permissions left out — granted again by whoever installs it). */
+export type PackageBlock = { def: BlockDef; flows?: Record<string, unknown>[] };
+export type WorkspacePackage = { format: 1; name: string; description?: string; icon?: string; items: PackageItem[]; blocks?: PackageBlock[] };
 export type PackageMeta = { id: string; name: string; icon: string; description: string };
 
 const MAX_ITEMS = 200;
@@ -145,6 +149,36 @@ function mapTriggers(triggers: Trigger[], f: Mapper): Trigger[] {
   });
 }
 
+const USED_BLOCK = /<use\b[^>]*?\bblock\s*=\s*["']([^"'{}]+)["']/g;
+const usedBlocks = (src: string): string[] => [...src.matchAll(USED_BLOCK)].map((m) => m[1].trim().toLowerCase());
+
+/** The blocks of your own the exported views use — and the blocks those use — with their flows. */
+function blocksOf(items: PackageItem[]): PackageBlock[] {
+  const queue = items.flatMap((i) => (i.schema?.views ?? []).flatMap((v) => (v.template ? usedBlocks(v.template) : [])));
+  const seen = new Set<string>();
+  const out: PackageBlock[] = [];
+  while (queue.length && out.length < 50) {
+    const name = queue.shift()!;
+    if (seen.has(name)) continue;
+    seen.add(name);
+    const def = getBlock(name);
+    if (!def) continue;
+    queue.push(...usedBlocks(def.template));
+    const { updatedAt: _u, ...clean } = def;
+    void _u;
+    const prefix = blockFlowName(name, "");
+    const flows = listFlows()
+      .filter((f) => f.name.startsWith(prefix))
+      .map((f) => {
+        const { pageId: _p, lastRunAt: _l, nextRunAt: _n, permissions: _perm, parentId: _pp, title: _t, ...d } = f as typeof f & Record<string, unknown>;
+        for (const x of [_p, _l, _n, _perm, _pp, _t]) void x;
+        return { ...d, title: f.title, requested: f.requested ?? f.permissions } as Record<string, unknown>;
+      });
+    out.push({ def: clean as BlockDef, ...(flows.length ? { flows } : {}) });
+  }
+  return out;
+}
+
 /** The pages of a tree as a package: the page and what is below it (databases with their schema, the routines), references by local number. */
 export function exportPackage(rootId: number, opts: { name: string; description?: string; icon?: string; includeRows?: boolean }): WorkspacePackage {
   const root = getPage(rootId);
@@ -201,7 +235,8 @@ export function exportPackage(rootId: number, opts: { name: string; description?
     return item;
   });
   const icon = opts.icon ?? root.icon;
-  return { format: 1, name: opts.name, ...(opts.description ? { description: opts.description } : {}), ...(icon ? { icon } : {}), items };
+  const blocks = blocksOf(items);
+  return { format: 1, name: opts.name, ...(opts.description ? { description: opts.description } : {}), ...(icon ? { icon } : {}), items, ...(blocks.length ? { blocks } : {}) };
 }
 
 /** A package made: new pages under `parentId`, every reference to the new ids, routines off. The id of its first page. */
@@ -223,6 +258,23 @@ export function installPackage(pkg: WorkspacePackage, parentId: number | null): 
   const f: Mapper = (id) => made.get(String(id));
   for (const i of sorted) {
     made.set(String(i.id), createPage({ parentId: i.parent === undefined ? parentId : made.get(String(i.parent)), title: String(i.title ?? ""), icon: i.icon, kind: pageKind(i.kind) }));
+  }
+  // The blocks its views use: made when there is none of that name (yours stays as it is), with their flows (permissions asked again).
+  for (const b of Array.isArray(pkg.blocks) ? pkg.blocks.slice(0, 50) : []) {
+    try {
+      const name = String(b?.def?.name ?? "").toLowerCase();
+      if (!name || getBlock(name)) continue;
+      saveBlock(b.def, { source: "package", note: pkg.name });
+      for (const raw of (Array.isArray(b.flows) ? b.flows : []).slice(0, 20)) {
+        try {
+          if (typeof raw.name === "string" && !flowByName(raw.name)) createFlow({ ...raw, permissions: {} }, blocksFolder());
+        } catch {
+          /* (a flow of that name is there already, or it is not one) */
+        }
+      }
+    } catch {
+      /* (a block that does not hold: left out — the view says it is missing) */
+    }
   }
   // Rows: made first without their links, then the links (a row may link one made after it).
   const rowMade = new Map<string, number>();

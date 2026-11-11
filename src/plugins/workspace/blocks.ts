@@ -4,7 +4,13 @@
  * block.<name>.<flow>, reached from its template as run="@flow" / flow="@flow"). Any view uses it as <use block="name" …/>; you or
  * the AI make one (workspace_save_block). Its template stays as harmless as any view's: no script, no HTML — what it does on the
  * server is a flow, with the flow's permissions. Client-safe.
+ *
+ * A block may be a WIDGET instead of a template: code in the sandboxed frame (lib/widgets — a calculator, a 3D model, a plot), drawn
+ * where <use block="…"/> stands; its parameters reach the code as zeff.context.params. Its permissions (writes, the AI, flows) are
+ * granted by the user once per code, as for any widget.
  */
+import { wantsOf } from "@/lib/widgets/bridge";
+import { checkWidgetHtml, WIDGET_LIBS } from "@/lib/widgets/sandbox";
 
 export const BLOCK_PARAM_TYPES = ["text", "number", "boolean", "list", "color", "url"] as const;
 export type BlockParamType = (typeof BLOCK_PARAM_TYPES)[number];
@@ -15,6 +21,9 @@ export type BlockParamType = (typeof BLOCK_PARAM_TYPES)[number];
  */
 export type BlockParam = { name: string; type: BlockParamType; required?: boolean; default?: string; help?: string; options?: string[] };
 
+/** A widget as a block's body: its code, the libraries, what it asks for, how tall it is shown. */
+export type BlockWidget = { html: string; libs: string[]; writes: number[]; ai: boolean; flows: string[]; height?: number };
+
 export type BlockDef = {
   name: string;
   title?: string;
@@ -23,6 +32,8 @@ export type BlockDef = {
   params: BlockParam[];
   /** The view language: {{ props.<param> }}, <slot/> (what stood inside <use>), state of its own per use. */
   template: string;
+  /** A widget instead of a template (the template is then empty): its params arrive as zeff.context.params. */
+  widget?: BlockWidget;
   /** How it is used — an example <use …/> the help and the AI show. */
   example?: string;
   updatedAt?: string;
@@ -46,7 +57,9 @@ export function normalizeBlock(raw: unknown): BlockDef {
   const name = str(o.name).toLowerCase();
   if (!BLOCK_NAME.test(name)) throw new Error(`A block's name is lowercase letters, digits, - and _, parts joined by dots ("crm.deal-card") — not “${str(o.name)}”.`);
   const template = typeof o.template === "string" ? o.template.trim() : "";
-  if (!template) throw new Error("A block needs a template (the view language).");
+  const widget = widgetOf(o.widget);
+  if (!template && !widget) throw new Error("A block needs a template (the view language) or a widget.");
+  if (template && widget) throw new Error("A block is a template or a widget, not both.");
   if (template.length > MAX_BLOCK_TEMPLATE) throw new Error(`A block's template is at most ${MAX_BLOCK_TEMPLATE} characters.`);
   const seen = new Set<string>();
   const params = (Array.isArray(o.params) ? o.params : []).map((p): BlockParam => {
@@ -75,9 +88,23 @@ export function normalizeBlock(raw: unknown): BlockDef {
     ...(str(o.icon) ? { icon: str(o.icon).slice(0, 8) } : {}),
     params,
     template,
+    ...(widget ? { widget } : {}),
     ...(str(o.example) ? { example: str(o.example).slice(0, 2000) } : {}),
     ...(str(o.updatedAt) ? { updatedAt: str(o.updatedAt) } : {}),
   };
+}
+
+/** A block's widget as it is kept — what is wrong with it said in words (it throws); none when there is none. */
+function widgetOf(raw: unknown): BlockWidget | undefined {
+  if (raw === undefined || raw === null) return undefined;
+  const w = (typeof raw === "object" && !Array.isArray(raw) ? raw : {}) as Record<string, unknown>;
+  const html = typeof w.html === "string" ? w.html : "";
+  const ok = checkWidgetHtml(html);
+  if (!ok.ok) throw new Error(`The widget: ${ok.why}.`);
+  const wants = wantsOf(w.writes, w.ai, w.flows);
+  const libs = (Array.isArray(w.libs) ? w.libs : typeof w.libs === "string" ? w.libs.split(",") : []).map(str).filter((l) => Object.prototype.hasOwnProperty.call(WIDGET_LIBS, l));
+  const h = Math.round(Number(w.height));
+  return { html, libs: [...new Set(libs)], writes: wants.writes, ai: !!wants.ai, flows: wants.flows ?? [], ...(h > 0 ? { height: Math.min(1200, Math.max(120, h)) } : {}) };
 }
 
 /** A parameter's value from its text (an attribute, after {{ … }}): a number, true/false, or the text. */

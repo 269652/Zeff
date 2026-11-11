@@ -68,7 +68,11 @@ export function registerBlockTools(server: McpServer, h: Helpers): void {
         params: z
           .array(z.object({ name: z.string(), type: z.enum(BLOCK_PARAM_TYPES).optional(), required: z.boolean().optional(), default: z.string().optional(), help: z.string().optional(), options: z.array(z.string()).optional() }))
           .optional(),
-        template: z.string().describe("The view language; props.<param>, <slot/>, run=\"@flow\"."),
+        template: z.string().optional().describe("The view language; props.<param>, <slot/>, run=\"@flow\". Not with widget."),
+        widget: z
+          .object({ html: z.string(), libs: z.array(z.string()).optional(), writes: z.array(z.number().int()).optional(), ai: z.boolean().optional(), flows: z.array(z.string()).optional(), height: z.number().optional() })
+          .optional()
+          .describe("A widget instead of a template: its code (lib/widgets — HTML + script, libraries by name); the block's params arrive as zeff.context.params. What it writes/asks is granted by the user once, as for any widget."),
         example: z.string().optional().describe('How it is used: <use block="name" …/> (in a <list> when it is made for a row) — it is drawn so to check it.'),
         flows: z.array(node).optional().describe("Its flows: { name (short: \"search\"), title, inputs, nodes, output, permissions } as in workspace_save_flow."),
         database: z.union([z.number().int(), z.string()]).optional().describe("A database (id or title) to check it on: its rows and fields."),
@@ -110,7 +114,7 @@ export function registerBlockTools(server: McpServer, h: Helpers): void {
           flows.push({ def, cur });
         }
         const bs = await import("./block-store");
-        const block = bs.saveBlock(r.block);
+        const block = bs.saveBlock(r.block, { source: "ai", note: String(v.description ?? "").slice(0, 120) });
         const asks: string[] = [];
         const folder = flows.some((f) => !f.cur) ? await bs.blocksFolder() : null;
         for (const { def, cur } of flows) {
@@ -131,6 +135,35 @@ export function registerBlockTools(server: McpServer, h: Helpers): void {
             .filter(Boolean)
             .join("\n"),
         );
+      }),
+  );
+
+  server.registerTool(
+    "workspace_block_versions",
+    {
+      title: "A block's versions",
+      description: "The versions of a block of your own (every change is kept): list them, or bring one back (restore: n) — kept as a new version. Without name: the removed blocks that can be brought back.",
+      inputSchema: z.object({ name: z.string().optional(), restore: z.number().int().optional() }),
+    },
+    async ({ name, restore }) =>
+      h.run(async () => {
+        const gone = off(h);
+        if (gone) return gone;
+        const s = await import("./block-store");
+        if (!name) {
+          const r = s.removedBlocks();
+          return h.ok(r.length ? r.map((x) => `- ${x.name} (removed; last change ${x.at}) — workspace_block_versions { name, restore: <n> } brings it back`).join("\n") : "No removed blocks.");
+        }
+        if (restore !== undefined) {
+          try {
+            const b = s.restoreBlockVersion(name, restore);
+            return h.ok(`Brought version ${restore} of “${b.name}” back (as the newest).`);
+          } catch (e) {
+            return h.fail((e as Error).message);
+          }
+        }
+        const vs = s.listBlockVersions(name);
+        return vs.length ? h.ok(vs.map((v) => `#${v.n} ${v.at} [${v.source}] ${v.note}`).join("\n")) : h.fail(`There is no block “${name}” with versions.`);
       }),
   );
 

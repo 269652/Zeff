@@ -10,6 +10,7 @@ import { STARTERS } from "../starters";
 import { FlowEditor } from "./FlowEditor";
 import { LifecycleEditor } from "./LifecycleEditor";
 import { Lambdas } from "./Lambdas";
+import { Blocks } from "./Blocks";
 import { NewAutomation } from "./Automations";
 import { DetailEditor, NewApp, ScreenEditor, type ScreenDb } from "./Screens";
 import { studioScreensAction } from "../server-actions";
@@ -21,7 +22,7 @@ import { studioScreensAction } from "../server-actions";
 
 type FlowItem = { pageId: number; parentId: number | null; name: string; title?: string; description: string; lookup: boolean; enabled: boolean; lastRunAt: string | null };
 type Ask = Parameters<typeof AskForm>[0]["ask"];
-type Section = { kind: "flow"; id: number } | { kind: "new" } | { kind: "screen"; db: number; view: string | null } | { kind: "detail"; db: number } | { kind: "newapp" } | { kind: "newauto" } | { kind: "lifecycles" } | { kind: "lambdas"; name: string | null } | { kind: "secrets" } | { kind: "waiting" };
+type Section = { kind: "flow"; id: number } | { kind: "new" } | { kind: "screen"; db: number; view: string | null } | { kind: "detail"; db: number } | { kind: "newapp" } | { kind: "newauto" } | { kind: "lifecycles" } | { kind: "lambdas"; name: string | null } | { kind: "blocks"; name: string | null } | { kind: "secrets" } | { kind: "waiting" };
 
 function NewFlow({ onMade }: { onMade: (id: number) => void }) {
   const t = useT();
@@ -132,7 +133,7 @@ export function Studio() {
   const askedDb = Number(params.get("db")) || null;
   const [flows, setFlows] = useState<FlowItem[]>([]);
   const [dbs, setDbs] = useState<ScreenDb[]>([]);
-  const [section, setSection] = useState<Section>(asked ? { kind: "flow", id: asked } : askedDb ? { kind: "screen", db: askedDb, view: params.get("view") } : params.get("lambda") ? { kind: "lambdas", name: params.get("lambda") } : { kind: "newauto" });
+  const [section, setSection] = useState<Section>(asked ? { kind: "flow", id: asked } : askedDb ? { kind: "screen", db: askedDb, view: params.get("view") } : params.get("lambda") ? { kind: "lambdas", name: params.get("lambda") } : params.get("block") ? { kind: "blocks", name: params.get("block") } : { kind: "newauto" });
   const [q, setQ] = useState("");
   const load = useCallback(() => {
     void listFlowsAction().then((r) => r.ok && setFlows(r.flows));
@@ -232,6 +233,9 @@ export function Studio() {
           <button type="button" className={item(section.kind === "lambdas")} onClick={() => setSection({ kind: "lambdas", name: null })}>
             λ {t("Lambdas & lookup sources")}
           </button>
+          <button type="button" className={item(section.kind === "blocks")} onClick={() => setSection({ kind: "blocks", name: null })}>
+            🧩 {t("Blocks")}
+          </button>
           <button type="button" className={item(section.kind === "lifecycles")} onClick={() => setSection({ kind: "lifecycles" })}>
             ⟳ {t("Lifecycles")}
           </button>
@@ -261,6 +265,7 @@ export function Studio() {
         {section.kind === "detail" && openDb && <DetailEditor key={openDb.id} db={openDb} onChanged={load} />}
         {section.kind === "lifecycles" && <LifecycleEditor />}
         {section.kind === "lambdas" && <Lambdas initial={section.name} />}
+        {section.kind === "blocks" && <Blocks initial={section.name} openFlow={open} />}
         {section.kind === "secrets" && <Secrets />}
         {section.kind === "waiting" && <Waiting />}
       </main>

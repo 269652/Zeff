@@ -22,6 +22,7 @@ import { AskBox, DossierBox } from "./view-notebook";
 import { FlowData, runFlowButton, transitionButton, TransitionsBlock } from "./view-flows";
 import { WidgetBlock } from "./widget-node";
 import { useBlockDefs } from "./use-blocks";
+import { AppWidget } from "./app-widget";
 import { useWidgetOutputs } from "./use-outputs";
 
 /**
@@ -542,6 +543,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
       case "nav":
       case "entry":
         return null; // (drawn beside the view, below — or in the tree)
+      case "appwidget":
+        return <BlockWidget key={key} block={a.block} params={a.params} title={a.title} height={a.height ? Number(a.height) : undefined} pageId={props.data.id} />;
       case "widget": {
         const { id, title, ...config } = a;
         const conf = Object.fromEntries(Object.entries(config).map(([k, v]) => [k, /^-?\d+(\.\d+)?$/.test(v) ? Number(v) : v === "true" ? true : v === "false" ? false : v]));
@@ -564,6 +567,27 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
   return (
     <div className="space-y-5" data-print-root>
       <Level nodes={r.nodes} ext={ext} />
+    </div>
+  );
+}
+
+/** A block that is a widget (blocks.ts): its code in the frame, the block's parameters as zeff.context.params. */
+function BlockWidget({ block, params, title, height, pageId }: { block: string; params: string; title: string; height?: number; pageId: number | null }) {
+  const t = useT();
+  const defs = useBlockDefs();
+  const def = defs?.find((b) => b.name === block);
+  const parsed = useMemo(() => {
+    try {
+      return JSON.parse(params) as unknown;
+    } catch {
+      return {};
+    }
+  }, [params]);
+  if (!def?.widget) return defs ? <p className="text-sm text-red-600">{t("There is no widget block “{name}”.", { name: block })}</p> : null;
+  const w = def.widget;
+  return (
+    <div style={height || w.height ? { minHeight: height ?? w.height } : undefined}>
+      <AppWidget html={w.html} libs={w.libs} title={title} wants={{ writes: w.writes, ai: w.ai, flows: w.flows }} pageId={pageId} params={parsed} />
     </div>
   );
 }

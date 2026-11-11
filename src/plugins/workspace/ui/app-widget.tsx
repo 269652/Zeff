@@ -11,7 +11,7 @@ import { WidgetFrame, type WidgetCallHandler } from "@/components/widgets/Widget
 import { MAX_STATE, missing, wantsOf, widgetKey, type WidgetGrant, type WidgetWants } from "@/lib/widgets/bridge";
 import { WIDGET_LIBS } from "@/lib/widgets/sandbox";
 import { postJson } from "@/lib/post-json";
-import { allowWidgetAction, publishWidgetValueAction, revokeWidgetAction, saveWidgetVersionAction, setWidgetPageStateAction, widgetCallAction, widgetContextAction, widgetGrantAction, widgetPageStateAction, widgetVersionAction, widgetVersionsAction } from "../actions";
+import { allowWidgetAction, saveBlockAction, publishWidgetValueAction, revokeWidgetAction, saveWidgetVersionAction, setWidgetPageStateAction, widgetCallAction, widgetContextAction, widgetGrantAction, widgetPageStateAction, widgetVersionAction, widgetVersionsAction } from "../actions";
 import type { MadeWidget } from "../widget-make";
 import { GripBar } from "./app-nodes";
 import { WS_CHANGED } from "./ChatPanel";
@@ -42,8 +42,11 @@ export function AppWidget({
   showGrants = false,
   onError,
   wid,
+  params,
   className = "",
 }: {
+  /** What a widget block was given (blocks.ts): zeff.context.params. */
+  params?: unknown;
   /** The block it is (its published values are the block's). */
   wid?: string;
   /** Something broke inside it (the block offers to have it fixed). */
@@ -174,6 +177,8 @@ export function AppWidget({
     [pageId, me],
   );
 
+  const paramsJson = params === undefined ? "" : JSON.stringify(params);
+  const frameContext = useMemo(() => (context || paramsJson ? { ...(context ?? {}), ...(paramsJson ? { params: JSON.parse(paramsJson) as unknown } : {}) } : undefined), [context, paramsJson]);
   const lack = missing(wants, grant);
   const dbName = (id: number) => context?.databases.find((d) => d.id === id)?.title ?? `#${id}`;
   const allow = async () => {
@@ -190,7 +195,7 @@ export function AppWidget({
 
   return (
     <div className={`space-y-1.5 ${className}`}>
-      <WidgetFrame html={html} libs={libs} title={title} onCall={onCall} context={context ?? undefined} pulse={pulse} bus={bus} onError={onError} />
+      <WidgetFrame html={html} libs={libs} title={title} onCall={onCall} context={frameContext} pulse={pulse} bus={bus} onError={onError} />
       {grant !== null || context ? (
         asks.length > 0 && (
           <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
@@ -352,6 +357,19 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
             </button>
             <button type="button" title={t("Its code")} onClick={() => (setCode(html), setMode("code"))}>
               {"</>"}
+            </button>
+            <button
+              type="button"
+              title={t("Save as a block — use it in any view with <use block=…>")}
+              onClick={() => {
+                const asked = window.prompt(t("A name for the block (lowercase letters, digits, - and _):"), (title || "widget").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "").slice(0, 30));
+                if (!asked) return;
+                void saveBlockAction({ name: asked, title: title || undefined, description: title || asked, params: [], widget: { html, libs, writes: wants.writes, ai: wants.ai, flows: wants.flows } }).then((r) =>
+                  r.ok ? toast(t("Saved as the block “{name}” — <use block=\"{name}\"/> in a view.", { name: r.block.name })) : toast(r.error, { tone: "error" }),
+                );
+              }}
+            >
+              🧩
             </button>
             {wid && (
               <button type="button" title={t("Versions")} onClick={() => (setMode("versions"), void loadVersions())}>

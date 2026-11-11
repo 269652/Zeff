@@ -292,6 +292,20 @@ first and refuses it with every mistake named — and puts it into a view. What 
 database, the AI) the assistant only **asks for**: you grant it on the flow's page in the Studio (the flows stand
 under the page **🧩 Blocks**).
 
+**Widgets as blocks.** A block can also be a **widget** instead of a template: code in the sandbox (a calculator, a 3D
+model, a plot — see [Widgets](../widgets.md)). Its parameters reach it as `zeff.context.params` (a list parameter
+arrives as the rows, plain objects with their fields). Make one by clicking **🧩** in a widget's toolbar on a page
+(*Save as a block*), by asking the assistant, or in the Studio. A view then draws it like any block:
+`<use block="calc.sum" values="rows" label="Total"/>`. What the widget may write or ask you grant once, where it is shown.
+
+**The Studio's Blocks screen** lists all blocks: how each is used, its parameters, template (or widget code), flows and
+**versions**. Every change — by you, by the assistant, from a package — is kept (the last 40); a version can be brought
+back (it becomes the newest), and a removed block comes back from the *Removed* list.
+
+**Packed with the app.** When you pack an app (*Save as plugin*, or a package), the blocks its views use come along —
+with the blocks they use and their flows (permissions asked for again where it is installed). A block of the same
+name that is there already stays as it is.
+
 ![Two uses of the same block "Wikipedia finder" side by side: each has its own search, its flow asks Wikipedia on the server, and each shows its own hits](img/workspace-block-flow.png)
 
 ### Settings

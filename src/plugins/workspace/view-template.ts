@@ -717,6 +717,27 @@ function drawUse(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       props[p.name] = paramValue(p, v);
     }
   }
+  // A widget block: drawn by the page in its frame; its parameters (a collection: the rows as plain objects) are what it is told.
+  if (def.widget) {
+    const plainProps = Object.fromEntries(
+      Object.entries(props).map(([k, v]) => [
+        k,
+        isRows(v) || Array.isArray(v)
+          ? itemsOf(v).slice(0, 500).map((it) => {
+              if (it instanceof Object && "cells" in (it as object) && "id" in (it as object)) {
+                const r = it as Row;
+                return { id: r.id, title: r.title, ...Object.fromEntries(ctx.data.props.map((p) => [p.name, plain(fieldOf(ctx, r, p.name)?.value ?? null)])) };
+              }
+              return plain(it);
+            })
+          : plain(v),
+      ]),
+    );
+    const params = JSON.stringify(plainProps);
+    if (params.length > 400_000) return err(`The block “${name}”: its parameters are too big for a widget (${params.length} characters).`);
+    const wid = raw.id?.trim() ? keyOf(interpolate(raw.id, ctx, n.line)) : `${keyOf(name)}${ctx.seq.n++}`;
+    return [{ t: "appwidget", a: { block: name, id: wid, title: def.title || def.name, params, ...(def.widget.height ? { height: String(def.widget.height) } : {}) }, c: [] }];
+  }
   // What stood inside: <fill slot="x"> for a named slot, the rest for <slot/>.
   const slots = new Map<string, { nodes: TNode[]; ctx: Ctx }>();
   const fills = n.kids.filter((k): k is Extract<TNode, { k: "tag" }> => k.k === "tag" && k.name === "fill");
@@ -1314,6 +1335,8 @@ export function blockReference(blocks: BlockDef[] = []): string {
     "- blocks in blocks: <use> inside a block's template (not itself).",
     "",
     "FLOWS (the server side; workspace_flow_docs tells the nodes and actions): flows: [{ name: \"search\", title, inputs: [{ name: \"q\", type: \"text\" }], nodes: [...], output: \"{{ steps.x.output }}\", permissions: { … } }] — saved with the block. Permissions are only asked for: the user grants them in the Studio (the flow's page); until then a node that needs one fails and says what is missing.",
+    "",
+    "WIDGET BLOCKS: instead of a template a block can be a widget — `widget`: { html, libs?, writes?, ai?, flows?, height? } (the code of a widget as on pages: HTML + script in a sandbox, libraries like three, plotly, mathjs; workspace_widget docs). Its parameters arrive as zeff.context.params (a list parameter: the rows as plain objects { id, title, <field>: value }); the user allows what it writes once. Use it like any block: <use block=\"calc.sum\" values=\"rows\" label=\"Total\"/>. A widget on a page can be saved as one (🧩 in its toolbar), and the Studio's Blocks screen lists, edits and versions them all.",
     "",
     "GOOD BLOCKS: one job, named for it; generic — fields and collections come in as parameters, not written into the template (unless it is made for one database); defaults for what is optional; an <empty> when there is nothing; no help text on the page. Check it: workspace_save_block draws it and names every mistake by line; try it with workspace_update_database (a view's template using it).",
     "",
