@@ -4,6 +4,7 @@ import { Extension, type Editor, type Range } from "@tiptap/react";
 import { useT } from "@/components/I18nProvider";
 import { PluginKey } from "@tiptap/pm/state";
 import { openNextFormula } from "./inline-formula";
+import { blockSlashItems } from "./slash-blocks";
 import Suggestion from "@tiptap/suggestion";
 import type { Lang, T } from "@/lib/i18n/shared";
 import type { MenuProps } from "./popup";
@@ -308,6 +309,7 @@ export const slashItems = (t: T): SlashItem[] => [
   { key: "ai-actions", under: "ai", title: t("Action items"), hint: t("Tasks and decisions from the page"), icon: "✨", group: t("AI"), keywords: ["ai", "action", "tasks", "decisions"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("actions")) },
   { key: "ai-ask", under: "ai", title: t("Ask AI…"), hint: t("Tell it what to write"), icon: "✨", group: t("AI"), keywords: ["ai", "ask", "prompt", "write", "draft"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.ai("custom")) },
   { key: "ai-todos", under: "ai", title: t("Make Zeff todos"), hint: t("The AI finds todos in this page"), icon: "☑️", group: t("AI"), keywords: ["ai", "todos", "tasks", "zeff"], run: ({ editor, range, ctx }) => (chain(editor, range).run(), ctx.todosFromPage()) },
+  ...blockSlashItems(t),
 ];
 
 /** Each widget a plugin brings, in the "Widget …" picker (its name and what it shows are what a search finds it by). */

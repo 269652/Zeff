@@ -9,7 +9,8 @@ import { valueKey } from "./values";
  * kennzahl("name")), the assistant and agents read it (workspace_widget_outputs) and can pour a table into a database.
  *
  * A name belongs to the widget block that published it first (its wid — or, outside a page, its code's key): another widget can't
- * overwrite it. Server only.
+ * overwrite it — except a changed version of the same widget (same page, same title): its code's key is new, the name is still its.
+ * Server only.
  */
 
 export const MAX_OUTPUT = 200_000;
@@ -54,7 +55,8 @@ export function publishOutput(name: string, value: unknown, by: { owner: string;
   if (!by.owner) throw new Error("publish: no widget.");
   const d = db();
   const had = d.prepare("select * from ws_widget_outputs where key = ?").get(key) as ORow | undefined;
-  if (had && had.owner !== by.owner) throw new Error(`"${had.label}" is published by another widget${had.widget ? ` („${had.widget}“)` : ""} — pick another name.`);
+  const sameWidget = !!had && had.page_id !== null && had.page_id === (by.pageId ?? null) && !!had.widget && had.widget === String(by.widget ?? "").slice(0, 80);
+  if (had && had.owner !== by.owner && !sameWidget) throw new Error(`"${had.label}" is published by another widget${had.widget ? ` („${had.widget}“)` : ""} — pick another name.`);
   if (value === null || value === undefined) {
     if (had) d.prepare("delete from ws_widget_outputs where key = ?").run(key);
     emitChange("workspace");
@@ -69,7 +71,7 @@ export function publishOutput(name: string, value: unknown, by: { owner: string;
   if (json.length > MAX_OUTPUT) throw new Error(`publish: too big (${MAX_OUTPUT} characters at most).`);
   if (!had && (d.prepare("select count(*) n from ws_widget_outputs").get() as { n: number }).n >= MAX_OUTPUTS) throw new Error(`Zeff keeps ${MAX_OUTPUTS} published values at most — remove some first.`);
   d.prepare(
-    "insert into ws_widget_outputs (key, label, kind, value, unit, owner, page_id, widget, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict(key) do update set label = excluded.label, kind = excluded.kind, value = excluded.value, unit = excluded.unit, page_id = excluded.page_id, widget = excluded.widget, updated_at = excluded.updated_at",
+    "insert into ws_widget_outputs (key, label, kind, value, unit, owner, page_id, widget, updated_at) values (?, ?, ?, ?, ?, ?, ?, ?, ?) on conflict(key) do update set owner = excluded.owner, label = excluded.label, kind = excluded.kind, value = excluded.value, unit = excluded.unit, page_id = excluded.page_id, widget = excluded.widget, updated_at = excluded.updated_at",
   ).run(key, label || key, kindOf(value), json, String(by.unit ?? "").slice(0, 20), by.owner, by.pageId ?? null, String(by.widget ?? "").slice(0, 80), new Date().toISOString());
   emitChange("workspace");
   return getOutput(key);

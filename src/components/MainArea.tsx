@@ -14,13 +14,15 @@ const FLOW_ON_PHONE = [/^\/todos/];
 export function MainArea({ children }: { children: ReactNode }) {
   const path = usePagePathname();
   const wide = WIDE.some((r) => r.test(path));
+  // The Workspace (databases, views, lessons) uses the whole width of the window; the other pages keep a column of 1440 px, centred.
+  const full = /^\/workspace/.test(path);
   const flow = wide && FLOW_ON_PHONE.some((r) => r.test(path));
   // The one place that scrolls (a long page); a full-window page (a board, the chat) fits it exactly.
   // A size container: a sidebar that should fill the window's height measures it in cqh (no guessed header height).
   return (
     <main id="main" tabIndex={0} className="min-h-0 w-full flex-1 overflow-y-auto [container-type:size]">
       {/* At most 1440 px wide, centred — on a wide screen the pages and app views keep their shape (the header the same). */}
-      <div className={`mx-auto w-full max-w-[1440px] px-4 pt-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-3 ${flow ? "min-h-full sm:h-full" : wide ? "h-full" : ""}`}>{children}</div>
+      <div className={`mx-auto w-full ${full ? "" : "max-w-[1440px]"} px-4 pt-3 pb-[calc(5rem+env(safe-area-inset-bottom))] sm:pb-3 ${flow ? "min-h-full sm:h-full" : wide ? "h-full" : ""}`}>{children}</div>
     </main>
   );
 }

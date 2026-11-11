@@ -36,7 +36,7 @@ const modeName = (t: ReturnType<typeof useT>, m: SessionMode) => (isClaudeMode(m
  * effort, stop its turn; what it asks you (a permission — with the edit or command —, its plan,
  * its questions); and your next message, with images, /commands, @files and !shell.
  */
-export function ClaudeSession({ run }: { run: WorkRunView }) {
+export function ClaudeSession({ run, wide = false }: { run: WorkRunView; /** Fill the width it is given (a lesson) instead of a reading column. */ wide?: boolean }) {
   const t = useT();
   const c = run.session!;
   const live = run.live!;
@@ -69,7 +69,7 @@ export function ClaudeSession({ run }: { run: WorkRunView }) {
   const select = "field-sizing-content rounded-md border-0 bg-transparent py-0.5 pr-6 pl-1.5 text-xs hover:bg-zinc-100 focus:ring-1 focus:ring-indigo-400 disabled:opacity-60 dark:hover:bg-zinc-800";
   const quiet = "rounded-md px-1.5 py-0.5 text-xs text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 disabled:opacity-50 dark:hover:bg-zinc-800 dark:hover:text-zinc-200";
   return (
-    <div className="mx-auto w-full max-w-3xl space-y-2">
+    <div className={`mx-auto w-full space-y-2 ${wide ? "" : "max-w-3xl"}`}>
       {c.asks[0] && <AskCard key={c.asks[0].requestId} ask={c.asks[0]} more={c.asks.length - 1} act={act} pending={pending} allowBypass={c.allowBypass} />}
       <Composer
         run={run}

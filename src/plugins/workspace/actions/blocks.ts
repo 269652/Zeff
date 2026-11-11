@@ -39,6 +39,34 @@ export async function restoreBlockVersionAction(name: string, n: number) {
   return run(async () => ({ block: (await import("../block-store")).restoreBlockVersion(String(name), Number(n)) }));
 }
 
+/** The ready-made blocks (block-library.ts), each with whether it is among your blocks already. */
+export async function blockLibraryAction() {
+  return run(async () => {
+    const { LIBRARY } = await import("../block-library");
+    const have = new Set((await import("../block-store")).listBlocks().map((b) => b.name));
+    return { library: LIBRARY.map((b) => ({ ...b, installed: have.has(b.name) })) };
+  });
+}
+
+/** A library block made one of yours (or, with `all`, every one that isn't yet) — yours stay as they are. */
+export async function installLibraryBlocksAction(names: string[] | "all") {
+  return run(async () => {
+    const { LIBRARY } = await import("../block-library");
+    const s = await import("../block-store");
+    const have = new Set(s.listBlocks().map((b) => b.name));
+    const want = names === "all" ? LIBRARY.map((b) => b.name) : names.map((n) => String(n).toLowerCase());
+    const made: string[] = [];
+    for (const b of LIBRARY) {
+      if (!want.includes(b.name) || have.has(b.name)) continue;
+      const { category: _c, ...def } = b;
+      void _c;
+      s.saveBlock(def, { source: "package", note: "library" });
+      made.push(b.name);
+    }
+    return { made };
+  });
+}
+
 /** A block removed — with its flows, when `flows`. */
 export async function deleteBlockAction(name: string, flows = false) {
   return run(async () => ({ gone: await (await import("../block-store")).deleteBlock(String(name), { flows: flows === true }) }));

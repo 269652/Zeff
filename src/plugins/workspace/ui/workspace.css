@@ -334,13 +334,61 @@
   }
 }
 /* the drag handle */
+/* (An overlay on the block's left edge, on a coloured ground — not a gutter beside it: the content keeps the whole width. The
+   floating box sits left of the block; shifting it by its own width puts it over the block.) */
 .ws-handle {
   display: flex;
   align-items: center;
   gap: 0.1rem;
-  color: var(--color-zinc-400, #a1a1aa);
-  opacity: 0.9;
-  padding-right: 0.25rem;
+  padding: 0.1rem;
+  border-radius: 0.45rem;
+  border: 1px solid var(--color-indigo-200, #c7d2fe);
+  background: color-mix(in oklab, var(--color-indigo-50, #eef2ff) 92%, transparent);
+  color: var(--color-indigo-700, #4338ca);
+  box-shadow: 0 2px 8px rgb(0 0 0 / 0.12);
+  transform: translate(calc(100% + 4px), 4px);
+  z-index: 20;
+}
+@media (prefers-color-scheme: dark) {
+  .ws-handle {
+    border-color: var(--color-indigo-800, #3730a3);
+    background: color-mix(in oklab, var(--color-indigo-950, #1e1b4b) 92%, transparent);
+    color: var(--color-indigo-200, #c7d2fe);
+  }
+}
+/* Always there, faint (15 %) — opaque when the pointer is on it (the editor hides and shows the box as the pointer crosses blocks, and
+   a box that came and went was hard to hit): it stays at the block last visited. Where there is no hover (a touch screen) it is faint. */
+.drag-handle {
+  visibility: visible !important;
+  pointer-events: auto !important;
+}
+.ws-handle {
+  opacity: 0.15;
+}
+/* A hit area wider than the box (the pointer needn't be exact), and no fade-in: it is there the moment the pointer is. */
+.ws-handle {
+  position: relative;
+}
+.ws-handle::before {
+  content: "";
+  position: absolute;
+  inset: -12px;
+}
+.drag-handle:hover .ws-handle,
+.ws-handle:hover,
+.ws-handle:focus-within {
+  opacity: 1;
+}
+@media (hover: none) {
+  .ws-handle {
+    opacity: 0.6;
+  }
+}
+/* On a phone the handles would cover the text: they stay out at the edge there. */
+@media (max-width: 639px) {
+  .ws-handle {
+    transform: none;
+  }
 }
 .ws-handle button,
 .ws-handle .ws-grip {
@@ -361,7 +409,7 @@
 }
 .ws-handle button:hover,
 .ws-handle .ws-grip:hover {
-  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 20%, transparent);
+  background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 22%, transparent);
 }
 /* popup menus (slash, mention) */
 .ws-pop {

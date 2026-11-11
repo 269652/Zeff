@@ -134,6 +134,8 @@ export function PageView({ page, row, database, form, person, app }: { page: Pag
   const [locked, setLocked] = useState(page.locked);
   const [status, setStatus] = useState<SaveState>("saved");
   const [history, setHistory] = useState(false);
+  // A row a plugin shows its own screen on (a course, a lesson): that screen, or its fields as a table, or the page itself (text, sub-pages).
+  const [appMode, setAppMode] = useState<"app" | "fields" | "page">("app");
   // While a page is open, its bar has the tree's ☰ (a phone): the tree's own full-width "Pages" button stands back (MobileAside).
   useEffect(() => {
     const g = window as { __wsPageBars?: number };
@@ -237,7 +239,8 @@ export function PageView({ page, row, database, form, person, app }: { page: Pag
 
   const editable = !locked;
   // A database uses the whole width (a board in a narrow column wastes the screen); a page as you set it.
-  const width = fullWidth || page.kind === "database" || page.kind === "form" || !!row?.initial.extras?.rowView ? "max-w-none" : "max-w-3xl";
+  const appRow = !!(row && app && !row.initial.extras?.rowView);
+  const width = "max-w-none";
 
   return (
     <div className="space-y-3">
@@ -582,13 +585,17 @@ export function PageView({ page, row, database, form, person, app }: { page: Pag
         {row && <LinkedPanel target={{ rowId: page.id }} />}
 
         <SystemPageBar pageId={page.id} />
-        {app}
-        {row && !row.initial.extras?.rowView && app && (
-          <details className="mb-6">
-            <summary className="cursor-pointer text-sm text-zinc-500">{t("Fields")}</summary>
-            <DayEntry rowId={page.id} fields={<RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />} />
-          </details>
+        {appRow && (
+          <div role="tablist" aria-label={t("Show as")} className="flex gap-1 print:hidden">
+            {(["app", "fields", "page"] as const).map((m) => (
+              <button key={m} type="button" role="tab" aria-selected={appMode === m} className={`rounded-md px-2.5 py-1 text-sm ${appMode === m ? "bg-indigo-50 font-medium text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200" : "text-zinc-600 hover:bg-zinc-100 dark:text-zinc-400 dark:hover:bg-zinc-800"}`} onClick={() => setAppMode(m)}>
+                {m === "app" ? t("Screen") : m === "fields" ? t("Table") : t("Page")}
+              </button>
+            ))}
+          </div>
         )}
+        {(!appRow || appMode === "app") && app}
+        {appRow && appMode === "fields" && row && <DayEntry rowId={page.id} fields={<RowProperties initial={row.initial} dbId={row.dbId} rowId={page.id} />} />}
         {/* A person's page that is (nearly) empty: their todos, what is coming up, the facts and your rhythm on a click. */}
         {page.layoutFits && editable && (
           <button
@@ -604,7 +611,7 @@ export function PageView({ page, row, database, form, person, app }: { page: Pag
             🧩 {t("Use the default layout")}
           </button>
         )}
-        {page.kind === "database" ? (
+        {appRow && appMode !== "page" ? null : page.kind === "database" ? (
           <DatabaseView initial={database ?? null} dbId={page.id} />
         ) : page.kind === "form" ? (
           form && <FormPageBody initial={form} editable={editable} />
@@ -613,7 +620,7 @@ export function PageView({ page, row, database, form, person, app }: { page: Pag
         )}
 
         {/* (Expanded: the page is the app — its sub-pages stay in the tree.) */}
-        {page.kind === "page" && !fullWidth && (
+        {page.kind === "page" && !fullWidth && !(appRow && appMode !== "page") && (
           <div className="space-y-4 border-t border-zinc-200 pt-4 text-sm dark:border-zinc-800">
             <section>
               <div className="mb-1 flex items-center gap-2">

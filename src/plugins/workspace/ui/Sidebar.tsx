@@ -18,6 +18,8 @@ import { ChatPanel, WS_CHANGED } from "./ChatPanel";
 import { Dropdown, MenuItem, Modal, useSortable } from "./kit";
 import { AutomationChooser } from "./AutomationChooser";
 import { TemplateGallery } from "./TemplateGallery";
+import { useEditSession } from "./widget-edit-store";
+import { WidgetEditPanel } from "./widget-visual";
 import "./workspace.css";
 
 type Meta = import("../templates").TemplateMeta;
@@ -109,7 +111,23 @@ function badgeTip(title: string, own: Badge | null | undefined, below: Badge | n
 }
 
 /** The page tree, favorites, search and "new" — the left column of the Workspace. */
-export function Sidebar({ appNav = {}, items: treeItems, favorites, badges = noBadges(), channels, extSources = [], builtins = [], templateItems = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** The pages' badges (badges.ts): their own, their rows', the rows' — read again here after a change. */ badges?: PageBadges & { stale?: boolean }; /** The built-in templates (read only — opened as a preview). */ builtins?: Pick<Meta, "key" | "name" | "icon" | "kind" | "category">[]; /** Your templates' pages (each marked a template, with what is below it). */ templateItems?: TreeItem[] }) {
+/**
+ * The Workspace sidebar depends on what you are doing: the page tree — and, while a widget is edited visually, that widget's
+ * outline and properties (widget-visual.tsx). The tree stays mounted (its folds are kept) and is back when the editing ends.
+ */
+export function Sidebar(props: React.ComponentProps<typeof TreeSidebar>) {
+  const { session } = useEditSession();
+  return (
+    <>
+      {session && <WidgetEditPanel />}
+      <div className={session ? "hidden" : ""}>
+        <TreeSidebar {...props} />
+      </div>
+    </>
+  );
+}
+
+function TreeSidebar({ appNav = {}, items: treeItems, favorites, badges = noBadges(), channels, extSources = [], builtins = [], templateItems = [] }: { /** The navigation of app views kept in the tree (the documents' inbox, all, by type), by database id. */ appNav?: Record<number, AppNav>; /** Sources plugins bring (People …): a database of each from the New menu. */ extSources?: { id: string; label: string; icon: string }[]; /** The channels that can be sources (mail, messages) — what the New menu offers as a database of them. */ channels?: { mail: boolean; messages: boolean }; items: TreeItem[]; favorites: { id: number; title: string; icon: string; kind: string }[]; /** The pages' badges (badges.ts): their own, their rows', the rows' — read again here after a change. */ badges?: PageBadges & { stale?: boolean }; /** The built-in templates (read only — opened as a preview). */ builtins?: Pick<Meta, "key" | "name" | "icon" | "kind" | "category">[]; /** Your templates' pages (each marked a template, with what is below it). */ templateItems?: TreeItem[] }) {
   const t = useT();
   // A day list's log isn't a page of the tree: it is its list's "History" tab (still found by the search).
   const items = useMemo(() => treeItems.filter((i) => !i.dayLogOf), [treeItems]);

@@ -51,7 +51,7 @@ const lowlight = createLowlight(common);
 export type SaveState = "saved" | "saving" | "error" | "conflict";
 
 /** Markdown typed or pasted as plain text: headings, lists, fences, tables or links over several lines. */
-const MD_HINT = /(^#{1,6} |^\s*[-*] |^\s*\d+\. |^```|^\|.+\|$|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/m;
+const MD_HINT = /(^:::app\b|^#{1,6} |^\s*[-*] |^\s*\d+\. |^```|^\|.+\|$|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/m;
 
 /** The selection card's AI signs (24-unit paths, drawn at 14 px). */
 const AI_ICONS: Record<"improve" | "fix" | "shorter" | "longer" | "explain", string[]> = {
@@ -419,7 +419,8 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
         const text = event.clipboardData?.getData("text/plain") ?? "";
         const html = event.clipboardData?.getData("text/html") ?? "";
         // Markdown pasted as text (no formatting of its own) becomes blocks.
-        if (text.includes("\n") && MD_HINT.test(text) && (!html || !/<(p|div|span|h\d|li|table)\b/i.test(html))) {
+        // (A widget block — `:::app` — always: copied from an editor the clipboard carries HTML of the highlighted code.)
+        if (text.includes("\n") && MD_HINT.test(text) && (/^:::app\b/m.test(text) || !html || !/<(p|div|span|h\d|li|table)\b/i.test(html))) {
           editorRef.current?.chain().focus().insertContent(markdownToDoc(text).content as JSONContent[]).run();
           return true;
         }

@@ -78,7 +78,7 @@ export function LessonTimeline({ runs, widgets, results, sessionRunId }: { runs:
           <RunFeed key={r.id} run={r} onLines={onLines} onBusy={onBusy} />
         ))}
       {/* The line itself: down the middle on a wide screen, at the left on a phone. */}
-      <div className="absolute top-0 bottom-0 left-3 w-px bg-zinc-200 md:left-1/2 dark:bg-zinc-800" aria-hidden />
+      <div className="absolute top-0 bottom-0 left-3 w-px bg-zinc-200 md:left-[40%] dark:bg-zinc-800" aria-hidden />
       <ol className="relative space-y-3" aria-label={t("The lesson so far")}>
         {items.map((it, i) => (
           <li key={i} className={rowClass(it)}>
@@ -88,7 +88,7 @@ export function LessonTimeline({ runs, widgets, results, sessionRunId }: { runs:
         ))}
       </ol>
       {writing && (
-        <div className="relative mt-3 pl-8 md:pl-[calc(50%+1rem)]">
+        <div className="relative mt-3 pl-8 md:pl-[calc(40%+1rem)]">
           <AiWorkingLabel label={t("The teacher is writing …")} />
         </div>
       )}
@@ -100,14 +100,14 @@ export function LessonTimeline({ runs, widgets, results, sessionRunId }: { runs:
 /** Where a row sits: left of the line, right of it, or on it (on a phone: all right of the line at the left edge). */
 const rowClass = (it: TimelineItem) =>
   it.side === "center"
-    ? "relative flex justify-start pl-8 md:justify-center md:pl-0"
+    ? "relative flex justify-start pl-8 md:ml-[40%] md:w-fit md:-translate-x-1/2 md:pl-0"
     : it.side === "left"
-      ? "relative pl-8 md:w-1/2 md:pr-8 md:pl-0"
-      : "relative pl-8 md:ml-auto md:w-1/2 md:pl-8";
+      ? "relative pl-8 md:w-[40%] md:pr-8 md:pl-0"
+      : "relative pl-8 md:ml-auto md:w-[60%] md:pl-8";
 
 function Dot({ item }: { item: TimelineItem }) {
   const tone = item.kind === "result" ? scoreTone(item.score).dot : item.side === "left" ? "bg-indigo-500" : item.side === "right" ? "bg-zinc-400 dark:bg-zinc-500" : "bg-emerald-500";
-  const pos = item.side === "center" ? "md:left-1/2" : item.side === "left" ? "md:right-0 md:left-auto md:translate-x-1/2" : "md:left-0";
+  const pos = item.side === "center" ? "md:left-[40%]" : item.side === "left" ? "md:right-0 md:left-auto md:translate-x-1/2" : "md:left-0";
   return <span className={`absolute top-3 left-3 size-2.5 -translate-x-1/2 rounded-full ring-4 ring-white dark:ring-zinc-950 ${tone} ${pos}`} aria-hidden />;
 }
 

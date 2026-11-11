@@ -5,7 +5,7 @@ import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { postJson } from "@/lib/post-json";
 import { blockSignature, BLOCK_PARAM_TYPES, type BlockDef, type BlockParam } from "@/plugins/workspace/blocks";
-import { blockVersionsAction, deleteBlockAction, listBlocksAction, removedBlocksAction, restoreBlockVersionAction, saveBlockAction } from "@/plugins/workspace/actions";
+import { blockLibraryAction, blockVersionsAction, deleteBlockAction, installLibraryBlocksAction, listBlocksAction, removedBlocksAction, restoreBlockVersionAction, saveBlockAction } from "@/plugins/workspace/actions";
 
 /**
  * The blocks of your own (workspace/blocks.ts) as a catalogue: each with how it is used, its parameters, its template or widget
@@ -178,6 +178,72 @@ function Editor({ block, onChanged, onGone, openFlow }: { block: BlockDef; onCha
   );
 }
 
+type LibItem = BlockDef & { category: string; installed: boolean };
+const CATEGORY_LABEL: Record<string, string> = { figures: "Figures", charts: "Charts", lists: "Lists & boards", input: "Input", widgets: "Widgets" };
+
+/** The ready-made blocks (workspace/block-library.ts): each added to your blocks with one click. */
+function Library({ onChanged, onOpen }: { onChanged: () => void; onOpen: (name: string) => void }) {
+  const t = useT();
+  const [items, setItems] = useState<LibItem[]>([]);
+  const [q, setQ] = useState("");
+  const load = useCallback(() => void blockLibraryAction().then((r) => r.ok && setItems(r.library as LibItem[])), []);
+  useEffect(load, [load]);
+  const add = async (names: string[] | "all") => {
+    const r = await installLibraryBlocksAction(names);
+    if (!r.ok) return toast(r.error, { tone: "error" });
+    toast(r.made.length ? t("{n} blocks added.", { n: r.made.length }) : t("Nothing new."));
+    load();
+    onChanged();
+  };
+  const shown = items.filter((b) => !q || `${b.name} ${b.title ?? ""} ${b.description}`.toLowerCase().includes(q.toLowerCase()));
+  const cats = [...new Set(shown.map((b) => b.category))];
+  return (
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-2">
+        <h2 className="text-lg font-semibold">📚 {t("The block library")}</h2>
+        <input type="search" className="input ml-auto w-56" placeholder={t("Search the library")} value={q} onChange={(e) => setQ(e.target.value)} />
+        <button type="button" className="btn" disabled={!items.some((b) => !b.installed)} onClick={() => void add("all")}>
+          {t("Add all")}
+        </button>
+      </div>
+      <p className="text-sm text-zinc-500">{t("Ready-made blocks: add one and it is yours to change. Any view uses it as <use block=\"name\"/> — the fields it works on are its parameters.")}</p>
+      {cats.map((c) => (
+        <section key={c} className="space-y-2">
+          <div className="label mb-0">{t(CATEGORY_LABEL[c] ?? c)}</div>
+          <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+            {shown
+              .filter((b) => b.category === c)
+              .map((b) => (
+                <div key={b.name} className="card flex flex-col gap-1.5 p-3">
+                  <div className="flex items-start gap-2">
+                    <span aria-hidden className="text-lg">
+                      {b.icon || "🧩"}
+                    </span>
+                    <div className="min-w-0 flex-1">
+                      <div className="truncate font-medium">{b.title || b.name}</div>
+                      <code className="block truncate text-[11px] text-zinc-500">{b.name}</code>
+                    </div>
+                  </div>
+                  <p className="flex-1 text-xs text-zinc-600 dark:text-zinc-400">{b.description}</p>
+                  {b.example && <code className="block truncate rounded bg-zinc-50 px-1.5 py-0.5 text-[11px] text-zinc-600 dark:bg-zinc-900 dark:text-zinc-400">{b.example}</code>}
+                  {b.installed ? (
+                    <button type="button" className="btn btn-sm" onClick={() => onOpen(b.name)}>
+                      ✓ {t("Added — open")}
+                    </button>
+                  ) : (
+                    <button type="button" className="btn btn-sm btn-primary" onClick={() => void add([b.name])}>
+                      + {t("Add")}
+                    </button>
+                  )}
+                </div>
+              ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  );
+}
+
 function NewBlock({ onMade }: { onMade: (name: string) => void }) {
   const t = useT();
   const [name, setName] = useState("");
@@ -232,7 +298,7 @@ export function Blocks({ initial, openFlow }: { initial: string | null; openFlow
   const t = useT();
   const [blocks, setBlocks] = useState<BlockDef[]>([]);
   const [removed, setRemoved] = useState<{ name: string; at: string }[]>([]);
-  const [open, setOpen] = useState<string | "new" | null>(initial);
+  const [open, setOpen] = useState<string | "new" | "library" | null>(initial);
   const [q, setQ] = useState("");
   const load = useCallback(() => {
     void listBlocksAction().then((r) => r.ok && setBlocks(r.blocks));
@@ -240,12 +306,15 @@ export function Blocks({ initial, openFlow }: { initial: string | null; openFlow
   }, []);
   useEffect(load, [load]);
   const shown = blocks.filter((b) => !q || `${b.name} ${b.title ?? ""} ${b.description}`.toLowerCase().includes(q.toLowerCase()));
-  const picked = open && open !== "new" ? blocks.find((b) => b.name === open) : null;
+  const picked = open && open !== "new" && open !== "library" ? blocks.find((b) => b.name === open) : null;
   return (
     <div className="grid gap-4 md:grid-cols-[16rem_1fr]">
       <div className="space-y-2">
         <button type="button" className="btn btn-primary w-full" onClick={() => setOpen("new")}>
           + {t("Block")}
+        </button>
+        <button type="button" className={`btn w-full ${open === "library" ? "ring-2 ring-indigo-300" : ""}`} onClick={() => setOpen("library")}>
+          📚 {t("Library")}
         </button>
         <input type="search" className="input" placeholder={t("Search the blocks")} value={q} onChange={(e) => setQ(e.target.value)} />
         <ul className="space-y-0.5">
@@ -260,7 +329,14 @@ export function Blocks({ initial, openFlow }: { initial: string | null; openFlow
               </button>
             </li>
           ))}
-          {!blocks.length && <li className="px-2 text-sm text-zinc-500">{t("No blocks yet.")}</li>}
+          {!blocks.length && (
+            <li className="px-2 text-sm text-zinc-500">
+              {t("No blocks yet.")}{" "}
+              <button type="button" className="text-indigo-700 underline dark:text-indigo-300" onClick={() => setOpen("library")}>
+                {t("Start with the library")}
+              </button>
+            </li>
+          )}
         </ul>
         {removed.length > 0 && (
           <div className="space-y-1 border-t border-zinc-200 pt-2 dark:border-zinc-800">
@@ -288,6 +364,7 @@ export function Blocks({ initial, openFlow }: { initial: string | null; openFlow
       </div>
       <div className="min-w-0">
         {open === "new" && <NewBlock onMade={(n) => (load(), setOpen(n))} />}
+        {open === "library" && <Library onChanged={load} onOpen={setOpen} />}
         {picked && <Editor key={`${picked.name}${picked.updatedAt}`} block={picked} onChanged={load} onGone={() => (setOpen(null), load())} openFlow={openFlow} />}
         {!open && <p className="text-sm text-zinc-500">{t("Pick a block, or make a new one. Views use them as <use block=\"name\"/>; the assistant can build them too.")}</p>}
       </div>

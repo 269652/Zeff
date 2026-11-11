@@ -139,6 +139,38 @@ export function registerBlockTools(server: McpServer, h: Helpers): void {
   );
 
   server.registerTool(
+    "workspace_block_library",
+    {
+      title: "The block library",
+      description:
+        "The ready-made blocks that come with Zeff (stats row, goal ring, charts by group, cross table, heatmap, calendar, timeline, board, filter list, open/done tabs, rating list, quick add, and widgets: calculator, unit converter, timer, bar chart). Without arguments: what there is. install: [names] (or [\"all\"]) makes them blocks of the user's — then use them as <use block=\"lib.…\" …/>.",
+      inputSchema: z.object({ install: z.array(z.string()).optional() }),
+    },
+    async ({ install }) =>
+      h.run(async () => {
+        const gone = off(h);
+        if (gone) return gone;
+        const { LIBRARY } = await import("./block-library");
+        const s = await import("./block-store");
+        if (install?.length) {
+          const all = install.includes("all");
+          const have = new Set(s.listBlocks().map((b) => b.name));
+          const made: string[] = [];
+          for (const b of LIBRARY) {
+            if (!(all || install.map((n) => n.toLowerCase()).includes(b.name)) || have.has(b.name)) continue;
+            const { category: _c, ...def } = b;
+            void _c;
+            s.saveBlock(def, { source: "package", note: "library" });
+            made.push(b.name);
+          }
+          return h.ok(made.length ? `Installed: ${made.join(", ")}.` : "Nothing new (they are installed already, or the names are wrong).");
+        }
+        const have = new Set(s.listBlocks().map((b) => b.name));
+        return h.ok(LIBRARY.map((b) => `- ${b.name}${have.has(b.name) ? " (installed)" : ""} [${b.category}] — ${b.description}  ${b.example ?? ""}`).join("\n"));
+      }),
+  );
+
+  server.registerTool(
     "workspace_block_versions",
     {
       title: "A block's versions",

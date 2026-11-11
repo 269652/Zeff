@@ -56,6 +56,28 @@ export async function widgetOutputsAction() {
   return run(async () => ({ outputs: (await import("../widget-outputs")).outputsByKey() }));
 }
 
+/**
+ * The values around a widget, for the visual editor's "Values": every published value (a short preview of it), the ones asked for
+ * by name (`names`), and what the widgets of the page share (zeff.page.set).
+ */
+export async function widgetValuesAction(pageId: number | null, names: string[]) {
+  return run(async () => {
+    const o = await import("../widget-outputs");
+    const preview = (v: unknown): string => {
+      const s = typeof v === "string" ? v : JSON.stringify(v) ?? "";
+      return s.length > 60 ? `${s.slice(0, 57)}…` : s;
+    };
+    const slim = (x: ReturnType<typeof o.listOutputs>[number]) => ({ key: x.key, label: x.label, kind: x.kind, unit: x.unit, widget: x.widget, pageId: x.pageId, preview: preview(x.value) });
+    const byName: Record<string, ReturnType<typeof slim> | null> = {};
+    for (const n of (Array.isArray(names) ? names : []).slice(0, 60)) {
+      const x = o.getOutput(String(n));
+      byName[String(n)] = x ? slim(x) : null;
+    }
+    const page = pageId ? ((await import("../widget-bridge")).pageState(Number(pageId)) as Record<string, unknown>) : {};
+    return { outputs: o.listOutputs().slice(0, 200).map(slim), byName, page: Object.fromEntries(Object.entries(page ?? {}).map(([k, v]) => [k, preview(v)])) };
+  });
+}
+
 /** A widget block's versions (newest first, without their code). */
 export async function widgetVersionsAction(wid: string) {
   return run(async () => ({ versions: (await import("../widget-versions")).listVersions(String(wid)) }));

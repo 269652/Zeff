@@ -134,28 +134,45 @@ const BRIDGE = `<script>
     // A message to the other widgets on the page: they hear zeff.on(name, detail => …).
     emit: function (name, detail) { return call("emit", { name: String(name || ""), detail: detail }); },
     // "changed": something in the workspace changed (this widget's write, another's, the assistant's) — read again.
-    on: function (name, fn) { (listeners[name] = listeners[name] || []).push(fn); },
+    // (A message sent before this widget was there is told to it once: widgets load one after the other, none should miss what came first.)
+    on: function (name, fn) {
+      (listeners[name] = listeners[name] || []).push(fn);
+      if (name !== "changed" && name !== "page" && name !== "value") call("bus.last", { name: String(name) }).then(function (d) { if (d != null) { try { fn(d); } catch (e) { window.zeff.error(String((e && e.message) || e)); } } }, function () {});
+    },
     context: window.zeffContext || {}
   };
   var said = {};
   // An error the widget didn't catch: a friendly note at the top (what still works keeps working), and told.
+  // (It can be closed — and stays closed: the same widget goes on working, the next mistake needn't bring it back.)
+  var noteClosed = false;
   var note = function () {
     try {
-      if (!document.body || document.getElementById("zeff-widget-error")) return;
+      if (noteClosed || !document.body || document.getElementById("zeff-widget-error")) return;
       var d = document.createElement("div");
       d.id = "zeff-widget-error";
       d.setAttribute("role", "status");
-      d.style.cssText = "margin:0 0 10px;padding:8px 12px;border-radius:10px;border-left:4px solid #d97706;background:rgba(217,119,6,.1);font-size:14px";
+      d.style.cssText = "display:flex;align-items:flex-start;gap:8px;margin:0 0 10px;padding:8px 12px;border-radius:10px;border-left:4px solid #d97706;background:rgba(217,119,6,.1);font-size:14px";
       var l = (document.documentElement.lang || "de").slice(0, 2);
-      d.textContent = window.zeffNote || (l === "de" ? "Hier hakt etwas im Widget." : l === "es" ? "Algo falló en este widget." : "Something in this widget broke.");
+      var s = document.createElement("span");
+      s.style.flex = "1";
+      s.textContent = window.zeffNote || (l === "de" ? "Hier hakt etwas im Widget." : l === "es" ? "Algo falló en este widget." : "Something in this widget broke.");
+      var x = document.createElement("button");
+      x.type = "button";
+      x.textContent = "×";
+      x.setAttribute("aria-label", l === "de" ? "Schließen" : l === "es" ? "Cerrar" : "Close");
+      x.style.cssText = "border:0;background:transparent;cursor:pointer;font-size:18px;line-height:1;color:inherit;padding:0 2px";
+      x.onclick = function () { noteClosed = true; d.remove(); };
+      d.appendChild(s);
+      d.appendChild(x);
       document.body.insertBefore(d, document.body.firstChild);
     } catch (e) {}
   };
   window.addEventListener("error", function (e) { var m = (e && e.message) || "error"; if (e && e.lineno) m += " (line " + e.lineno + ")"; window.zeff.error(m); note(); });
   window.addEventListener("unhandledrejection", function (e) { var r = e && e.reason; window.zeff.error(String((r && r.message) || r || "error")); note(); });
   var last = 0;
-  var fit = function () { var h = Math.ceil(document.documentElement.scrollHeight); if (Math.abs(h - last) > 4) { last = h; window.zeff.resize(h); } };
-  if (window.ResizeObserver) new ResizeObserver(fit).observe(document.documentElement);
+  // (The body's height, not the page's: the page is never shorter than the frame, so a widget could only grow, never shrink to its content.)
+  var fit = function () { var b = document.body; if (!b) return; var h = Math.ceil(b.scrollHeight); if (Math.abs(h - last) > 4) { last = h; window.zeff.resize(h); } };
+  if (window.ResizeObserver) { var ro = new ResizeObserver(fit); ro.observe(document.documentElement); document.addEventListener("DOMContentLoaded", function () { ro.observe(document.body); fit(); }); }
   window.addEventListener("load", fit);
 })();
 </script>`;
@@ -210,7 +227,7 @@ export function buildSrcdoc(
     ? inline.css.map((c) => `<style>${inStyle(c)}</style>`)
     : libs.flatMap((l) => WIDGET_LIBS[l].css ?? []).map((f) => `<link rel="stylesheet" href="${esc(`${base}/${f}`)}">`);
   const js = inline ? inline.js.map((c) => `<script>${inScript(c)}</script>`) : libs.flatMap((l) => WIDGET_LIBS[l].js ?? []).map((f) => `<script src="${esc(`${base}/${f}`)}"></script>`);
-  const theme = `<style>:root{color-scheme:${opts.dark ? "dark" : "light"}}html,body{margin:0;padding:12px;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:${opts.dark ? "#18181b" : "#fff"};color:${opts.dark ? "#ececf1" : "#18181b"}}button{font:inherit}</style>`;
+  const theme = `<style>:root{color-scheme:${opts.dark ? "dark" : "light"}}html{margin:0;padding:0}body{margin:0;padding:12px;font:15px/1.5 system-ui,-apple-system,"Segoe UI",sans-serif;background:${opts.dark ? "#18181b" : "#fff"};color:${opts.dark ? "#ececf1" : "#18181b"}}html{background:${opts.dark ? "#18181b" : "#fff"}}button{font:inherit}</style>`;
   const lang = /^[a-z]{2}$/.test(opts.lang ?? "") ? opts.lang : "de";
   const given = opts.context !== undefined || opts.errorNote ? `<script>window.zeffContext=${jsonIn(opts.context ?? {})};${opts.errorNote ? `window.zeffNote=${jsonIn(opts.errorNote)};` : ""}</script>` : "";
   return `<!doctype html><html lang="${lang}"><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${esc(csp)}"><meta name="viewport" content="width=device-width,initial-scale=1">${theme}${css.join("")}${given}${BRIDGE}${js.join("")}</head><body>${html}</body></html>`;

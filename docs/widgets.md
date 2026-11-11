@@ -47,7 +47,7 @@ read again.
 | Call | What it does | Where it goes |
 | --- | --- | --- |
 | `zeff.page.set(key, value)` / `zeff.page.get(key?)` | Values the widgets on one page share; the others hear `zeff.on("page", ({ key, value }))` | `ws_widget_page_state`, by page (`setPageState`, widget-bridge.ts) |
-| `zeff.emit(name, detail)` | A message to the other widgets on the page (`zeff.on(name, …)`) | the page's bus (`zeff-widget-bus` window event, app-widget.tsx) |
+| `zeff.emit(name, detail)` | A message to the other widgets on the page (`zeff.on(name, …)`); a widget that loads later is told the last message once when it registers (`bus.last`) | the page's bus (`zeff-widget-bus` window event, app-widget.tsx) |
 | `zeff.publish(name, value, { unit, label })` | A value for the whole of Zeff — number, text, list, table | `ws_widget_outputs` (widget-outputs.ts); a name belongs to the block that published it first |
 | `zeff.values.get(name)` / `.list()` | What any widget published | — |
 | `zeff.flow.run(name, input)` / `zeff.flow.list()` | Zeff's server side: web, APIs, lookups, AI extraction, rows written — only flows the user allowed this widget (`flows` on the block, grant `flows`) | flows/engine.ts, trigger `{ kind: "widget" }` |

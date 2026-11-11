@@ -85,7 +85,7 @@ export async function LessonScreen({ courseId: asked, stepKey, where }: { course
   const stuck = lost && !(await (await import("@/lib/work/live-state")).liveState(lost.id)).followed ? lost : undefined;
 
   const chat = (
-    <section className="flex min-h-0 min-w-0 flex-1 flex-col gap-2" aria-label={t("Lesson chat")}>
+    <section className={`flex min-w-0 flex-col gap-2 ${ws ? "" : "min-h-0 flex-1"}`} aria-label={t("Lesson chat")}>
       {!last ? (
         <div className="card space-y-3 p-4">
           <p className="text-sm text-zinc-600 dark:text-zinc-400">{t("Claude teaches this step in a chat — explaining, asking, and building exercises right here. When you've got it, it marks the step mastered.")}</p>
@@ -93,11 +93,11 @@ export async function LessonScreen({ courseId: asked, stepKey, where }: { course
         </div>
       ) : (
         <>
-          <div id="lesson-thread" data-timeline-scroll className="min-h-0 flex-1 overflow-y-auto pr-1">
+          <div id="lesson-thread" data-timeline-scroll className={ws ? "min-w-0" : "min-h-0 flex-1 overflow-y-auto pr-1"}>
             <LessonTimeline runs={timelineRuns.filter((r) => r.id > 0 || r.messages.length)} widgets={widgets} results={results} sessionRunId={liveRun?.id ?? last.id} />
           </div>
-          <ScrollToEnd target="lesson-thread" />
-          <div className="max-h-[45%] shrink-0 overflow-y-auto border-t border-zinc-200 pt-2 dark:border-zinc-800">
+          <ScrollToEnd target="lesson-thread" page={ws} />
+          <div className={`shrink-0 overflow-y-auto border-t border-zinc-200 pt-2 dark:border-zinc-800 ${ws ? "sticky bottom-0 z-10 max-h-[45vh] bg-white sm:-mb-9 sm:pb-9 dark:bg-zinc-950" : "max-h-[45%]"}`}>
             {stuck && <StuckRun runId={stuck.id} />}
             {/* The last run failed (Docker down, the CLI not signed in …): said, with why and "Try again" — else nothing came, unexplained. */}
             {!liveRun && (last.status === "failed" || last.status === "interrupted") && (
@@ -106,7 +106,7 @@ export async function LessonScreen({ courseId: asked, stepKey, where }: { course
             {/* Your message waits for a worker: said here — and what holds the workers, with the button that frees them, and one
                 that starts a worker more, reserved for Learn (Settings → Code). */}
             {!liveRun && last.status === "queued" && <DanglingSessions waiting className="mb-2" action={<ExtraWorkerButton />} />}
-            {liveRun ? <ClaudeSession key={liveRun.id} run={liveRun} /> : <ChatComposer runId={last.id} stay placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Answer the teacher …")} />}
+            {liveRun ? <ClaudeSession key={liveRun.id} run={liveRun} wide /> : <ChatComposer runId={last.id} stay placeholder={isActive(last.status) ? t("Working … — your message goes in when it has answered") : t("Answer the teacher …")} />}
           </div>
         </>
       )}
@@ -116,7 +116,7 @@ export async function LessonScreen({ courseId: asked, stepKey, where }: { course
   return (
     // Like the chat, the lesson fills the window (MainArea's full-height pages): its timeline scrolls — you and the
     // exercises left of the line, the teacher right of it (LessonTimeline) — the message box stays at the bottom.
-    <div className={ws ? "flex h-[calc(100dvh-12rem)] min-h-[28rem] w-full flex-col gap-2" : "mx-auto flex h-full w-full max-w-6xl flex-col gap-2"}>
+    <div className={ws ? "flex w-full flex-col gap-2" : "mx-auto flex h-full w-full max-w-6xl flex-col gap-2"}>
       {/* One line, so the lesson keeps the height (a phone, a small laptop): back, the step's title (cut when long; the
           topic small above it, the course only on a wide screen), its state, and its goals behind a button. */}
       <header className="flex min-w-0 shrink-0 items-center gap-2">

@@ -14,6 +14,9 @@ import { postJson } from "@/lib/post-json";
 import { allowWidgetAction, saveBlockAction, publishWidgetValueAction, revokeWidgetAction, saveWidgetVersionAction, setWidgetPageStateAction, widgetCallAction, widgetContextAction, widgetGrantAction, widgetPageStateAction, widgetVersionAction, widgetVersionsAction } from "../actions";
 import type { MadeWidget } from "../widget-make";
 import { GripBar } from "./app-nodes";
+import { VisualModel } from "@/lib/widgets/visual";
+import { VisualCanvas } from "./widget-visual";
+import { lastSaid, saidKey, startEdit, stopEdit } from "./widget-edit-store";
 import { WS_CHANGED } from "./ChatPanel";
 
 type Context = { page?: { id: number; title: string }; databases: { id: number; title: string; onPage?: boolean }[] };
@@ -69,6 +72,8 @@ export function AppWidget({
   const me = useId();
   const key = useMemo(() => widgetKey(html), [html]);
   const [grant, setGrant] = useState<WidgetGrant | null>(null);
+  // (The frame is made once — when what it is told (its context) is known; otherwise it would load twice, and what it said the first time is lost.)
+  const [ready, setReady] = useState(false);
   const [context, setContext] = useState<Context | null>(null);
   const [pulse, setPulse] = useState(0);
   const kept = useRef<string>(state ?? "null");
@@ -78,11 +83,13 @@ export function AppWidget({
 
   useEffect(() => {
     let live = true;
-    void widgetGrantAction(key, pageId ?? null).then((r) => {
-      if (!live || !r.ok) return;
-      setGrant(r.grant);
-      setContext(r.context as Context);
-    });
+    void widgetGrantAction(key, pageId ?? null)
+      .then((r) => {
+        if (!live || !r.ok) return;
+        setGrant(r.grant);
+        setContext(r.context as Context);
+      })
+      .finally(() => live && setReady(true));
     return () => {
       live = false;
     };
@@ -120,12 +127,13 @@ export function AppWidget({
       if (method === "page.set") {
         const k = String(args.key ?? "").trim();
         if (!k) throw new Error("page.set: a key");
+        // (The other widgets hear it at once; keeping it with the page follows — they don't wait for the server, a dragged slider stays smooth.)
+        say({ page: pageId ?? 0, from: me, name: "page", detail: { key: k, value: args.value ?? null } });
         if (pageId) {
           const r = await setWidgetPageStateAction(pageId, k, args.value ?? null);
           if (!r.ok) throw new Error(r.error);
         } else if (args.value === null || args.value === undefined) loose.delete(k);
         else loose.set(k, args.value);
-        say({ page: pageId ?? 0, from: me, name: "page", detail: { key: k, value: args.value ?? null } });
         return true;
       }
       if (method === "publish") {
@@ -136,9 +144,11 @@ export function AppWidget({
         window.dispatchEvent(new Event(WS_CHANGED));
         return true;
       }
+      if (method === "bus.last") return lastSaid.get(saidKey(pageId ?? 0, String(args.name ?? ""))) ?? null;
       if (method === "emit") {
         const name = String(args.name ?? "").trim().slice(0, 80);
         if (!name || name === "changed" || name === "page") throw new Error(`emit: "${name}" is not a name to send`);
+        lastSaid.set(saidKey(pageId ?? 0, name), args.detail ?? null);
         say({ page: pageId ?? 0, from: me, name, detail: args.detail ?? null });
         return true;
       }
@@ -195,7 +205,10 @@ export function AppWidget({
 
   return (
     <div className={`space-y-1.5 ${className}`}>
-      <WidgetFrame html={html} libs={libs} title={title} onCall={onCall} context={frameContext} pulse={pulse} bus={bus} onError={onError} />
+      {!ready ? (
+        <p className="rounded-xl border border-zinc-200 p-4 text-sm text-zinc-500 dark:border-zinc-800">{t("Loading the widget …")}</p>
+      ) : null}
+      {ready && <WidgetFrame html={html} libs={libs} title={title} onCall={onCall} context={frameContext} pulse={pulse} bus={bus} onError={onError} />}
       {grant !== null || context ? (
         asks.length > 0 && (
           <div role="status" className="flex flex-wrap items-center gap-2 rounded-lg border border-amber-300 bg-amber-50 px-3 py-1.5 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/40 dark:text-amber-200">
@@ -251,14 +264,32 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
   const libs = csv(node.attrs.libs).filter((l) => Object.prototype.hasOwnProperty.call(WIDGET_LIBS, l));
   const wants = wantsOf(node.attrs.writes, node.attrs.ai, node.attrs.flows);
   const [ask, setAsk] = useState(String(node.attrs.prompt ?? ""));
-  const [mode, setMode] = useState<"show" | "change" | "code" | "versions">(html ? "show" : "change");
+  const [mode, setMode] = useState<"show" | "change" | "code" | "versions" | "chat" | "design">(html ? "show" : "change");
+  // The visual editor: the markup as a model; the sidebar shows its outline and properties meanwhile (widget-edit-store.ts).
+  const [model, setModel] = useState<VisualModel | null>(null);
+  const editId = useId();
+  const design = useRef({ save: () => {}, cancel: () => {} });
+  const [chatAsk, setChatAsk] = useState("");
+  const thread = useRef<HTMLDivElement>(null);
   const [busy, setBusy] = useState(false);
   const [code, setCode] = useState(html);
   const [ideas, setIdeas] = useState<{ id: number; title: string }[]>([]);
   // (What broke belongs to the code it broke in: a new widget starts without it.)
   const [brokeIn, setBrokeIn] = useState<{ html: string; message: string } | null>(null);
   const broke = brokeIn && brokeIn.html === html ? brokeIn.message : null;
-  const setBroke = useCallback((message: string | null) => setBrokeIn(message === null ? null : { html, message }), [html]);
+  // (A message you closed stays closed — the same mistake reported again doesn't bring the bar back.)
+  const [closed, setClosed] = useState<{ html: string; message: string } | null>(null);
+  const setBroke = useCallback(
+    (message: string | null) => {
+      if (message === null) {
+        if (brokeIn) setClosed({ html: brokeIn.html, message: brokeIn.message });
+        return setBrokeIn(null);
+      }
+      if (closed && closed.html === html && closed.message === message) return;
+      setBrokeIn({ html, message });
+    },
+    [html, brokeIn, closed],
+  );
   const [versions, setVersions] = useState<VersionRow[] | null>(null);
   const [preview, setPreview] = useState<{ n: number; html: string; libs: string[]; title: string } | null>(null);
   const elapsed = useElapsed(busy);
@@ -302,10 +333,19 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
     updateAttributes({ title: w.title, prompt: fix ? String(node.attrs.prompt ?? "") : said, html: w.html, libs: w.libs.join(","), writes: w.wants.writes.join(","), ai: !!w.wants.ai, flows: (w.wants.flows ?? []).join(",") });
     setCode(w.html);
     setPreview(null);
-    setMode("show");
-    if (r.version) toast(t("Version {n}", { n: r.version }) + (w.note ? ` — ${w.note}` : ""));
-    else if (w.note) toast(w.note);
+    // (In the chat the widget stays beside it and the thread goes on; otherwise back to the widget.)
+    if (mode === "chat") void loadVersions();
+    else setMode("show");
+    if (mode !== "chat") {
+      if (r.version) toast(t("Version {n}", { n: r.version }) + (w.note ? ` — ${w.note}` : ""));
+      else if (w.note) toast(w.note);
+    }
   };
+
+  // The thread ends at its newest turn.
+  useEffect(() => {
+    if (mode === "chat") thread.current?.scrollTo({ top: thread.current.scrollHeight });
+  }, [mode, versions, busy]);
 
   const keep = async (source: "code" | "restore", v: { html: string; title?: string; libs?: string[]; writes?: number[]; ai?: boolean; flows?: string[]; prompt?: string }) => {
     if (!wid) return;
@@ -318,6 +358,52 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
     if (!r.ok) return void toast(r.error, { tone: "error" });
     toast(t("Version {n}", { n: r.version }));
     if (mode === "versions") void loadVersions();
+  };
+
+  const leaveDesign = () => {
+    stopEdit(editId);
+    setModel(null);
+    setMode("show");
+  };
+  useEffect(() => {
+    design.current = {
+      save: () => {
+        if (!model) return;
+        const next = model.html();
+        leaveDesign();
+        if (next && next !== html) {
+          updateAttributes({ html: next });
+          setCode(next);
+          // (Changed code is a new widget for the grants — asked again, as with any code edit.)
+          void keep("code", { html: next, title, libs, writes: wants.writes, ai: wants.ai, flows: wants.flows, prompt: t("Edited visually") });
+        }
+      },
+      cancel: leaveDesign,
+    };
+  });
+  useEffect(() => () => stopEdit(editId), [editId]);
+  // Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y while editing visually (not where you are typing — a box keeps its own undo).
+  useEffect(() => {
+    if (!model) return;
+    const key = (e: KeyboardEvent) => {
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const k = e.key.toLowerCase();
+      if (k !== "z" && k !== "y") return;
+      const t0 = e.target as HTMLElement | null;
+      if (t0 && (t0.isContentEditable || /^(input|textarea|select)$/i.test(t0.tagName))) return;
+      e.preventDefault();
+      e.stopPropagation();
+      if (k === "y" || e.shiftKey) model.redo();
+      else model.undo();
+    };
+    window.addEventListener("keydown", key, true);
+    return () => window.removeEventListener("keydown", key, true);
+  }, [model]);
+  const startDesign = () => {
+    const m = new VisualModel(html);
+    setModel(m);
+    setMode("design");
+    startEdit({ id: editId, pageId: pageId ?? null, title: title || t("Widget"), model: m, onSave: () => design.current.save(), onCancel: () => design.current.cancel() });
   };
 
   const restore = async (n: number) => {
@@ -354,6 +440,9 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
           <>
             <button type="button" title={t("Change it — say what should be different")} onClick={() => (setAsk(""), setMode("change"))}>
               ✨
+            </button>
+            <button type="button" title={t("Edit visually — move, restyle and write in the widget; its outline and properties come to the sidebar")} onClick={startDesign}>
+              🖌
             </button>
             <button type="button" title={t("Its code")} onClick={() => (setCode(html), setMode("code"))}>
               {"</>"}
@@ -522,7 +611,98 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
         </div>
       )}
       {html ? (
-        <AppWidget html={html} libs={libs} title={title || t("Widget")} wants={wants} pageId={pageId} state={String(node.attrs.state ?? "")} onState={(json) => updateAttributes({ state: json })} showGrants={editable && mode !== "show"} onError={setBroke} wid={wid || undefined} />
+        <div className={mode === "chat" ? "grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]" : ""}>
+          <div className="relative min-w-0">
+            {/* Top right, over the widget: faint, clear when the pointer is near — the way into the chat that improves it. */}
+            {editable && mode === "show" && (
+              <div className="absolute top-1 right-1 z-10 flex gap-1 opacity-30 transition-opacity focus-within:opacity-100 hover:opacity-100">
+                {/* The visual editor: move, restyle and write in the widget; the sidebar shows its outline and properties. */}
+                <button
+                  type="button"
+                  title={t("Edit visually — move, restyle and write in the widget; its outline and properties come to the sidebar")}
+                  aria-label={t("Edit visually")}
+                  className="flex size-7 items-center justify-center rounded-md border border-violet-200 bg-violet-50/90 text-sm text-violet-700 shadow-sm dark:border-violet-800 dark:bg-violet-950/90 dark:text-violet-200"
+                  onClick={startDesign}
+                >
+                  ✎
+                </button>
+                {/* The chat: a pencil with an AI badge — say what should be different. */}
+                <button
+                  type="button"
+                  title={t("Improve this widget — talk to the AI")}
+                  aria-label={t("Improve this widget — talk to the AI")}
+                  className="flex size-7 items-center justify-center rounded-md border border-violet-200 bg-violet-50/90 text-sm text-violet-700 shadow-sm dark:border-violet-800 dark:bg-violet-950/90 dark:text-violet-200"
+                  onClick={() => (setMode("chat"), void loadVersions())}
+                >
+                  ✨
+                </button>
+              </div>
+            )}
+            {mode === "design" && model ? (
+              <VisualCanvas model={model} />
+            ) : (
+              <AppWidget html={html} libs={libs} title={title || t("Widget")} wants={wants} pageId={pageId} state={String(node.attrs.state ?? "")} onState={(json) => updateAttributes({ state: json })} showGrants={editable && mode !== "show"} onError={setBroke} wid={wid || undefined} />
+            )}
+          </div>
+          {mode === "chat" && editable && (
+            <section aria-label={t("Improve the widget")} className="flex max-h-[min(34rem,80vh)] min-h-64 flex-col rounded-lg border border-violet-200 bg-violet-50/40 dark:border-violet-900 dark:bg-violet-950/20">
+              <header className="flex items-center gap-2 border-b border-violet-200 px-3 py-1.5 dark:border-violet-900">
+                <span className="flex-1 text-xs font-medium text-violet-700 dark:text-violet-300">✨ {t("Improve the widget")}</span>
+                <button type="button" className="rounded px-1.5 text-sm hover:bg-violet-100 dark:hover:bg-violet-900" aria-label={t("Close")} onClick={() => setMode("show")}>
+                  ✕
+                </button>
+              </header>
+              <div ref={thread} className="min-h-0 flex-1 space-y-2 overflow-y-auto px-3 py-2 text-sm">
+                {versions === null ? (
+                  <p className="text-xs text-zinc-500">{t("Loading …")}</p>
+                ) : (
+                  <>
+                    {!versions.length && <p className="text-xs text-zinc-500">{t("Say what should be different — the widget changes beside this chat, every step is kept as a version.")}</p>}
+                    {[...versions].reverse().map((v) => (
+                      <div key={v.n} className="space-y-1">
+                        {v.prompt && (
+                          <div className="ml-6 rounded-lg rounded-tr-sm bg-violet-100 px-2.5 py-1.5 dark:bg-violet-950/60">{v.prompt}</div>
+                        )}
+                        <div className="mr-6 flex items-start gap-1.5 text-xs text-zinc-600 dark:text-zinc-400">
+                          <span aria-hidden>{SOURCE_ICON[v.source] ?? "•"}</span>
+                          <span className="min-w-0 flex-1">{v.note || t("Version {n}", { n: v.n })}</span>
+                          <button type="button" className="shrink-0 text-violet-700 hover:underline dark:text-violet-300" onClick={() => void restore(v.n)}>
+                            {t("Back to this")}
+                          </button>
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                )}
+                {busy && (
+                  <div className="space-y-1.5">
+                    <AiProgressBar />
+                    <AiWorkingLabel label={t("The AI is changing the widget …")} detail={elapsed} />
+                  </div>
+                )}
+              </div>
+              <div className="border-t border-violet-200 p-2 dark:border-violet-900">
+                <textarea
+                  value={chatAsk}
+                  rows={2}
+                  disabled={busy}
+                  onChange={(e) => setChatAsk(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      const said = chatAsk;
+                      setChatAsk("");
+                      void build(said);
+                    }
+                    e.stopPropagation();
+                  }}
+                  placeholder={t("What should be different? (Enter sends)")}
+                  className="w-full resize-none rounded-md border border-violet-200 bg-white px-2 py-1.5 text-sm outline-none focus:border-violet-400 dark:border-violet-900 dark:bg-zinc-900"
+                />
+              </div>
+            </section>
+          )}
+        </div>
       ) : (
         !editable && <p className="text-sm text-zinc-500">{t("An empty widget.")}</p>
       )}
