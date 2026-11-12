@@ -39,12 +39,15 @@ export function SkillMap({
   groups,
   label,
   route,
+  onStep,
 }: {
   nodes: SkillMapNode[];
   groups: { key: string; title: string }[];
   label: string;
   /** The red thread: the nodes in the order they're walked (`walked` of them begun; the rest the plan ahead). */
   route?: { keys: string[]; walked: number };
+  /** A step picked (in a view of the Workspace it opens in place: there is no link to follow). */
+  onStep?: (key: string) => void;
 }) {
   const t = useT();
   // The foundations (nothing before them): one after another down the first column, in the red thread's order.
@@ -198,7 +201,11 @@ export function SkillMap({
               );
               return (
                 <li key={st.key}>
-                  {st.href && st.status !== "locked" ? (
+                  {onStep && st.status !== "locked" ? (
+                    <button type="button" onClick={() => onStep(st.key)} className="flex min-h-9 w-full items-center gap-2 rounded-md px-1.5 py-1 text-left text-sm hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none dark:hover:bg-white/5">
+                      {inner}
+                    </button>
+                  ) : st.href && st.status !== "locked" ? (
                     <Link href={st.href} className="flex min-h-9 items-center gap-2 rounded-md px-1.5 py-1 text-sm hover:bg-black/5 focus-visible:ring-2 focus-visible:ring-indigo-500/40 focus-visible:outline-none dark:hover:bg-white/5">
                       {inner}
                     </Link>

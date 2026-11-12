@@ -33,8 +33,8 @@ export async function widgetContextAction(pageId?: number | null) {
 export async function allowWidgetAction(key: string, allow: WidgetGrant, title?: string) {
   return run(async () => {
     const { grantWidget } = await import("../widget-bridge");
-    const w = wantsOf(allow?.dbs ?? [], allow?.ai, allow?.flows);
-    return { grant: grantWidget(String(key), { dbs: w.writes, ...(w.ai ? { ai: true } : {}), ...(w.flows ? { flows: w.flows } : {}) }, title) };
+    const w = wantsOf(allow?.dbs ?? [], allow?.ai, allow?.flows, allow?.meta);
+    return { grant: grantWidget(String(key), { dbs: w.writes, ...(w.ai ? { ai: true } : {}), ...(w.flows ? { flows: w.flows } : {}), ...(w.meta ? { meta: w.meta } : {}) }, title) };
   });
 }
 
@@ -120,7 +120,7 @@ export async function setWidgetPageStateAction(pageId: number, key: string, valu
 }
 
 /** You take back what a widget was allowed (a database, the AI, a flow, or all). */
-export async function revokeWidgetAction(key: string, what?: { db?: number; ai?: boolean; flow?: string }) {
+export async function revokeWidgetAction(key: string, what?: { db?: number; ai?: boolean; flow?: string; meta?: string }) {
   return run(async () => {
     const { revokeWidget } = await import("../widget-bridge");
     return { grant: revokeWidget(String(key), what) };

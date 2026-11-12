@@ -283,6 +283,46 @@ ${(await import("./lookups")).lookupReference()}`)),
   );
 
   server.registerTool(
+    "workspace_view_versions",
+    {
+      title: "A view's templates before",
+      description:
+        "Every change of a view's template (by the user, by you, by an update) keeps the one before. Lists them for a database's view (newest first: id, when, who changed it from that one, size); with id: that version's template in full. Bring one back with workspace_restore_view — when a change made the view worse or broke it.",
+      inputSchema: z.object({ database: ref.optional(), view: z.string().optional().describe("The view's name or id (default: the first)."), id: z.number().int().optional().describe("A version's id: its template in full.") }),
+      annotations: { readOnlyHint: true, idempotentHint: true },
+    },
+    guard(({ database, view, id }: { database?: string | number; view?: string; id?: number }) => {
+      if (id !== undefined) {
+        const v = store.viewVersion(id);
+        return v ? h.ok(`Version ${v.id} of view ${v.viewId} (database ${v.dbId}), ${v.at}, changed from it by ${v.by || "?"}:
+
+${v.template}`) : h.fail(`No version ${id}.`);
+      }
+      const p = database === undefined ? null : findPage(database);
+      const d = p?.kind === "database" ? store.getDatabase(p.id) : null;
+      if (!p || !d) return h.fail(`No database "${database ?? ""}".`);
+      const v = view ? d.schema.views.find((x) => x.id === view || x.name.toLowerCase() === view.toLowerCase()) : d.schema.views[0];
+      if (!v) return h.fail(`No view "${view}" in "${p.title}".`);
+      const list = store.viewVersions(p.id, v.id);
+      return h.ok(list.length ? list.map((x) => `#${x.id} · ${x.at} · changed by ${x.by || "?"} · ${x.size} characters`).join("\n") : `The view “${v.name}” has no earlier template.`);
+    }),
+  );
+
+  server.registerTool(
+    "workspace_restore_view",
+    {
+      title: "Bring a view's template back",
+      description: "Sets a view's template back to a version (workspace_view_versions); the template it has now is kept as a version in turn — nothing is lost.",
+      inputSchema: z.object({ id: z.number().int() }),
+      annotations: { readOnlyHint: false, destructiveHint: false },
+    },
+    guard(({ id }: { id: number }) => {
+      store.restoreViewVersion(id);
+      return h.ok(`The view's template is back as it was in version ${id}.`);
+    }),
+  );
+
+  server.registerTool(
     "workspace_update_database",
     {
       title: "Change a database's properties and views",

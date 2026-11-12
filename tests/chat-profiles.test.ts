@@ -11,18 +11,18 @@ test("a chat is told by its todo's source: Zeff-Chat, or Zeff-Chat:<kind> of a p
   assert.equal(isChatTodo(null), false);
 });
 
-test("the plain chat's profile: Zeff's tools, its rules", () => {
-  const p = chatProfileFor({ id: 1, source: CHAT_SOURCE, text: "x" }, "");
+test("the plain chat's profile: Zeff's tools, its rules", async () => {
+  const p = await chatProfileFor({ id: 1, source: CHAT_SOURCE, text: "x" }, "");
   assert.ok(p.allowedTools.includes("mcp__zeff__add_todo"));
   assert.ok(p.disallowedTools.includes("Bash"));
   assert.match(p.rules, /Zeff/);
 });
 
-test("a plugin's profile for its kind of chat: its rules and tools; an unknown kind gets the plain chat's", () => {
+test("a plugin's profile for its kind of chat: its rules and tools; an unknown kind gets the plain chat's", async () => {
   registerChatProfile("quiz", (todo, preamble) => ({ rules: `QUIZ RULES for ${todo.id} ${preamble}`, allowedTools: [...CHAT_ALLOWED_TOOLS, "mcp__zeff__quiz_tool"], disallowedTools: ["Bash"] }));
-  const p = chatProfileFor({ id: 7, source: chatSource("quiz"), text: "x" }, "PRE");
+  const p = await chatProfileFor({ id: 7, source: chatSource("quiz"), text: "x" }, "PRE");
   assert.equal(p.rules, "QUIZ RULES for 7 PRE");
   assert.ok(p.allowedTools.includes("mcp__zeff__quiz_tool"));
-  const fallback = chatProfileFor({ id: 8, source: chatSource("nobody"), text: "x" }, "");
+  const fallback = await chatProfileFor({ id: 8, source: chatSource("nobody"), text: "x" }, "");
   assert.deepEqual(fallback.allowedTools, CHAT_ALLOWED_TOOLS);
 });

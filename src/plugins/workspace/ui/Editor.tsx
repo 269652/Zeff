@@ -36,11 +36,18 @@ import { ZeffForm, ZeffIf } from "./form-nodes";
 import { PageEmbedNode } from "./page-embed";
 import { SlashCommand, type SlashContext } from "./slash";
 import { SheetTable, TableFormulas, tableFormulasKey } from "./table-formulas";
+import { PipeResultNode, TablePipeNode } from "./pipe-nodes";
+import { PanelNode } from "./panel-node";
+import { CodeCellNode } from "./code-cell";
+import { RunAllButton } from "./page-toolbar";
+import { DataFlow } from "./data-flow-ext";
+import { TableSort } from "./table-sort-ext";
+import { WrapMenu } from "./wrap-menu";
 import { InlineFormula } from "./inline-formula";
 import { AssistCardNode, startAssist, type AiTarget } from "./assist-node";
 import { AiComposer } from "./ai-composer";
 import type { AiChip } from "../ai-entry";
-import { TextSelection } from "@tiptap/pm/state";
+import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { TableTools } from "./table-tools";
 import type { FormulaData } from "../page-sheet";
 import "./workspace.css";
@@ -51,6 +58,13 @@ const lowlight = createLowlight(common);
 export type SaveState = "saved" | "saving" | "error" | "conflict";
 
 /** Markdown typed or pasted as plain text: headings, lists, fences, tables or links over several lines. */
+/** Whether the text selected is inside a block of its own (a widget, a result table, a form — shown by React, not written in the page): no formatting menu there. */
+function inBlockView(): boolean {
+  const n = typeof window === "undefined" ? null : window.getSelection()?.anchorNode;
+  const el = n instanceof Element ? n : (n?.parentElement ?? null);
+  return !!el?.closest('[contenteditable="false"]');
+}
+
 const MD_HINT = /(^:::app\b|^#{1,6} |^\s*[-*] |^\s*\d+\. |^```|^\|.+\|$|\*\*[^*]+\*\*|\[[^\]]+\]\([^)]+\))/m;
 
 /** The selection card's AI signs (24-unit paths, drawn at 14 px). */
@@ -390,6 +404,12 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       CalendarEmbedNode,
       PageEmbedNode.configure({ pageId }),
       AiBlockNode.configure({ pageId }),
+      TablePipeNode,
+      PipeResultNode,
+      PanelNode,
+      CodeCellNode.configure({ pageId }),
+      TableSort.configure({ labels: { sort: t("Sort by this column"), asc: t("Sorted ascending — click for descending"), desc: t("Sorted descending — click for ascending"), locked: t("Protected table — allow editing to sort"), formulas: t("A table with formulas can't be sorted"), merged: t("A table with merged cells can't be sorted") } }),
+      DataFlow.configure({ labels: { editable: t("Editable"), locked: t("Protected"), computed: t("Calculated"), result: t("Result table"), protect: t("Click to protect against editing"), unprotect: t("Click to allow editing") } }),
       // eslint-disable-next-line react-hooks/refs -- read when the shortcut is pressed, not while the editor is set up
       AssistCardNode.configure({ pageId, open: (target) => openComposer.current(target) }),
       // eslint-disable-next-line react-hooks/refs -- read when a command runs, not while rendering
@@ -512,6 +532,8 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
   if (!editor) return <div className="min-h-48" aria-busy="true" />;
   return (
     <div className={`ws-editor ${smallText ? "ws-small" : ""}`}>
+      {/* The sticky "Run all" of a page with code cells (not in a small editor, nor in a row's detail view). */}
+      {editable && !smallText && !contextRowId && <RunAllButton editor={editor} pageId={pageId} />}
       {state === "conflict" && (
         <div role="alert" className="alert-error mb-2 flex flex-wrap items-center gap-2 text-sm">
           <span className="flex-1">{t("This page was changed somewhere else (another tab, or an agent) while you were editing.")}</span>
@@ -571,6 +593,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
             >
               ✨
             </button>
+            <WrapMenu editor={editor} getHandle={() => handleNode.current} />
             <span className="ws-grip" title={t("Drag to move")} aria-hidden>
               ⠿
             </span>
@@ -586,7 +609,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
         </FloatingMenu>
       )}
       {editable && (
-        <BubbleMenu editor={editor} options={{ placement: "top", offset: 8, flip: { padding: { top: 72 } }, shift: { padding: 8 } }} shouldShow={({ editor: e, state: s }) => e.isEditable && !s.selection.empty && !e.isActive("image") && !e.isActive("codeBlock") && !e.isActive("zeffRef")}>
+        <BubbleMenu editor={editor} options={{ placement: "top", offset: 8, flip: { padding: { top: 72 } }, shift: { padding: 8 } }} shouldShow={({ editor: e, state: s }) => e.isEditable && !s.selection.empty && !(s.selection instanceof NodeSelection) && !e.isActive("image") && !e.isActive("codeBlock") && !e.isActive("zeffRef") && !inBlockView()}>
           {/* A small card: formatting on top, the AI's actions below in two columns, translating last. */}
           <div className="ws-bubble ws-bubble-card">
             <div className="ws-bubble-row">

@@ -27,3 +27,9 @@ export type WorkspaceFieldType = {
 export type FieldTypeInfo = { id: string; label: string; icon: string; description: string; display: WorkspaceFieldType["display"]; max?: number; href?: string; suggestions: string[] };
 
 export const workspaceFieldTypes = extensionPoint<WorkspaceFieldType[]>("workspace.fieldTypes");
+
+/** The field types of external plugins (set by the Workspace's server.ts: the plugin registry must not be loaded while this file is). */
+export let externalFieldTypes: () => WorkspaceFieldType[] = () => [];
+export const setExternalFieldTypes = (f: () => WorkspaceFieldType[]): void => {
+  externalFieldTypes = f;
+};

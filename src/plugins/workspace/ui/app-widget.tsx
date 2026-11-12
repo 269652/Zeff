@@ -192,7 +192,7 @@ export function AppWidget({
   const lack = missing(wants, grant);
   const dbName = (id: number) => context?.databases.find((d) => d.id === id)?.title ?? `#${id}`;
   const allow = async () => {
-    const r = await allowWidgetAction(key, { dbs: lack.writes, ...(lack.ai ? { ai: true } : {}), ...(lack.flows ? { flows: lack.flows } : {}) }, title);
+    const r = await allowWidgetAction(key, { dbs: lack.writes, ...(lack.ai ? { ai: true } : {}), ...(lack.flows ? { flows: lack.flows } : {}), ...(lack.meta ? { meta: lack.meta } : {}) }, title);
     if (!r.ok) return void toast(r.error, { tone: "error" });
     setGrant(r.grant);
   };
@@ -201,7 +201,7 @@ export function AppWidget({
     if (!r.ok) return void toast(r.error, { tone: "error" });
     setGrant(r.grant);
   };
-  const asks = [...lack.writes.map((id) => t("write to „{db}“", { db: dbName(id) })), ...(lack.ai ? [t("ask the AI")] : []), ...(lack.flows ?? []).map((f) => t("run the flow „{flow}“", { flow: f }))];
+  const asks = [...lack.writes.map((id) => t("write to „{db}“", { db: dbName(id) })), ...(lack.ai ? [t("ask the AI")] : []), ...(lack.flows ?? []).map((f) => t("run the flow „{flow}“", { flow: f })), ...(lack.meta ?? []).map((k) => (k === "read" ? t("read how Zeff is built") : k === "delete" ? t("delete pages, blocks, flows and plugins for good") : k.startsWith("call:") ? t("run the function „{name}“", { name: k.slice(5) }) : k.startsWith("chat:") ? t("talk to the chat „{name}“", { name: k.slice(5) }) : t("change Zeff's structure: {what}", { what: k })))];
 
   return (
     <div className={`space-y-1.5 ${className}`}>
@@ -262,7 +262,7 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
   const title = String(node.attrs.title ?? "");
   const wid = String(node.attrs.wid ?? "");
   const libs = csv(node.attrs.libs).filter((l) => Object.prototype.hasOwnProperty.call(WIDGET_LIBS, l));
-  const wants = wantsOf(node.attrs.writes, node.attrs.ai, node.attrs.flows);
+  const wants = wantsOf(node.attrs.writes, node.attrs.ai, node.attrs.flows, node.attrs.meta);
   const [ask, setAsk] = useState(String(node.attrs.prompt ?? ""));
   const [mode, setMode] = useState<"show" | "change" | "code" | "versions" | "chat" | "design">(html ? "show" : "change");
   // The visual editor: the markup as a model; the sidebar shows its outline and properties meanwhile (widget-edit-store.ts).
@@ -723,7 +723,7 @@ export const ZeffApp = Node.create<{ pageId: number }>({
   atom: true,
   draggable: true,
   addAttributes() {
-    return { title: { default: "" }, prompt: { default: "" }, html: { default: "" }, libs: { default: "" }, writes: { default: "" }, ai: { default: false }, flows: { default: "" }, wid: { default: "" }, state: { default: "" } };
+    return { title: { default: "" }, prompt: { default: "" }, html: { default: "" }, libs: { default: "" }, writes: { default: "" }, ai: { default: false }, flows: { default: "" }, meta: { default: "" }, wid: { default: "" }, state: { default: "" } };
   },
   parseHTML() {
     return [{ tag: "div[data-zeff-app]" }];

@@ -1,6 +1,6 @@
 import "@/plugins/contributions";
 import { normalizeSchema, type DbSchema, type Property, type Row } from "./model";
-import { workspaceSources } from "./source-point";
+import { allSources } from "./source-point";
 
 /**
  * A source of a plugin as a table in memory — what a relation can point at without a database made of it: the booked time, say.
@@ -8,11 +8,11 @@ import { workspaceSources } from "./source-point";
  */
 export type SourceTable = { schema: DbSchema; rows: Row[] };
 
-const impl = (id: string) => workspaceSources.list().flatMap((c) => c.impl).find((s) => s.id === id && s.table);
+const impl = (id: string) => allSources().find((s) => s.id === id && s.table);
 
 /** The sources a relation can point at. */
 export function relationSources(): { id: string; label: string; icon: string }[] {
-  return workspaceSources.list().flatMap((c) => c.impl).filter((s) => s.table).map((s) => ({ id: s.id, label: s.label, icon: s.icon }));
+  return allSources().filter((s) => s.table).map((s) => ({ id: s.id, label: s.label, icon: s.icon }));
 }
 
 /** What an agent needs to join a database with the sources: their ids and properties, and how (relation.source + relation.match). */

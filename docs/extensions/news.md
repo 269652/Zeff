@@ -6,6 +6,14 @@
 
 ## For users
 
+### Where it is
+
+News lives in the **Workspace**: the page **News** (a favourite in the sidebar, made the first time you open News) is
+shown by News' app view — the views with their counts, the categories, the funnel, your taste and the overview written in
+the view language (`src/plugins/news/view-template.meta.ts`), the feed, stories, asking, listening and refreshing as News'
+own parts. `/news` and its old links (`/news?view=saved&source=3&category=Tech`) open that page with the view, source and
+category set (`?s.view=…&s.source=…&s.category=…`). It has no tab of its own in the header any more.
+
 ### What it does
 
 Thousands of headlines are published every day; a few dozen are worth your time. News fetches the feeds you pick

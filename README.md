@@ -14,7 +14,7 @@
 <p align="center">
   <a href="https://getzeff.com">Website</a> ·
   <a href="https://github.com/269652/zeff-alpha/releases">Download (alpha)</a> ·
-  <a href="#features">Features</a> ·
+  <a href="#extensions">Extensions</a> ·
   <a href="docs/plugins/README.md">Write a plugin</a> ·
   <a href="LICENSE">Licence</a> ·
   <a href="mailto:info@getzeff.com">info@getzeff.com</a>
@@ -77,190 +77,80 @@ agents that take todos over in your own repos, and a **Studio** to build whateve
   </tr>
 </table>
 
-<table>
-  <tr>
-    <td width="50%"><img src="docs/screenshots/learn-course.png" alt="A Learn course on differential geometry: level, today's goal, a seven-day streak, progress and badges; the next steps; the skill map with paths in colour, mastered skills ticked, the one in progress with its ring of steps, the locked ones ahead"><br><b>Learn anything</b> — Claude researches a topic and plans it as a skill tree you work through, path by path.</td>
-    <td width="50%"><img src="docs/screenshots/learn-exercise.png" alt="A lesson: an interactive exercise Claude built — the osculating circle of a parabola, moved with a slider — your result with its answer, and the teacher's explanation beside it"><br><b>A teacher that builds exercises</b> — interactive widgets made on the fly, your answers kept on the lesson's timeline.</td>
-  </tr>
-</table>
+## Extensions
 
-<table>
-  <tr>
-    <td width="66%"><img src="docs/screenshots/learn-timeline.png" alt="A lesson's timeline: left of the line your tries with every answer marked right or wrong, right of it the teacher's explanations with formulas"></td>
-    <td width="34%"><img src="docs/screenshots/phone-learn.png" alt="The same lesson on a phone: your results and the teacher's messages down one line"></td>
-  </tr>
-</table>
+Everything in Zeff is an **extension** (a plugin) you turn on or off on **Menu → Plugins**. Each has a page in the docs
+with what it does, how to set it up, its settings and **screenshots** — follow the link. All of them: [docs/extensions](docs/extensions/README.md).
 
-## Features
+### Your day
 
-### ✅ Todos — derived from everything that comes in
+| Extension | Highlights |
+| --- | --- |
+| [**Todos**](docs/extensions/todos.md) | Derived from every channel, not typed · each says why, from where, by when · settles itself when the source shows it is done · one-click actions · hand it to an agent |
+| [**Mail & Chat**](docs/extensions/mail-client.md) | One inbox for mail and chats · a real mail client and chat view · replies over the account's own SMTP · AI review turns what needs you into todos |
+| [**Calendar**](docs/extensions/calendar.md) | Your calendars plus Outlook and Google in one week view · free slots for meeting suggestions · meetings become time entries |
+| [**Agenda**](docs/extensions/agenda.md) | Notes on a timeline, in projects · pin, tick off, tag · reminders and today's events |
+| [**Timeline**](docs/extensions/timeline.md) | One log across all sources, tied to people, tickets and projects · a marker for what is new |
+| [**Open loops**](docs/extensions/loops.md) | Promises both ways, unanswered questions, requests · loops close by themselves |
+| [**News**](docs/extensions/news.md) | Your feeds scored for your interests · muted words, trusted sources · a daily overview |
 
-- **Every channel feeds the list** — mail (Outlook, Gmail, any IMAP/POP3 account), chats (Teams, WhatsApp, Signal),
-  Jira tickets and comments, GitLab merge requests and review comments, your calendars, documents and letters, bank
-  statements, Workspace notes and checklists, even Signal's "note to self".
-- **Derived, not typed** — after every sync the AI reads what is new and decides what asks something of *you*. That
-  becomes a todo; everything else stays context. Appointments that need preparing become todos for their day.
-- **Every todo says why** — it keeps the messages it came from (with the quote it rests on), the chain of what caused
-  it, the people involved and a due date where the source names one.
-- **One thread, one todo** — later replies, comments and follow-ups land on the todo they belong to instead of
-  making new ones; a conversation shares its todos, and every mail, note or ticket that flowed into one carries a mark
-  — so nothing is handled twice.
-- **It settles itself** — when the source leaves no doubt it is done: your reply went out, the ticket was resolved,
-  the attachment was sent, the payment showed up on the bank statement. Each settling says what did it, and can be
-  undone.
-- **One-click actions** — for each open todo the AI prepares what would finish it: a reply, a comment, a mail draft,
-  a meeting in a free slot, a hand-over to an agent. You review, adjust, click.
-- **Context at a glance** — hover a todo for its sources, actions and what the knowledge base has on it; open it for
-  the whole story.
-- **Hand it to an agent** — a todo can go to Claude Code, Codex or Copilot in the right repo; its run, diff and
-  delivery come back to the same todo.
+### People, matters & money
 
-### ☀️ Today — your day on one screen
+| Extension | Highlights |
+| --- | --- |
+| [**People**](docs/extensions/people.md) | A profile for everyone who matters · what Zeff knows across sources · dates with reminders · duplicates merged everywhere |
+| [**Organisations, projects & places**](docs/extensions/entities.md) | Known under every name your sources use · each gathers its people, tickets, mails, money and hours |
+| [**Cases**](docs/extensions/cases.md) | One place per matter, held together by a file number · the other party, what is owed, the next deadline · a GiroCode to pay |
+| [**Finances**](docs/extensions/finances.md) | Whom you owe and who owes you · payment plans and the months ahead · the day you are debt-free |
+| [**Documents**](docs/extensions/documents.md) | Drop PDFs, Office files, pictures, audio · text extracted (scans and audio too) · searchable, a source of todos |
+| [**Time tracking**](docs/extensions/time-tracking.md) | Jobs and projects against your hours and absences · weekly and monthly reports · agents propose bookings |
+| [**Correlations**](docs/extensions/correlations.md) | What goes with what in your days (mood, energy, meetings, spending) · real statistics, told only when it holds |
+| [**Knowledge**](docs/extensions/knowledge.md) | A searchable wiki and graph of your data and Confluence · what you should know right now · questions answered with the rows behind them |
 
-- **The briefing ("Lage")** — an AI pass over your tickets, mail, chats and merge requests that says what happened and
-  what is yours to do, ticket by ticket, with flags and suggested next steps.
-- **Open loops** — what you promised ("I'll send it tomorrow"), what was promised to you, questions nobody answered,
-  review and signature requests. Loops close by themselves when the source leaves no doubt.
-- **Timeline** — one log of everything across all sources, tied to the people, tickets, cases and projects it
-  concerns, with a marker for what is new since you last looked.
-- **Reminders that matter** — birthdays and anniversaries, deadlines, instalments, the overdue promise — on the Today
-  page and as desktop notifications.
+### Build and write
 
-### 📬 Every inbox, one place
+| Extension | Highlights |
+| --- | --- |
+| [**Workspace**](docs/extensions/workspace.md) | Pages and databases in a block editor · table, board, list, gallery, calendar, timeline, chart · formulas with units · **tables that transform** (table → transform → result, with data-flow marks, protection and a "calculated" look) · panels and *Wrap* · widgets the AI builds · pipelines, automations, agents · views of your own |
+| [**Notebook**](docs/extensions/notebook.md) | **Code cells in any page**: Python, Node.js, Rust — each language a plugin, **Docker containers by default** · inputs and a returned output other blocks and widgets use · read and write Zeff **behind permissions you grant** (asked while the cell runs) · `sharedStorage` across languages · **`.znb`**: a Jupyter notebook with Zeff's blocks on top · a sticky *Run all* |
+| [**Studio**](docs/extensions/studio.md) *(beta)* | Flows on a canvas · sandboxed Node.js lambdas with a web IDE · lifecycles · apps in one click · permissions you grant |
+| [**Lookups**](docs/extensions/lookups.md) | Type a title, pick a suggestion: films, books, Wikipedia, web results become rows |
+| [**Code**](docs/extensions/work.md) | AI workers on your todos in your repos · live sessions you can steer · branches, diffs, pushes and merge requests on a click |
+| [**Admin sessions**](docs/extensions/work-elevated.md) *(beta)* | Live Claude sessions that run as Windows administrator |
+| [**Jira briefing**](docs/extensions/jira-lage.md) | Your Jira boards as Workspace boards, each card with the AI's view of where it stands |
 
-- **All your mail accounts side by side** — Outlook (web or Microsoft's API), Gmail, and any IMAP or POP3 account
-  (T-Online, GMX, WEB.DE, Gmail, Outlook …). Reply and write new mail from Zeff, really sent over the account's SMTP.
-- **Chats too** — Microsoft Teams mentions and chats, WhatsApp Web and Signal Desktop *(both experimental)* — read without
-  opening a chat, so nothing is marked as read and no blue ticks appear.
-- **A real mail client and chat view** — folders, list and reading pane; conversations with a reply box that stays at
-  the bottom; channel logos as tabs; "archive read" that tidies the IMAP inbox on the server too.
-- **AI reviews** — the mail and message review flags what needs you and turns it into todos, with the quote it is
-  based on.
+### AI
 
-### 🗂️ Workspace — Notion, wired into everything
+| Extension | Highlights |
+| --- | --- |
+| [**LLM**](docs/extensions/llm.md) | The layer every AI task goes through · backend and model per task · your instructions and context |
+| [**AI backends**](docs/extensions/ai-backends.md) | Claude Code, ChatGPT (Codex CLI), GitHub Copilot CLI, local models (Ollama, LM Studio) |
+| [**Auto actions**](docs/extensions/auto-actions.md) | A ready-made action for every open todo · you review, adjust, click |
+| [**Actions**](docs/extensions/actions.md) | The one-click buttons on todos and rows — writes only on your click |
 
-- **Pages and databases** — a block editor (`/` for blocks: headings, lists, checklists, tables, callouts, toggles,
-  code, pictures), a page tree with backlinks, history and a trash.
-- **Every view you need** — table, board, list, gallery, calendar, timeline and chart; filters, sorts, relations,
-  rollups and formulas **with units** (`3 h × 85 €/h`).
-- **Views of your own design** — describe a view or write it in Zeff's template language: dashboards, galleries,
-  two-pane apps, an inbox. Edit it in a **drag & drop builder** with a kit of ~40 elements, or in a code editor with
-  syntax highlighting and completion — with a live preview either way.
-- **Detail pages for any database** — the page a row opens as, designed like a view: its fields, its lifecycle
-  buttons, data a flow loads.
-- **Lookups** — type a title and pick a suggestion: films and series (TMDB), books (Open Library, Google Books),
-  Wikipedia articles, the Knowledge Graph, web results — and its data becomes a row, poster and all.
-- **Checklists that are todos** — a note's checkboxes are Zeff todos, ticked from anywhere.
-- **@-mentions** of people, todos and tickets; forms that fill databases; templates for a journal, an agenda and more.
-- **AI built in** — it writes and summarises, turns a page into todos, fills AI fields per row, answers questions from
-  a database (each statement naming its row), and compiles a dossier of what a database says.
+### Connectors
 
-### 🧱 Studio — build your own apps *(beta)*
+| Extension | Highlights |
+| --- | --- |
+| [Outlook](docs/extensions/outlook.md) · [Gmail](docs/extensions/gmail.md) · [IMAP / POP3](docs/extensions/imap-mail.md) | Mail from your accounts, replies on your click |
+| [Microsoft Teams](docs/extensions/teams.md) · [WhatsApp](docs/extensions/whatsapp.md) · [Signal](docs/extensions/signal.md) | Chats read without opening them — no read marks, no blue ticks |
+| [Google Calendar](docs/extensions/google-calendar.md) · [Google Drive](docs/extensions/google-drive.md) · [Google Keep](docs/extensions/keep.md) | Calendars, a copy of documents and backups in your own Drive, your Keep notes |
+| [Jira](docs/extensions/jira.md) · [GitLab](docs/extensions/gitlab.md) | Tickets, boards, merge requests and review comments as context for todos and workers |
+| [Revolut](docs/extensions/revolut.md) | Bank statements settle payments by themselves |
+| [Web search](docs/extensions/web-search.md) · [Browser](docs/extensions/browser.md) *(beta)* | The AI searches the web and reads or clicks through public pages |
+| [Time-sheet systems](docs/extensions/timesheets.md) | Your booked week exported to Chrono and Punch |
 
-- **Flows from blocks** — web requests, lookups, AI extraction, rows read and written, branches, loops, parallel
-  steps, error handling, sub-flows and JavaScript in a sandbox. Drawn as a canvas; every node's input and output in the
-  run console; dry runs that write nothing.
-- **Ask me** — a block that asks *you* a question (a 1–10 scale, a choice, yes/no, a number, a text) and waits for the
-  answer — on any page of Zeff, as a card in the corner. An hourly check-in that lands in your journal is three
-  blocks: *ask → make sure of the database → write the row*.
-- **Triggers** — by hand, from a button in a view, on a schedule with hours and weekdays ("every hour from 8 to 22,
-  Monday to Friday"), when a row changes, on a lifecycle transition or a signal.
-- **Lambdas** — real Node.js functions with their own npm packages, each in a sandboxed process (no files, no
-  processes, network only to the domains it declares, through Zeff). Their output is checked against what they
-  promise. All lookup sources are lambdas you can read, test and change.
-- **A web IDE** — the editor of VS Code in the browser: files, tabs, highlighting, completion with the types of the
-  lambda's event, context and installed packages, a test panel, full screen.
-- **Lifecycles** — turn a status field into a state machine: transitions, conditions, required fields, a history per
-  row, flows on entering and leaving a state, and a strict mode where a card only moves the way it may.
-- **Apps in one click** — a web search that keeps what you find, a film catalogue, a tracker, or an empty app — each a
-  database with its own screens, detail page and flows. Or just *describe it* and let the assistant build it from the
-  same blocks.
-- **Permissions you grant** — a flow reaches only the web domains, databases, AI and sending you allow; what the AI
-  asks for waits for your OK. Secrets (API keys) never show in a log.
+### System
 
-### 🤖 Agents & AI
+| Extension | Highlights |
+| --- | --- |
+| [**Accounts**](docs/extensions/accounts.md) | Work and private side by side, each with its own database, browser profile, AI backends and plugins |
+| [**Backups**](docs/extensions/backup.md) | Encrypted daily ZIPs, rotation, restore in one click, optionally a copy in your Drive |
+| [**Languages**](docs/extensions/languages.md) | English, German and Spanish, with dates and numbers in your format |
 
-- **Bring your AI** — Claude Code, OpenAI's Codex (your ChatGPT account) or GitHub Copilot as the backend, each task
-  with its own model; your instructions and context go with every call.
-- **Code tab** — workers on your todos with live sessions you can steer, branches and worktrees, diffs, pushes, merge
-  requests and replies to review comments on a click. Admin sessions for system work on Windows *(beta)*.
-- **Workspace agents** — scheduled agents that write reviews, clean up an inbox, fill databases — with a scope, tool
-  groups you switch on and off, and a log of every run. Each agent sees the data beside it: drop a database into
-  your journal and the weekly review reads it.
-- **They ask when they need you** — an agent can ask you a question mid-run (`zeff_ask`), wait for the answer and go
-  on with it.
-- **MCP for every agent** — Zeff's tools over MCP: todos, time, knowledge, the Workspace, flows, lookups, open loops,
-  the timeline, correlations, web search and an automated browser *(beta)*.
-
-### 👥 People, cases & money
-
-- **People** — a profile for everyone who matters: notes, dates with reminders, what Zeff knows about them across
-  sources, their latest messages, the todos they appear in, what they owe you and you them. Duplicates are found and
-  merged everywhere at once.
-- **Organisations, projects & places** — known under every name your sources use, each gathering its people,
-  tickets, mails, money, hours and appointments.
-- **Cases** — one place per matter: the file number in a letter, a mail and a todo holds it together; the other party,
-  what is owed, the next instalment or deadline and a GiroCode to pay.
-- **Finances** — whom you owe what and who owes you, payment plans, the months ahead as a chart, the day you are
-  debt-free; bank statements (Revolut and other CSVs) settle payments by themselves.
-
-### 🕐 Time & calendar
-
-- **One calendar** — your own calendars plus Outlook and Google Calendar in one week view; free slots for meeting
-  suggestions; meetings become time entries on a click.
-- **Time tracking** — jobs and projects, working hours, absences, flex time, weekly and monthly reports; agents
-  propose bookings, you take them over.
-
-### 🧠 Knowledge & insight
-
-- **A knowledge server** — Confluence, documents and Zeff's own data compiled into a searchable wiki and graph:
-  summaries, concepts, entities, relations. Ask it in Zeff, or let agents search it.
-- **What you should know right now** — before a meeting, beside a mail, a ticket or a person.
-- **Questions about your own numbers** — "how much did I spend on repairs this year?", "when did I last talk to …?" —
-  answered from your data, with the rows behind the answer.
-- **Documents** — drop PDFs, Office files, pictures or audio; Zeff extracts the text (scans and audio too) and files it.
-- **Correlations** — what goes with what in your days (your mood and energy against meetings, hours, messages,
-  spending), computed with real statistics and only told when it holds.
-
-### 🎓 Learn — any topic, taught *(beta)*
-
-- **Pick a topic, get a plan** — Claude researches it (OpenAlex, Semantic Scholar and arXiv, plus curricula and
-  textbooks on the web) and writes a plan over years, phases, skills and small steps of 15–45 minutes, with the
-  sources it used. A plan that comes out as a chain is sent back once to branch out.
-- **A skill map, not a syllabus** — every skill a node in a graph, coloured by its path (foundations, intuition,
-  computation, theory …), in columns after what it needs; say which paths interest you and the next steps follow.
-- **Claude as your teacher** — each step is a lesson in a chat: it explains (formulas typeset), asks, and builds
-  interactive exercises on the spot — quizzes, graphs with sliders, 3D surfaces, charts (KaTeX, JSXGraph, three.js,
-  Chart.js in a locked-down sandbox). When an exercise is done the lesson goes on by itself; when you've shown you
-  can do it, the step is mastered.
-- **A lesson is a timeline** — your messages, every exercise and every try (each answer, right or wrong) on one side
-  of the line, the teacher's explanations on the other: scroll back to see how you solved it.
-- **Game, not homework** — experience and levels, a daily goal, streaks, badges; flashcards from each step reviewed
-  with spaced repetition (a todo tells you when cards are due); weekly study times in your calendar.
-- **Try it** — the demo has a course on differential geometry a week in.
-
-### 🌱 Life
-
-- **Journal** — a diary with mood, energy and tags, weekly and monthly reviews written by the AI, and check-ins that
-  ask you during the day.
-- **Agenda** — notes on a timeline in projects, on the agenda, pinned, with reminders and today's calendar events.
-- **News** — the feeds you pick plus a search per interest, scored by what you care about and how you read; muted
-  words, trusted sources, a daily overview.
-
-### 🛡️ Safe by construction
-
-- **Accounts** — work and private side by side, each with its own database, browser profile, knowledge server, AI
-  backends and plugins.
-- **Encrypted backups** — daily ZIPs, AES-256 with your password, daily/weekly/monthly rotation, restore in one click;
-  optionally a copy in your own Google Drive *(beta)*.
-- **Sensitivity everywhere** — mark a source or database personal or secret and every exit respects it.
-- **Writes only on a click** — enforced by a test, not a promise.
-
-### 🧩 Make it yours
-
-- **Plugins** — everything in Zeff is a plugin you turn on or off; drop a folder into the plugins folder to add rules,
-  `/` commands, views, MCP servers, hooks and API calls — no rebuild, no restart.
-- **Three languages** — English, German and Spanish, with dates and numbers in your format.
+**Safe by construction.** Every source and database carries a sensitivity (open, personal, secret) that the AI,
+agents and MCP respect; automatic steps only read and propose — every write happens on your click (a test enforces
+it); code that reads or writes Zeff's data waits for a permission you give.
 
 ## Get it
 
@@ -296,7 +186,7 @@ a hint for each:
 ## Make Zeff yours: plugins
 
 External plugins are plain folders in Zeff's data folder. They appear under **Menu → Plugins** at once, and you turn
-them on there after seeing what they ask for.
+them on there after seeing what they ask for — no rebuild, no restart.
 
 ```
 plugins/my-plugin/
@@ -305,42 +195,15 @@ plugins/my-plugin/
   rules.md           ← rules every Work worker gets
 ```
 
-```json
-{
-  "id": "hello", "name": "Hello", "apiVersion": 1,
-  "permissions": ["prompt", "work.read"],
-  "contributes": {
-    "workerRules": "rules.md",
-    "workCommands": [{ "id": "tests", "label": "tests", "template": "Run the tests and tell me what fails." }],
-    "workPanels": [{ "id": "runs", "title": "Hello runs", "entry": "index.html" }]
-  }
-}
-```
+A plugin can add **rules** for every worker, **`/` commands**, **views** in the sidebar or as a session tab, **MCP
+servers**, **event hooks** on runs and todos, and drive Zeff through **the API**. Views run in a sandboxed frame behind
+a permission-checked bridge; hooks have time limits and no shell. The one permission that can't be contained is
+`exec`, and Zeff says so before you enable it — [the trust model](docs/plugins/security.md).
 
-| A plugin can add … | So Work … |
-| --- | --- |
-| **Rules** for every worker | behaves your way: house style, checks before "done", words to avoid |
-| **`/` commands** | starts the jobs you do all the time with one keystroke |
-| **Views** in the sidebar or as a session tab | shows what you care about: run dashboards, costs, a ticket next to its session |
-| **MCP servers** | reaches your own systems |
-| **Event hooks** on runs and todos | reacts: notify, log, open a todo when a run fails, send a follow-up |
-| **The API** | is driven by your code: start sessions, add todos, keep data |
-
-A hook can start a session, and a session's end is itself an event — so a plugin can close the loop: **Zeff acting
-on Zeff**. The `plugin-builder` example adds a `/plugin` command: describe what you want, and a worker reads Zeff's
-own docs, writes the plugin and tells you what it asks for. Nothing it writes runs until you turn it on.
-
-Views run in a sandboxed frame behind a permission-checked bridge; hooks have time limits and no shell. The one
-permission that can't be contained is `exec`, and Zeff says so before you enable it —
-[the trust model](docs/plugins/security.md).
-
-Start with the [overview](docs/plugins/README.md) and the examples in [`examples/plugins/`](examples/plugins)
-(`run-dashboard`, `run-notifier`, `plugin-builder`). Reference: [manifest](docs/plugins/manifest.md) ·
-[API](docs/plugins/api.md) · [panels](docs/plugins/panels.md) · [hooks](docs/plugins/hooks.md).
-`npm run plugin:check -- <folder>` validates a plugin.
-
-Integrations that must not live in a public repo (a company's own timesheet, for example) can be kept in a private
-repository and mounted as a git submodule under `integrations/` — [docs/integrations.md](docs/integrations.md).
+Start with the [overview](docs/plugins/README.md) and the examples in [`examples/plugins/`](examples/plugins). Reference:
+[manifest](docs/plugins/manifest.md) · [API](docs/plugins/api.md) · [panels](docs/plugins/panels.md) ·
+[hooks](docs/plugins/hooks.md). `npm run plugin:check -- <folder>` validates a plugin. Integrations that must not live
+in a public repo can be mounted as a git submodule under `integrations/` — [docs/integrations.md](docs/integrations.md).
 
 ## Connect an agent (MCP)
 

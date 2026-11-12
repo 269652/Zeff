@@ -16,11 +16,16 @@ import { registerMetricTools } from "./mcp-metrics";
 import { registerFlowTools } from "./flows/mcp";
 import { registerWidgetTools } from "./mcp-widgets";
 import { registerBlockTools } from "./mcp-blocks";
+import { registerFunctionTools } from "./mcp-functions";
+import { registerPackageTools } from "./mcp-packages";
 import { mayRead, refusal } from "@/lib/boundaries";
 import { labelResolver, pageLabel } from "./sensitivity";
 
 type Result = { content: ({ type: "text"; text: string } | { type: "image"; data: string; mimeType: string })[]; isError?: boolean };
 export type Helpers = { run: (fn: () => Promise<Result> | Result) => Promise<Result>; ok: (text: string) => Result; fail: (text: string) => Result };
+
+/** The body of a tool that runs only while the Workspace is there (the guard every tool starts with). */
+export const guarded = (h: Helpers, fn: () => Promise<Result> | Result): Promise<Result> => h.run(async () => off(h) ?? fn());
 
 export const off = (h: Helpers): Result | null => (isInstalled("workspace") ? null : h.fail("The Workspace is not installed in Zeff (Menu → Plugins) — this tool isn't available."));
 
@@ -362,6 +367,10 @@ export function registerWorkspaceTools(real: McpServer, h: Helpers): void {
   // Widgets: small apps the assistant builds — shown in its answer, put into a page.
   registerWidgetTools(server, h);
   registerBlockTools(server, h);
+  // The server functions plugins bring.
+  registerFunctionTools(server, h);
+  // Packages that live: installed, on offer, install, update in place, history, roll back, tests.
+  registerPackageTools(server, h);
   // The Kennzahlen (named numbers) — read, and made from a formula.
   registerMetricTools(server, h);
 }

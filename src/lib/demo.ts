@@ -149,7 +149,7 @@ export async function seedDemo(lang: Lang): Promise<void> {
   const { updateAppSettings } = await import("@/lib/ai");
   const { saveMails } = await import("@/lib/mail/store");
   // What the demo shows: the inbox (Gmail, WhatsApp), the Workspace, people, the calendar and the timeline — no AI, no Chrome.
-  for (const id of ["todos", "workspace", "mail-client", "gmail", "whatsapp", "calendar", "people", "timeline", "learn"]) setInstalled(id, true);
+  for (const id of ["todos", "workspace", "mail-client", "gmail", "whatsapp", "calendar", "people", "timeline"]) setInstalled(id, true);
   // What is on by default but would only show empty or ask for a sign-in here (work sources, the AI backends).
   for (const id of ["outlook", "outlook-mail", "outlook-calendar", "teams", "jira", "jira-lage", "tickets", "gitlab", "work", "work-elevated", "llm", "auto-actions", "claude-cli", "codex-cli", "copilot-cli", "google-calendar", "imap-mail", "knowledge", "knowledge-hub", "zeiterfassung"]) {
     try {
@@ -321,8 +321,6 @@ export async function seedDemo(lang: Lang): Promise<void> {
     doneAt: iso(-1, 10),
     note: { de: "Erledigt: deine Antwort an die Praxis ist rausgegangen.", en: "Done: your reply to the practice went out." },
   });
-  // Learn: a course on differential geometry a week in (src/plugins/learn/demo.ts).
-  (await import("@/plugins/learn/demo")).seedLearnDemo(lang);
 }
 
 /** The demo account, if there is one. */

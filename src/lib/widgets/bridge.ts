@@ -12,7 +12,7 @@
  * The grant belongs to the widget's code (widgetKey: changed code, asked again) — wherever it is shown. Client-safe (pure).
  */
 
-export type CallNeed = "read" | "write" | "ai" | "flow" | "host";
+export type CallNeed = "read" | "write" | "ai" | "flow" | "host" | "meta";
 export type CallMethod = { need: CallNeed; args: string; returns: string; what: string };
 
 export const CALL_METHODS = {
@@ -29,6 +29,12 @@ export const CALL_METHODS = {
   ai: { need: "ai", args: "{ prompt, schema? }", returns: "{ text } — or the object of the JSON schema", what: "ask the AI (a few times an hour)" },
   "flow.list": { need: "read", args: "", returns: "[{ name, title, description, inputs: [{ name, type }] }]", what: "the flows there are (Zeff's server side)" },
   "flow.run": { need: "flow", args: "{ flow, input? }", returns: "{ status: done|waiting|failed, output, error }", what: "run a flow — the server side: web requests and APIs, reading web pages, lookups, AI extraction, writing rows (what the flow may reach are the flow's own permissions)" },
+  "fn.call": { need: "meta", args: "{ plugin, name, args? }", returns: "the function's result", what: "run a server function a plugin brings (Python or Node.js in a container) — each function only when the user allowed it for this widget" },
+  "chat.state": { need: "meta", args: "{ chat, key }", returns: "{ todoId, version, live, last, active } — whether the chat has begun, how many messages it has, whether its agent is speaking", what: "where a plugin's live chat stands (chat: \"my-plugin.lesson\", key: what the conversation is about) — each chat only when the user allowed it for this widget" },
+  "chat.begin": { need: "meta", args: "{ chat, key, title?, first? }", returns: "{ todoId, runId }", what: "begin a plugin's live chat for that key with a first message (the agent answers; the chat's own page shows it) — each chat only when the user allowed it for this widget" },
+  "chat.send": { need: "meta", args: "{ chat, key, text }", returns: "{ runId }", what: "say something to a plugin's live chat for that key (into its running session) — each chat only when the user allowed it for this widget" },
+  "meta.read": { need: "meta", args: "{ op, args? }", returns: "what Zeff's structure holds: tree, schema, blocks.list, flows.list, plugins.list", what: "read how Zeff is built — pages, a database's fields and views, blocks, flows, plugins (not the rows) — when the user allowed it" },
+  "meta.run": { need: "meta", args: "{ op, args? }", returns: "{ id } / { name } …", what: "change Zeff's structure — page.create/update/archive/delete, database.create/alter, block.save/delete, flow.save/delete, plugin.save/delete — each kind only when the user allowed it" },
   "page.get": { need: "host", args: "{ key? }", returns: "the value (no key: all of them as an object)", what: "what the widgets on this page share — kept with the page" },
   "page.set": { need: "host", args: "{ key, value }", returns: "true", what: 'share a value with the other widgets on the page (JSON, 50 000 characters at most); they hear zeff.on("page", ({ key, value }) => …)' },
   "bus.last": { need: "host", args: "{ name }", returns: "what was last sent under that name (null: nothing yet)", what: "the last message the other widgets sent with zeff.emit(name, …) — a widget that loads later asks for it (zeff.on does it itself)" },
@@ -51,9 +57,15 @@ export const MAX_CALL_ARGS = 200_000;
 export const MAX_STATE = 50_000;
 
 /** What a widget asks to be allowed (kept with it: the block, the chat's answer, the Markdown) — the user grants it, or not. */
-export type WidgetWants = { writes: number[]; ai?: boolean; /** Flows it runs (by name). */ flows?: string[] };
+export type WidgetWants = { writes: number[]; ai?: boolean; /** Flows it runs (by name). */ flows?: string[]; /** The parts of Zeff's structure it may read or change (read, pages, databases, schema:<id>, blocks, flows, plugins, delete). */ meta?: string[] };
 /** What the user allowed a widget's code: the databases it may write to, whether it may ask the AI, the flows it may run. */
-export type WidgetGrant = { dbs: number[]; ai?: boolean; flows?: string[] };
+export type WidgetGrant = { dbs: number[]; ai?: boolean; flows?: string[]; meta?: string[] };
+
+/** Meta permissions as kept (a list, or "a,b"): only the known kinds, each once. */
+export function metaOf(v: unknown): string[] {
+  const raw = Array.isArray(v) ? v : typeof v === "string" ? v.split(",") : [];
+  return [...new Set(raw.map((x) => String(x).trim()).filter((x) => /^(read|pages|databases|blocks|flows|plugins|delete|schema:\d+|call:[a-z0-9-]+\.[a-z0-9_-]+|chat:[a-z0-9-]+\.[a-z0-9-]+)$/.test(x)))].slice(0, 30);
+}
 
 /** Flow names as kept (a list, or a block's "a.b,c"), cleaned: a flow's name, each once, 20 at most. */
 export function flowsOf(v: unknown): string[] {
@@ -64,18 +76,20 @@ export function flowsOf(v: unknown): string[] {
 export const noWants: WidgetWants = { writes: [] };
 
 /** Wants as kept (a list of ids, or a block's "12,7"), cleaned: whole ids above 0, each once, 20 at most. */
-export function wantsOf(writes: unknown, ai?: unknown, flows?: unknown): WidgetWants {
+export function wantsOf(writes: unknown, ai?: unknown, flows?: unknown, meta?: unknown): WidgetWants {
   const raw = Array.isArray(writes) ? writes : typeof writes === "string" ? writes.split(",") : typeof writes === "number" ? [writes] : [];
   const ids = [...new Set(raw.map(Number).filter((n) => Number.isInteger(n) && n > 0))].slice(0, 20);
   const f = flowsOf(flows);
-  return { writes: ids, ...(ai === true || ai === "true" ? { ai: true } : {}), ...(f.length ? { flows: f } : {}) };
+  const m = metaOf(meta);
+  return { writes: ids, ...(ai === true || ai === "true" ? { ai: true } : {}), ...(f.length ? { flows: f } : {}), ...(m.length ? { meta: m } : {}) };
 }
 
 /** What of a widget's wants isn't granted yet (nothing: it may do all it asks). */
 export function missing(wants: WidgetWants, grant: WidgetGrant | null): WidgetWants {
   const dbs = new Set(grant?.dbs ?? []);
   const flows = (wants.flows ?? []).filter((f) => !(grant?.flows ?? []).includes(f));
-  return { writes: wants.writes.filter((d) => !dbs.has(d)), ...(wants.ai && !grant?.ai ? { ai: true } : {}), ...(flows.length ? { flows } : {}) };
+  const meta = (wants.meta ?? []).filter((k) => !(grant?.meta ?? []).includes(k));
+  return { writes: wants.writes.filter((d) => !dbs.has(d)), ...(wants.ai && !grant?.ai ? { ai: true } : {}), ...(flows.length ? { flows } : {}), ...(meta.length ? { meta } : {}) };
 }
 
 /**

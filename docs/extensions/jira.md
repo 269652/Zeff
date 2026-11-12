@@ -6,6 +6,26 @@
 
 ## For users
 
+### Where it is
+
+Jira's page lives in the **Workspace**: the database **Jira** (a favourite, made the first time `/jira` is opened) holds the synced
+tickets — Key, Type, Status, Category, Priority, Assignee, Mine, Board, Job, Active, Link, Updated — read from the source "Jira"
+(`jira-tickets`). Its **Jira** view is the old page written in the view language: the sync, the figures, All / Mine and the tickets
+with their job and tags. Because it is a view of a database you (or the assistant) can change it like any other — another layout,
+a board by status, buttons that act on a ticket — and every change is kept as a version you can go back to.
+
+What a view or flow can do in Jira (through Zeff's Jira connection; changing Jira needs the flow permission "send"):
+
+| Flow action | Does |
+| --- | --- |
+| `jira.comment` | a comment on a ticket (ticket, body) |
+| `jira.transition` | moves a ticket to a status (ticket, to) |
+| `jira.assign` | gives a ticket to someone (ticket, assignee) |
+| `jira.sync` | reads the tickets from Jira now |
+
+`/jira` and `/jira?mine=1` open that page.
+
+
 ### What it does
 
 If your work is planned in Jira, most of what you book, discuss and implement belongs to a ticket. The Jira plugin

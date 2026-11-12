@@ -470,6 +470,41 @@ function Permissions({ value, dbs, onChange }: { value: FlowPermissions; dbs: { 
         {flag("ai", t("The AI"), t("AI nodes (pick out fields, answer, sort) — they cost."))}
         {flag("send", t("Sending out"), t("Requests that change something elsewhere (POST, PUT, DELETE), mail, messages."))}
         {flag("api", t("Every plugin method"), t("Also the methods that aren't marked safe for automations."))}
+        <div className="space-y-1.5 rounded-lg border border-zinc-200 p-2.5 dark:border-zinc-800">
+          <h4 className="text-sm font-semibold">{t("Zeff's structure")}</h4>
+          <p className="text-xs text-zinc-500">{t("What the meta actions may read or change of how Zeff is built — each kind apart. What a flow makes stays inert: a flow it saves has no permissions, a plugin stays switched off.")}</p>
+          {(["read", "pages", "databases", "blocks", "flows", "plugins", "delete"] as const).map((k) => {
+            const on = (value.meta ?? []).includes(k);
+            const label = { read: t("Read the structure"), pages: t("Make and change pages"), databases: t("Make databases"), blocks: t("Make and change blocks"), flows: t("Make and change flows"), plugins: t("Write plugins"), delete: t("Delete for good") }[k];
+            return (
+              <label key={k} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-indigo-600" checked={on} onChange={(e) => onChange({ ...value, meta: e.target.checked ? [...(value.meta ?? []), k] : (value.meta ?? []).filter((x) => x !== k) })} />
+                <span>{label}</span>
+              </label>
+            );
+          })}
+          <label className="block space-y-1 text-sm">
+            <span>{t("Functions it may call (plugin.name, separated by commas)")}</span>
+            <input
+              className="input font-mono text-xs"
+              placeholder="my-plugin.summarize"
+              defaultValue={(value.meta ?? []).filter((x) => x.startsWith("call:")).map((x) => x.slice(5)).join(", ")}
+              onBlur={(e) => {
+                const calls = e.target.value.split(",").map((x) => x.trim().toLowerCase()).filter((x) => /^[a-z0-9-]+\.[a-z0-9_-]+$/.test(x)).map((x) => `call:${x}`);
+                onChange({ ...value, meta: [...(value.meta ?? []).filter((x) => !x.startsWith("call:")), ...calls] });
+              }}
+            />
+          </label>
+          {dbs.slice(0, 40).map((d) => {
+            const k = `schema:${d.id}`;
+            return (
+              <label key={k} className="flex items-center gap-2 text-sm">
+                <input type="checkbox" className="accent-indigo-600" checked={(value.meta ?? []).includes(k)} onChange={(e) => onChange({ ...value, meta: e.target.checked ? [...(value.meta ?? []), k] : (value.meta ?? []).filter((x) => x !== k) })} />
+                <span>{t("Change the fields and views of „{db}“", { db: d.title })}</span>
+              </label>
+            );
+          })}
+        </div>
         <label className="block space-y-1">
           <span className="label mb-0">{t("Most steps per run")}</span>
           <input className="input w-32" type="number" min={10} value={value.maxSteps ?? 500} onChange={(e) => onChange({ ...value, maxSteps: Number(e.target.value) || undefined })} />

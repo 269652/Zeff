@@ -125,6 +125,9 @@ is queued behind it. Both show up in Work's sidebar like any session.
 | --- | --- | --- | --- |
 | `todos.list` | `todos.read` | `status` (`open` default, `done`, `dismissed`, `all`), `ticket`, `limit` (≤ 500, default 200) | `Todo[]` |
 | `todos.add` | `todos.write` | `text`* (≤ 500), `ticket` | `{ id, ref }` |
+| `calendar.events` | `calendar.read` | `from`*, `to`* (days, `YYYY-MM-DD`; at most 62 days) | the appointments: `{ id, title, start, end, allDay, location, description, calendar }[]` |
+| `calendar.event.add` | `calendar.write` | `title`*, `start`*, `end` (local date-times `2026-11-12T18:00`), `description`, `calendar` (id) or `calendarName` (one of Zeff's own, made when missing) | `{ id }` |
+| `calendar.event.delete` | `calendar.write` | `id`* | `{ deleted: true }` |
 
 `Todo`: `{ id, ref, ticket, text, kind, owner: "me" | "other", status, due: string | null, parentId: number | null, source: string | null }`.
 
@@ -159,6 +162,9 @@ Pages and databases of the Workspace — by their names (or ids).
 | `workspace.rows.update` | `workspace.write` | `database`*, `row`* (title or id), `fields`, `markdown` (added at its page's end) | `{ id }` |
 | `workspace.pages.create` | `workspace.write` | `title`*, `parent` (a page's title or id), `markdown` | `{ id }` |
 | `workspace.pages.append` | `workspace.write` | `page`* (title or id), `markdown`* | `{ id, text }` |
+| `workspace.dossier.compile` | `workspace.write` | `database`* (its title or id), `focus` | a database's dossier brought up to date: only the rows that changed are read |
+| `workspace.widgets.check` | — (safe for automations) | `html`, `libs` (a widget) or `spec` (an exercise set: an object or JSON text) | `{ ok, problems, libs, html }` — `html` is the exercise set made into a widget |
+| `workspace.widgets.guide` | — (safe for automations) | — | how to write a widget and an exercise set: the sandbox, the libraries, the bridge, the exercise kit's types |
 | `workspace.signals.send` | `workspace.write` | `name`* (e.g. `invoice.paid`), `payload` (a JSON object of text values the routines use as `{{payload.x}}`) | the routines listening to it run |
 | `workspace.routines.run` | `workspace.write` | `routine`* (an automation's or agent's page title or id), `row` (a row's id it is about) | `{ id, status, run?, error? }` |
 

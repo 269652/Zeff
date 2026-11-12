@@ -195,3 +195,13 @@ export function BookIcon({ className = "size-4" }: { className?: string }) {
     </svg>
   );
 }
+
+/** A tray with an arrow into it: save a backup. */
+export function BackupIcon({ className = "size-4" }: { className?: string }) {
+  return (
+    <svg {...iconProps} className={className}>
+      <path d="M10 3v8.5M6.75 8.5L10 11.75l3.25-3.25" />
+      <path d="M3.5 12.5v2.25A1.75 1.75 0 0 0 5.25 16.5h9.5a1.75 1.75 0 0 0 1.75-1.75V12.5" />
+    </svg>
+  );
+}

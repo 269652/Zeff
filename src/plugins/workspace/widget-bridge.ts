@@ -11,7 +11,7 @@
  */
 import { mayRead } from "@/lib/boundaries";
 import { getPref, setPref } from "@/lib/prefs";
-import { CALL_METHODS, flowsOf, MAX_STATE, type CallName, type WidgetGrant } from "@/lib/widgets/bridge";
+import { CALL_METHODS, flowsOf, MAX_STATE, metaOf, type CallName, type WidgetGrant } from "@/lib/widgets/bridge";
 import { getSqlite } from "@/db";
 import { CREATED, UPDATED, cellText, isComputed, sortRows, TITLE, type DbSchema, type Property, type Row } from "./model";
 import { pageLabel } from "./sensitivity";
@@ -32,7 +32,7 @@ const all = (): Record<string, Kept> => getPref<Record<string, Kept>>(PREF, {});
 /** What the user allowed the widget with this key (null: nothing yet). */
 export function widgetGrant(key: string): WidgetGrant | null {
   const g = all()[key];
-  return g ? { dbs: g.dbs ?? [], ...(g.ai ? { ai: true } : {}), ...(g.flows?.length ? { flows: g.flows } : {}) } : null;
+  return g ? { dbs: g.dbs ?? [], ...(g.ai ? { ai: true } : {}), ...(g.flows?.length ? { flows: g.flows } : {}), ...(g.meta?.length ? { meta: g.meta } : {}) } : null;
 }
 
 /** The user allows this widget's code to write to these databases (to ask the AI, to run these flows) — added to what it may already. */
@@ -42,10 +42,12 @@ export function grantWidget(key: string, add: WidgetGrant, title?: string): Widg
   const had = all();
   const cur = had[key];
   const flows = [...new Set([...(cur?.flows ?? []), ...flowsOf(add.flows)])];
+  const meta = [...new Set([...(cur?.meta ?? []), ...metaOf(add.meta)])];
   const next: Kept = {
     dbs: [...new Set([...(cur?.dbs ?? []), ...dbs])],
     ...(add.ai || cur?.ai ? { ai: true } : {}),
     ...(flows.length ? { flows } : {}),
+    ...(meta.length ? { meta } : {}),
     at: new Date().toISOString(),
     ...(title || cur?.title ? { title: (title || cur?.title || "").slice(0, 80) } : {}),
   };
@@ -55,12 +57,12 @@ export function grantWidget(key: string, add: WidgetGrant, title?: string): Widg
 }
 
 /** Takes back what a widget was allowed (a database, or the AI; nothing named: all of it). */
-export function revokeWidget(key: string, what?: { db?: number; ai?: boolean; flow?: string }): WidgetGrant | null {
+export function revokeWidget(key: string, what?: { db?: number; ai?: boolean; flow?: string; meta?: string }): WidgetGrant | null {
   const had = all();
   const cur = had[key];
   if (!cur) return null;
-  if (!what || (what.db === undefined && !what.ai && !what.flow)) delete had[key];
-  else had[key] = { ...cur, dbs: cur.dbs.filter((d) => d !== what.db), ...(what.ai ? { ai: undefined } : {}), ...(what.flow ? { flows: (cur.flows ?? []).filter((f) => f !== what.flow) } : {}) };
+  if (!what || (what.db === undefined && !what.ai && !what.flow && !what.meta)) delete had[key];
+  else had[key] = { ...cur, dbs: cur.dbs.filter((d) => d !== what.db), ...(what.ai ? { ai: undefined } : {}), ...(what.flow ? { flows: (cur.flows ?? []).filter((f) => f !== what.flow) } : {}), ...(what.meta ? { meta: (cur.meta ?? []).filter((k) => k !== what.meta) } : {}) };
   setPref(PREF, had);
   return widgetGrant(key);
 }
@@ -243,6 +245,47 @@ export async function widgetCall(key: string, method: CallName, args: Record<str
       const { runFlow } = await import("./flows/engine");
       const r = await runFlow(name, input, { trigger: { kind: "widget", widget: key } });
       return { status: r.status, output: r.output, ...(r.error ? { error: r.error } : {}) };
+    }
+    case "fn.call": {
+      const plugin = String(args.plugin ?? "").slice(0, 60);
+      const name = String(args.name ?? "").slice(0, 60);
+      if (!(widgetGrant(key)?.meta ?? []).includes(`call:${plugin}.${name}`)) throw new Refused(`Not allowed: this widget may not run the function “${plugin}.${name}” — the user can allow it on the widget.`);
+      try {
+        return await (await import("./plugin-fn")).runPluginFunction(plugin, name, args.args);
+      } catch (e) {
+        throw new Refused(e instanceof Error ? e.message : String(e));
+      }
+    }
+    case "chat.state":
+    case "chat.begin":
+    case "chat.send": {
+      // A plugin's live chat (lib/work/ext-chat.ts): each chat is a permission of its own, granted per widget code.
+      const chat = String(args.chat ?? "").slice(0, 80);
+      const chatKey = String(args.key ?? "").slice(0, 200);
+      if (!(widgetGrant(key)?.meta ?? []).includes(`chat:${chat}`)) throw new Refused(`Not allowed: this widget may not use the chat “${chat}” — the user can allow it on the widget.`);
+      if (!chatKey) throw new Refused("chat: say which key (which lesson, ticket …) it is about.");
+      const actions = await import("./actions/chats");
+      const r = method === "chat.state" ? await actions.chatStateAction(chat, chatKey) : method === "chat.begin" ? await actions.chatStartAction(chat, chatKey, String(args.title ?? chatKey), String(args.first ?? "")) : await actions.chatTellAction(chat, chatKey, String(args.text ?? ""));
+      if (!r.ok) throw new Refused(r.error);
+      const { ok: _ok, ...data } = r;
+      void _ok;
+      return data;
+    }
+    case "meta.read":
+    case "meta.run": {
+      // Zeff's structure (meta.ts): the kind of change is a permission of its own, granted per widget code.
+      const { metaAccess, metaRun } = await import("./meta");
+      const op = String(args.op ?? "");
+      const a = args.args && typeof args.args === "object" && !Array.isArray(args.args) ? (args.args as Record<string, unknown>) : {};
+      try {
+        const access = metaAccess(op, a);
+        const need = access.key.replace(/^meta:/, "");
+        if ((method === "meta.read") !== (need === "read")) throw new Refused(method === "meta.read" ? "meta.read is for reading the structure: use zeff.meta.pageCreate … to change it." : "meta.run changes the structure: read it with zeff.meta.tree(), schema() … .");
+        if (!(widgetGrant(key)?.meta ?? []).includes(need)) throw new Refused(`Not allowed: this widget may not ${access.label} — the user can allow it on the widget.`);
+        return await metaRun(op, a);
+      } catch (e) {
+        throw e instanceof Refused ? e : new Refused(e instanceof Error ? e.message : String(e));
+      }
     }
   }
   throw new Refused(`Unknown call "${String(method)}".`);

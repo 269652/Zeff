@@ -6,6 +6,8 @@
  * The definitions and their normalization; client-safe.
  */
 
+import { metaOf } from "@/lib/widgets/bridge";
+
 export const FIELD_TYPES = ["text", "number", "boolean", "json", "list", "date", "url", "db", "row"] as const;
 export type FieldType = (typeof FIELD_TYPES)[number];
 
@@ -90,6 +92,8 @@ export type FlowPermissions = {
   send?: boolean;
   /** May call plugin methods that aren't marked safe for automations. */
   api?: boolean;
+  /** The parts of Zeff's structure it may read or change (read, pages, databases, schema:<id>, blocks, flows, plugins, delete) — the meta.* actions. */
+  meta?: string[];
   /** Most nodes one run may take (default 500). */
   maxSteps?: number;
 };
@@ -219,6 +223,7 @@ function normalizePermissions(raw: unknown): FlowPermissions {
     ...(o.ai === true ? { ai: true } : {}),
     ...(o.send === true ? { send: true } : {}),
     ...(o.api === true ? { api: true } : {}),
+    ...(metaOf(o.meta).length ? { meta: metaOf(o.meta) } : {}),
     ...(posInt(o.maxSteps) ? { maxSteps: Math.min(20000, posInt(o.maxSteps)!) } : {}),
   };
 }

@@ -8,7 +8,11 @@ shown:
 | --- | --- | --- |
 | A page's block (`zeffApp`) | `/` → *AI … → Widget (AI-built)*: you describe it, `makeWidget` builds it; or the assistant's `workspace_widget` with `page`; or Markdown `:::app` | yes |
 | The Workspace assistant's answer | `workspace_widget` → a chat embed (`WidgetEmbed`), *+ Add to this page* | yes |
-| A Learn lesson | the teacher's `learn_widget`, or a ` ```widget ` / ` ```plot ` / ` ```chart ` / ` ```svg ` block in its message | results only (`zeff.report`) |
+| A widget kept in a row (an exercise, a simulation) | `<codewidget>` in a view, from the row's code or exercise set | its results go to a flow |
+
+## Talking to a plugin's chat
+
+A widget may talk to a live chat a plugin brings ([manifest `chats`](plugins/manifest.md)), once the user has allowed that chat for the widget's code (`meta: chat:<plugin>.<chat>`): `await zeff.chat.state("my-plugin.lesson", key)` (has it begun, how many messages, is the agent speaking), `zeff.chat.begin(chat, key, title, first)` and `zeff.chat.send(chat, key, text)`. So a widget the assistant builds on the fly can be the face of an agent — a tutor, a coach, a reviewer — without more than a few lines.
 
 ## The parts
 
@@ -57,7 +61,25 @@ source="outputs.results">`, `[outputs.Name with spaces]`), as a **Kennzahl** whe
 `kennzahl("name")`, the Kennzahlen page, Today — a `workspaceMetrics` contribution in server.ts), and by the assistant
 and agents: `workspace_widget_outputs` lists or reads them, `workspace_output_to_database` pours a published table
 into a database. When a widget is built, the AI is told the other widgets on its page and the keys and names they
-share and send (`siblingsText`, widget-make.ts), so a new one fits in.
+share and send (`siblingsText`, widget-make.ts), so a new one fits in. A **named code cell** of the [Notebook](extensions/notebook.md) publishes what it returns the same way (and `zeff.publish(…)` in its code does too), so a widget can show the result of a Python or Node.js cell as `outputs.<name>`.
+
+## Zeff's own structure (`zeff.meta`)
+
+A widget can read and change how Zeff is built — **only when the user allowed it**, kind by kind, for this widget's code (a changed
+code asks again). The widget names what it wants in its `meta` list (the block's attribute, or `"meta": ["pages", "read"]` in a
+`:::app` header); Zeff shows *This widget wants to change Zeff's structure: pages* with the usual Allow button.
+
+| Call (one `args` object) | Permission |
+| --- | --- |
+| `zeff.meta.tree()` · `schema({ database })` · `blocks()` · `flows()` · `plugins()` | `read` |
+| `pageCreate({ title, markdown, parent })` · `pageUpdate({ id, … })` · `pageArchive({ id })` | `pages` |
+| `databaseCreate({ title, properties, views })` | `databases` |
+| `databaseAlter({ database, ops })` | `schema:<id>` (per database) |
+| `blockSave({ block })` · `flowSave({ flow, page })` · `pluginSave({ id, manifest, files })` | `blocks` · `flows` · `plugins` |
+| `pageDelete` · `blockDelete` · `flowDelete` · `pluginDelete` | `delete` |
+
+What a widget makes is inert: a flow it saves has no permissions, a plugin is written switched off, pages go to the trash. The same
+API is in [Notebook](extensions/notebook.md) cells and in flows (the `meta.read` / `meta.run` actions). See [Zeff in Zeff](zeff-in-zeff.md).
 
 ## Libraries and the science kit
 
@@ -74,7 +96,7 @@ time one is asked for.
 `integrate`, `root`, `minimize`, `derivative`, `grid`, `fit`), scientific colour maps, `tex`, `scene` (three.js in
 one line: lights, orbit controls, labels, glow, resize), `isosurface` (organic surfaces from a field — a brain, a
 cell), `pods` (results one under the other) and `alpha` (a Wolfram|Alpha-like calculator: the AI only says what to
-compute, mathjs and Algebrite compute it in the frame). Learn's lessons get all of it too (results only there: no
+compute, mathjs and Algebrite compute it in the frame). Learn's exercises are widget blocks like any other (no
 databases, flows, page or published values).
 
 ## Versions

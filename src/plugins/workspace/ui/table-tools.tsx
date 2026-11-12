@@ -8,6 +8,7 @@ import { colLetters } from "../formula";
 import { sheetRef } from "../model";
 import { Dropdown, MenuItem } from "./kit";
 import { cellAt } from "./table-formulas";
+import { LOCK_META } from "./data-flow-ext";
 
 /**
  * A page's table (/Tabelle) while the caret is in it: at its top right the cell's address (B3, as formulas name it) and a
@@ -16,7 +17,7 @@ import { cellAt } from "./table-formulas";
  */
 export function TableTools({ editor }: { editor: Editor | null }) {
   const t = useT();
-  const [at, setAt] = useState<{ top: number; right: number; addr: string; name: string } | null>(null);
+  const [at, setAt] = useState<{ top: number; right: number; addr: string; name: string; pos: number; locked: boolean } | null>(null);
   useEffect(() => {
     if (!editor) return;
     const update = () => {
@@ -25,7 +26,7 @@ export function TableTools({ editor }: { editor: Editor | null }) {
       const dom = editor.view.nodeDOM(c.table.pos) as HTMLElement | null;
       const rect = dom?.getBoundingClientRect();
       if (!rect) return setAt(null);
-      setAt({ top: rect.top, right: rect.right, addr: `${colLetters(c.col)}${c.row + 1}`, name: c.table.name });
+      setAt({ top: rect.top, right: rect.right, addr: `${colLetters(c.col)}${c.row + 1}`, name: c.table.name, pos: c.table.pos, locked: editor.state.doc.nodeAt(c.table.pos)?.attrs.locked === true });
     };
     editor.on("selectionUpdate", update);
     editor.on("update", update);
@@ -56,6 +57,15 @@ export function TableTools({ editor }: { editor: Editor | null }) {
             <MenuItem onClick={() => (close(), run((c) => c.toggleHeaderRow()))}>▤ {t("Header row on / off")}</MenuItem>
             <MenuItem onClick={() => (close(), run((c) => c.deleteRow()))}>✕ {t("Remove the row")}</MenuItem>
             <MenuItem onClick={() => (close(), run((c) => c.deleteColumn()))}>✕ {t("Remove the column")}</MenuItem>
+            <MenuItem
+              onClick={() => {
+                close();
+                const node = editor.state.doc.nodeAt(at.pos);
+                if (node && node.type.name === "table") editor.view.dispatch(editor.state.tr.setNodeMarkup(at.pos, undefined, { ...node.attrs, locked: !at.locked }).setMeta(LOCK_META, true));
+              }}
+            >
+              {at.locked ? `🔓 ${t("Allow editing")}` : `🔒 ${t("Protect against editing")}`}
+            </MenuItem>
             <div className="my-1 border-t border-zinc-100 px-2 pt-2 dark:border-zinc-800">
               <label className="block space-y-1 text-xs">
                 <span className="font-medium">{t("Its name in formulas")}</span>

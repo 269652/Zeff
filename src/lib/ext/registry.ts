@@ -38,7 +38,7 @@ export function scanPlugins(force = false): Scan {
   const scan: Scan = { plugins: [], problems: [] };
   let names: string[] = [];
   try {
-    names = fs.readdirSync(/*turbopackIgnore: true*/ root, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith(".") && !e.name.startsWith("_")).map((e) => e.name);
+    names = fs.readdirSync(/*turbopackIgnore: true*/ root, { withFileTypes: true }).filter((e) => e.isDirectory() && !e.name.startsWith(".") && !e.name.startsWith("_") && !e.name.endsWith(".bak")).map((e) => e.name);
   } catch {
     // no plugins folder: no plugins
   }

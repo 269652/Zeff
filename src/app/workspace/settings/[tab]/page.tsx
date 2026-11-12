@@ -7,13 +7,14 @@ import { isInstalled } from "@/plugins/state";
 import { sourcesOverview } from "@/plugins/workspace/sources";
 import { SourcesView } from "@/plugins/workspace/ui/Sources";
 import { OutputsView } from "@/plugins/workspace/ui/Outputs";
+import { PackagesView } from "@/plugins/workspace/ui/Packages";
 
-const TABS = ["sources", "outputs", "pipelines", "history", "apps"] as const;
+const TABS = ["sources", "outputs", "pipelines", "history", "apps", "packages"] as const;
 type Tab = (typeof TABS)[number];
 const isTab = (v: string): v is Tab => (TABS as readonly string[]).includes(v);
 
-const label = (tab: Tab) => ({ sources: t("Data sources"), outputs: t("Outputs"), pipelines: t("Pipelines"), history: t("History"), apps: t("Apps") })[tab];
-const ICON: Record<Tab, string> = { sources: "🔌", outputs: "📤", pipelines: "⛓", history: "↩", apps: "◫" };
+const label = (tab: Tab) => ({ sources: t("Data sources"), outputs: t("Outputs"), pipelines: t("Pipelines"), history: t("History"), apps: t("Apps"), packages: t("Packages") })[tab];
+const ICON: Record<Tab, string> = { sources: "🔌", outputs: "📤", pipelines: "⛓", history: "↩", apps: "◫", packages: "📦" };
 
 export async function generateMetadata({ params }: { params: Promise<{ tab: string }> }): Promise<Metadata> {
   const { tab } = await params;
@@ -25,7 +26,7 @@ export async function generateMetadata({ params }: { params: Promise<{ tab: stri
  * them (outputs: into the Ticket-Lage; the knowledge server picks for itself), the apps that show its databases (mail client,
  * chat). Its prompts are on the AI settings page (/settings/ai#prompts) — the old prompts tab leads there (next.config.ts).
  */
-export default async function WorkspaceSettingsPage({ params }: { params: Promise<{ tab: string }> }) {
+export default async function WorkspaceSettingsPage({ params, searchParams }: { params: Promise<{ tab: string }>; searchParams: Promise<{ ok?: string }> }) {
   await connection();
   if (!isInstalled("workspace")) return null;
   const { tab } = await params;
@@ -49,12 +50,13 @@ export default async function WorkspaceSettingsPage({ params }: { params: Promis
           </Link>
         ))}
       </nav>
-      <div className="min-w-0">{await body(tab)}</div>
+      <div className="min-w-0">{await body(tab, (await searchParams).ok)}</div>
     </div>
   );
 }
 
-async function body(tab: Tab) {
+async function body(tab: Tab, ok?: string) {
+  if (tab === "packages") return <PackagesView ok={ok} />;
   if (tab === "sources") return <SourcesView sources={sourcesOverview()} />;
   if (tab === "outputs") {
     const { listCollections } = await import("@/lib/items");

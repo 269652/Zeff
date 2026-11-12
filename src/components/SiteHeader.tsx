@@ -12,6 +12,7 @@ import { DEFAULT_BADGE, type BadgeConfig } from "@/lib/todos/badge";
 import { TodoBadgePill } from "./TodoBadgePill";
 import { LookDot } from "./BadgeLookProvider";
 import { SyncMenu } from "./SyncMenu";
+import { BackupMenu } from "./BackupMenu";
 import { Search } from "./Search";
 import { openSearch } from "@/lib/search/shared";
 import { TabSplit } from "./TabSplit";
@@ -79,6 +80,7 @@ export function SiteHeader({
   tabs = [],
   account,
   bare = false,
+  backupMenu = false,
 }: {
   /** Your open todos (and how many are late) — the Todos tab's count. */
   openTodos?: { open: number; late: number; today?: number };
@@ -95,6 +97,8 @@ export function SiteHeader({
   order?: string[];
   /** Not set up yet: Zeff and the account — no menu, no tabs, no syncs (the setup assistant leads). */
   bare?: boolean;
+  /** The Backups plugin is installed: the header's Backup menu (a fresh backup, saved on this device). */
+  backupMenu?: boolean;
   /** Each installed plugin's pages and settings — expandable. */
   pluginGroups?: MenuGroup[];
   /** Settings, folded open: Zeff's own and every installed plugin's settings page. */
@@ -432,6 +436,7 @@ export function SiteHeader({
                 </svg>
                 <span className="hidden lg:inline">{t("Search")}</span>
               </button>
+              {backupMenu && <BackupMenu />}
               <SyncMenu />
             </div>
           )}

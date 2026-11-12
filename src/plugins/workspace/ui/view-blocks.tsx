@@ -17,7 +17,7 @@ import { moreBlock } from "./view-blocks-more";
 
 type Node = Extract<VNode, object>;
 type Kids = (nodes: VNode[]) => ReactNode;
-export type BlockEnv = { props: AppViewProps; state: Record<string, string>; setState: (name: string, value: string) => void; run: (a: Record<string, string>) => void };
+export type BlockEnv = { props: AppViewProps; state: Record<string, string>; setState: (name: string, value: string) => void; run: (a: Record<string, string>) => void; /** An event sent once the view is drawn with the state just set (its handlers read it). */ emitLater?: (event: string) => void };
 
 const TONES: Record<string, { box: string; text: string; bar: string }> = {
   info: { box: "border-indigo-200 bg-indigo-50 dark:border-indigo-900 dark:bg-indigo-950/30", text: "text-indigo-800 dark:text-indigo-200", bar: "bg-indigo-500" },
@@ -93,9 +93,34 @@ function Gallery({ n, kids, env }: { n: Node; kids: Kids; env: BlockEnv }) {
   );
 }
 
+const DOTS: Record<string, string> = { indigo: "bg-indigo-500", zinc: "bg-zinc-400 dark:bg-zinc-500", emerald: "bg-emerald-500", amber: "bg-amber-500", red: "bg-red-500" };
+
 function Timeline({ n, kids }: { n: Node; kids: Kids }) {
   const list = items(n);
   if (!list.length) return n.a.empty ? <EmptyState text={n.a.empty} /> : null;
+  // With sides (side="left | right | center" per item): a line down the middle (at the left edge on a phone), items left and right of it.
+  if (list.some((it) => it.a.side)) {
+    const where = (it: Node) => (it.a.side === "center" ? "center" : it.a.side === "left" ? "left" : "right");
+    return (
+      <div className="relative">
+        <div className="absolute top-0 bottom-0 left-3 w-px bg-zinc-200 md:left-[40%] dark:bg-zinc-800" aria-hidden />
+        <ol className="relative space-y-3">
+          {list.map((it, i) => {
+            const side = where(it);
+            const row = side === "center" ? "relative flex justify-start pl-8 md:ml-[40%] md:w-fit md:-translate-x-1/2 md:pl-0" : side === "left" ? "relative pl-8 md:w-[40%] md:pr-8 md:pl-0" : "relative pl-8 md:ml-auto md:w-[60%] md:pl-8";
+            const dot = DOTS[it.a.dot ?? ""] ?? (side === "left" ? DOTS.indigo : side === "right" ? DOTS.zinc : DOTS.emerald);
+            const pos = side === "center" ? "md:left-[40%]" : side === "left" ? "md:right-0 md:left-auto md:translate-x-1/2" : "md:left-0";
+            return (
+              <li key={it.a.row ?? i} className={row}>
+                {side !== "center" && <span className={`absolute top-3 left-3 size-2.5 -translate-x-1/2 rounded-full ring-4 ring-white dark:ring-zinc-950 ${dot} ${pos}`} aria-hidden />}
+                <div className="flex min-w-0 flex-col gap-1 text-sm">{kids(it.c)}</div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    );
+  }
   return (
     <ol className="relative ml-1.5 space-y-5 border-l border-zinc-200 pl-5 dark:border-zinc-800">
       {list.map((it, i) => (

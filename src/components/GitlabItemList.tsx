@@ -16,14 +16,12 @@ import { base64File, pasteToken } from "./MarkdownPasteField";
 import { formatDayTime, formatFull } from "@/lib/format";
 import { useT } from "@/components/I18nProvider";
 
-/** One item: what and where, who and when, its text as Markdown (long ones fold) — and what to do with it. */
-function GitlabItemCard({ item, prefixes }: { item: GitlabItemView; prefixes: Set<string> }) {
+/** "Add as context": the item kept as a context item (from GitLab, with its text, link and ticket) — and, once it is, where to find it. */
+export function GitlabAddContext({ item, prefixes }: { item: GitlabItemView; prefixes: Set<string> }) {
   const t = useT();
-  const [open, setOpen] = useState(false);
   const [added, setAdded] = useState<string | null>(null);
   const [pending, start] = useTransition();
   const markdown = gitlabMarkdown(item);
-  const long = markdown.length > 600 || markdown.split("\n").length > 10;
   const at = item.kind === "comment" ? item.createdAt : item.updatedAt;
 
   /** A context item (from GitLab) with the text, its link and ticket — GitLab's pictures in it fetched to keep. */
@@ -55,6 +53,38 @@ function GitlabItemCard({ item, prefixes }: { item: GitlabItemView; prefixes: Se
       const r = await createContextAction(null, null, fd);
       setAdded(r?.ok ? "ok" : (r?.error ?? t("Couldn't add it.")));
     });
+
+  return (
+    <>
+    {added === "ok" ? (
+      <span className="text-xs text-emerald-600 dark:text-emerald-400">
+        {rich(t("Added — find it in <link>Context</link> to link it to entries."), {
+          link: (s) => (
+            <Link href="/context" className="underline">
+              {s}
+            </Link>
+          ),
+        })}
+      </span>
+    ) : (
+      <>
+        <button type="button" className="btn btn-sm" disabled={pending} onClick={addAsContext} title={t("Keep it as a context item (from GitLab, with its link), to link to entries")}>
+          {pending ? t("Adding…") : t("Add as context")}
+        </button>
+        {added && <FormError className="text-xs">{added}</FormError>}
+      </>
+    )}
+    </>
+  );
+}
+
+/** One item: what and where, who and when, its text as Markdown (long ones fold) — and what to do with it. */
+function GitlabItemCard({ item, prefixes }: { item: GitlabItemView; prefixes: Set<string> }) {
+  const t = useT();
+  const [open, setOpen] = useState(false);
+  const markdown = gitlabMarkdown(item);
+  const long = markdown.length > 600 || markdown.split("\n").length > 10;
+  const at = item.kind === "comment" ? item.createdAt : item.updatedAt;
 
   return (
     <article className="rounded-lg border border-zinc-200 p-3 dark:border-zinc-800">
@@ -91,24 +121,7 @@ function GitlabItemCard({ item, prefixes }: { item: GitlabItemView; prefixes: Se
         </div>
       )}
       <footer className="mt-2 flex flex-wrap items-center gap-2">
-        {added === "ok" ? (
-          <span className="text-xs text-emerald-600 dark:text-emerald-400">
-            {rich(t("Added — find it in <link>Context</link> to link it to entries."), {
-              link: (s) => (
-                <Link href="/context" className="underline">
-                  {s}
-                </Link>
-              ),
-            })}
-          </span>
-        ) : (
-          <>
-            <button type="button" className="btn btn-sm" disabled={pending} onClick={addAsContext} title={t("Keep it as a context item (from GitLab, with its link), to link to entries")}>
-              {pending ? t("Adding…") : t("Add as context")}
-            </button>
-            {added && <FormError className="text-xs">{added}</FormError>}
-          </>
-        )}
+        <GitlabAddContext item={item} prefixes={prefixes} />
       </footer>
     </article>
   );

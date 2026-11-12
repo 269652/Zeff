@@ -38,7 +38,18 @@ export type WorkspaceSource = {
 export const workspaceSources = extensionPoint<WorkspaceSource[]>("workspace.sources");
 
 /** The sources of the installed plugins. */
+/** Every source: the installed plugins' and the external plugins' (read by their functions). */
+export function allSources(): WorkspaceSource[] {
+  return [...workspaceSources.list().flatMap((c) => c.impl), ...(external?.() ?? [])];
+}
+
+// (Set by the Workspace's server.ts: ext-functions.ts reads the plugin registry, which must not be loaded while this file is.)
+let external: (() => WorkspaceSource[]) | null = null;
+export const setExternalSources = (f: () => WorkspaceSource[]): void => {
+  external = f;
+};
+
 export async function extSources(): Promise<WorkspaceSource[]> {
   await import("@/plugins/contributions");
-  return workspaceSources.list().flatMap((c) => c.impl);
+  return allSources();
 }

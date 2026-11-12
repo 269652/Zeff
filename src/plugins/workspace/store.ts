@@ -14,7 +14,7 @@ import { isSystemPage, systemPageIds } from "@/lib/prompts/system-pages";
 import { inAgentScope, runAgentGuards } from "./agent-scope";
 import { emitChange } from "@/lib/events";
 import { emitRowEvent, isViaSource } from "./events";
-import { workspaceSources } from "./source-point";
+import { allSources } from "./source-point";
 import { logChange } from "./activity";
 import { withCause } from "@/lib/cause";
 import { parseCustom } from "./field-types";
@@ -44,6 +44,8 @@ function db() {
     create index if not exists ws_pages_db on ws_pages (db_id);
     create table if not exists ws_versions (id integer primary key autoincrement, page_id integer not null, title text not null default '', content text not null, at text not null);
     create index if not exists ws_versions_page on ws_versions (page_id, id);
+    create table if not exists ws_view_versions (id integer primary key autoincrement, db_id integer not null, view_id text not null, template text not null, by text not null default '', at text not null);
+    create index if not exists ws_view_versions_view on ws_view_versions (db_id, view_id, id);
     create table if not exists ws_links (page_id integer not null, kind text not null, ref text not null, label text not null default '', primary key (page_id, kind, ref));
     create index if not exists ws_links_ref on ws_links (kind, ref);
     create virtual table if not exists ws_fts using fts5(title, body, tokenize = 'unicode61 remove_diacritics 2');
@@ -729,6 +731,25 @@ export const getVersion = (id: number): { id: number; pageId: number; at: string
 };
 
 /** A page's content put back to a version (the state before is kept as a version first). */
+/** A view's templates before (newest first): who changed it from that one (you, ai), when. */
+export const viewVersions = (dbId: number, viewId: string): { id: number; at: string; by: string; size: number }[] =>
+  db().prepare("select id, at, by, length(template) size from ws_view_versions where db_id = ? and view_id = ? order by id desc").all(dbId, viewId) as { id: number; at: string; by: string; size: number }[];
+
+/** One of them in full. */
+export const viewVersion = (versionId: number): { id: number; dbId: number; viewId: string; template: string; at: string; by: string } | null => {
+  const r = db().prepare("select id, db_id, view_id, template, at, by from ws_view_versions where id = ?").get(versionId) as { id: number; db_id: number; view_id: string; template: string; at: string; by: string } | undefined;
+  return r ? { id: r.id, dbId: r.db_id, viewId: r.view_id, template: r.template, at: r.at, by: r.by } : null;
+};
+
+/** A view's template back as it was in that version (the one it has now kept as a version in turn). */
+export function restoreViewVersion(versionId: number): void {
+  const v = viewVersion(versionId);
+  const cur = v ? getDatabase(v.dbId) : null;
+  if (!v || !cur) throw new Error("No such version.");
+  if (!cur.schema.views.some((x) => x.id === v.viewId)) throw new Error("That view is gone.");
+  updateSchema(v.dbId, { ...cur.schema, views: cur.schema.views.map((x) => (x.id === v.viewId ? { ...x, template: v.template } : x)) });
+}
+
 export function restoreVersion(versionId: number): void {
   const v = getVersion(versionId);
   if (!v) throw new Error("No such version.");
@@ -857,8 +878,15 @@ export function updateSchema(id: number, next: unknown): DbSchema {
   const dropped = cur.schema.properties.filter((p) => !ids.has(p.id)).map((p) => p.id);
   const d = db();
   touch(id);
+  // A view's template changed (by you, the AI, an update): the one before kept — a version to go back to (view-versions.ts).
+  const before = new Map(cur.schema.views.map((v) => [v.id, v.template ?? ""]));
+  const replaced = schema.views.filter((v) => before.get(v.id) && before.get(v.id) !== (v.template ?? ""));
   d.transaction(() => {
     d.prepare("update ws_pages set schema = ?, updated_at = ? where id = ?").run(JSON.stringify(schema), now(), id);
+    for (const v of replaced) {
+      d.prepare("insert into ws_view_versions (db_id, view_id, template, by, at) values (?, ?, ?, ?, ?)").run(id, v.id, before.get(v.id), inAgentScope() ? "ai" : "you", now());
+      d.prepare("delete from ws_view_versions where db_id = ? and view_id = ? and id not in (select id from ws_view_versions where db_id = ? and view_id = ? order by id desc limit ?)").run(id, v.id, id, v.id, VERSIONS_KEPT);
+    }
     if (dropped.length) {
       for (const r of d.prepare("select id, props from ws_pages where db_id = ?").all(id) as { id: number; props: string }[]) {
         const props = parse<Record<string, unknown>>(r.props, {});
@@ -1084,14 +1112,14 @@ export function rowsAddable(dbId: number): boolean {
   if (isViaSource()) return true;
   const step = getDatabase(dbId)?.schema.pipeline?.steps.find((s) => s.kind === "source" && s.from === "ext");
   if (!step?.ext) return true;
-  return !workspaceSources.list().some((c) => c.impl.some((s) => s.id === step.ext && s.noNewRows));
+  return !allSources().some((s) => s.id === step.ext && s.noNewRows);
 }
 
 /** The fields a database's source keeps on the rows it brought (none: no source, or it locks nothing). */
 export function sourceLocked(dbId: number): string[] {
   const step = getDatabase(dbId)?.schema.pipeline?.steps.find((s) => s.kind === "source" && s.from === "ext");
   if (!step?.ext) return [];
-  return workspaceSources.list().flatMap((c) => c.impl.filter((s) => s.id === step.ext).flatMap((s) => s.lockedFields ?? []));
+  return allSources().filter((s) => s.id === step.ext).flatMap((s) => s.lockedFields ?? []);
 }
 
 /** A row of a todo list that feeds the Todo engine was changed: its todo follows (todo-engine.ts). */

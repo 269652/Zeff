@@ -134,6 +134,8 @@ export type View = {
   hideEmpty?: boolean;
   /** An app's view (or a "template" view of any table): its own template (view-template.ts) — none: the app's default. */
   template?: string;
+  /** The app's own template it was copied from (a hash): while the template is still that copy, it follows the app's (app-templates.ts). */
+  templateBase?: string;
 };
 /** A table column's width in pixels: what a drag may make it, and what "fit to content" may. */
 export const WIDTH_MIN = 60;

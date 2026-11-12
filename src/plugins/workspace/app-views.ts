@@ -18,7 +18,9 @@ export const APP_VIEWS: AppView[] = [
   { id: "cases", plugin: "cases", dataType: "cases", label: "Overview", icon: "📁" },
   { id: "debts", plugin: "finances", dataType: "debts", label: "Overview", icon: "💶" },
   { id: "agenda", plugin: "agenda", dataType: "agenda", label: "Agenda", icon: "📒" },
-  { id: "learn", plugin: "learn", owner: "learn", label: "Learn", icon: "🎓" },
+  { id: "news", plugin: "news", dataType: "news", label: "News", icon: "📰" },
+  { id: "jira", plugin: "jira", dataType: "jira", label: "Jira", icon: "🎫" },
+  { id: "gitlab", plugin: "gitlab", dataType: "gitlab", label: "GitLab", icon: "🦊" },
 ];
 
 /** The app views a database of this type can have now (their plugins installed). */

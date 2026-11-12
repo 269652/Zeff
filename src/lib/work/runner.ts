@@ -510,7 +510,7 @@ async function start(id: number): Promise<void> {
     const chat = isChatTodo(todo);
     // Its rules and tools: the plain chat's, or a plugin's kind of chat (registered from the plugins' server modules).
     if (chat) await import("@/plugins/contributions");
-    const profile = chat ? chatProfileFor(todo, llmPreamble()) : null;
+    const profile = chat ? await chatProfileFor(todo, llmPreamble()) : null;
     const prompt = resume && so ? r.prompt : chat ? r.prompt : `${r.prompt}\n\n${task}${sessionTodoNote(todo)}${so && !so.conversation ? tail : ""}`;
     updateRun(id, { cwd, branch, base, baseSha, prompt });
 

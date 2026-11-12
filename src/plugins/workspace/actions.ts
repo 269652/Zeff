@@ -21,5 +21,10 @@ export * from "./actions/formulas";
 export * from "./actions/flows";
 export * from "./actions/apps";
 export * from "./actions/blocks";
+export * from "./actions/table-pipes";
+export * from "./actions/wrap";
+export * from "./actions/view-settings";
+export * from "./actions/package-life";
+export * from "./actions/chats";
 
 

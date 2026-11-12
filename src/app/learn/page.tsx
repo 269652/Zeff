@@ -1,61 +1,50 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { connection } from "next/server";
-import { t } from "@/lib/i18n/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
+import { redirect } from "@/lib/redirect";
+import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { CourseCards, courseCards } from "@/plugins/learn/ui/CourseCards";
-import { NewCourseForm } from "@/plugins/learn/ui/NewCourseForm";
+import { learnStatus } from "@/plugins/learn/setup";
+import { setupLearnAction } from "./actions";
 
 export async function generateMetadata(): Promise<Metadata> {
   return { title: t("Learn") };
 }
 
 /**
- * Learn (Learn plugin): your courses — each a topic Claude researched and planned over years, phases, skills and small
- * steps, a skill tree you work through with Claude as the teacher. By learning space (a page in the Workspace holding Learn's
- * databases — each its own courses and progress; more from the template "Learning space"). A new one: the form.
+ * Learn: when it is set up, its Courses (the Learn app of the package) open; the first time, a page says what will be set up and does it on
+ * one click. Learn itself is built with Zeff — a package of Workspace databases, an app view, flows and server functions.
  */
-export default async function LearnPage() {
+export default async function LearnPage({ searchParams }: { searchParams: Promise<{ ok?: string; err?: string }> }) {
   await connection();
   if (!isInstalled("learn")) return <PluginNotInstalled id="learn" />;
-  const ws = isInstalled("workspace");
-  const { learnDbs, learnSpaces } = await import("@/plugins/learn/dbs");
-  const { getPage } = await import("@/plugins/workspace/store");
-  learnDbs(); // (the first space there)
-  const spaces = await Promise.all(
-    learnSpaces().map(async (s) => {
-      const p = getPage(s.folder);
-      return { id: s.folder, title: p?.title || t("Untitled"), icon: p?.icon || "🎓", courses: await courseCards(s.folder) };
-    }),
-  );
-  const several = spaces.length > 1;
+  const sp = await searchParams;
+  const s = await learnStatus();
+  if (s.ready && s.coursesId && !sp.ok && !sp.err) return redirect(`/workspace/${s.coursesId}`);
+  const todo = [
+    !s.notebookPlugin && t("install the Notebook plugin (it runs Learn's server functions)"),
+    !s.codeRuns && t("switch on running code (Settings → Notebook) — in a container if Docker is there"),
+    !s.pluginOn && t("switch on the plugin “Learn (external)”"),
+    !s.packageVersion && t("install Learn's package: courses, steps, cards, conversations and the Learn app"),
+    s.updateAvailable && t("bring the package to its newest version"),
+    t("allow Learn's flows and functions what they ask for (its databases, the AI, your calendar and todos)"),
+    s.legacyToImport && t("bring over your courses, steps, cards and conversations from the old Learn (the old databases stay as they are)"),
+  ].filter((x): x is string => !!x);
   return (
-    <div className="mx-auto w-full max-w-4xl space-y-6">
-      <header className="space-y-1">
-        <h1 className="text-lg font-semibold">{t("Learn")}</h1>
-        <p className="max-w-[75ch] text-sm text-zinc-500">{t("Pick a topic: Claude researches it and plans it as a skill tree — years, phases, skills and small steps. Claude teaches each step in a chat, with exercises it builds for you.")}</p>
-        {ws && <p className="text-sm text-zinc-500">{t("Each learning space is a page in the Workspace with its own courses and progress — make another from the template “Learning space”.")}</p>}
-      </header>
-      {spaces.map((s) => (
-        <section key={s.id} className="space-y-3" aria-label={s.title}>
-          {(several || ws) && (
-            <h2 className="flex items-center gap-2 text-base font-semibold">
-              <span aria-hidden>{s.icon}</span>
-              {ws ? (
-                <Link href={`/workspace/${s.id}`} className="hover:underline">
-                  {s.title}
-                </Link>
-              ) : (
-                s.title
-              )}
-              <span className="text-sm font-normal text-zinc-500">· {t("Courses: {n}", { n: s.courses.length })}</span>
-            </h2>
-          )}
-          <CourseCards courses={s.courses} />
-        </section>
-      ))}
-      <NewCourseForm spaces={spaces.map((s) => ({ id: s.id, title: s.title }))} />
+    <div className="mx-auto max-w-2xl space-y-4 py-6">
+      <h1 className="text-xl font-semibold">🎓 {t("Learn")}</h1>
+      {sp.ok && <p className="rounded border border-emerald-300 bg-emerald-50 px-3 py-2 text-sm text-emerald-900 dark:border-emerald-800 dark:bg-emerald-950/30 dark:text-emerald-200">{sp.ok}</p>}
+      {sp.err && <p className="rounded border border-red-300 bg-red-50 px-3 py-2 text-sm text-red-900 dark:border-red-800 dark:bg-red-950/30 dark:text-red-200">{sp.err}</p>}
+      <p className="text-sm text-zinc-600 dark:text-zinc-300">{t("Learn is built with Zeff itself: its courses, steps, cards and conversations are Workspace databases, its screens a view, its logic flows and server functions. Before you start, this is set up:")}</p>
+      <ul className="list-disc space-y-1 pl-5 text-sm">
+        {todo.map((x) => (
+          <li key={x}>{x}</li>
+        ))}
+      </ul>
+      <form action={setupLearnAction}>
+        <button className="btn btn-primary">{t("Set up Learn")}</button>
+      </form>
+      <p className="text-xs text-zinc-500">{t("Nothing leaves your computer except what the AI is asked. You can undo each part in Settings → Notebook, Menu → Plugins and Workspace settings → Packages.")}</p>
     </div>
   );
 }

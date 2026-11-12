@@ -1,9 +1,9 @@
 import { t } from "@/lib/i18n/server";
-import { workspaceFieldTypes, type FieldTypeInfo, type WorkspaceFieldType } from "./field-point";
+import { externalFieldTypes, workspaceFieldTypes, type FieldTypeInfo, type WorkspaceFieldType } from "./field-point";
 
 /** The field types of the installed plugins (and the Workspace's own: a rating, a percentage). Server only. */
 export function fieldTypes(): WorkspaceFieldType[] {
-  return workspaceFieldTypes.list().flatMap((c) => c.impl);
+  return [...workspaceFieldTypes.list().flatMap((c) => c.impl), ...externalFieldTypes()];
 }
 
 export const fieldType = (id: string | undefined): WorkspaceFieldType | undefined => (id ? fieldTypes().find((f) => f.id === id) : undefined);

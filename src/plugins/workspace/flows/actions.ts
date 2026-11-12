@@ -1,3 +1,4 @@
+import { getPlugin, scanPlugins } from "@/lib/ext/registry";
 import { lookup as dnsLookup } from "node:dns/promises";
 import { extensionPoint } from "@/lib/plugin-kit/extension-point";
 import type { FieldSpec, FlowPermissions } from "./types";
@@ -12,6 +13,19 @@ import { rowObject } from "./rows";
  */
 
 export type Need = "web" | "write" | "ai" | "send" | "api";
+
+/** meta.read / meta.run: the operation's permission is one of the flow's (Zeff's structure); a dry run changes nothing. */
+async function runMeta(i: Record<string, unknown>, ctx: ActionCtx, change: boolean): Promise<unknown> {
+  const { metaAccess, metaRun } = await import("../meta");
+  const op = text(i.op);
+  const args = (i.args && typeof i.args === "object" && !Array.isArray(i.args) ? i.args : {}) as Record<string, unknown>;
+  const access = metaAccess(op, args);
+  const need = access.key.replace(/^meta:/, "");
+  if ((need === "read") === change) throw new Error(change ? "meta.run changes the structure: read it with meta.read." : "meta.read is for reading: use meta.run to change.");
+  if (!(ctx.perms.meta ?? []).includes(need)) throw new Error(`This flow may not ${access.label} — grant “${need}” under the flow's permissions (Zeff's structure).`);
+  if (change && ctx.dryRun) return { dryRun: true, op };
+  return metaRun(op, args);
+}
 
 export type ActionCtx = {
   flow: string;
@@ -575,6 +589,41 @@ const CORE: FlowAction[] = [
     },
   },
   {
+    name: "fn.call",
+    group: "zeff",
+    label: "Call a plugin's function",
+    summary: "A server function a plugin brings (plugin, name, args): code that runs in a container and gives back its result. Needs the flow's permission “call:<plugin>.<name>” under Zeff's structure; a dry run does not call it.",
+    input: [f("plugin", "text", { required: true }), f("name", "text", { required: true }), f("args", "json")],
+    output: "what the function returns",
+    writes: true,
+    run: async (i, ctx) => {
+      const plugin = text(i.plugin);
+      const name = text(i.name);
+      if (!(ctx.perms.meta ?? []).includes(`call:${plugin}.${name}`)) throw new Error(`This flow may not call the function “${plugin}.${name}” — grant it under the flow's permissions (Zeff's structure: functions it may call).`);
+      if (ctx.dryRun) return { dryRun: true, function: `${plugin}.${name}` };
+      return (await import("../plugin-fn")).runPluginFunction(plugin, name, i.args);
+    },
+  },
+  {
+    name: "meta.read",
+    group: "zeff",
+    label: "Read how Zeff is built",
+    summary: "The page tree (op tree), a database's fields and views (schema, args { database }), the blocks, flows and plugins (blocks.list, flows.list, plugins.list) — not the rows. Needs the flow's permission “read” under Zeff's structure.",
+    input: [f("op", "text", { required: true }), f("args", "json")],
+    output: "what the operation gives back",
+    run: async (i, ctx) => runMeta(i, ctx, false),
+  },
+  {
+    name: "meta.run",
+    group: "zeff",
+    label: "Change Zeff's structure",
+    summary: "Make or change pages, databases (their fields and views), blocks, flows and plugins: page.create/update/archive/delete, database.create/alter, block.save/delete, flow.save/delete, plugin.save/delete, with args. Each kind needs its own permission under the flow's Zeff's structure; a dry run writes nothing. What it makes is inert: a flow it saves has no permissions, a plugin stays switched off.",
+    input: [f("op", "text", { required: true }), f("args", "json")],
+    output: "{ id } / { name } …",
+    writes: true,
+    run: async (i, ctx) => runMeta(i, ctx, true),
+  },
+  {
     name: "notify",
     group: "zeff",
     label: "Note for you",
@@ -604,10 +653,37 @@ const CORE: FlowAction[] = [
   },
 ];
 
-/** Every action: Zeff's own and the installed plugins'. */
+/**
+ * The flow actions external plugins bring (a manifest's contributes.flowActions): each is done by one of the plugin's functions — its
+ * input is the function's arguments — so a flow that uses one needs the permission to call that function ("call:<plugin>.<function>").
+ */
+function externalFlowActions(): FlowAction[] {
+  return scanPlugins().plugins.flatMap((p) =>
+    getPlugin(p.id)?.enabled
+      ? p.manifest.contributes.flowActions.map(
+          (a): FlowAction => ({
+            name: `${p.id}.${a.name}`,
+            group: a.group,
+            label: a.label,
+            summary: `${a.summary}${a.summary ? " " : ""}(A function of the plugin “${p.id}”: the flow needs the permission to call ${p.id}.${a.function}.)`,
+            input: a.input.map((i) => ({ name: i.name, type: i.type, ...(i.label ? { label: i.label } : {}), ...(i.required ? { required: true } : {}), ...(i.help ? { help: i.help } : {}) })),
+            output: a.output,
+            ...(a.writes ? { writes: true } : {}),
+            run: async (i, ctx) => {
+              if (!(ctx.perms.meta ?? []).includes(`call:${p.id}.${a.function}`)) throw new Error(`This flow may not call the function “${p.id}.${a.function}” (the action “${p.id}.${a.name}”) — grant it under the flow's permissions (Zeff's structure: functions it may call).`);
+              if (ctx.dryRun && a.writes) return { dryRun: true, action: `${p.id}.${a.name}` };
+              return (await import("../plugin-fn")).runPluginFunction(p.id, a.function, i);
+            },
+          }),
+        )
+      : [],
+  );
+}
+
+/** Every action: Zeff's own, the installed plugins' and the external plugins'. */
 export function flowActions(): FlowAction[] {
   const seen = new Set<string>();
-  return [...CORE, ...flowActionsPoint.list().flatMap((c) => c.impl)].filter((a) => (seen.has(a.name) ? false : (seen.add(a.name), true)));
+  return [...CORE, ...flowActionsPoint.list().flatMap((c) => c.impl), ...externalFlowActions()].filter((a) => (seen.has(a.name) ? false : (seen.add(a.name), true)));
 }
 
 export const flowAction = (name: string): FlowAction | undefined => flowActions().find((a) => a.name === name);

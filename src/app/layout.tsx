@@ -147,6 +147,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             tabs={headerTabs()}
             account={headerAccount()}
             bare={setupPending}
+            backupMenu={installedPlugins().has("backup")}
           />
           {isDemoAccount() && <DemoBar />}
           {!setupPending && <AttentionBar items={attention} />}

@@ -7,7 +7,7 @@ import { EventEmitter } from "node:events";
  * the MCP endpoint are separate module copies).
  */
 /** "sync": a sync step ended (mails, chats, tickets, news …) — what it brought is in the data, every open page reads it again. */
-export type ChangeTopic = "work" | "todos" | "attention" | "kanban" | "workspace" | "sync" | "learn";
+export type ChangeTopic = "work" | "todos" | "attention" | "kanban" | "workspace" | "sync";
 
 const state = globalThis as { __zeffEvents?: EventEmitter };
 const bus = (state.__zeffEvents ??= (() => {

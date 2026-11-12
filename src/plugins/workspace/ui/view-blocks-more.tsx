@@ -6,6 +6,12 @@ import { toast } from "@/components/Toaster";
 import { Overlay } from "@/components/Overlay";
 import type { VNode } from "../view-template";
 import type { BlockEnv } from "./view-blocks";
+import { NODE_R, type GraphLayout } from "../view-graph";
+import { SkillMap, type SkillMapNode } from "@/components/skill-tree/SkillMap";
+import { AgendaList } from "@/plugins/calendar/AgendaList";
+import { MonthGrid } from "@/plugins/calendar/MonthGrid";
+import { TimeGrid } from "@/plugins/calendar/TimeGrid";
+import { stampAt, viewRange, ymd, type Item } from "@/plugins/calendar/view-shared";
 
 /**
  * More of the view language's blocks (view-template.ts): tabs that hold their content, a dialog or drawer, inputs and a slider that
@@ -50,6 +56,12 @@ export function moreBlock(n: Node, key: string | number, kids: Kids, env: BlockE
       return <Rating key={key} a={a} env={env} />;
     case "copy":
       return <CopyButton key={key} a={a} />;
+    case "schedule":
+      return <ScheduleBlock key={key} a={a} env={env} />;
+    case "graph":
+      return <GraphBlock key={key} a={a} env={env} />;
+    case "upload":
+      return <UploadBlock key={key} a={a} env={env} />;
     default:
       return undefined;
   }
@@ -127,6 +139,148 @@ function InputBlock({ a, env }: { a: Record<string, string>; env: BlockEnv }) {
     <label className={`gap-1 text-sm print:hidden ${type === "textarea" ? "flex w-full flex-col" : "inline-flex items-center gap-1.5"}`}>
       <span className="text-xs text-zinc-500">{a.label}</span>
       {field}
+    </label>
+  );
+}
+
+const GRAPH_COLORS: Record<string, string> = { gray: "#71717a", brown: "#a16207", orange: "#ea580c", yellow: "#ca8a04", green: "#16a34a", blue: "#2563eb", purple: "#9333ea", pink: "#db2777", red: "#dc2626" };
+const BAND_FILLS = ["#6366f10d", "#10b9810d", "#f59e0b0d", "#ec48990d"];
+const paintOf = (c: string | undefined, fallback: string) => (c && (GRAPH_COLORS[c] ?? (/^#[0-9a-f]{3,8}$/i.test(c) ? c : undefined))) || fallback;
+
+/** The dependency map (<graph look="map">): the skill map's own drawing — sideways scrolling bands, rings, the red thread, a picked node's parts above it. */
+function MapBlock({ a, env }: { a: Record<string, string>; env: BlockEnv }) {
+  const data = json<{ nodes: SkillMapNode[]; groups: { key: string; title: string }[]; route: { keys: string[]; walked: number } | null }>(a.map, { nodes: [], groups: [], route: null });
+  const nodes = data.nodes.map((n) => ({ ...n, after: n.after ?? [], steps: n.steps ?? [], path: n.path || null, group: n.group || null }));
+  return (
+    <SkillMap
+      key={nodes.map((n) => n.key).join("|")}
+      nodes={nodes}
+      groups={data.groups}
+      route={data.route ?? undefined}
+      label={a.label || ""}
+      onStep={a.stepbind ? (k) => env.run({ action: "state", state: a.stepbind, value: k, ...(a.stepemit ? { emit: a.stepemit } : {}) }) : undefined}
+    />
+  );
+}
+
+/**
+ * <schedule>: things with a time as the calendar shows appointments — a day or a week in hours (side by side where they overlap), a month, an
+ * agenda. A click opens one (its id into state.<bind>, then emit=); dragging one moves it (state.<bind>, <bind>_start, <bind>_end, then move=);
+ * dragging on free time makes one (<bind>_start, <bind>_end, <bind>_allday, then create=); a day picked goes into state.<daybind>.
+ */
+function ScheduleBlock({ a, env }: { a: Record<string, string>; env: BlockEnv }) {
+  const t = useT();
+  const items = useMemo(() => json<Omit<Item, "event" | "calendar" | "proposed" | "merged">[]>(a.items, []).map((x) => ({ ...x, color: paintOf(x.color, "#6366f1") }) as Item), [a.items]);
+  const today = ymd(new Date());
+  const day = a.day || today;
+  const view = (a.view || "week") as "day" | "week" | "month" | "agenda";
+  const { days } = viewRange(view, day);
+  const bind = a.bind || "picked";
+  const later = (event: string | undefined) => event && (env.emitLater ? env.emitLater(event) : env.run({ emit: event }));
+  const open = (it: Item) => (env.setState(bind, it.id), later(a.emit));
+  const move = (it: Item, start: string, end: string) => (env.setState(bind, it.id), env.setState(`${bind}_start`, start), env.setState(`${bind}_end`, end), later(a.move));
+  const create = (v: { start: string; end: string; allDay: boolean }) => {
+    if (!a.create) return;
+    env.setState(`${bind}_start`, v.start);
+    env.setState(`${bind}_end`, v.end);
+    env.setState(`${bind}_allday`, v.allDay ? "true" : "");
+    later(a.create);
+  };
+  const pick = (d: string) => a.daybind && env.setState(a.daybind, d);
+  if (!items.length && a.empty && view === "agenda") return <p className="text-sm text-zinc-500">{a.empty}</p>;
+  return (
+    <div className="h-[36rem] min-h-0 min-w-0 overflow-hidden rounded-xl border border-zinc-200 dark:border-zinc-800" aria-label={t("Calendar")}>
+      {view === "month" ? (
+        <MonthGrid days={days} month={day.slice(0, 7)} items={items} today={today} onCreate={create} onOpen={open} onMove={move} onPickDay={pick} />
+      ) : view === "agenda" ? (
+        <AgendaList days={days} items={items} today={today} onOpen={open} />
+      ) : (
+        <TimeGrid days={days} items={items} now={stampAt(today, new Date().getHours() * 60 + new Date().getMinutes())} onCreate={create} onOpen={open} onMove={move} onPickDay={pick} />
+      )}
+    </div>
+  );
+}
+
+/** A graph (<graph>): the nodes in columns and bands, the lines between them, the thread; a node picked is marked and sets the view's state. */
+function GraphBlock({ a, env }: { a: Record<string, string>; env: BlockEnv }) {
+  if (a.look === "map") return <MapBlock a={a} env={env} />;
+  const layout = json<GraphLayout | null>(a.layout, null);
+  if (!layout) return null;
+  const pick = (id: string) => a.bind && env.run({ action: "state", state: a.bind, value: id, ...(a.emit ? { emit: a.emit } : {}) });
+  return (
+    <div className="overflow-x-auto print:overflow-visible" role="group">
+      <svg width={layout.width} height={layout.height} viewBox={`0 0 ${layout.width} ${layout.height}`} className="max-w-none text-zinc-700 dark:text-zinc-300" role="img">
+        {layout.bands.map((b, i) => (
+          <g key={b.group}>
+            <rect x={4} y={b.y} width={layout.width - 8} height={b.h} rx={14} fill={BAND_FILLS[i % BAND_FILLS.length]} stroke="currentColor" strokeOpacity={0.12} />
+            <text x={14} y={b.y + 16} fontSize={11} fill="currentColor" opacity={0.55} fontWeight={600}>
+              {b.group}
+            </text>
+          </g>
+        ))}
+        {layout.edges.map((e) => (
+          <path key={`${e.from}>${e.to}`} d={e.d} fill="none" stroke="currentColor" strokeOpacity={0.22} strokeWidth={1.5} />
+        ))}
+        {layout.thread.map((s) => (
+          <path key={s.n} d={s.d} fill="none" stroke="#dc2626" strokeWidth={2.5} strokeLinecap="round" strokeDasharray={s.solid ? undefined : "6 6"} opacity={s.solid ? 0.9 : 0.55} />
+        ))}
+        {layout.nodes.map((n) => {
+          const color = paintOf(n.color, "#6366f1");
+          const circ = 2 * Math.PI * (NODE_R - 3);
+          const done = n.state === "done";
+          const locked = n.state === "locked";
+          const words = n.label.split(/\s+/);
+          const lines: string[] = [];
+          for (const w of words) (lines.length && (lines[lines.length - 1] + " " + w).length <= 18 ? (lines[lines.length - 1] += " " + w) : lines.push(w));
+          return (
+            <g key={n.id} transform={`translate(${n.x},${n.y})`} onClick={() => pick(n.id)} style={{ cursor: a.bind ? "pointer" : "default" }} opacity={locked ? 0.55 : 1} role={a.bind ? "button" : undefined} aria-label={n.label}>
+              <circle r={NODE_R} fill="white" className="dark:fill-zinc-900" stroke={a.current === n.id ? "#111827" : color} strokeWidth={a.current === n.id ? 3 : 2} strokeOpacity={a.current === n.id ? 0.9 : 0.35} />
+              {n.progress !== undefined && <circle r={NODE_R - 3} fill="none" stroke={color} strokeWidth={4} strokeDasharray={`${circ * n.progress} ${circ}`} transform="rotate(-90)" strokeLinecap="round" />}
+              {done && <circle r={NODE_R - 3} fill={color} opacity={0.9} />}
+              <text textAnchor="middle" dominantBaseline="central" fontSize={done || locked ? 16 : 11} fill={done ? "white" : "currentColor"}>
+                {done ? "✓" : locked ? "🔒" : (n.ring ?? "")}
+              </text>
+              {n.step !== undefined && (
+                <g transform={`translate(${NODE_R - 2},${-NODE_R + 2})`}>
+                  <circle r={9} fill="#dc2626" />
+                  <text textAnchor="middle" dominantBaseline="central" fontSize={10} fill="white" fontWeight={700}>
+                    {n.step}
+                  </text>
+                </g>
+              )}
+              {lines.slice(0, 3).map((l, i) => (
+                <text key={i} y={NODE_R + 14 + i * 13} textAnchor="middle" fontSize={11} fill="currentColor">
+                  {l.length > 20 ? `${l.slice(0, 19)}…` : l}
+                </text>
+              ))}
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+/** A file read as text into the view's state (state.<bind>, its name in state.<bind>_name). */
+function UploadBlock({ a, env }: { a: Record<string, string>; env: BlockEnv }) {
+  const t = useT();
+  const maxKb = Number(a.max) || 200;
+  const pick = async (file: File | undefined) => {
+    if (!file) return;
+    if (file.size > maxKb * 1024) return void toast(t("That file is too big (at most {kb} KB).", { kb: maxKb }), { tone: "error" });
+    try {
+      const text = await file.text();
+      env.setState(a.bind, text);
+      env.setState(`${a.bind}_name`, file.name);
+    } catch {
+      toast(t("The file could not be read."), { tone: "error" });
+    }
+  };
+  return (
+    <label className="inline-flex cursor-pointer items-center gap-2 text-sm print:hidden" onDragOver={(e) => e.preventDefault()} onDrop={(e) => (e.preventDefault(), void pick(e.dataTransfer.files?.[0]))}>
+      <span className="btn btn-sm">{a.label || t("Choose a file")}</span>
+      <input type="file" className="sr-only" accept={a.accept || undefined} onChange={(e) => void pick(e.target.files?.[0])} />
+      {a.name && <span className="text-xs text-zinc-500">{a.name}</span>}
     </label>
   );
 }

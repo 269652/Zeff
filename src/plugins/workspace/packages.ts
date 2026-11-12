@@ -1,4 +1,5 @@
 import "@/plugins/contributions";
+import { t as inLanguage } from "@/lib/i18n/server";
 import { sanitizeDoc, type DocNode } from "./doc";
 import { normalizeForm, type FormDef } from "./form-spec";
 import { pageKind, type DbSchema, type PageKind } from "./model";
@@ -42,8 +43,42 @@ export type PackageItem = {
 export type PackageRow = { id?: string; title: string; icon?: string; cells: Record<string, unknown>; content?: DocNode };
 /** A block of your own the package's views use (blocks.ts), with its flows (permissions left out — granted again by whoever installs it). */
 export type PackageBlock = { def: BlockDef; flows?: Record<string, unknown>[] };
-export type WorkspacePackage = { format: 1; name: string; description?: string; icon?: string; items: PackageItem[]; blocks?: PackageBlock[] };
+/** A step that changes the data or structure of an installed package when it moves to a newer version (db = the item's number in the package). */
+export type MigrationStep =
+  | { op: "rename_property"; db: string; from: string; to: string }
+  | { op: "remove_property"; db: string; property: string }
+  | { op: "fill"; db: string; property: string; value: unknown; onlyEmpty?: boolean }
+  | { op: "copy"; db: string; from: string; to: string }
+  | { op: "map"; db: string; property: string; values: Record<string, string> };
+export type PackageMigration = { from: string; to: string; steps: MigrationStep[] };
+/** A check that ships with the package and is run after it is installed or updated. */
+export type PackageTest = { name: string } & (
+  | { check: "page"; item: string }
+  | { check: "property"; db: string; property: string; type?: string }
+  | { check: "rows"; db: string; min?: number; max?: number }
+  | { check: "view"; db: string; view?: string }
+  | { check: "flow"; flow: string; input?: Record<string, unknown> }
+);
+export type WorkspacePackage = {
+  format: 1;
+  name: string;
+  description?: string;
+  icon?: string;
+  items: PackageItem[];
+  blocks?: PackageBlock[];
+  /** Its identity and version: with both, an install is remembered and a newer version updates the pages in place (package-life.ts). */
+  id?: string;
+  version?: string;
+  /** Other packages (id + range: "^1.0.0") and plugins it needs. */
+  requires?: { package: string; version?: string }[];
+  plugins?: string[];
+  migrations?: PackageMigration[];
+  tests?: PackageTest[];
+};
 export type PackageMeta = { id: string; name: string; icon: string; description: string };
+
+/** A page of a package in the user's language: its name as the language bundles have it (a name they don't know stays as it is). */
+export const pageTitleOf = (item: { title?: unknown }): string => inLanguage(String(item.title ?? ""));
 
 const MAX_ITEMS = 200;
 type Ref = number | string | undefined;
@@ -59,7 +94,7 @@ function withoutProperty(schema: DbSchema, id: string): DbSchema {
   };
 }
 
-function mapSchema(schema: DbSchema, f: Mapper): DbSchema {
+export function mapSchema(schema: DbSchema, f: Mapper): DbSchema {
   let next: DbSchema = JSON.parse(JSON.stringify(schema));
   for (const p of schema.properties) if (p.type === "relation" && p.relationDb !== undefined && f(p.relationDb) === undefined) next = withoutProperty(next, p.id);
   for (const p of next.properties) if (p.type === "relation" && p.relationDb !== undefined) (p as { relationDb: Ref }).relationDb = f(p.relationDb);
@@ -109,7 +144,9 @@ function mapWidget(attrs: Record<string, unknown>, f: Mapper): Record<string, un
   return { ...attrs, html, writes, wid: "" };
 }
 
-function mapDoc(doc: DocNode, f: Mapper): DocNode | null {
+/** For package-life.ts: a document / a schema with the package's numbers put right. */
+
+export function mapDoc(doc: DocNode, f: Mapper): DocNode | null {
   if (doc.type === "zeffApp" && doc.attrs) return { ...doc, attrs: mapWidget(doc.attrs as Record<string, unknown>, f) };
   const attrs = doc.attrs ? { ...doc.attrs } : undefined;
   if (attrs) {
@@ -240,7 +277,7 @@ export function exportPackage(rootId: number, opts: { name: string; description?
 }
 
 /** A package made: new pages under `parentId`, every reference to the new ids, routines off. The id of its first page. */
-export function installPackage(pkg: WorkspacePackage, parentId: number | null): { rootId: number; ids: number[] } {
+export function installPackage(pkg: WorkspacePackage, parentId: number | null): { rootId: number; ids: number[]; map: Record<string, number> } {
   if (!pkg || pkg.format !== 1 || !Array.isArray(pkg.items)) throw new Error("This is not a package of pages.");
   if (!pkg.items.length) throw new Error("The package holds nothing.");
   if (pkg.items.length > MAX_ITEMS) throw new Error("The package is too large (too many pages).");
@@ -257,7 +294,7 @@ export function installPackage(pkg: WorkspacePackage, parentId: number | null): 
   const made = new Map<string, number>();
   const f: Mapper = (id) => made.get(String(id));
   for (const i of sorted) {
-    made.set(String(i.id), createPage({ parentId: i.parent === undefined ? parentId : made.get(String(i.parent)), title: String(i.title ?? ""), icon: i.icon, kind: pageKind(i.kind) }));
+    made.set(String(i.id), createPage({ parentId: i.parent === undefined ? parentId : made.get(String(i.parent)), title: pageTitleOf(i), icon: i.icon, kind: pageKind(i.kind) }));
   }
   // The blocks its views use: made when there is none of that name (yours stays as it is), with their flows (permissions asked again).
   for (const b of Array.isArray(pkg.blocks) ? pkg.blocks.slice(0, 50) : []) {
@@ -323,12 +360,12 @@ export function installPackage(pkg: WorkspacePackage, parentId: number | null): 
     if (to.length) setCell(l.row, l.prop, to, { quiet: true });
   }
   const first = sorted.find((i) => i.parent === undefined) ?? sorted[0];
-  return { rootId: made.get(String(first.id))!, ids: [...made.values()] };
+  return { rootId: made.get(String(first.id))!, ids: [...made.values()], map: Object.fromEntries(made) };
 }
 
 const slug = (s: string) => s.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 /** The packages plugins bring (Zeff's own ready-made things are the templates). */
 export function listPackages(): (PackageMeta & { pkg: WorkspacePackage })[] {
-  return workspacePackages.list().flatMap((c) => (typeof c.impl === "function" ? c.impl() : c.impl).map((p) => ({ id: `${c.plugin}.${slug(p.name)}`, name: p.name, icon: p.icon ?? "📦", description: p.description ?? "", pkg: p })));
+  return workspacePackages.list().flatMap((c) => (typeof c.impl === "function" ? c.impl() : c.impl).map((p) => ({ id: p.id ? p.id : `${c.plugin}.${slug(p.name)}`, name: p.name, icon: p.icon ?? "📦", description: p.description ?? "", pkg: p })));
 }

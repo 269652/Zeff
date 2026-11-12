@@ -292,6 +292,571 @@
             ]
           }
         },
+        "flowActions": {
+          "default": [],
+          "description": "Actions for flows (the Studio's and the AI's catalog): each is done by one of the plugin's functions. A flow that uses one needs the permission to call that function.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "Its name in flows: <plugin id>.<this>."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "summary": {
+                "default": "",
+                "description": "What it does — the Studio shows it and the AI reads it when it builds a flow.",
+                "type": "string",
+                "maxLength": 400
+              },
+              "group": {
+                "default": "plugin",
+                "type": "string",
+                "maxLength": 30
+              },
+              "function": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function (contributes.functions) that does it: its arguments are the action's input, its result the action's output."
+              },
+              "input": {
+                "default": [],
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "maxLength": 40,
+                      "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+                    },
+                    "type": {
+                      "default": "text",
+                      "type": "string",
+                      "enum": [
+                        "text",
+                        "number",
+                        "boolean",
+                        "json",
+                        "list",
+                        "date",
+                        "url"
+                      ]
+                    },
+                    "label": {
+                      "type": "string",
+                      "maxLength": 60
+                    },
+                    "required": {
+                      "type": "boolean"
+                    },
+                    "help": {
+                      "type": "string",
+                      "maxLength": 200
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              },
+              "output": {
+                "default": "what the function returns",
+                "type": "string",
+                "maxLength": 200
+              },
+              "writes": {
+                "default": false,
+                "description": "It changes something: a dry run of a flow does not call it.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "label",
+              "function"
+            ]
+          }
+        },
+        "fieldTypes": {
+          "default": [],
+          "description": "Field types for the Workspace's databases: an entry is checked (a pattern, a number range or a list of choices) and drawn as text, stars, a bar, a badge or a link. No code needed.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 60,
+                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                "description": "Its id: <plugin id>.<this>."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "icon": {
+                "default": "🏷️",
+                "type": "string",
+                "maxLength": 8
+              },
+              "description": {
+                "default": "",
+                "type": "string",
+                "maxLength": 200
+              },
+              "display": {
+                "default": "text",
+                "type": "string",
+                "enum": [
+                  "text",
+                  "rating",
+                  "progress",
+                  "badge",
+                  "link"
+                ]
+              },
+              "max": {
+                "description": "Stars, for the rating display.",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 20
+              },
+              "href": {
+                "description": "A link's address with {value} in it.",
+                "type": "string",
+                "maxLength": 300
+              },
+              "kind": {
+                "default": "text",
+                "description": "What an entry is: any text (checked by `pattern`), a number (between `min` and `max`) or one of `options`.",
+                "type": "string",
+                "enum": [
+                  "text",
+                  "number",
+                  "choice"
+                ]
+              },
+              "pattern": {
+                "description": "A regular expression a text entry must match.",
+                "type": "string",
+                "maxLength": 200
+              },
+              "min": {
+                "type": "number"
+              },
+              "maxValue": {
+                "description": "The largest number (kind number).",
+                "type": "number"
+              },
+              "options": {
+                "default": [],
+                "maxItems": 100,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 60
+                }
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ]
+          }
+        },
+        "schedules": {
+          "default": [],
+          "description": "Functions run on their own, every so often, for every account the plugin is on in (upkeep, reminders, syncs). They do only what the user granted them.",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              },
+              "function": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function that is run."
+              },
+              "everyMinutes": {
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 10080,
+                "description": "How often (5 minutes to a week), as long as Zeff is running and the plugin is on."
+              },
+              "args": {
+                "default": {},
+                "description": "The arguments it is called with.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "additionalProperties": {}
+              }
+            },
+            "required": [
+              "id",
+              "function",
+              "everyMinutes"
+            ]
+          }
+        },
+        "chats": {
+          "default": [],
+          "description": "Kinds of live chat with an agent in Zeff: its own rules, tools and a conversation kept in a database (a teacher, a coach, a reviewer).",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              },
+              "title": {
+                "default": "",
+                "type": "string",
+                "maxLength": 80
+              },
+              "rules": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "A text file with the agent's rules. {{name}} is replaced by what the context function gives (a list becomes lines); {{key}}, {{plugin}} and {{chat}} are always there."
+              },
+              "context": {
+                "description": "The plugin function that gives the values for the rules, called with { key } each time a session starts.",
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              },
+              "tools": {
+                "default": [],
+                "description": "Zeff's MCP tools the agent may use beside the chat's own (workspace_call_function calls the plugin's functions).",
+                "maxItems": 40,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 60,
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                }
+              },
+              "conversation": {
+                "description": "Keep the conversation in a database the person can edit: what is changed there is what the agent goes on with.",
+                "type": "object",
+                "properties": {
+                  "database": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "description": "The database that keeps the conversation, one row per message: its id, or its place in the plugin's package (@my-pkg.i9)."
+                  },
+                  "text": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "description": "The field with the message's text (the row's title column is a short form of it)."
+                  },
+                  "role": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "description": "A choice field for who said it."
+                  },
+                  "roles": {
+                    "default": {
+                      "you": "you",
+                      "agent": "agent",
+                      "system": "system"
+                    },
+                    "description": "The names of the choices in that field: the person, the agent (\"teacher\", \"coach\" …), what happened on the side.",
+                    "type": "object",
+                    "properties": {
+                      "you": {
+                        "default": "you",
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "agent": {
+                        "default": "agent",
+                        "type": "string",
+                        "maxLength": 40
+                      },
+                      "system": {
+                        "default": "system",
+                        "type": "string",
+                        "maxLength": 40
+                      }
+                    }
+                  },
+                  "key": {
+                    "type": "string",
+                    "maxLength": 60,
+                    "description": "The field that tells which key (which lesson, ticket …) the message belongs to."
+                  },
+                  "kind": {
+                    "description": "A choice field for the kind of message: \"message\" for what is said, and the kinds `watch` names.",
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "run": {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "order": {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "at": {
+                    "type": "string",
+                    "maxLength": 60
+                  },
+                  "watch": {
+                    "default": [],
+                    "description": "Calls of the plugin's functions that are messages of their own, in the kind named (an exercise made, a step mastered): { function, kind, field? } — `field` is the argument whose value is the message's text.",
+                    "maxItems": 10,
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "function": {
+                          "type": "string",
+                          "pattern": "^[a-z][a-z0-9-]{0,39}$"
+                        },
+                        "kind": {
+                          "type": "string",
+                          "minLength": 1,
+                          "maxLength": 40
+                        },
+                        "field": {
+                          "type": "string",
+                          "maxLength": 60
+                        }
+                      },
+                      "required": [
+                        "function",
+                        "kind"
+                      ]
+                    }
+                  }
+                },
+                "required": [
+                  "database",
+                  "text",
+                  "role",
+                  "key"
+                ]
+              }
+            },
+            "required": [
+              "id",
+              "rules"
+            ]
+          }
+        },
+        "lookups": {
+          "default": [],
+          "description": "Lookups for views (<lookup>: a film, a book …): a search and a details function of the plugin.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 60,
+                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                "description": "How a template names it: <plugin id>.<this>."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "what": {
+                "default": "",
+                "description": "One line: what it finds (the AI reads it).",
+                "type": "string",
+                "maxLength": 300
+              },
+              "fields": {
+                "default": {},
+                "description": "The fields a hit has: name → what it is.",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "credit": {
+                "type": "string",
+                "maxLength": 200
+              },
+              "slow": {
+                "default": false,
+                "type": "boolean"
+              },
+              "search": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function that searches: gets { query, language }, gives back a list of { id, title, subtitle?, image? }."
+              },
+              "details": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function that reads one hit: gets { id, language }, gives back its fields by name (text, number, list of texts or null)."
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "search",
+              "details"
+            ]
+          }
+        },
+        "sources": {
+          "default": [],
+          "description": "Data sources for the pipelines: a database can follow one; a function of the plugin reads its records.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "maxLength": 60,
+                "pattern": "^[a-z0-9][a-z0-9._-]*$",
+                "description": "Its id: <plugin id>.<this>."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "icon": {
+                "default": "🔌",
+                "type": "string",
+                "maxLength": 8
+              },
+              "hint": {
+                "default": "",
+                "description": "One line: what the records are.",
+                "type": "string",
+                "maxLength": 200
+              },
+              "read": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function that reads the records: gives back a list of { ref, title, key?, fields?, text?, url?, updatedAt? }."
+              },
+              "noNewRows": {
+                "default": true,
+                "description": "The records are only read from where they live: a row cannot be made by hand.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "read"
+            ]
+          }
+        },
+        "functions": {
+          "default": [],
+          "description": "Server functions of its own: code (Python or Node.js) that runs in the Notebook's sessions and is called over HTTP (POST /api/ext/fn/<plugin>/<name>), from Notebook cells (zeff.call) and by other functions.",
+          "maxItems": 50,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "Its name: how it is called (plugin id + this)."
+              },
+              "title": {
+                "default": "",
+                "type": "string",
+                "maxLength": 80
+              },
+              "description": {
+                "default": "",
+                "type": "string",
+                "maxLength": 300
+              },
+              "runtime": {
+                "type": "string",
+                "enum": [
+                  "python",
+                  "node"
+                ],
+                "description": "The language of its file: it runs like a Notebook cell, in a Docker container (or on this computer), by the Notebook plugin."
+              },
+              "file": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Its code, relative to the plugin folder. The arguments arrive as `inputs` (and as variables); what it returns — its last expression, or a top-level return — is the result."
+              },
+              "input": {
+                "default": {},
+                "description": "The arguments it takes: name → what it is (documentation).",
+                "type": "object",
+                "propertyNames": {
+                  "type": "string",
+                  "maxLength": 60
+                },
+                "additionalProperties": {
+                  "type": "string",
+                  "maxLength": 200
+                }
+              },
+              "needs": {
+                "default": [],
+                "description": "What of Zeff its code reads or changes through zeff.* (tables, metrics, outputs, databases, database:<id>, write:outputs, write:database:<id>, delete:database:<id>, meta:…, call:<plugin>.<name>): you grant them for the function in Settings → Notebook; without them the call is refused.",
+                "maxItems": 30,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 60
+                }
+              },
+              "timeoutSeconds": {
+                "default": 60,
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 600
+              },
+              "webhook": {
+                "default": false,
+                "description": "Programs outside Zeff may call it: POST /api/ext/hook/<plugin>/<name> with a secret you make in Settings → Notebook (only the functions that say so).",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "runtime",
+              "file"
+            ]
+          }
+        },
         "workspacePackages": {
           "default": [],
           "description": "Workspace apps it brings: package files (JSON — a page exported with its databases, widgets, flows), offered under New → templates and made with one click.",

@@ -31,6 +31,10 @@ import p_lookups from "./lookups/plugin";
 import p_loops from "./loops/plugin";
 import p_mail_client from "./mail-client/plugin";
 import p_news from "./news/plugin";
+import p_notebook from "./notebook/plugin";
+import p_notebook_node from "./notebook-node/plugin";
+import p_notebook_python from "./notebook-python/plugin";
+import p_notebook_rust from "./notebook-rust/plugin";
 import p_outlook from "./outlook/plugin";
 import p_people from "./people/plugin";
 import p_revolut from "./revolut/plugin";
@@ -47,4 +51,4 @@ import p_workspace from "./workspace/plugin";
 import p_zeiterfassung from "./zeiterfassung/plugin";
 
 /** Every built-in plugin's manifest (unsorted; plugins/catalog.ts orders them). */
-export const BUILTIN_MANIFESTS = [p_accounts, p_agenda, p_auto_actions, p_backup, p_browser, p_calendar, p_cases, p_claude_cli, p_codex_cli, p_copilot_cli, p_correlations, p_documents, p_entities, p_finances, p_gitlab, p_gmail, p_google_calendar, p_google_drive, p_imap_mail, p_jira, p_jira_lage, p_knowledge_hub, p_lang_de, p_lang_en, p_lang_es, p_learn, p_llm, p_local_ai, p_lookups, p_loops, p_mail_client, p_news, p_outlook, p_people, p_revolut, p_signal, p_studio, p_teams, p_timeline, p_todos, p_web_search, p_whatsapp, p_work, p_work_elevated, p_workspace, p_zeiterfassung] as const;
+export const BUILTIN_MANIFESTS = [p_accounts, p_agenda, p_auto_actions, p_backup, p_browser, p_calendar, p_cases, p_claude_cli, p_codex_cli, p_copilot_cli, p_correlations, p_documents, p_entities, p_finances, p_gitlab, p_gmail, p_google_calendar, p_google_drive, p_imap_mail, p_jira, p_jira_lage, p_knowledge_hub, p_lang_de, p_lang_en, p_lang_es, p_learn, p_llm, p_local_ai, p_lookups, p_loops, p_mail_client, p_news, p_notebook, p_notebook_node, p_notebook_python, p_notebook_rust, p_outlook, p_people, p_revolut, p_signal, p_studio, p_teams, p_timeline, p_todos, p_web_search, p_whatsapp, p_work, p_work_elevated, p_workspace, p_zeiterfassung] as const;

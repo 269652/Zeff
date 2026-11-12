@@ -2,6 +2,8 @@ import type { Editor, JSONContent, Range } from "@tiptap/react";
 import type { T } from "@/lib/i18n/shared";
 import { LIBRARY } from "../block-library";
 import { markdownToDoc } from "../doc";
+import { PIPE_EXAMPLES } from "../table-pipe";
+import { exampleContent } from "./pipe-nodes";
 import type { SlashItem } from "./slash";
 
 /**
@@ -64,7 +66,58 @@ const widget = (t: T, b: (typeof LIBRARY)[number]): SlashItem => ({
       .run(),
 });
 
+/** A ready-made table → transform → table (the example's data, its steps, its result). */
+const EXAMPLE_TEXT = (t: T): Record<string, { title: string; hint: string }> => ({
+  budget: { title: t("Household budget"), hint: t("Spending by category, biggest first") },
+  favourites: { title: t("Books: my favourites"), hint: t("Only the good ones, newest first") },
+  recipe: { title: t("Recipe for more people"), hint: t("Amounts times a factor") },
+  tidy: { title: t("Tidy up a list"), hint: t("Doubles out, sorted") },
+});
+
+const pipeExample = (t: T, e: (typeof PIPE_EXAMPLES)[number]): SlashItem => ({
+  key: `pipe-example:${e.key}`,
+  under: "blocks",
+  title: EXAMPLE_TEXT(t)[e.key].title,
+  hint: EXAMPLE_TEXT(t)[e.key].hint,
+  icon: e.icon,
+  group: t("Tables that transform"),
+  keywords: ["table", "tabelle", "transform", "pipeline", "example", "beispiel", ...e.title.toLowerCase().split(/\W+/)],
+  run: ({ editor, range }) => chain(editor, range).insertContent(exampleContent(EXAMPLE_TEXT(t)[e.key].title, e)).run(),
+});
+
+/** A code cell of a language (Notebook): "/code", "/python", "/node", "/rust". */
+const codeCell = (t: T, id: string, label: string, words: string[]): SlashItem => ({
+  key: `code-${id}`,
+  title: `${t("Code")}: ${label}`,
+  hint: t("A cell you can run — its variables stay for the next one"),
+  icon: "⌨️",
+  group: t("Notebook"),
+  keywords: ["code", "notebook", "jupyter", "run", "cell", "zelle", ...words],
+  run: ({ editor, range }) => chain(editor, range).insertContent([{ type: "codeCell", attrs: { language: id, source: "", outputs: "", count: 0 } }, { type: "paragraph" }]).run(),
+});
+
 export const blockSlashItems = (t: T): SlashItem[] => [
+  codeCell(t, "python", "Python", ["python", "py"]),
+  codeCell(t, "node", "Node.js", ["node", "javascript", "js"]),
+  codeCell(t, "rust", "Rust", ["rust", "rs"]),
+  {
+    key: "table-pipe",
+    title: t("Transform"),
+    hint: t("Takes a table, filters / sorts / totals it — the result is a table"),
+    icon: "🔀",
+    group: t("Tables that transform"),
+    keywords: ["transform", "umwandeln", "pipeline", "pipe", "filter", "sort", "group", "tabelle", "table"],
+    run: ({ editor, range }) => chain(editor, range).insertContent([{ type: "tablePipe", attrs: { name: "", from: "", steps: "" } }, { type: "paragraph" }]).run(),
+  },
+  {
+    key: "pipe-result",
+    title: t("Result table"),
+    hint: t("Shows the result of a transform (or a database) as a table, wherever you put it"),
+    icon: "📋",
+    group: t("Tables that transform"),
+    keywords: ["result", "ergebnis", "output", "ausgabe", "tabelle", "table", "pipeline"],
+    run: ({ editor, range }) => chain(editor, range).insertContent([{ type: "pipeResult", attrs: { of: "@above", title: "" } }, { type: "paragraph" }]).run(),
+  },
   callout(t, "info", "ℹ️", "blue", "Info box", "A blue note", ["info", "note", "hint"]),
   callout(t, "success", "✅", "green", "Success box", "A green note — it worked", ["success", "done", "ok", "green"]),
   callout(t, "warning", "⚠️", "yellow", "Warning box", "A yellow note — careful", ["warning", "caution", "yellow"]),
@@ -84,6 +137,7 @@ export const blockSlashItems = (t: T): SlashItem[] => [
     run: ({ editor, range }) => editor.chain().focus().insertContentAt(range, "/blocks ").run(),
   },
   ...LIBRARY.filter((b) => b.widget).map((b) => widget(t, b)),
+  ...PIPE_EXAMPLES.map((e) => pipeExample(t, e)),
   snippet(t, "meeting", "📝", "Meeting notes", "Attendees, agenda, decisions, action items", ["Attendees", "Agenda", "Decisions", "Action items"], ["meeting", "protokoll"]),
   snippet(t, "proscons", "⚖️", "Pros and cons", "Weigh a choice", ["Pros", "Cons", "Verdict"], ["pros", "cons", "decision"]),
   snippet(t, "decision", "🧭", "Decision record", "Context, options and the outcome", ["Context", "Options", "Decision", "Consequences"], ["decision", "adr", "entscheidung"]),

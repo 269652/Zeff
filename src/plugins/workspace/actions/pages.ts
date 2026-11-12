@@ -265,6 +265,7 @@ export async function installPackageAction(json: string, parentId: number | null
     } catch {
       throw new Error(t("This is not a package file."));
     }
-    return { id: (await import("../packages")).installPackage(pkg as never, parentId ?? null).rootId };
+    const r = await (await import("../package-life")).installTracked(pkg as never, parentId ?? null);
+    return { id: r.rootId, tests: r.tests };
   });
 }

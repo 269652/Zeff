@@ -70,7 +70,9 @@ const MODULES: Record<string, () => Promise<ViewAppModule>> = {
   cases: () => import("@/plugins/cases/ui/view-parts").then((m) => m.default),
   debts: () => import("@/plugins/finances/ui/view-parts").then((m) => m.default),
   agenda: () => import("@/plugins/agenda/ui/view-parts").then((m) => m.default),
-  learn: () => import("@/plugins/learn/ui/view-parts").then((m) => m.default),
+  news: () => import("@/plugins/news/ui/view-parts").then((m) => m.default),
+  jira: () => import("@/plugins/jira/ui/view-parts").then((m) => m.default),
+  gitlab: () => import("@/plugins/gitlab/ui/view-parts").then((m) => m.default),
 };
 
 type HostProps = AppViewProps & { src: string; onErrors?: (errors: { line: number; message: string }[]) => void };

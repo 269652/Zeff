@@ -12,7 +12,7 @@ import type { TodoView } from "@/lib/todos/shared";
 /** The source of a chat's own todo — what makes a Work session a chat. */
 export const CHAT_SOURCE = "Zeff-Chat";
 
-/** A plugin's kind of chat (the Learn plugin's lessons: "learn") — its todos' source. */
+/** A plugin's kind of chat (a plugin's kind of chat: a lesson, a briefing …) — its todos' source. */
 export const chatSource = (kind: string) => `${CHAT_SOURCE}:${kind}`;
 
 /** Whether a todo is a chat's: the plain chat's, or a plugin's kind of chat (its own rules and tools: registerChatProfile). */
@@ -27,8 +27,10 @@ const profiles = ((globalThis as { __zeffChatProfiles?: Map<string, ProfileFn> }
 export const registerChatProfile = (kind: string, fn: ProfileFn) => void profiles.set(kind, fn);
 
 /** A chat's profile: its kind's (a plugin's), else the plain chat's. `preamble`: your own instructions for every agent. */
-export function chatProfileFor(todo: Pick<TodoView, "id" | "source" | "text">, preamble: string): ChatProfile {
+export async function chatProfileFor(todo: Pick<TodoView, "id" | "source" | "text">, preamble: string): Promise<ChatProfile> {
   const kind = todo.source?.startsWith(`${CHAT_SOURCE}:`) ? todo.source.slice(CHAT_SOURCE.length + 1) : "";
+  // A kind an external plugin brings (manifest chats): its rules are its file, filled by its context function.
+  if (kind.startsWith("ext.")) return (await import("@/lib/work/ext-chat")).extProfile(todo, kind, preamble);
   const fn = kind ? profiles.get(kind) : undefined;
   return fn ? fn(todo, preamble) : { rules: chatRules(preamble), allowedTools: CHAT_ALLOWED_TOOLS, disallowedTools: CHAT_DISALLOWED_TOOLS };
 }

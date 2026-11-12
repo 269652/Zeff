@@ -154,7 +154,8 @@
   border-collapse: collapse;
   table-layout: fixed;
   width: 100%;
-  margin: 0.6rem 0;
+  /* (No space of its own above and below: it lay inside the wrapper, as a gap within a stripe or frame. The wrapper has it.) */
+  margin: 0;
   overflow: hidden;
 }
 .ws-editor .ProseMirror td,
@@ -188,6 +189,7 @@
 }
 .ws-editor .ProseMirror .tableWrapper {
   overflow-x: auto;
+  margin: 0.6rem 0;
 }
 /* toggle (details) */
 .ws-editor .ProseMirror [data-type="details"] {
@@ -388,6 +390,20 @@
 @media (max-width: 639px) {
   .ws-handle {
     transform: none;
+  }
+}
+/* Wider screens: a column of its own, outside to the left of the block (＋, ✨, ⠿ one above the other) — never over its content.
+   Only the block last visited has one, so a short block's column cannot lie on another block's. */
+@media (min-width: 640px) {
+  .ws-handle {
+    flex-direction: column;
+    transform: translate(-8px, 2px);
+  }
+  .ws-handle button,
+  .ws-handle .ws-grip {
+    width: 1.3rem;
+    height: 1.3rem;
+    font-size: 0.85rem;
   }
 }
 .ws-handle button,
@@ -1497,5 +1513,142 @@
   .ws-assist-chip {
     border-color: var(--color-zinc-600, #52525b);
     background: var(--color-zinc-900, #18181b);
+  }
+}
+
+/* The transform block (pipe-nodes.tsx): fields of one height, titles edited where they stand. */
+.ws-pipe-field {
+  width: auto;
+  height: 1.75rem;
+  padding-block: 0;
+  font-size: 0.75rem;
+  line-height: 1.25rem;
+}
+.ws-inline-edit {
+  display: inline-block;
+  min-width: 3ch;
+  max-width: 100%;
+  margin-inline: -0.3rem;
+  padding: 0 0.3rem;
+  border-radius: 0.3rem;
+  outline: none;
+  cursor: text;
+  overflow-wrap: anywhere;
+}
+.ws-inline-edit:hover {
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 10%, transparent);
+}
+.ws-inline-edit:focus {
+  background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 10%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in oklab, var(--color-indigo-500, #6366f1) 45%, transparent);
+}
+.ws-inline-edit:empty::before {
+  content: attr(data-placeholder);
+  color: var(--color-zinc-400, #a1a1aa);
+}
+
+/* Data flow (data-flow-ext.ts): a block on a connection has a stripe in its colour, and a link chip above it. */
+.ws-flow {
+  position: relative;
+}
+/* A block on a data flow: a column along its left edge in the colour of the flow (the pipeline) — the same colour as its link chips. */
+.ws-flow::before {
+  content: "";
+  position: absolute;
+  z-index: 2;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 5px;
+  border-radius: 2px;
+  pointer-events: none;
+  background: var(--flow);
+}
+.ws-flow-chip {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.3rem;
+  margin: 0.35rem 0 0.1rem;
+  font-size: 0.7rem;
+  line-height: 1.1rem;
+  user-select: none;
+}
+.ws-flow-icon {
+  color: var(--flow);
+}
+.ws-flow-part {
+  padding: 0 0.45rem;
+  border-radius: 999px;
+  color: var(--flow);
+  background: color-mix(in oklab, var(--flow) 13%, transparent);
+  border: 1px solid color-mix(in oklab, var(--flow) 35%, transparent);
+}
+.ws-flow-part[data-jump] {
+  cursor: pointer;
+}
+.ws-flow-part[data-jump]:hover {
+  background: color-mix(in oklab, var(--flow) 24%, transparent);
+}
+
+/* A table by how it is kept (data-flow-ext.ts): typed (editable), protected, or worked out from a source. */
+.ws-mode-pill {
+  font-weight: 500;
+}
+table[data-locked="true"],
+[data-locked="true"] table {
+  cursor: not-allowed;
+}
+.ws-mode-locked {
+  opacity: 0.92;
+}
+/* A table that is worked out, not typed: its own background. */
+.ws-mode-computed {
+  border-radius: 0.5rem;
+  background: color-mix(in oklab, #8b5cf6 8%, transparent);
+}
+/* (The chip below a block — where its data goes — hangs under it, close.) */
+.ws-flow-chip.ws-flow-out {
+  margin: 0.1rem 0 0.35rem;
+}
+
+/* The sort button in a table's header cells (table-sort-ext.ts): at the cell's right, shown on hover, always once sorted. */
+.ws-editor .ProseMirror th.ws-has-sort {
+  padding-right: 1.6rem;
+}
+.ws-sort-btn {
+  position: absolute;
+  top: 0.35rem;
+  right: 0.3rem;
+  padding: 0 0.2rem;
+  border: 0;
+  border-radius: 0.25rem;
+  background: transparent;
+  color: var(--color-zinc-500, #71717a);
+  font-size: 0.75rem;
+  line-height: 1.2rem;
+  cursor: pointer;
+  opacity: 0;
+  transition: opacity 0.15s;
+  user-select: none;
+}
+th:hover > .ws-sort-btn,
+.ws-sort-btn:focus-visible,
+.ws-sort-btn.is-sorted {
+  opacity: 1;
+}
+.ws-sort-btn.is-sorted {
+  color: var(--color-indigo-600, #4f46e5);
+}
+.ws-sort-btn:hover:not(:disabled) {
+  background: color-mix(in oklab, var(--color-zinc-500, #71717a) 18%, transparent);
+}
+.ws-sort-btn:disabled {
+  cursor: not-allowed;
+}
+/* (A phone has no hover: the button is always there, faint.) */
+@media (hover: none) {
+  .ws-sort-btn {
+    opacity: 0.7;
   }
 }

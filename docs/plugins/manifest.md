@@ -51,6 +51,8 @@ is never granted, and a method or contribution that needs one fails or is skippe
 | `llm.write` | Change the instructions and numbers of the AI steps | `llm.steps.update` |
 | `timeline.read` | Read the timeline: what happened with people, tickets, pages and projects | `timeline.for`, `timeline.since` |
 | `workspace.write` | Add and change pages and rows of the Workspace | `workspace.rows.add`, `workspace.rows.update`, `workspace.pages.create`, `workspace.pages.append` |
+| `calendar.read` | Read your appointments | `calendar.events` |
+| `calendar.write` | Add and remove appointments in Zeff's own calendars | `calendar.event.add`, `calendar.event.delete` |
 | `prompt` | Add rules to what Work's workers are told | `contributes.workerRules` |
 | `exec` | Run programs on this computer — **with your rights** | `contributes.hooks`, stdio entries of `contributes.workerMcpServers` |
 | `network` | Let the plugin's panels contact other websites; allow http MCP servers | http entries of `contributes.workerMcpServers` |
@@ -180,3 +182,133 @@ the folder to hand the app on.
 
 In a checkout: `npm run plugin:check -- path/to/plugin` validates the manifest and that the files it names exist
 (rules, panel pages, hook and server scripts). In the app, the Plugins page shows the same errors.
+
+## `contributes.functions` — server functions of your own
+
+A plugin can bring **functions**: code (Python or Node.js) that runs in the [Notebook](../extensions/notebook.md)'s sessions — in a Docker
+container by default — and is called by name. This is a plugin's own server side.
+
+```json
+"contributes": {
+  "functions": [{
+    "name": "summarize",
+    "title": "Summarize a text",
+    "runtime": "python",
+    "file": "fn/summarize.py",
+    "input": { "text": "the text to summarize" },
+    "needs": ["metrics", "write:outputs"],
+    "timeoutSeconds": 60
+  }]
+}
+```
+
+- **The code** gets its arguments as `inputs["text"]` (and as variables) and gives back what it **returns** — its last expression, or a
+  top-level `return` — as JSON. It has the whole `zeff.*` of a Notebook cell (`zeff.metrics()`, `zeff.meta.…`, `zeff.call(plugin, name, **args)`).
+- **`needs`** lists what of Zeff it reads or changes (the Notebook's permission keys: `metrics`, `outputs`, `databases`, `database:<id>`,
+  `write:outputs`, `write:database:<id>`, `delete:database:<id>`, `meta:…`, `call:<plugin>.<name>`). There is nobody to ask when a function runs
+  (an HTTP call, a job), so the user allows them **in advance**: *Settings → Notebook → Functions → Allow what they need*. What is not
+  allowed is refused. A function has no page, so it reads no page tables.
+- **Called** over HTTP — `POST /api/ext/fn/<plugin>/<name>` with the arguments as a JSON object (the plugin's own programs send
+  `Authorization: Bearer $ZEFF_EXT_TOKEN`; Zeff's own pages call it same-origin) — answering `{ "ok": true, "result": …, "log": "…" }` — and
+  from Notebook cells with `zeff.call("my-plugin", "summarize", text=…)` (a permission of its own, `call:<plugin>.<name>`). Functions
+  calling functions go at most 4 deep.
+- Also called **from widgets** (`zeff.fn.call("my-plugin", "summarize", { text })` — the widget asks, you allow that function for its code, like
+  any permission of a widget), **from flows** (the action `fn.call`; the flow's permissions, *Zeff's structure → Functions it may call*) and
+  **by agents** over MCP (`workspace_functions`, `workspace_call_function`) — in every case the function only does what it was granted.
+- A function of a plugin that brings its own **package** names that package's databases by their place in it: `"needs": ["database:@my-pkg.i2", "write:database:@my-pkg.i2"]` (the package's `id` and the item's number). Once the package is installed, *Allow what they need* grants them for the database it made.
+- Needs the Notebook plugin installed and *Let code blocks run* switched on; the plugin must be on in the account.
+
+## `contributes.workspacePackages` — apps that live
+
+Each file is a package (JSON). With an `id` and a `version` the install is remembered and a newer version of the same `id` — shipped in a
+newer version of your plugin — updates the installed pages **in place**, migrating data by the `migrations` you declare, checking
+`requires` / `plugins`, running your `tests`, and keeping what the user changed. The format and an example are in
+[Packages that live](../extensions/workspace.md).
+
+## `contributes.flowActions` — actions for flows
+
+A plugin can bring **actions for flows** — blocks of the Studio's catalog (and of the AI's, when it builds a flow) — each done by one of its
+`functions`:
+
+```json
+"flowActions": [{
+  "name": "summarize", "label": "Summarize a text", "summary": "Boils a text down to a few sentences.",
+  "function": "summarize",
+  "input": [{ "name": "text", "type": "text", "required": true }],
+  "output": "{ summary }",
+  "writes": false
+}]
+```
+
+The action is called `<plugin id>.<name>` (`my-plugin.summarize`). Its input is the function's arguments, its output the function's result.
+A flow that uses it needs the permission to call that function (*Zeff's structure → Functions it may call: `my-plugin.summarize`*); the
+function itself only does what it was granted in Settings → Notebook → Functions. `writes: true`: a dry run does not call it.
+
+## `contributes.lookups` and `contributes.sources` — search and data, done by functions
+
+A plugin can bring a **lookup** (what a view's `<lookup>` searches: a film, a book, a bird) and a **data source** (records a database can
+follow, which filters, joins and views then work on) — each read by one of its `functions`:
+
+```json
+"lookups": [{ "id": "birds", "label": "Birds", "what": "Finds birds by name.",
+  "fields": { "title": "name", "wings": "wing span in cm" },
+  "search": "find", "details": "one" }],
+"sources": [{ "id": "birds", "label": "Birds", "hint": "The birds in my notebook", "read": "all" }]
+```
+
+- Lookup `search` gets `{ query, language }` and returns `[{ id, title, subtitle?, image? }]`; `details` gets `{ id, language }` and returns
+  the fields by name. The lookup is called `<plugin id>.<id>`.
+- Source `read` returns `[{ ref, title, key?, fields?, text?, url?, updatedAt? }]` (`ref` identifies the record). Its id is `<plugin id>.<id>`;
+  by default its records are read-only (`noNewRows`).
+- The functions only do what the user granted them (Settings → Notebook → Functions). Both appear only while the plugin is on.
+
+## Webhooks — a function called from outside
+
+A function with `"webhook": true` can be called by a program outside Zeff: `POST /api/ext/hook/<plugin>/<name>` (add `?account=<id>` for
+another account). You switch this on yourself in *Settings → Notebook → Functions of plugins* — that makes a **secret** for the plugin; the
+caller sends it as `Authorization: Bearer <secret>`. Without a secret nobody can call; *Make a new secret* ends the old one. The body is the
+function's arguments (JSON; any other body arrives as `{ "body": "…" }`). The function does only what it was granted, like any call.
+(Zeff listens on this computer only; to reach it from the internet you need a tunnel of your own.)
+
+## `contributes.fieldTypes` — field types without code
+
+A plugin can add **field types** to the Workspace's databases (a ticket key, a country, a score). No function is needed: an entry is checked
+by what the type says and drawn the way it says.
+
+```json
+"fieldTypes": [
+  { "id": "ticket", "label": "Ticket", "kind": "text", "pattern": "^[A-Z]+-\\d+$", "display": "link", "href": "https://tracker.example/{value}" },
+  { "id": "score", "label": "Score", "kind": "number", "min": 0, "maxValue": 10, "display": "progress" },
+  { "id": "mood", "label": "Mood", "kind": "choice", "options": ["good", "ok", "bad"], "display": "badge" }
+]
+```
+
+`kind`: `text` (any text, optionally matching `pattern`), `number` (between `min` and `maxValue`) or `choice` (one of `options`, offered while
+typing). `display`: `text`, `rating` (stars, up to `max`), `progress` (a bar, 0–100), `badge` or `link`. Its id is `<plugin id>.<id>`.
+
+Functions can also use Zeff's plugin methods (`"needs": ["api:todos.add", "api:calendar.event.add"]`, `zeff.api(…)` in the code) and the AI (`"needs": ["ai"]`, `zeff.ai(…)`); a package's databases are named `@my-pkg.i3` in `needs`, in code, in flows (`db.query`) — see [Packages that live](../extensions/workspace.md).
+
+A complete example that uses most of this: [src/plugins/learn/bundled](../../src/plugins/learn/bundled) — Zeff's Learn as an external plugin.
+
+## `contributes.chats` — a live agent of your own
+
+A plugin can bring a **kind of chat**: a live Claude session in Zeff (like the chat, or Work) with rules, tools and a conversation of its
+own — a teacher, a coach, a reviewer. The rules are a text file of the plugin; `{{name}}` places in it are filled by one of its functions
+(the *context*, called with `{ key }` each time a session starts, so the rules always say how things stand now). The agent works only
+inside Zeff, like every chat; its tools are the chat's own plus the Zeff MCP tools you list — `workspace_call_function` calls the plugin's
+functions, which do what the user granted them.
+
+```json
+"chats": [{
+  "id": "lesson", "rules": "teacher.md", "context": "lesson-context",
+  "tools": ["workspace_call_function", "workspace_functions"],
+  "conversation": { "database": "@my-pkg.i9", "text": "Text", "role": "Role", "key": "Step", "kind": "Kind", "run": "Run", "order": "Order", "at": "At",
+                    "watch": { "exercise": "exercise", "mastered": "master" } }
+}]
+```
+
+- A chat is one conversation **per key** (a step, a ticket, a customer). The view tag `<chat chat="my-plugin.lesson" key="{{ state.step }}"/>`
+  shows the box: *Begin* the first time, the live session while the agent speaks, the message box otherwise.
+- `conversation` keeps the conversation in a **database you can edit**, one row per message (yours, the agent's, an exercise made, a step
+  mastered — `watch` names the plugin functions whose calls are messages of their own). The view shows the conversation from there. What you
+  change or delete in the database is what the chat goes on with: the next message starts a fresh session with the stored conversation.

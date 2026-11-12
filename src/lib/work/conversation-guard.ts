@@ -22,12 +22,20 @@ const guards = (g.__zeffConversationGuards ??= new Map());
 
 export const registerConversationGuard = (source: string, guard: ConversationGuard): void => void guards.set(source, guard);
 
+/** A guard for every chat whose source starts so (the chats an external plugin brings: "Zeff-Chat:ext."). */
+const byPrefix = ((g as { __zeffConversationGuardPrefixes?: Map<string, (source: string) => ConversationGuard | undefined> }).__zeffConversationGuardPrefixes ??= new Map());
+export const registerConversationGuardFor = (prefix: string, make: (source: string) => ConversationGuard | undefined): void => void byPrefix.set(prefix, make);
+
 /** The plugins' server modules (where the guards are registered) — loaded once. */
 const loaded = () => import("@/plugins/contributions").catch(() => undefined);
 
 const guardOf = (todoId: number | null | undefined): ConversationGuard | undefined => {
   const src = todoId ? getTodo(todoId)?.source : undefined;
-  return src ? guards.get(src) : undefined;
+  if (!src) return undefined;
+  const exact = guards.get(src);
+  if (exact) return exact;
+  for (const [prefix, make] of byPrefix) if (src.startsWith(prefix)) return make(src);
+  return undefined;
 };
 
 /** The context a chat's next run must start a fresh session with — null: it goes on in its session. */

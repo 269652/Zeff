@@ -19,11 +19,25 @@ export type SetData = (name: string, patch: Record<string, unknown>) => void;
 export function FlowData({ a, setData, row }: { a: Record<string, string>; setData: SetData; row?: number }) {
   const key = JSON.stringify([a.flow, a.with ?? "", a.when ?? "__"]);
   const seq = useRef(0);
+  const keptFor = useRef("");
+  const keptText = useRef<string | null>(null);
   useEffect(() => {
     const name = a.name;
     if (a.when !== undefined && !a.when.trim()) {
       setData(name, { [name]: null, [`${name}_status`]: "", [`${name}_error`]: null });
       return;
+    }
+    // What this flow gave the last time (kept in the browser, per page): shown at once while it loads again — the screen is there, not empty.
+    const cacheKey = `zeff.flowdata:${typeof location !== "undefined" ? location.pathname : ""}:${JSON.stringify([a.flow, a.with ?? ""])}`;
+    // (Only when it is asked anew — not at every poll of every=, when what it shows is already the last answer.)
+    if (keptFor.current !== cacheKey) {
+      keptFor.current = cacheKey;
+      try {
+        keptText.current = localStorage.getItem(cacheKey);
+        if (keptText.current) setData(name, { [name]: JSON.parse(keptText.current), [`${name}_status`]: "stale", [`${name}_error`]: null });
+      } catch {
+        // no storage: it loads as before
+      }
     }
     const mine = ++seq.current;
     const timer = setTimeout(
@@ -35,6 +49,14 @@ export function FlowData({ a, setData, row }: { a: Record<string, string>; setDa
         const res = r;
         if (res.status === "failed") setData(name, { [`${name}_status`]: "error", [`${name}_error`]: res.error });
         else setData(name, { [name]: res.output, [`${name}_status`]: res.status === "waiting" ? "waiting" : "ok", [`${name}_error`]: null });
+        if (res.status !== "waiting") {
+          try {
+            const text = JSON.stringify(res.output ?? null);
+            if (text.length < 200_000 && text !== keptText.current) localStorage.setItem(cacheKey, (keptText.current = text));
+          } catch {
+            // full or blocked: nothing kept
+          }
+        }
       },
       Math.max(0, Math.min(3000, Number(a.debounce) || 0)),
     );

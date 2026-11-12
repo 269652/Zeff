@@ -9,9 +9,6 @@ export default definePlugin({
   category: "app",
   defaultInstalled: false,
   settings: { href: "/settings/news", what: "Sources, interests, muted words, how it learns" },
-  apps: [
-    { href: "/news", label: "News", short: "News", hint: "Your news, scored for you" },
-  ],
   routes: ["/news", "/settings/news"],
   syncSteps: ["news"],
 });

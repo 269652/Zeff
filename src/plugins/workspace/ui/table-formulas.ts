@@ -24,6 +24,11 @@ export const SheetTable = Table.extend({
         parseHTML: (el: HTMLElement) => el.getAttribute("data-sheet") ?? "",
         renderHTML: (a: { name?: string }) => (a.name ? { "data-sheet": a.name } : {}),
       },
+      locked: {
+        default: false,
+        parseHTML: (el: HTMLElement) => el.getAttribute("data-locked") === "true",
+        renderHTML: (a: { locked?: boolean }) => (a.locked ? { "data-locked": "true" } : {}),
+      },
     };
   },
 });

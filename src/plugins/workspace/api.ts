@@ -1,3 +1,4 @@
+import { isPackageRef, packagePage } from "./package-refs";
 import { t } from "@/lib/i18n/server";
 import { ApiError, str, type ApiContribution, type Params } from "@/lib/plugins/api-kit";
 import { asAgent } from "./agent-scope";
@@ -16,6 +17,11 @@ const lower = (s: string) => s.trim().toLowerCase();
 
 /** A database by its id or its name (exact, else the one name that contains it). */
 export function findDatabase(v: string): number | null {
+  // ("@my-pkg.i3": a database of an installed package by its place in it.)
+  if (isPackageRef(v)) {
+    const own = packagePage(v);
+    return own !== null && getDatabase(own) ? own : null;
+  }
   const id = Number(v);
   if (Number.isInteger(id) && id > 0 && getDatabase(id)) return id;
   const dbs = tree().filter((p) => p.kind === "database" && !p.system);
@@ -141,6 +147,48 @@ const ok = <T extends Params>(p: T): T | null => p;
 const RAW_API: ApiContribution = {
   permissions: () => ({ "workspace.write": t("Add and change pages and rows of the Workspace") }),
   methods: {
+    "workspace.widgets.check": {
+      automatic: true,
+      summary: "Whether a widget can be shown (html, libs) or an exercise set is right (spec: an object or JSON text): { ok, problems, libs, html } — html is the exercise set made into a widget.",
+      run: async (p) => {
+        const { checkWidgetHtml, WIDGET_LIBS } = await import("@/lib/widgets/sandbox");
+        const { checkSpec, specHtml } = await import("@/lib/widgets/spec");
+        let spec: unknown = p.spec;
+        if (typeof spec === "string" && spec.trim()) {
+          try {
+            spec = JSON.parse(spec);
+          } catch (e) {
+            return { ok: false, problems: [`spec isn't valid JSON: ${e instanceof Error ? e.message : String(e)}`], libs: [], html: "" };
+          }
+        }
+        const libs = (Array.isArray(p.libs) ? p.libs : typeof p.libs === "string" ? p.libs.split(",") : []).map((x) => String(x).trim()).filter(Boolean);
+        const unknown = libs.filter((x) => !(x in WIDGET_LIBS));
+        let html = typeof p.html === "string" ? p.html : "";
+        const problems: string[] = unknown.map((x) => `no library "${x}" (there are: ${Object.keys(WIDGET_LIBS).join(", ")})`);
+        if (spec !== undefined && spec !== null && spec !== "") {
+          problems.push(...checkSpec(spec));
+          if (!problems.length) {
+            html = specHtml(spec as Parameters<typeof specHtml>[0]);
+            if (/\$[^$]+\$/.test(JSON.stringify(spec))) libs.push("katex");
+          }
+        } else if (!html.trim()) problems.push("give either spec (an exercise set) or html (a widget of your own)");
+        else {
+          const c = checkWidgetHtml(html);
+          if (!c.ok) problems.push(c.why);
+        }
+        return { ok: problems.length === 0, problems, libs: [...new Set(libs.filter((x) => x in WIDGET_LIBS))], html: problems.length ? "" : html };
+      },
+    },
+    "workspace.widgets.guide": {
+      automatic: true,
+      summary: "How to write a widget and an exercise set (what an AI that builds exercises reads): the sandbox, the libraries, the bridge, the exercise kit's types.",
+      run: async () => {
+        const { WIDGET_GUIDE } = await import("@/lib/widgets/guide");
+        const { KIT_GUIDE } = await import("@/lib/widgets/kit-guide");
+        const { WIDGET_LIBS } = await import("@/lib/widgets/sandbox");
+        return { guide: WIDGET_GUIDE, exercises: KIT_GUIDE, libs: Object.fromEntries(Object.entries(WIDGET_LIBS).map(([k, v]) => [k, v.what])) };
+      },
+    },
     "workspace.rows.add": {
       perm: "workspace.write",
       automatic: true,

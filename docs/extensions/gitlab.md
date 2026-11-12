@@ -6,6 +6,26 @@
 
 ## For users
 
+### Where it is
+
+GitLab's page lives in the **Workspace**: the database **GitLab** (a favourite, made the first time `/gitlab` is opened) holds the synced
+items — Item, Kind (mr, comment, branch), Project, Ref, Author, State, Branch, Ticket, When, Updated, In context, Link, Body — read from
+the source "GitLab" (`gitlab-items`). Its **GitLab** view is the old page in the view language: the sync, the kinds with their counts,
+the search and each item with its text, "done?" and "Add as context". You (or the assistant) can change it like any view, and every
+change is kept as a version.
+
+What a view or flow can do in GitLab (changing GitLab needs the flow permission "send"):
+
+| Flow action | Does |
+| --- | --- |
+| `gitlab.reply` | an answer in a comment's thread (note, body) |
+| `gitlab.resolve` | marks a comment's thread resolved (note) |
+| `gitlab.merge` | merges a merge request (project, iid, source) |
+| `gitlab.sync` | reads the items from GitLab now |
+
+`/gitlab?kind=mr&q=…` opens that page with the kind and the search set.
+
+
 ### What it does
 
 When you write code, much of the conversation about it happens in GitLab: reviewers comment on lines of a merge request,

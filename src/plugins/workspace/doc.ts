@@ -6,6 +6,7 @@
  */
 
 import { legacyDataBlock, LEGACY_DATA_BLOCKS } from "./legacy-blocks";
+import { normalizeSteps, stepsFromText, stepsToText } from "./table-pipe";
 import { COLORS } from "./model";
 import { MAX_STATE, wantsOf } from "@/lib/widgets/bridge";
 import { MAX_WIDGET_HTML, WIDGET_LIBS } from "@/lib/widgets/sandbox";
@@ -215,6 +216,15 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
       return blocks(kids).split("\n").map((l) => `> ${l}`.trimEnd()).join("\n");
     case "callout":
       return `:::callout ${String(n.attrs?.icon ?? "💡")} ${String(n.attrs?.tone ?? "gray")}\n${blocks(kids)}\n:::`;
+    case "codeCell":
+      // A code cell: its language, its run number and its code (the outputs stay with the page, not in Markdown).
+      return `:::code ${JSON.stringify({ language: String(n.attrs?.language ?? "python"), ...(Number(n.attrs?.count) > 0 ? { count: Number(n.attrs?.count) } : {}), ...(String(n.attrs?.name ?? "").trim() ? { name: String(n.attrs?.name).trim() } : {}), ...(codeInputs(n.attrs?.inputs).length ? { inputs: codeInputs(n.attrs?.inputs) } : {}) })}
+${String(n.attrs?.source ?? "").replace(/^:::$/gm, " :::")}
+:::`;
+    case "panel":
+      return `:::panel ${JSON.stringify({ title: String(n.attrs?.title ?? ""), ...(n.attrs?.desc ? { desc: String(n.attrs.desc) } : {}), ...(n.attrs?.collapsed ? { collapsed: true } : {}) })}
+${blocks(kids)}
+:::`;
     case "codeBlock":
       return `\`\`\`${String(n.attrs?.language ?? "")}\n${kids.map((c) => c.text ?? "").join("")}\n\`\`\``;
     case "horizontalRule":
@@ -250,6 +260,11 @@ function block(n: DocNode, ctx: { ordered?: number; nested?: boolean } = {}): st
       return Number(n.attrs?.formId) > 0 ? `:::form ${Number(n.attrs!.formId)}` : ":::form";
     case "calendarEmbed":
       return `:::calendar ${Number(n.attrs?.calendarId) || 0} ${["day", "week", "month"].includes(String(n.attrs?.view)) ? String(n.attrs?.view) : "week"}${/^\d{4}-\d{2}-\d{2}$/.test(String(n.attrs?.day ?? "")) ? ` @${String(n.attrs?.day)}` : ""}${/^\d+(,\d+)*$/.test(String(n.attrs?.also ?? "")) ? ` +${String(n.attrs?.also)}` : ""}`;
+    case "tablePipe":
+      // A transform of a page's table: its name, what it reads, its steps (JSON, one line).
+      return `:::pipe ${JSON.stringify({ name: String(n.attrs?.name ?? ""), from: String(n.attrs?.from ?? ""), steps: stepsFromText(n.attrs?.steps), ...(n.attrs?.desc ? { desc: String(n.attrs.desc) } : {}), ...(n.attrs?.collapsed ? { collapsed: true } : {}) })}`;
+    case "pipeResult":
+      return `:::result ${JSON.stringify({ of: String(n.attrs?.of ?? ""), title: String(n.attrs?.title ?? "") })}`;
     case "zeffTimeline":
       return `:::block timeline ${JSON.stringify({ ...(n.attrs?.ref ? { ref: String(n.attrs.ref) } : {}), limit: Number(n.attrs?.limit) || 20 })}`;
     case "zeffTabs":
@@ -449,6 +464,22 @@ export function markdownToDoc(md: string): Doc {
         i++;
         continue;
       }
+      // :::code {"language":"python"} / its code / :::  - a code cell that runs (the Notebook plugin)
+      const cc = /^:::code(?:\s+(\{.*\}))?\s*$/.exec(l);
+      if (cc) {
+        let a: Record<string, unknown> = {};
+        try {
+          a = cc[1] ? (JSON.parse(cc[1]) as Record<string, unknown>) : {};
+        } catch {
+          a = {};
+        }
+        const code: string[] = [];
+        i++;
+        while (i < lines.length && lines[i].trimEnd() !== ":::") code.push(lines[i++]);
+        i++;
+        out.push({ type: "codeCell", attrs: codeCellAttrs({ language: a.language, count: a.count, name: a.name, inputs: Array.isArray(a.inputs) ? JSON.stringify(a.inputs) : "", source: code.join("\n").replace(/^ :::$/gm, ":::") }) });
+        continue;
+      }
       // :::app {"title":"…","libs":["chart"],"writes":[12]} / its HTML / :::  - a widget an AI wrote (a form, a table, a small app)
       const ap = /^:::app(?:\s+(\{.*\}))?\s*$/.exec(l);
       if (ap) {
@@ -475,6 +506,24 @@ export function markdownToDoc(md: string): Doc {
         i++;
         continue;
       }
+      // :::pipe {"name":"Ergebnis","from":"Ausgaben","steps":[…]}  - a page's table transformed;  :::result {"of":"Ergebnis"}  - a table showing its output
+      const pp = /^:::(pipe|result)\s*(\{.*\})?\s*$/.exec(l);
+      if (pp) {
+        let a: Record<string, unknown> = {};
+        try {
+          a = pp[2] ? (JSON.parse(pp[2]) as Record<string, unknown>) : {};
+        } catch {
+          a = {};
+        }
+        const t = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+        out.push(
+          pp[1] === "pipe"
+            ? { type: "tablePipe", attrs: { name: t(a.name, 80), from: t(a.from, 120), steps: stepsToText(normalizeSteps(a.steps)), desc: t(a.desc, 400), collapsed: a.collapsed === true } }
+            : { type: "pipeResult", attrs: { of: t(a.of, 120), title: t(a.title, 120) } },
+        );
+        i++;
+        continue;
+      }
       // :::block activity {"limit":12}, belongs, timeline  - the entry's own blocks
       const blk = /^:::block\s+(activity|belongs|timeline)\s*(\{.*\})?\s*$/.exec(l);
       if (blk) {
@@ -494,13 +543,13 @@ export function markdownToDoc(md: string): Doc {
         continue;
       }
       // :::callout 💡 blue ... :::   and   :::toggle Summary ... :::   (nested blocks inside; they may nest)
-      const dir = /^:::(callout|toggle|tabs|tab)\s*(.*)$/.exec(l);
+      const dir = /^:::(callout|toggle|tabs|tab|panel)\s*(.*)$/.exec(l);
       if (dir) {
         const inner: string[] = [];
         let depth = 1;
         i++;
         while (i < lines.length) {
-          if (/^:::(callout|toggle|tabs|tab)\b/.test(lines[i])) depth++;
+          if (/^:::(callout|toggle|tabs|tab|panel)\b/.test(lines[i])) depth++;
           else if (/^:::\s*$/.test(lines[i]) && --depth === 0) break;
           inner.push(lines[i++]);
         }
@@ -511,6 +560,15 @@ export function markdownToDoc(md: string): Doc {
           const tone = parts.find((x) => (COLORS as readonly string[]).includes(x));
           const icon = parts.find((x) => x !== tone) ?? "💡";
           out.push({ type: "callout", attrs: { icon, tone: tone ?? "gray" }, content: kids });
+        } else if (dir[1] === "panel") {
+          let a: Record<string, unknown> = {};
+          try {
+            a = dir[2].trim() ? (JSON.parse(dir[2].trim()) as Record<string, unknown>) : {};
+          } catch {
+            a = {};
+          }
+          const tx = (v: unknown, max: number) => (typeof v === "string" ? v.trim().slice(0, max) : "");
+          out.push({ type: "panel", attrs: { title: tx(a.title, 120), desc: tx(a.desc, 400), collapsed: a.collapsed === true }, content: kids.length ? kids : [{ type: "paragraph" }] });
         } else if (dir[1] === "tabs") {
           const tabs = kids.filter((k) => k.type === "zeffTab");
           if (tabs.length) out.push({ type: "zeffTabs", attrs: { active: 0 }, content: tabs });
@@ -612,7 +670,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   hardBreak: [],
   text: [],
   image: ["src", "alt", "title", "width"],
-  table: ["name"],
+  table: ["name", "locked"],
   tableRow: [],
   tableHeader: ["colspan", "rowspan", "colwidth"],
   tableCell: ["colspan", "rowspan", "colwidth"],
@@ -620,6 +678,8 @@ const NODE_ATTRS: Record<string, string[]> = {
   detailsSummary: [],
   detailsContent: [],
   callout: ["icon", "tone"],
+  panel: ["title", "desc", "collapsed"],
+  codeCell: ["language", "source", "outputs", "count", "name", "inputs", "result"],
   flexBox: ["dir", "gap", "wrap", "span"],
   zeffRoutine: [],
   zeffWidget: ["widget", "config", "title", "header"],
@@ -631,6 +691,8 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffActivity: ["limit"],
   zeffBelongs: [],
   zeffTimeline: ["ref", "limit"],
+  tablePipe: ["name", "from", "steps", "desc", "collapsed"],
+  pipeResult: ["of", "title"],
   calendarEmbed: ["calendarId", "view", "day", "also", "proposals"],
   zeffTabs: ["active"],
   zeffTab: ["title"],
@@ -643,7 +705,7 @@ const NODE_ATTRS: Record<string, string[]> = {
   rowView: [],
   aiBlock: ["prompt", "text", "at", "auto"],
   assistCard: ["id", "state"],
-  zeffApp: ["title", "prompt", "html", "libs", "writes", "ai", "state"],
+  zeffApp: ["title", "prompt", "html", "libs", "writes", "ai", "state", "meta"],
 };
 
 /** At most this much of a "✨ Think along" card's state (its questions, answers, proposal) is kept. */
@@ -653,6 +715,40 @@ const ASSIST_STATE_MAX = 20000;
  * A widget block's attributes as they may be kept: its code whole (as long as the sandbox allows — longer than other
  * attributes), only libraries Zeff has, what it asks to write to as ids, its state as JSON. null: no widget.
  */
+/** What a code cell takes in: a list of names (a JSON text, or the list itself); at most 20, each up to 120 characters. */
+export function codeInputs(raw: unknown): string[] {
+  let v: unknown = raw;
+  if (typeof v === "string") {
+    try {
+      v = v.trim() ? (JSON.parse(v) as unknown) : [];
+    } catch {
+      v = [];
+    }
+  }
+  return (Array.isArray(v) ? v : []).map((x) => (typeof x === "string" ? x.trim().slice(0, 120) : "")).filter(Boolean).slice(0, 20);
+}
+
+/** A code cell's attributes as they may be kept: a language name, its code whole, its outputs as JSON (not past the size a page can carry), its run number. */
+export function codeCellAttrs(raw: Record<string, unknown>): Record<string, unknown> {
+  const language = /^[a-z][\w-]{0,19}$/i.test(String(raw.language ?? "")) ? String(raw.language).toLowerCase() : "python";
+  const source = typeof raw.source === "string" ? raw.source.slice(0, 400_000) : "";
+  let outputs = typeof raw.outputs === "string" ? raw.outputs : "";
+  try {
+    if (outputs && (outputs.length > 1_500_000 || !Array.isArray(JSON.parse(outputs)))) outputs = "";
+  } catch {
+    outputs = "";
+  }
+  // Its output (named: other blocks read it by that name), what it takes in (names of tables, results, other cells), its last return value.
+  const name = typeof raw.name === "string" ? raw.name.replace(/\s+/g, " ").trim().slice(0, 80) : "";
+  let result = typeof raw.result === "string" ? raw.result : "";
+  try {
+    if (result && (result.length > 1_500_000 || JSON.parse(result) === undefined)) result = "";
+  } catch {
+    result = "";
+  }
+  return { language, source, outputs, count: Math.max(0, Math.min(1_000_000, Math.floor(Number(raw.count)) || 0)), name, inputs: JSON.stringify(codeInputs(raw.inputs)), result };
+}
+
 function appAttrs(raw: Record<string, unknown>): Record<string, unknown> | null {
   const html = typeof raw.html === "string" ? raw.html : "";
   if (html.length > MAX_WIDGET_HTML) return null;
@@ -663,10 +759,10 @@ function appAttrs(raw: Record<string, unknown>): Record<string, unknown> | null 
     state = "";
   }
   const libs = String(raw.libs ?? "").split(",").map((s) => s.trim()).filter((l) => Object.prototype.hasOwnProperty.call(WIDGET_LIBS, l));
-  const w = wantsOf(raw.writes, raw.ai, raw.flows);
+  const w = wantsOf(raw.writes, raw.ai, raw.flows, raw.meta);
   // (wid: the block's own id — its versions are kept by it, widget-versions.ts.)
   const wid = typeof raw.wid === "string" && /^[a-z0-9]{8,24}$/.test(raw.wid) ? raw.wid : "";
-  return { title: String(raw.title ?? "").trim().slice(0, 80), prompt: String(raw.prompt ?? "").slice(0, 4000), html, libs: [...new Set(libs)].join(","), writes: w.writes.join(","), ai: !!w.ai, flows: (w.flows ?? []).join(","), wid, state };
+  return { title: String(raw.title ?? "").trim().slice(0, 80), prompt: String(raw.prompt ?? "").slice(0, 4000), html, libs: [...new Set(libs)].join(","), writes: w.writes.join(","), ai: !!w.ai, flows: (w.flows ?? []).join(","), meta: (w.meta ?? []).join(","), wid, state };
 }
 
 /** A widget block from its Markdown: the head's JSON (title, prompt, libs, writes, ai) and its code. */
@@ -749,6 +845,10 @@ export function sanitizeDoc(input: unknown): Doc {
         if (!(BLOCK_MODULES as readonly unknown[]).includes(attrs.module)) return null;
         attrs.key = String(attrs.key ?? "").trim().toUpperCase().slice(0, 40);
       }
+      if (o.type === "codeCell") {
+        out.attrs = codeCellAttrs((o.attrs ?? {}) as Record<string, unknown>);
+        return out;
+      }
       if (o.type === "zeffApp") {
         // Its code and state whole (longer than other attributes): from the node as given, checked in appAttrs.
         const made = appAttrs(o.attrs as Record<string, unknown>);
@@ -800,6 +900,18 @@ export function sanitizeDoc(input: unknown): Doc {
       }
       if (o.type === "zeffTabs") attrs.active = Math.max(0, Math.min(40, Math.floor(Number(attrs.active)) || 0));
       if (o.type === "zeffTab") attrs.title = String(attrs.title ?? "").trim().slice(0, 60) || "Tab";
+      if (o.type === "tablePipe") {
+        // Its steps whole (longer than other attributes), only known steps kept.
+        attrs.steps = stepsToText(stepsFromText((o.attrs as Record<string, unknown>).steps));
+        attrs.name = String(attrs.name ?? "").trim().slice(0, 80);
+        attrs.from = String(attrs.from ?? "").trim().slice(0, 120);
+        attrs.desc = String(attrs.desc ?? "").trim().slice(0, 400);
+        attrs.collapsed = attrs.collapsed === true;
+      }
+      if (o.type === "pipeResult") {
+        attrs.of = String(attrs.of ?? "").trim().slice(0, 120);
+        attrs.title = String(attrs.title ?? "").trim().slice(0, 120);
+      }
       if (o.type === "zeffTimeline") {
         attrs.limit = Math.max(1, Math.min(100, Math.floor(Number(attrs.limit)) || 20));
         attrs.ref = String(attrs.ref ?? "").trim().slice(0, 200);

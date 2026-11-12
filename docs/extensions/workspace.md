@@ -36,6 +36,11 @@ separate notes app it knows the rest of Zeff:
 - **AI where you write:** "✨" on any page — *Think along*, *Write* (improve, shorter, translate, continue, summarize),
   *Ask about this page*; AI blocks that keep a section of a page up to date; *Make Zeff todos* from a page; the
   *Workspace assistant* in the sidebar that changes rows, views and pages for you.
+- **Tables that transform and a data flow you can see:** a table → a *transform* (filter, sort, group and total, formulas) →
+  a *result table*; chips and coloured columns show who reads whom, and every table says whether it is typed, protected
+  or calculated (see *Tables that transform*).
+- **Code cells:** run Python, Node.js or Rust in any page — see [Notebook](notebook.md).
+- **Containers:** *Wrap* puts blocks in a panel, box, toggle, columns or tabs; a sticky *Run all* for code cells.
 - **Kennzahlen (metrics):** named numbers — your own formulas, a column's sum, or a number a plugin knows — readable in
   any formula, any page (`@Sparrate`) and by agents.
 
@@ -155,6 +160,32 @@ first as a read-only preview of what it would make, with *Use* and *Duplicate as
 Plugins can add whole *packages* (an app of pages, databases and routines); any page tree can be exported as a package
 and installed elsewhere. A page marked *Save as template* moves to *Templates* in the tree.
 
+##### Packages that live
+
+A package with an `id` and a `version` is **remembered** when it is installed (which page is which part of the package), and a newer
+version **updates those pages in place** — *Workspace settings → Packages*, or the assistant's tools `workspace_package_*`:
+
+- **What you changed stays.** A page, form, flow or database you did not touch is brought to the new version; one you changed keeps your
+  version (a database you changed still gets the properties and views the package adds). *Update, replacing my changes* lets the package win.
+- **Data is migrated** by steps the package declares per version (`migrations`): `rename_property`, `remove_property` (before the new
+  structure is applied) and `fill`, `copy`, `map` (after it, so they can use a new property).
+- **Requirements** (`requires`: other packages with a version range like `^1.0.0`; `plugins`) are checked before installing; what a
+  package **asks for** (flows' permissions, routines, widgets with code, plugins) is listed beforehand. Flows come in without permissions,
+  routines switched off, as always.
+- **Tests that ship with the package** (`tests`): `page`, `property` (with a type), `rows` (min/max), `view` (its templates hold together),
+  `flow` (a dry run). They run after an install or update, and on demand.
+- **History and roll-back.** Every install, update and roll-back is in the package's history with what changed and the test results; the
+  last eight versions are kept and can be brought back (the structure comes back over yours; migrated data is not undone).
+
+```json
+{ "format": 1, "id": "crm", "name": "CRM", "version": "1.1.0", "requires": [{ "package": "base", "version": "^1.0.0" }], "plugins": ["notebook"],
+  "items": [ … ],
+  "migrations": [{ "from": "1.0.0", "to": "1.1.0", "steps": [
+    { "op": "rename_property", "db": "i2", "from": "Stage", "to": "Phase" },
+    { "op": "fill", "db": "i2", "property": "Owner", "value": "unassigned" } ] }],
+  "tests": [{ "name": "deals have an Owner", "check": "property", "db": "i2", "property": "Owner" }] }
+```
+
 #### Pipelines: databases that fill themselves
 
 *Sources & steps …* in a database's ⋯ menu shows its pipeline as blocks:
@@ -179,6 +210,52 @@ inbox* runs every 10 min — none with an AI step, so 0 AI calls.
 
 ![Workspace settings → Pipelines: one line per pipeline (Sent, Meine Lage, Mail, Chats, Inbox, People, Cases, Organisations, Projects, Places, Debts and claims, Saved news, Calendar, Document inbox, Automations) with its last run — e.g. Mail "5 new · 0 changed · 0 gone · 346 ms" — its clock and its runs and AI calls](img/workspace-pipelines.png) *Derived database …* makes a database under another, read through an AI
 filter ("important, urgent, or needs me to act").
+
+#### Tables that transform (on a page)
+
+A page's table (`/Tabelle`) can be the input of a **transform** block, and its output shown in a **result table** anywhere
+on the page. Type `/` and pick **Transform** or **Result table**, or under `/blocks` a ready-made example (household budget,
+favourite books, a recipe for more people, a tidied-up list: data, steps and result in one go).
+
+- **Transform** reads a table of the page (it gets a name from its ⋯ menu — or the block names it for you), the result of
+  another transform (they chain), or a **database** (its rows as a table). It keeps **steps** that run one after the other:
+  keep only rows where …, sort, group and total (sum, count, average, smallest, largest), a new column from a formula
+  (`[Betrag] * 1,19`), only these columns, rename, remove doubles, only the first N. Numbers written as text ("1.200,50 €")
+  count as numbers, dates sort as dates. A step that cannot run is marked and says why (a column that is gone); the steps
+  before it still show.
+- **Set up by clicking, or by a sentence:** type what you want ("only amounts over 50, biggest first") and **✨ Make steps**
+  turns it into steps you can check and change (needs the LLM plugin).
+- **Result table** shows a transform's output — or any table of the page or a database as it is. Drag it wherever it should
+  sit. It follows the input as you edit it. **Copy as a table to edit** makes a real table of its current values.
+- Everything is a block of the page: `:::pipe {"name":"…","from":"…","steps":[…]}` and `:::result {"of":"…"}` in Markdown.
+
+##### Data flow, and how a table is kept
+
+Where blocks hand data to each other — a table read by a transform, a transform shown by a result table, a code cell reading a
+table and returning a result, widgets that share a value (`zeff.page.set`, `zeff.emit`, `zeff.publish`) — Zeff shows it:
+
+- **Chips with a link (🔗)** above a block say where its data comes from (`Ausgaben ↓`: it flows down from there; `↑`: from a
+  block below); below a block, where its data goes — left out when the next block shows it anyway. A click on a chip jumps to
+  the other block. The arrow is the way the data goes.
+- **A coloured column** at the left edge of every block on a flow; **one colour per flow** (a pipeline), the same as its chips.
+- **Every table says how it is kept**: **✎ Editable** (green), **🔒 Protected** (yellow — it takes no change, no typing, rows, pasting
+  or deleting; click the chip, or ⋯ → *Protect against editing*, to switch it), **⚡ Calculated** (a result table: its own
+  light-purple background). The chip order is the order of the data: what flows in, how the table is kept, what flows out.
+
+#### Wrap blocks in a container
+
+The handle at the left of every block (＋, ✨, ⧉, ⠿) has **⧉ Wrap**: it puts the block — or the blocks you selected — in a
+container: a **panel** (a card with a title and a description, folds in and out), an **info box**, a **toggle**, **columns**
+(the blocks spread over 2–4 of them) or **tabs** (one block per tab). **Unwrap** takes the content out again (from the block
+itself if it is a container, else from the one around it). Or say it in a sentence — "both side by side in a card called
+Revenue" — and the AI picks the container and sets it up (needs the LLM plugin). A panel in Markdown is
+`:::panel {"title":"…","desc":"…"}` … `:::` and may hold any blocks, other containers too. The result table of a
+transform has no frame of its own: wrap it in a panel to give it one.
+
+#### Run all
+
+A page with code cells shows a small sticky **Run all** at its top right: it stays in view while you scroll, runs every code cell
+of the page in the order of the page, and becomes **Stop** while cells run. In [ui/page-toolbar.tsx](../../src/plugins/workspace/ui/page-toolbar.tsx).
 
 #### Automations, agents, jobs and rules
 
@@ -277,6 +354,40 @@ from blocks: lists, cards, tables, boards, charts, tiles, panes, forms and more.
   row (`<rating>`), a **copy** button.
 - Names for values (`<let name="open" value="rows | where(…)"/>`), a `<switch>` with cases, and new filters:
   `groupby`, `distinct`, `offset`, `reverse`, `between`, `where(…, 'in', 'A|B')`.
+- **Functions of your own** (`<def>`): `<def name="fact" args="n" value="if(n <= 1, 1, n * fact(n - 1))"/>` makes a function for what
+  follows it. Call it in a formula (`{{ fact(5) }}`) or as a filter (`{{ 5 | fact }}`, the piped value is the first argument). Its value is a
+  formula, or a pipe when it has a `|`. A function may **call itself**; one view may make at most 20,000 calls, 100 inside each other —
+  then it stops with a sentence, never hangs. With lists: `range`, `map('f')`, `keep('f')`, `reduce('f', start)`.
+- **Lists and objects in the state.** A view's state keeps texts, so a list or an object is kept as JSON text and worked on with
+  `fromjson`, `push`, `drop`, `put`, `get`, `at`, `first`, `last`, `keys`, `len` and `tojson`:
+  `<button action="state" state="todo" value="{{ state.todo | fromjson | push(state.new) | tojson }}" label="Add"/>`.
+- **Rich text** (`<markdown value="{{ state.note }}"/>`): Markdown — headings, **bold**, *italic*, `code`, links, lists, quotes, code
+  blocks, rules — drawn as the view's own elements. No HTML gets through; an unsafe link is only text.
+- **File upload** (`<upload bind="csv" label="Choose a file" accept=".csv,.json" max=200/>`): the file the user picks is read as text
+  (at most `max` KB) into `state.csv`, its name into `state.csv_name`; work on it with filters or hand it to a flow.
+  A file can also be dropped on it.
+- **Events and keys.** A button can send an event after its own action — `<button run="my.save" emit="saved" label="Save"/>` (or only
+  `<button emit="saved" …/>`) — and `<on event="saved" action="state" state="msg" value="Saved"/>` handles it: an `<on>` has the attributes of
+  a button. Handlers may send events themselves (at most 8 deep). **Keyboard shortcuts**: `keys="mod+s"` on a button or an `<on>`
+  (`mod` = Ctrl or ⌘; also `alt`, `shift`, `esc`, `enter`, `space`, a letter or sign); while typing in a field only combinations with
+  Ctrl/⌘/Alt count.
+- **Drag and drop**: `<drag value="{{ id }}">…</drag>` can be picked up, `<drop bind="moved" emit="moved" label="Done">…</drop>` takes it —
+  `state.moved` gets the value and the event is sent, so `<on event="moved" action="set" prop="Status" row="{{ state.moved }}" value="Done"/>`
+  moves a row by dropping it.
+- **Widgets from data** (`<codewidget html="{{ Html }}" libs="chart,katex" report="my.flow" with="exercise={{ id }}"/>`, or
+  `spec="{{ Spec }}"` for an exercise set of the exercise kit): a widget somebody wrote — the AI, a teacher — kept in a row, shown in the
+  sandboxed frame (no network, no access to Zeff). What it reports with `zeff.report({ score, correct, total, note, done, answers })` runs
+  the flow `report` (the `with=` values plus the result); the flow's answer may carry a `notice` that is shown (`+3 XP`). Mistakes in a set
+  are said at the tag. Plugin functions can check a widget or a set first with the API method `workspace.widgets.check`, and read how to write
+  them with `workspace.widgets.guide`.
+- **A live chat** (`<chat chat="my-plugin.lesson" key="{{ state.step }}" bump="n"/>`): the box of a plugin's kind of chat ([manifest `chats`](../plugins/manifest.md)) — begin, the live agent session, the message box. The conversation itself is shown by the view from the database the chat keeps it in; `bump` names a state that is counted up when the conversation grew, so `<data>` reloads.
+- **A graph** (`<graph source="data.map.nodes" id="id" label="label" requires="requires" group="group" color="color" state="state" progress="progress" ring="ring" thread="data.map.thread" walked=2 bind="picked" emit="opened"/>`): things that depend on each other — a skill tree, a plan, a process, an org chart — drawn in columns (an item stands one column after everything it requires), in bands when `group` is a field, with the lines between them. `state` is `done` (ticked), `locked` (a lock) or open; `progress` (0–1) is a ring around the node with the text `ring` in it; `thread` is a list of ids the red thread goes through, the first `walked` stretches solid, the rest dashed, numbered. Clicking a node sets `state.<bind>` to its id and sends the event.
+- **Theming**: `<theme accent="#0ea5e9" radius="lg" font="serif"/>` — the view's accent colour (buttons, links, chips), the roundness of
+  its corners (`none`, `sm`, `md`, `lg`) and its font (`sans`, `serif`, `mono`). On that view only; dark mode keeps working.
+- **App settings**: `<setting name="currency" label="Currency" type="select" options="EUR, USD" default="EUR"/>` (types `text`, `number`,
+  `toggle`, `select`; declare them at the top) and `<settings title="Settings"/>` draws the form; every change is saved for the app
+  (per database). Read it anywhere as `{{ settings.currency }}`. Together with `<nav>`/`<entry>`, `<tabset>` and `<dialog>` this makes an
+  app shell: screens, navigation and a settings panel — all in a template.
 
 ![A deals view built from blocks: a pipeline summary block of its own (figures, a goal ring, a cross table by owner and stage), tabs for the deals with a slider, a calendar, a heatmap and the deals by owner — every deal drawn by a "deal card" block with stars to rate it](img/workspace-blocks.png)
 
@@ -444,6 +555,8 @@ The plugin has about 280 files; the important ones by area.
 | | [agent-scope.ts](../../src/plugins/workspace/agent-scope.ts) | System pages read-only for AI tools |
 | Model | [model.ts](../../src/plugins/workspace/model.ts), [model/schema.ts](../../src/plugins/workspace/model/schema.ts) | Property and view types, schema normalisation |
 | | [model/filters.ts](../../src/plugins/workspace/model/filters.ts), [model/options.ts](../../src/plugins/workspace/model/options.ts), [model/computed.ts](../../src/plugins/workspace/model/computed.ts) | Filters/sorts, grouping, rollups |
+| | [table-pipe.ts](../../src/plugins/workspace/table-pipe.ts), [ui/pipe-nodes.tsx](../../src/plugins/workspace/ui/pipe-nodes.tsx), [actions/table-pipes.ts](../../src/plugins/workspace/actions/table-pipes.ts) | Transform and result-table blocks: the steps (pure), the blocks in the editor, a database as a source and the AI that turns a sentence into steps |
+| | [ui/wrap.ts](../../src/plugins/workspace/ui/wrap.ts), [ui/wrap-menu.tsx](../../src/plugins/workspace/ui/wrap-menu.tsx), [ui/panel-node.tsx](../../src/plugins/workspace/ui/panel-node.tsx), [wrap-plan.ts](../../src/plugins/workspace/wrap-plan.ts), [actions/wrap.ts](../../src/plugins/workspace/actions/wrap.ts) | Wrap / unwrap blocks in a panel, box, toggle, columns or tabs; the AI that sets a container up from a sentence |
 | | [formula.ts](../../src/plugins/workspace/formula.ts), [units.ts](../../src/plugins/workspace/units.ts), [page-sheet.ts](../../src/plugins/workspace/page-sheet.ts) | Formula language, units, spreadsheet formulas in page tables |
 | | [auto-fill.ts](../../src/plugins/workspace/auto-fill.ts), [recurring.ts](../../src/plugins/workspace/recurring.ts), [subtasks.ts](../../src/plugins/workspace/subtasks.ts), [close-row.ts](../../src/plugins/workspace/close-row.ts), [fresh-rows.ts](../../src/plugins/workspace/fresh-rows.ts) | Self-filling fields, repeating rows, subtasks, closing a row, empty new rows to the trash |
 | | [day-log.ts](../../src/plugins/workspace/day-log.ts), [day-lists.ts](../../src/plugins/workspace/day-lists.ts) | Day lists and their log |
@@ -546,6 +659,23 @@ settings:
 
 The prompts are pages under *System → Prompts* ([prompts.ts](../../src/plugins/workspace/prompts.ts)); the code's texts
 are their defaults. Instruction pages under *KI-Anweisungen* can be attached to an AI field or step.
+
+### Changed at runtime — and taken back
+
+What an app is made of can be changed while Zeff runs, by you or the AI, and every change can be undone:
+
+- **A view's template**: each change (yours, the AI's, an update's) keeps the template before in `ws_view_versions` (the newest 60 per
+  view; [store.ts](../../src/plugins/workspace/store.ts) `updateSchema`). `workspace_view_versions` lists them, `workspace_restore_view`
+  brings one back.
+- **An app's view** (mail, people, calendar, news …) keeps its own copy of the app's template, copied when its database is first opened
+  ([app-templates.ts](../../src/plugins/workspace/app-templates.ts)). A copy nobody changed follows the app's own template when that
+  changes (`templateBase`); a changed one stays.
+- **A plugin's server function**: `workspace_function_source` reads it, `workspace_save_function` changes it (a Node.js function must parse;
+  with `test` it is called at once and the code before comes back if that fails), `workspace_restore_function` goes back
+  ([function-source.ts](../../src/plugins/notebook/function-source.ts); versions in the plugin's `.versions/`). A plugin brought with
+  Zeff (Learn) doesn't overwrite a function changed this way when a newer version is copied in.
+- **Repair**: a view whose template has mistakes says so above itself, with **Repair with the AI** — the assistant reads the template and
+  the mistakes, fixes it or brings an earlier version back.
 
 ### MCP tools & actions
 

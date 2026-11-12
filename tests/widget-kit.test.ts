@@ -86,22 +86,6 @@ test("an exercise set checked: each mistake said with its item, so the teacher c
   assert.equal(specHasMath({ items: [{ type: "text", q: "Was ist $x^2$?", answer: "x" }] }), true);
 });
 
-test("learn_widget: a set with mistakes is refused with each of them; a good one is shown (with KaTeX for its math)", async () => {
-  const { setInstalled } = await import("@/plugins/state");
-  setInstalled("learn", true);
-  const store = await import("@/plugins/learn/store");
-  const { learnWidget } = await import("@/plugins/learn/tools");
-  const c = { id: store.createCourse({ topic: "Physik", goal: "", level: "" }) };
-  store.savePlan(c.id, { title: "Physik", summary: "", years: 1, sources: [], nodes: [{ key: "s1", kind: "step", parent: null, title: "Fallgesetz" }] });
-  assert.throws(() => learnWidget({ course_id: c.id, node_key: "s1", title: "Fall", spec: { items: [{ type: "number", q: "g?", answer: "viel" }] } }), /item 1 \(number\): answer: a number/);
-  const out = learnWidget({ course_id: c.id, node_key: "s1", title: "Fall", spec: { items: [{ type: "number", q: "Wie groß ist $g$?", answer: 9.81, tol: 0.05, unit: "m/s^2" }] } });
-  assert.match(out, /Widget #\d+ is shown/);
-  const w = store.nodeWidgets(c.id, "s1")[0];
-  assert.ok(w.html.includes("ZeffKit.mount"));
-  assert.deepEqual(w.libs, ["katex"]);
-  assert.throws(() => learnWidget({ course_id: c.id, node_key: "s1", title: "x" }), /spec .* or html/);
-});
-
 test("a widget's error message comes through the bridge, checked", async () => {
   const { parseWidgetMessage, buildSrcdoc } = await import("@/lib/widgets/sandbox");
   assert.deepEqual(parseWidgetMessage({ zeffWidget: 1, type: "error", message: "x is not defined" }), { type: "error", message: "x is not defined" });

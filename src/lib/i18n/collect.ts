@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import ts from "typescript";
+import { templateWords } from "@/plugins/workspace/view-template";
 
 /**
  * Every text passed to t("…") in the code (server t, or a useT() t in a client component): the
@@ -28,5 +29,22 @@ export function collectKeys(dirs = ["src", "integrations"]): Map<string, string[
     };
     visit(sf);
   }
+  // The view templates the plugins bring in their packages (src/plugins/*/bundled/*.package.json): their sentences, as drawn.
+  for (const file of dirs.filter((d) => fs.existsSync(path.join(ROOT, d))).flatMap((d) => walkPackages(path.join(ROOT, d)))) {
+    const at = path.relative(ROOT, file).split(path.sep).join("/");
+    for (const src of packageTemplates(JSON.parse(fs.readFileSync(file, "utf8")))) for (const key of templateWords(src)) keys.set(key, [...(keys.get(key) ?? []), at]);
+  }
   return keys;
+}
+
+/** The packages bundled with plugins (a bundled/ folder's *.package.json). */
+function walkPackages(d: string): string[] {
+  return fs.readdirSync(d, { withFileTypes: true }).flatMap((e) =>
+    e.isDirectory() ? (e.name.startsWith(".") || e.name === "node_modules" ? [] : walkPackages(path.join(d, e.name))) : e.name.endsWith(".package.json") && path.basename(d) === "bundled" ? [path.join(d, e.name)] : [],
+  );
+}
+
+/** A package's view templates (its databases' views) — and its pages' titles (named in the user's language when it is installed) as a template of words. */
+function packageTemplates(pkg: { items?: { title?: string; schema?: { views?: { template?: string }[] } }[] }): string[] {
+  return (pkg.items ?? []).flatMap((i) => [...(i.schema?.views ?? []).map((v) => v.template ?? ""), i.title ?? ""]).filter(Boolean);
 }

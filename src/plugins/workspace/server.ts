@@ -40,7 +40,11 @@ import { METRICS_WIDGET } from "./widgets-metrics";
 import "./metrics"; // (kennzahl() in formulas reads the Kennzahlen)
 import { WORKSPACE_WIDGETS } from "./widgets-workspace";
 import { OVERVIEW_WIDGETS } from "./widgets-overview";
-import { workspaceSources } from "./source-point";
+import "./chat-conversation";
+import { startScheduleTimer } from "@/lib/ext/schedules";
+import { setExternalSources, workspaceSources } from "./source-point";
+import { externalFieldTypes, externalSources } from "./ext-functions";
+import { setExternalFieldTypes } from "./field-point";
 import { workspaceFieldTypes } from "./field-point";
 import { CORE_FIELD_TYPES } from "./field-types";
 import { ROUTINES_SOURCE, RUNS_SOURCE } from "./automation-databases";
@@ -59,6 +63,10 @@ workspaceWidgets.contribute("workspace", [...WORKSPACE_WIDGETS, ...OVERVIEW_WIDG
 workspaceMetrics.contribute("workspace", () => [...CORE_METRICS, ...OVERVIEW_METRICS, ...dayListMetrics(), ...widgetOutputMetrics()]);
 // Its automations and their runs as rows (the databases "Automations" and "Automation runs").
 workspaceSources.contribute("workspace", [ROUTINES_SOURCE, RUNS_SOURCE, TASKS_SOURCE]);
+setExternalSources(externalSources);
+// The functions plugins run on their own (manifest schedules).
+startScheduleTimer();
+setExternalFieldTypes(externalFieldTypes);
 // A todo closed in the engine ticks the row or the list item it came from.
 onTodoDone((id) => (todoDone(id), blockTodoDone(id)));
 workspaceFieldTypes.contribute("workspace", CORE_FIELD_TYPES);

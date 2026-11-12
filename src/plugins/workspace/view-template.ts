@@ -14,7 +14,12 @@
  * row they act on, lists their items' rows, a table its rows and columns, a chart its data — that the page draws and runs with its own
  * components. No script, no raw HTML. Client-safe.
  */
-import { evalFormula } from "./formula";
+import { evalFormula, FORMULA_FUNCTIONS } from "./formula";
+import { markdownNodes } from "./view-markdown";
+import { layoutGraph, type GraphNodeIn } from "./view-graph";
+import { checkWidgetHtml, WIDGET_LIBS } from "@/lib/widgets/sandbox";
+import { checkSpec, specHtml, type ExerciseSet } from "@/lib/widgets/spec";
+import { MAX_SETTINGS, settingsWithDefaults, type SettingDecl } from "./view-settings";
 import { ANY_TAG_ATTRS, cardScope, CARD_TAGS, checkAttr, FILTERS as CARD_FILTERS, isField, isNode, KEYWORDS, numOf, parseFilter, parseTemplate, splitPipes, textOf, type AttrKind, type CardScope, type Ctx as CardCtx, type Field, type TagDef, type TNode, type TplError, type VNode } from "./card-template";
 import { noLabels, TITLE, type Labels, type Property, type Row } from "./model";
 import { localDay } from "@/lib/dates";
@@ -48,9 +53,13 @@ export type ViewData = {
   texts?: Record<number, string>;
   /** What widgets published for the whole of Zeff (zeff.publish), by name — outputs.<name>. */
   outputs?: Record<string, unknown>;
+  /** Translates a text of the template into the user's language (Zeff's language bundles: the English text is the key; {{ x }} in it counts as {0}, {1} …). */
+  tr?: (text: string) => string;
+  /** The settings saved for this app (name → text) - settings.<name>; a <setting>'s default where nothing was saved. */
+  settings?: Record<string, string>;
 };
 
-export const MAX_VIEW_TEMPLATE = 20000;
+export const MAX_VIEW_TEMPLATE = 60000;
 
 const ACTIONS: Record<string, { row?: boolean; what: string }> = {
   new: { what: 'a new row (values="Status=Active, Amount=5" to start with) — opened' },
@@ -128,7 +137,7 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   steps: T({}),
   step: T({ title: "text", state: { oneOf: ["done", "active", "todo"] } }),
   gallery: T({ source: "list", image: "list", alt: "list", ratio: { oneOf: ["2:3", "1:1", "16:9", "3:2"] }, min: "int", empty: "text", page: "int", more: "text" }),
-  timeline: T({ source: "list", date: "list", empty: "text", page: "int", more: "text" }),
+  timeline: T({ source: "list", date: "list", empty: "text", page: "int", more: "text", /** Per item: left | right | center — the items stand on both sides of a line down the middle. */ side: "list", /** Per item: the colour of its dot (indigo, zinc, emerald, amber, red). */ dot: "list" }),
   board: T({ source: "list", group: "text", none: "text" }),
   groups: T({ source: "list", by: "text", none: "text" }),
   facets: T({ bind: "text", field: "text", source: "list", all: "text", label: "text" }, true),
@@ -137,9 +146,9 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   table: T({ source: "list", columns: "text", sum: "text", empty: "text" }, true),
   chart: T({ source: "list", kind: { oneOf: ["bar", "column", "line", "pie"] }, group: "text", value: "text", calc: { oneOf: ["count", "sum", "avg"] } }, true),
   selected: T({ empty: "text" }),
-  button: T({ action: "text", label: "text", icon: "text", request: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text", run: "text", with: "text", into: "text", done: "text", then: "text", transition: "text", note: { oneOf: ["true", "false"] } }, true),
+  button: T({ action: "text", label: "text", icon: "text", request: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text", emit: "text", run: "text", with: "text", into: "text", done: "text", then: "text", transition: "text", note: { oneOf: ["true", "false"] } }, true),
   // A flow's output loaded into data.<name> — again whenever what it is called with changes (flows/).
-  data: T({ name: "text", flow: "text", with: "text", when: "text", debounce: "int" }, true),
+  data: T({ name: "text", flow: "text", with: "text", when: "text", debounce: "int", every: "int" }, true),
   // A row's lifecycle: its transitions as buttons (only those it can take now enabled) and its way so far.
   transitions: T({ history: { oneOf: ["true", "false"] } }, true),
   search: T({ bind: "text", placeholder: "text" }, true),
@@ -159,6 +168,31 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   fill: T({ slot: "text" }),
   // A name for a value from here on (its siblings after it and what is inside them): <let name="open" value="rows | where(…)"/>.
   let: T({ name: "text", value: "list" }, true),
+  // A function of your own (value-returning, may call itself - within a budget): <def name="fact" args="n" value="if(n <= 1, 1, n * fact(n - 1))"/>.
+  def: T({ name: "text", args: "text", value: "text" }, true),
+  // Rich text: Markdown as the view's own nodes (headings, bold, italic, code, links, lists, quotes) - no HTML.
+  markdown: T({ value: "text" }, true),
+  // A widget written by anyone (the AI, a teacher): its code from the data, in the sandboxed frame - no network, no access to Zeff, only
+  // results (zeff.report) that come back as a flow run: report="flow" with="exercise={{ id }}" (+ score, correct, total, note, done, answers).
+  // A live chat with an agent (a plugin's manifest chats): the box under a conversation that the view shows from its database - starts on the first
+  // message, shows the session as it speaks, takes the next message. bump="n" names the state that is counted up when the conversation grew.
+  // Things that depend on each other, laid out in columns (a skill tree, a plan, a process): one node per item of source; id, label, requires (the ids
+  // it needs), group (bands), color, state (done / locked / open), progress (0..1 ring), ring (text in it) are fields; thread: ids in order.
+  graph: T({ source: "list", id: "text", label: "text", requires: "text", group: "text", color: "text", state: "text", progress: "text", ring: "text", thread: "list", walked: "int", bind: "text", emit: "text", empty: "text", /** map: a dependency map (nodes with their parts) in a sideways scrolling strip; its data: source = [{ key, title, status, path, group, after, foundation, summary, steps }], groups = [{ key, title }], route = { keys, walked }. */ look: { oneOf: ["graph", "map"] }, groups: "list", route: "text", stepbind: "text", stepemit: "text" }, true),
+  // Things with a time as a calendar (day, week — hours, side by side where they overlap —, month, agenda): open, move, drag a new one.
+  schedule: T({ source: "list", start: "text", end: "text", title: "text", id: "text", color: "text", allday: "text", editable: "text", view: "text", day: "text", bind: "text", emit: "text", move: "text", create: "text", daybind: "text", empty: "text" }, true),
+  chat: T({ chat: "text", key: "text", title: "text", first: "text", placeholder: "text", begin: "text", bump: "text" }, true),
+  codewidget: T({ html: "code", spec: "code", libs: "text", title: "text", height: "int", report: "text", with: "text", fail: "text", tell: "text", tellkey: "text", kind: "text" }, true),
+  // A file chosen by the user, read as text into state.<bind> (its name in state.<bind>_name): a CSV, a JSON, a text.
+  // How the view looks: its accent colour (#rrggbb), the roundness of its corners and its font - on the view only.
+  theme: T({ accent: "text", radius: { oneOf: ["none", "sm", "md", "lg"] }, font: { oneOf: ["sans", "serif", "mono"] } }, true),
+  // Drag and drop: what is inside <drag value="…"> can be picked up; <drop bind="x" emit="moved"> takes it: state.x is the value, the event is sent.
+  drag: T({ value: "text", tip: "text" }),
+  drop: T({ bind: "text", emit: "text", label: "text" }),
+  // Settings of the app: declared with <setting>, edited in <settings/>, read as settings.<name>.
+  setting: T({ name: "text", label: "text", type: { oneOf: ["text", "number", "toggle", "select"] }, options: "text", default: "text" }, true),
+  settings: T({ title: "text" }, true),
+  upload: T({ bind: "text", label: "text", accept: "text", max: "int" }, true),
   switch: T({ on: "text" }),
   case: T({ value: "text" }),
   otherwise: T({}),
@@ -177,6 +211,12 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   copy: T({ text: "text", label: "text" }, true),
 };
 
+// An event handler: <on event="saved" action="state" state="msg" value="Saved"/> does what a button does when a button says emit="saved" (or a
+// key is pressed: <on keys="mod+s" run="my.save"/>). Same attributes as a button.
+VIEW_TAGS.on = T({ ...VIEW_TAGS.button.attrs, event: "text" }, true);
+// A box (a card) can be what you click: it does what a button does (<box action="state" state="course" value="…">).
+VIEW_TAGS.box = T({ ...VIEW_TAGS.box.attrs, tone: { oneOf: ["plain", "muted", "good", "warn", "bad", "accent"] }, ...Object.fromEntries(["action", "state", "value", "emit", "run", "with", "into", "done", "then", "confirm", "href", "tip"].map((k) => [k, VIEW_TAGS.button.attrs[k]])) });
+
 /** The tags whose attribute names a state (or a data name): in a block, each use keeps its own. */
 const STATE_KEYS: Record<string, string[]> = {
   state: ["name"],
@@ -188,11 +228,16 @@ const STATE_KEYS: Record<string, string[]> = {
   tabset: ["bind"],
   dialog: ["bind"],
   input: ["bind"],
+  graph: ["bind", "stepbind"],
+  schedule: ["bind", "daybind"],
+  upload: ["bind"],
+  drop: ["bind"],
   slider: ["bind"],
   calendar: ["bind"],
   data: ["name"],
   entry: ["state"],
   button: ["state", "into"],
+  box: ["state", "into"],
 };
 /** How deep blocks may stand in blocks. */
 const MAX_BLOCK_DEPTH = 6;
@@ -221,6 +266,12 @@ type Ctx = {
   scopes: Map<number, CardScope>;
   /** What <let> named (from there on). */
   vars: Map<string, unknown>;
+  /** The functions <def> made (from there on), by lower-case name. */
+  fns: Map<string, UserFn>;
+  /** What all the functions together may use up while one view is drawn. */
+  budget: { calls: number; depth: number };
+  /** What <setting> declared (shared by the whole drawing). */
+  decls: SettingDecl[];
   /** The blocks of your own, by name — null: not known yet (a <use> draws nothing, and says nothing). */
   blocks: Map<string, BlockDef> | null;
   /** Inside a block: its use's own state's prefix ("_b3_"), its parameters, what goes into its slots, the blocks it stands in. */
@@ -231,6 +282,36 @@ type Ctx = {
 };
 
 const norm = (s: string) => s.trim().toLowerCase();
+
+/** A function of the view's own: its parameters, its body (a formula, or a pipe when it has a "|") and the names it saw when it was made. */
+type UserFn = { name: string; params: string[]; body: string; vars: Map<string, unknown>; line: number };
+/** How many calls one view may make (all functions together), and how deep they may stand in each other. */
+export const MAX_FN_CALLS = 20000;
+export const MAX_FN_DEPTH = 100;
+
+/** Calls a function of the view's own: positional arguments; its answer is the body's value. Throws what goes wrong (and when the budget is gone). */
+function callUser(ctx: Ctx, name: string, args: unknown[]): unknown {
+  const f = ctx.fns.get(norm(name));
+  if (!f) throw new Error(`There is no function “${name}” (<def name="${name}" args="…" value="…"/> makes one).`);
+  const b = ctx.budget;
+  if (++b.calls > MAX_FN_CALLS) throw new Error(`“${name}” and the functions with it need too much work (more than ${MAX_FN_CALLS} calls in one view).`);
+  if (b.depth >= MAX_FN_DEPTH) throw new Error(`“${name}” goes too deep (more than ${MAX_FN_DEPTH} calls inside each other) — a function that calls itself needs a case where it stops.`);
+  const vars = new Map(f.vars);
+  f.params.forEach((p, i) => vars.set(norm(p), args[i] ?? null));
+  const inner: Ctx = { ...ctx, vars, errors: [] };
+  b.depth++;
+  try {
+    const body = f.body.trim().replace(/^\{\{([\s\S]*)\}\}$/, "$1").trim();
+    const v = splitPipes(body).length > 1 ? pipe(body, inner, f.line) : evaluate(body, inner, f.line);
+    if (inner.errors.length) throw new Error(`${name}: ${inner.errors[0].message}`);
+    return v;
+  } finally {
+    b.depth--;
+  }
+}
+
+/** The functions made so far, offered to the formulas' language (it asks by name). */
+const userFnReader = (ctx: Ctx) => (name: string) => (ctx.fns.has(norm(name)) ? { call: (args: unknown[]) => callUser(ctx, name, args) as never } : null);
 
 function scopeOf(ctx: Ctx, row: Row): CardScope {
   let s = ctx.scopes.get(row.id);
@@ -275,6 +356,11 @@ function resolve(ctx: Ctx, path: string): { found: boolean; value: unknown } {
     const want = rest[0].toLowerCase().replace(/[^a-z0-9]+/g, "-");
     const k = Object.keys(all).find((x) => x === rest[0] || x.toLowerCase().replace(/[^a-z0-9]+/g, "-") === want);
     return { found: true, value: k === undefined ? null : rest.length > 1 ? (walk(all[k], rest.slice(1)) ?? null) : all[k] };
+  }
+  if (h === "settings") {
+    const all = settingsWithDefaults(ctx.decls, ctx.data.settings);
+    // (Saved values of settings the view declares no more are not shown.)
+    return { found: true, value: rest.length ? (all[rest[0]] ?? ctx.data.settings?.[rest[0]] ?? null) : all };
   }
   if (h === "data") return { found: true, value: (rest.length ? walk(ctx.data.data ?? {}, [ctx.prefix + rest[0], ...rest.slice(1)]) : ctx.data.data) ?? null };
   if (h === "db") return { found: true, value: walk(ctx.data.db, rest) ?? null };
@@ -324,6 +410,7 @@ function evaluate(expr: string, ctx: Ctx, line: number): unknown {
   try {
     const r = evalFormula(toFormula(expr), {
       now: ctx.data.now,
+      ...(ctx.fns.size ? { fn: userFnReader(ctx) } : {}),
       prop: (name) => {
         const x = resolve(ctx, name);
         if (!x.found) throw new Error(`There is no “${name}”`);
@@ -481,6 +568,32 @@ const LIST_FILTERS: Record<string, (v: unknown, a: (string | number)[], ctx: Ctx
     if (ctx.row) return fieldOf(ctx, ctx.row, name) ?? (norm(name) === "title" ? ctx.row.title : null);
     return ctx.item ? (ctx.item[name] ?? null) : null;
   },
+  // Lists and objects in the view's state (it keeps texts): {{ state.todo | fromjson | push(state.new) | tojson }} — the buttons' state= value takes the result.
+  fromjson: (v) => {
+    try {
+      return JSON.parse(textOf(plain(v)) || "null") as unknown;
+    } catch {
+      throw new Error("fromjson: that is not JSON.");
+    }
+  },
+  tojson: (v) => JSON.stringify(isRows(v) ? v.rows.map((r) => ({ id: r.id, title: r.title })) : isField(v) ? v.value : v) ?? "null",
+  // The list with something added / the item at a position taken out (the list as it is stays).
+  push: (v, a) => [...(Array.isArray(v) ? v : v === null || v === undefined ? [] : itemsOf(v)), ...a],
+  drop: (v, a) => itemsOf(v).filter((_, i) => i !== a[0]),
+  // The object with a key set; the item at a position or under a key; the keys; how long (a text, a list) or how many keys.
+  put: (v, a) => ({ ...(v && typeof v === "object" && !Array.isArray(v) && !isRows(v) && !isField(v) ? (v as Record<string, unknown>) : {}), [String(a[0] ?? "")]: a[1] ?? null }),
+  get: (v, a) => (Array.isArray(v) ? (v[Number(a[0])] ?? null) : v && typeof v === "object" && !isRows(v) && !isField(v) ? ((v as Record<string, unknown>)[String(a[0])] ?? null) : null),
+  at: (v, a) => itemsOf(v)[Number(a[0])] ?? null,
+  keys: (v) => (v && typeof v === "object" && !Array.isArray(v) && !isRows(v) && !isField(v) ? Object.keys(v as object) : []),
+  len: (v) => (typeof v === "string" ? v.length : Array.isArray(v) ? v.length : v && typeof v === "object" && !isRows(v) && !isField(v) ? Object.keys(v as object).length : isRows(v) ? v.rows.length : textOf(plain(v)).length),
+  first: (v) => itemsOf(v)[0] ?? null,
+  last: (v) => itemsOf(v).at(-1) ?? null,
+  // 0 … n-1 (at most 10000).
+  range: (v) => Array.from({ length: Math.max(0, Math.min(10000, Math.floor(numOf(plain(v)) ?? 0))) }, (_, i) => i),
+  // With a function of your own (<def>): each item through it; the items it says yes to; all folded into one value.
+  map: (v, a, ctx) => itemsOf(v).slice(0, 10000).map((x) => callUser(ctx, String(a[0] ?? ""), [x])),
+  keep: (v, a, ctx) => remake(v, itemsOf(v).slice(0, 10000).filter((x) => truthy(callUser(ctx, String(a[0] ?? ""), [x])))),
+  reduce: (v, a, ctx) => itemsOf(v).slice(0, 10000).reduce<unknown>((acc, x) => callUser(ctx, String(a[0] ?? ""), [acc, x]), a[1] ?? null),
   json: (v) => JSON.stringify(isRows(v) ? v.rows.map((r) => ({ id: r.id, title: r.title })) : isField(v) ? v.value : v),
   sum: (v, a, ctx) => sumOf(a.length ? valuesOf(v, ctx, String(a[0])) : itemsOf(v)).reduce((x, y) => x + y, 0),
   avg: (v, a, ctx) => {
@@ -516,14 +629,26 @@ function pipe(src: string, ctx: Ctx, line: number): unknown {
     ctx.errors.push({ line, message: "Nothing between {{ and }}." });
     return null;
   }
-  let v = head(expr, ctx, line);
-  for (const f of fs) {
+  return applyFilters(head(expr, ctx, line), fs, ctx, line);
+}
+
+type FilterCall = ReturnType<typeof parseFilter>;
+
+/** One filter applied: Zeff's own for collections and values, the cards', or a function of the view's own (<def>) with the value as its first argument. */
+function applyFilter(v: unknown, call: FilterCall, ctx: Ctx): unknown {
+  const own = LIST_FILTERS[call.name];
+  if (own) return own(v, argsOf(call, ctx), ctx);
+  const card = CARD_FILTERS[call.name];
+  if (card) return card(isRows(v) ? v.rows.length : v, argsOf(call, ctx), cardCtx(ctx));
+  if (ctx.fns.has(norm(call.name))) return callUser(ctx, call.name, [v, ...argsOf(call, ctx)]);
+  throw new Error(`There is no filter “${call.name}”.`);
+}
+
+/** A value through filters, in order (written as text, or already read): one that fails is said at its line and skipped. */
+function applyFilters(v: unknown, filters: (string | FilterCall)[], ctx: Ctx, line: number): unknown {
+  for (const f of filters) {
     try {
-      const call = parseFilter(f);
-      const own = LIST_FILTERS[call.name];
-      const card = CARD_FILTERS[call.name];
-      if (!own && !card) throw new Error(`There is no filter “${call.name}”.`);
-      v = own ? own(v, argsOf(call, ctx), ctx) : card(isRows(v) ? v.rows.length : v, argsOf(call, ctx), cardCtx(ctx));
+      v = applyFilter(v, typeof f === "string" ? parseFilter(f) : f, ctx);
     } catch (e) {
       ctx.errors.push({ line, message: (e as Error).message });
     }
@@ -558,13 +683,72 @@ function out(v: unknown): VNode[] {
   return s ? [s] : [];
 }
 
-function interpolate(raw: string, ctx: Ctx, line: number): string {
-  return raw.replace(/\{\{([\s\S]*?)\}\}/g, (_m, inner: string) => {
+/** The attributes that are words shown to the user (translated); every other one is a name, a value or a flow — never translated. */
+const WORD_ATTRS = new Set(["label", "title", "subtitle", "placeholder", "empty", "tip", "more", "confirm", "first", "begin", "done", "aside", "text", "none", "all"]);
+
+/**
+ * A run of a template's text with its values ({{ … }}, given as null) as {0}, {1} …, the spaces made one: the key the language bundles know it by —
+ * "" when there are no words in it. The same when drawn and when Zeff's texts are collected (src/lib/i18n/collect.ts).
+ */
+export function wordsKey(parts: (string | null)[]): string {
+  let i = 0;
+  const key = parts.map((p) => (p === null ? `{${i++}}` : p)).join("").replace(/\s+/g, " ").trim();
+  return /\p{L}{2}/u.test(key.replace(/\{\d+\}/g, "")) ? key : "";
+}
+
+/** A run in the user's language (the bundle's words, its values put back) — null: the bundle doesn't have it. */
+function translated(parts: (string | null)[], tr: ((text: string) => string) | undefined, value: (i: number) => string): string | null {
+  const key = tr ? wordsKey(parts) : "";
+  const said = key ? tr!(key) : key;
+  if (!key || said === key) return null;
+  const pad = (s: string | null | undefined, re: RegExp) => (s && re.test(s) ? " " : "");
+  return pad(parts[0], /^\s/) + said.replace(/\{(\d+)\}/g, (m, k: string) => value(Number(k)) ?? m) + pad(parts[parts.length - 1], /\s$/);
+}
+
+/** The sentences a template shows (its keys in the language bundles, as wordsKey makes them when it is drawn): what Zeff's texts collector keeps. */
+export function templateWords(src: string): string[] {
+  const found = new Set<string>();
+  const keep = (key: string) => key && found.add(key);
+  const attr = (v: string) => wordsKey(v.split(/(\{\{[\s\S]*?\}\})/).filter((x) => x !== "").map((x) => (x.startsWith("{{") && x.endsWith("}}") ? null : x)));
+  const walk = (list: TNode[]) => {
+    let run: (string | null)[] = [];
+    const flush = () => (keep(wordsKey(run)), (run = []));
+    for (const n of list) {
+      if (n.k === "text") run.push(n.v);
+      else if (n.k === "out") run.push(null);
+      else {
+        flush();
+        if (n.k === "tag") {
+          for (const [k, v] of n.attrs) {
+            if (WORD_ATTRS.has(k)) keep(attr(v));
+            if (k === "options" && (n.name === "select" || n.name === "tabs") && !v.includes("{{")) for (const o of optionPairs(v)) keep(wordsKey([o[1]]));
+          }
+          walk(n.kids);
+        } else if (n.k === "if") (walk(n.then), walk(n.else));
+        else walk(n.body);
+      }
+    }
+    flush();
+  };
+  walk(parseView(src).nodes);
+  return [...found];
+}
+
+/** A text with {{ … }} filled in; `words`: it is shown to the user (an attribute of WORD_ATTRS) — in the user's language. */
+function interpolate(raw: string, ctx: Ctx, line: number, words = false): string {
+  const value = (inner: string): string => {
     const v = pipe(inner.trim(), ctx, line);
     return out(v)
       .map((n) => (typeof n === "string" ? n : textOf(n.c.map((c) => (typeof c === "string" ? c : "")).join(""))))
       .join(", ");
-  });
+  };
+  if (words && ctx.data.tr) {
+    const inners: string[] = [];
+    const parts = raw.split(/(\{\{[\s\S]*?\}\})/).filter((x) => x !== "").map((x) => (x.startsWith("{{") && x.endsWith("}}") ? (inners.push(x.slice(2, -2)), null) : x));
+    const said = translated(parts, ctx.data.tr, (i) => value(inners[i]));
+    if (said !== null) return said;
+  }
+  return raw.replace(/\{\{([\s\S]*?)\}\}/g, (_m, inner: string) => value(inner));
 }
 
 // ---------------------------------------------------------------------------
@@ -640,7 +824,7 @@ function attrsOf(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): Record<string, stri
       a[k] = raw;
       continue;
     }
-    const ok = checkAttr(kind, interpolate(raw, ctx, n.line));
+    const ok = checkAttr(kind, interpolate(raw, ctx, n.line, WORD_ATTRS.has(k)));
     if (ok !== null) a[k] = ok;
   }
   // In a block: each use keeps its own state (the names it gives get its prefix), and @name is one of the block's flows.
@@ -745,7 +929,7 @@ function drawUse(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
   for (const f of fills) slots.set(norm(Object.fromEntries(f.attrs).slot ?? ""), { nodes: f.kids, ctx });
   const parsed = parseView(def.template);
   const id = raw.id?.trim() ? keyOf(interpolate(raw.id, ctx, n.line)) : `${keyOf(name)}${ctx.seq.n++}`;
-  const inner: Ctx = { ...ctx, prefix: `_${id}_`, block: { name, props, slots }, stack: [...ctx.stack, name], vars: new Map(), errors: [] };
+  const inner: Ctx = { ...ctx, prefix: `_${id}_`, block: { name, props, slots }, stack: [...ctx.stack, name], vars: new Map(), fns: new Map(), errors: [] };
   const nodes = drawList(parsed.nodes, inner);
   // (Its mistakes said where the block is used, with its own line.)
   for (const e of [...parsed.errors, ...inner.errors]) ctx.errors.push({ line: n.line, message: e.message.startsWith("block “") ? e.message : `block “${name}”, line ${e.line}: ${e.message}` });
@@ -775,7 +959,8 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
     case "tabs":
     case "select": {
       if (!a.bind) return (err(`<${n.name}> needs bind="…" (the state it sets).`), []);
-      const opts = optionPairs(a.options ?? "");
+      // (The labels in the user's language: a label the language bundles know.)
+      const opts = optionPairs(a.options ?? "").map((o) => ((ctx.data.tr ? [o[0], ctx.data.tr(o[1]), ...o.slice(2)] : o) as typeof o));
       if (!opts.length) return (err(`<${n.name}> needs options="value:Label, …".`), []);
       if (ctx.state[a.bind] === undefined) ctx.state[a.bind] = opts[0][0];
       return [{ t: n.name, a: { ...a, options: JSON.stringify(opts), current: ctx.state[a.bind] }, c: [] }];
@@ -813,10 +998,12 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
         if (a.image !== undefined) own.image = checkAttr("url", interpolate(a.image, c, n.line)) ?? "";
         if (a.alt !== undefined) own.alt = interpolate(a.alt, c, n.line);
         if (a.date !== undefined) own.date = interpolate(a.date, c, n.line);
+        if (n.name === "timeline" && a.side !== undefined) own.side = interpolate(a.side, c, n.line);
+        if (n.name === "timeline" && a.dot !== undefined) own.dot = interpolate(a.dot, c, n.line);
         return { t: "item", a: own, c: drawList(n.kids, c) } as VNode;
       });
       const more: VNode[] = count < all.length ? [{ t: "button", a: { action: "state", state: moreKey, value: String(count + page), label: a.more ?? "Show more", variant: "quiet", wide: "true" }, c: [] }] : [];
-      return [{ t: n.name, a: { ...a, source: "", image: "", alt: "", date: "", ...(ctx.prefix ? { selkey: `${ctx.prefix}selected` } : {}) }, c: items }, ...more];
+      return [{ t: n.name, a: { ...a, source: "", image: "", alt: "", date: "", side: "", dot: "", ...(ctx.prefix ? { selkey: `${ctx.prefix}selected` } : {}) }, c: items }, ...more];
     }
     case "board": {
       const p = a.group ? propByName(ctx, a.group) : undefined;
@@ -881,6 +1068,107 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       }
       if (!fields.length) return (err('<form> needs fields="title, Status, …".'), []);
       return [{ t: "form", a: { ...a, fields: JSON.stringify(fields) }, c: [] }];
+    }
+    case "markdown":
+      return markdownNodes(a.value ?? "");
+    case "schedule": {
+      const src = source();
+      const field = (f: string | undefined) => (f ? fieldValues(ctx, src, f) : null);
+      const list = itemsOf(src);
+      const starts = field(a.start || "Start");
+      const ends = field(a.end || "End");
+      const titles = field(a.title || "title");
+      const ids = field(a.id);
+      const colors = field(a.color);
+      const alldays = field(a.allday);
+      const edits = field(a.editable);
+      const at = (xs: unknown[] | null, i: number) => (xs ? textOf(plain(xs[i])).trim() : "");
+      const yes = (xs: unknown[] | null, i: number) => !!xs && plain(xs[i]) !== null && !["", "false", "0", "no"].includes(at(xs, i).toLowerCase());
+      // (A date field may hold a range {start, end}: its start — and its end, when there is no end field.)
+      const stamp = (v: unknown, i: number, which: "start" | "end") => {
+        const raw = isField(v) && v.prop?.type === "date" && isRows(src) ? src.rows[i]?.cells[v.prop.id] : plain(v);
+        if (raw && typeof raw === "object" && "start" in (raw as object)) {
+          const r = raw as { start?: string; end?: string };
+          return String((which === "end" ? r.end : r.start) ?? r.start ?? "");
+        }
+        return which === "end" && isField(v) && v.prop?.type === "date" ? "" : textOf(plain(v)).trim();
+      };
+      const items = list.flatMap((_it, i) => {
+        const start = stamp(starts?.[i], i, "start");
+        if (!/^\d{4}-\d{2}-\d{2}/.test(start)) return [];
+        const end = textOf(plain(ends?.[i])).trim() || stamp(starts?.[i], i, "end") || start;
+        const id = at(ids, i) || (isRows(src) ? String(src.rows[i].id) : String(i));
+        return [{ id, title: at(titles, i), start, end: end < start ? start : end, allDay: alldays ? yes(alldays, i) : start.length === 10, color: at(colors, i), editable: edits ? yes(edits, i) : !!a.move }];
+      });
+      return [{ t: "schedule", a: { items: JSON.stringify(items), view: ["day", "week", "month", "agenda"].includes(a.view ?? "") ? a.view! : "week", day: /^\d{4}-\d{2}-\d{2}$/.test(a.day ?? "") ? a.day! : "", ...Object.fromEntries((["bind", "emit", "move", "create", "daybind", "empty"] as const).filter((k) => a[k]).map((k) => [k, a[k]])), ...(a.bind ? { current: ctx.state[a.bind] ?? "" } : {}) }, c: [] }];
+    }
+    case "graph": {
+      const src = source();
+      if (a.look === "map") {
+        // The dependency map: nodes with their parts, bands (groups) side by side, the red thread (src/components/skill-tree/SkillMap).
+        const nodes = itemsOf(src).map((x) => plain(x));
+        if (!nodes.length) return a.empty ? [a.empty] : [];
+        const groups = a.groups ? itemsOf(pipe(a.groups, ctx, n.line)).map((x) => plain(x)) : [];
+        const route = a.route ? plain(pipe(a.route, ctx, n.line)) : null;
+        return [{ t: "graph", a: { look: "map", map: JSON.stringify({ nodes, groups, route }), label: a.label ?? "", ...(a.bind ? { bind: a.bind, current: ctx.state[a.bind] ?? "" } : {}), ...(a.emit ? { emit: a.emit } : {}), ...(a.stepbind ? { stepbind: a.stepbind } : {}), ...(a.stepemit ? { stepemit: a.stepemit } : {}) }, c: [] }];
+      }
+      const field = (f: string | undefined) => (f ? fieldValues(ctx, src, fieldName(f, ctx, n.line)) : null);
+      const ids = (field(a.id || "title") ?? []).map((v) => textOf(plain(v)).trim());
+      const labels = field(a.label);
+      const reqs = field(a.requires);
+      const groups = field(a.group);
+      const colors = field(a.color);
+      const states = field(a.state);
+      const progress = field(a.progress);
+      const rings = field(a.ring);
+      const listOf = (v: unknown): string[] => {
+        const x = plain(v);
+        return (Array.isArray(x) ? x.map((y) => textOf(plain(y))) : textOf(x).split(",")).map((y) => y.trim()).filter(Boolean);
+      };
+      const nodes: GraphNodeIn[] = ids.flatMap((id, i): GraphNodeIn[] =>
+        id
+          ? [{
+              id,
+              label: labels ? textOf(plain(labels[i])).trim() || id : id,
+              requires: reqs ? listOf(reqs[i]) : [],
+              ...(groups && textOf(plain(groups[i])).trim() ? { group: textOf(plain(groups[i])).trim() } : {}),
+              ...(colors && textOf(plain(colors[i])).trim() ? { color: textOf(plain(colors[i])).trim() } : {}),
+              ...(states && textOf(plain(states[i])).trim() ? { state: textOf(plain(states[i])).trim().toLowerCase() } : {}),
+              ...(progress && numOf(plain(progress[i])) !== null ? { progress: Math.max(0, Math.min(1, numOf(plain(progress[i]))!)) } : {}),
+              ...(rings && textOf(plain(rings[i])).trim() ? { ring: textOf(plain(rings[i])).trim().slice(0, 8) } : {}),
+            }]
+          : [],
+      );
+      if (!nodes.length) return a.empty ? [a.empty] : [];
+      const thread = a.thread ? itemsOf(pipe(a.thread, ctx, n.line)).map((x) => textOf(plain(x)).trim()) : [];
+      const layout = layoutGraph(nodes, { thread, walked: Number(a.walked) || 0 });
+      return [{ t: "graph", a: { layout: JSON.stringify(layout), ...(a.bind ? { bind: a.bind, current: ctx.state[a.bind] ?? "" } : {}), ...(a.emit ? { emit: a.emit } : {}) }, c: [] }];
+    }
+    case "chat": {
+      if (!a.chat || !a.key) return [];
+      if (a.bump && !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(a.bump)) return (err('<chat bump="…">: the name of a state.'), []);
+      return [{ t: "chat", a: { ...a, ...(a.bump ? { bump: ctx.prefix + a.bump } : {}) }, c: [] }];
+    }
+    case "codewidget": {
+      let html = a.html ?? "";
+      const libs = (a.libs ?? "").split(",").map((x) => x.trim()).filter((x) => x in WIDGET_LIBS);
+      // An exercise set (spec: JSON) is made into a widget by the kit: its mistakes are said, each of them.
+      if (a.spec?.trim()) {
+        let spec: unknown;
+        try {
+          spec = JSON.parse(a.spec);
+        } catch (e) {
+          return (err(`<codewidget spec>: not valid JSON (${e instanceof Error ? e.message : String(e)}).`), []);
+        }
+        const problems = checkSpec(spec);
+        if (problems.length) return (err(`<codewidget spec>: ${problems.slice(0, 4).join("; ")}.`), []);
+        html = specHtml({ ...(spec as ExerciseSet), title: (spec as ExerciseSet).title ?? a.title ?? "" });
+        if (/\$[^$]+\$/.test(a.spec) && !libs.includes("katex")) libs.push("katex");
+      }
+      if (!html.trim()) return [];
+      const ok = checkWidgetHtml(html);
+      if (!ok.ok) return (err(`<codewidget>: ${ok.why}.`), []);
+      return [{ t: "codewidget", a: { ...a, html, spec: "", libs: libs.join(",") }, c: [] }];
     }
     case "sparkline":
     case "tile": {
@@ -956,7 +1244,14 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       if (!row) return a.empty ? [{ t: "muted", a: {}, c: [a.empty] }] : [];
       return [{ t: "selected", a: { row: String(row.id) }, c: drawList(n.kids, withRow(ctx, row)) }];
     }
+    case "on": {
+      if (!a.event && !a.keys) return (err('<on> needs event="…" (the event a button sends with emit="…") or keys="…" (a key combination).'), []);
+      const asButton: Extract<TNode, { k: "tag" }> = { ...n, name: "button", attrs: n.attrs.filter(([k]) => k !== "event") };
+      return drawTag(asButton, ctx).map((b) => (typeof b === "string" ? b : { ...b, t: "on", a: { ...b.a, ...(a.event ? { event: a.event } : {}) } }));
+    }
     case "button": {
+      // Only an event sent to the <on> handlers.
+      if (a.emit && !a.action && !a.run && !a.transition) return [{ t: "button", a: { ...a, action: "emit" }, c: [] }];
       // A flow run (run="name") or a lifecycle's transition (transition="name") instead of an action.
       if (a.run || a.transition) {
         if (a.action) return (err("A button runs an action, a flow (run=) or a transition (transition=) — one of them."), []);
@@ -1056,6 +1351,31 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       if (!a.bind) return (err('<dialog> needs bind="…" (the state that opens it: a button action="state" state="…" value="true").'), []);
       const v = ctx.state[a.bind];
       return v && v !== "false" ? [{ t: "dialog", a, c: kids() }] : [];
+    }
+    case "drop": {
+      if (!a.bind) return (err('<drop> needs bind="…" (the state that gets the value of what was dropped).'), []);
+      return [{ t: "drop", a, c: kids() }];
+    }
+    case "setting": {
+      const name = a.name ?? "";
+      if (!/^[\p{L}_][\p{L}\p{N}_]*$/u.test(name)) return (err('<setting> needs name="…" (letters, digits, _): it is read as settings.<name>.'), []);
+      if (ctx.decls.some((d) => d.name === name)) return (err(`<setting name="${name}"> twice.`), []);
+      if (ctx.decls.length >= MAX_SETTINGS) return (err("Too many settings."), []);
+      const options = (a.options ?? "").split(",").map((o) => o.trim()).filter(Boolean);
+      const type = (a.type as SettingDecl["type"]) ?? "text";
+      if (type === "select" && !options.length) return (err(`<setting name="${name}" type="select"> needs options="A, B".`), []);
+      ctx.decls.push({ name, label: a.label || name, type, options, default: a.default ?? "" });
+      return [];
+    }
+    case "settings":
+      return [{ t: "settings", a: { ...(a.title ? { title: a.title } : {}) }, c: [] }];
+    case "theme": {
+      if (a.accent && !/^#[0-9a-f]{6}$/i.test(a.accent)) return (err('<theme accent="…"> is a colour as #rrggbb (e.g. #0ea5e9).'), []);
+      return [{ t: "theme", a, c: [] }];
+    }
+    case "upload": {
+      if (!a.bind) return (err('<upload> needs bind="…" (the state the text of the file goes into).'), []);
+      return [{ t: "upload", a: { ...a, name: ctx.state[`${a.bind}_name`] ?? "", max: String(Math.min(500, Math.max(1, Number(a.max) || 200))) }, c: [] }];
     }
     case "input":
     case "slider": {
@@ -1170,7 +1490,9 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
 function drawList(list: TNode[], outer: Ctx): VNode[] {
   const res: VNode[] = [];
   let ctx = outer;
-  for (const n of list) {
+  let checkedTo = 0;
+  for (let at = 0; at < list.length; at++) {
+    const n = list[at];
     if (n.k === "tag" && n.name === "let") {
       // A name for a value, for what comes after it here (and inside that).
       const raw = Object.fromEntries(n.attrs);
@@ -1182,22 +1504,36 @@ function drawList(list: TNode[], outer: Ctx): VNode[] {
       }
       continue;
     }
+    if (n.k === "tag" && n.name === "def") {
+      const raw = Object.fromEntries(n.attrs);
+      const params = (raw.args ?? "").split(",").map((x) => x.trim()).filter(Boolean);
+      if (!raw.name || !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(raw.name)) ctx.errors.push({ line: n.line, message: '<def> needs name="…" (letters, digits, _).' });
+      else if (!raw.value?.trim()) ctx.errors.push({ line: n.line, message: `<def name="${raw.name}"> needs value="…" (what it gives back).` });
+      else if (params.some((p) => !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(p))) ctx.errors.push({ line: n.line, message: `<def name="${raw.name}" args="…">: the arguments are names, separated by commas.` });
+      else if (FORMULA_FUNCTIONS.some((f) => f.toLowerCase() === norm(raw.name)) || LIST_FILTERS[norm(raw.name)] || CARD_FILTERS[norm(raw.name)]) ctx.errors.push({ line: n.line, message: `<def name="${raw.name}">: that name is one of Zeff's own functions or filters — pick another.` });
+      else ctx = { ...ctx, fns: new Map(ctx.fns).set(norm(raw.name), { name: raw.name, params, body: raw.value, vars: ctx.vars, line: n.line }) };
+      continue;
+    }
+    // A sentence in the user's language: the run of text and {{ }} up to the next tag, looked up once (its values as {0}, {1} …).
+    if (ctx.data.tr && at >= checkedTo && (n.k === "text" || n.k === "out")) {
+      let end = at;
+      while (end < list.length && (list[end].k === "text" || list[end].k === "out")) end++;
+      checkedTo = end;
+      const run = list.slice(at, end) as Extract<TNode, { k: "text" | "out" }>[];
+      const values = run.filter((x): x is Extract<TNode, { k: "out" }> => x.k === "out");
+      const said = translated(run.map((x) => (x.k === "text" ? x.v : null)), ctx.data.tr, (i) => {
+        const x = values[i];
+        return out(applyFilters(head(x.expr, ctx, x.line), x.filters, ctx, x.line)).map((v) => (typeof v === "string" ? v : "")).join("");
+      });
+      if (said !== null) {
+        res.push(said);
+        at = end - 1;
+        continue;
+      }
+    }
     if (n.k === "text") res.push(n.v);
     else if (n.k === "out") {
-      let v = head(n.expr, ctx, n.line);
-      for (const f of n.filters) {
-        const own = LIST_FILTERS[f.name];
-        const card = CARD_FILTERS[f.name];
-        if (!own && !card) {
-          ctx.errors.push({ line: n.line, message: `There is no filter “${f.name}”.` });
-          continue;
-        }
-        try {
-          v = own ? own(v, argsOf(f, ctx), ctx) : card(isRows(v) ? v.rows.length : v, argsOf(f, ctx), cardCtx(ctx));
-        } catch (e) {
-          ctx.errors.push({ line: n.line, message: (e as Error).message });
-        }
-      }
+      const v = applyFilters(head(n.expr, ctx, n.line), n.filters, ctx, n.line);
       res.push(...out(v));
     } else if (n.k === "if") {
       const cond = splitPipes(n.cond).length > 1 ? pipe(n.cond, ctx, n.line) : evaluate(n.cond, ctx, n.line);
@@ -1238,6 +1574,9 @@ export function renderView(src: string, data: ViewData, opts: { parts?: PartMeta
     actions: new Set((opts.actions ?? []).map((a) => a.name)),
     scopes: new Map(),
     vars: new Map(),
+    fns: new Map(),
+    budget: { calls: 0, depth: 0 },
+    decls: [],
     blocks: opts.blocks === null ? null : new Map((opts.blocks ?? []).map((b) => [b.name, b])),
     prefix: "",
     block: null,
@@ -1245,6 +1584,14 @@ export function renderView(src: string, data: ViewData, opts: { parts?: PartMeta
     seq: { n: 0 },
   };
   const nodes = drawList(parsed.nodes, ctx);
+  // The forms (<settings/>) get what was declared, and the values now.
+  const fill = (ns: VNode[]) =>
+    ns.forEach((x) => {
+      if (typeof x === "string") return;
+      if (x.t === "settings") x.a = { ...x.a, decls: JSON.stringify(ctx.decls), values: JSON.stringify(settingsWithDefaults(ctx.decls, data.settings)) };
+      fill(x.c);
+    });
+  fill(nodes);
   const seen = new Set<string>();
   const errors = [...parsed.errors, ...ctx.errors].filter((e) => (seen.has(`${e.line}:${e.message}`) ? false : (seen.add(`${e.line}:${e.message}`), true)));
   return { nodes, errors, state: ctx.state };
@@ -1277,6 +1624,17 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     "TEXT: <b> <i> <small> <muted> <code> <mono> <truncate> (one line, cut) <strike> — tip=\"…\" on text, tiles, buttons, rows: a tooltip; <clamp lines=3> <chip color=…> <badge color=…> <bar value= max= fill=\"#hex\"/> <dot color=\"#hex or name\"/> <img src= h=/> <a href=…>, <printonly>…</printonly> (only on paper), <noprint>…</noprint>.",
     "FIGURES: <tile label=\"…\" value=\"{{ … }}\" sub=\"…\" tone=good|warn|bad/> — or <tile …>content under the value (text, a part)</tile>.",
     "DATA: <list source=\"rows | …\" select=true open=true spacing=roomy empty=\"…\">item template</list>, <cards source=\"…\" cols=3>item template</cards>, <table source=\"rows | …\" columns=\"title, Status, [Due]\" sum=\"Amount\" empty=\"…\"/>, <chart kind=bar|column|line|pie source=\"rows\" group=\"Status\" value=\"Amount\" calc=count|sum|avg/>, <selected empty=\"…\">template of the row picked (a list with select=true picks)</selected>, <field name=\"Status\"/> (a row's property, editable), <datatable source=\"app.list | …\" empty=\"…\"><column label=\"…\" align=right nowrap=true foot=\"{{ … }}\">cell template (the item's fields by name)</column>…</datatable> (a table of any list).",
+    "FUNCTIONS: <def name=\"fact\" args=\"n\" value=\"if(n <= 1, 1, n * fact(n - 1))\"/> makes a function of your own (from there on, also inside what follows): its value is a formula, or a pipe when it has a | ({{ x | trim | upper }}). Call it in a formula — {{ fact(5) }} — or as a filter: {{ 5 | fact }} (the piped value is its first argument). It may call itself, within a budget of calls (a function that calls itself needs a case where it stops). With lists: {{ 10 | range | map('double') | keep('even') }}, {{ rows | reduce('add', 0) }}. A list or an object in the state is kept as JSON text: {{ state.todo | fromjson | push(state.new) | tojson }} (also drop(i), put(key, value), get(key), at(i), first, last, keys, len).",
+    "RICH TEXT: <markdown value=\"{{ state.note }}\"/> — Markdown (# headings, **bold**, *italic*, `code`, [text](https://…), - lists, > quotes, ``` code blocks, ---) as the view's own nodes; no HTML.",
+    "DRAG AND DROP: <drag value=\"{{ id }}\">what can be picked up</drag> and <drop bind=\"moved\" emit=\"moved\" label=\"Drop here\">the target</drop> — dropping puts the dragged value in state.moved and sends the event, which an <on event=\"moved\" action=\"set\" prop=\"Status\" row=\"{{ state.moved }}\" value=\"Done\"/> handles. Files can be dropped on an <upload>.",
+    "SETTINGS: <setting name=\"currency\" label=\"Currency\" type=\"select\" options=\"EUR, USD\" default=\"EUR\"/> (type text | number | toggle | select; declare them at the top) and <settings/> (the form where they are edited) — saved for the app; read anywhere as {{ settings.currency }}.",
+    "THEME: <theme accent=\"#0ea5e9\" radius=none|sm|md|lg font=sans|serif|mono/> — the view's accent colour, corners and font (this view only; put it anywhere, once).",
+    "GRAPH: <graph source=\"data.steps.rows\" id=\"Key\" label=\"title\" requires=\"Requires\" group=\"Phase\" color=\"Path\" state=\"Status\" progress=\"Share\" ring=\"Count\" thread=\"data.thread\" walked=3 bind=\"picked\" emit=\"opened\"/> — things that depend on each other, drawn in columns (an item stands one column after everything it requires), in bands when group is a field, lines between them; state done = ticked, locked = a lock; progress 0..1 is the ring, ring the small text in it; thread is a list of ids the red thread goes through (the first `walked` stretches solid, the rest dashed, numbered). Clicking a node sets state.<bind> to its id and sends the event.",
+    "SCHEDULE: <schedule source=\"rows\" start=\"Start\" end=\"End\" title=\"title\" color=\"Kind\" view=\"{{ state.view }}\" day=\"{{ state.day }}\" bind=\"picked\" emit=\"opened\" move=\"moved\" create=\"made\" daybind=\"day\"/> — things with a time as a calendar: view day | week (in hours, side by side where they overlap) | month | agenda, around day (YYYY-MM-DD; none: today). A click on one puts its id (a row's id) in state.<bind> and sends emit; dragging one (move= given, or editable=\"Field\" true) puts its new times in state.<bind>_start / _end and sends move — an <on event=\"moved\" action=\"set\" row=\"{{ state.picked }}\" prop=\"Start\" value=\"{{ state.picked_start }}\"/> keeps them; dragging on free time puts state.<bind>_start / _end / _allday and sends create; a day clicked goes into state.<daybind>. A date field that is a range (start–end) is enough on its own; a date without a time is all day.",
+    "CHAT: <chat chat=\"my-plugin.lesson\" key=\"{{ state.step }}\" title=\"Lesson: …\" first=\"Let's begin.\" begin=\"Start\" placeholder=\"Your message …\" bump=\"n\"/> — the live chat of a plugin's kind (its manifest chats): the plugin's agent with its own rules and tools, one conversation per key. Starts on the first message, shows the session while it speaks, takes the next message; the conversation itself is shown by the view from the database the chat keeps it in (the state named by bump is counted up when it grew, so the data reloads).",
+    "CODE WIDGET: <codewidget html=\"{{ Code }}\" (or spec=\"{{ Spec }}\": an exercise set as JSON, made into a widget by the exercise kit) libs=\"chart,katex\" title=\"…\" height=300 report=\"my.flow\" with=\"exercise={{ id }}\" fail=\"my.error-flow\"/> — a widget (HTML/JS, e.g. an exercise the AI wrote) from the data, in the sandboxed frame: no network, no access to Zeff, libraries by name (see the widget libraries). What it reports with zeff.report({ score, correct, total, note, done, answers }) runs the flow `report` with the with= values and score/correct/total/note/done/answers added; something breaking in it runs `fail` with message. With tell=\"my-plugin.lesson\" tellkey=\"{{ state.step }}\" (kind=\"Exercise\" is how the agent is told what it was) the agent of that chat hears the result (at once when it is done, else after a quiet moment) and the error. The flow's answer can carry notice=\"+3 XP\" (shown).",
+    "UPLOAD: <upload bind=\"csv\" label=\"Choose a file\" accept=\".csv,.txt,.json\" max=200/> — the file the user picks is read as text (at most max KB) into state.csv, its name in state.csv_name; work on it with filters ({{ state.csv | fromjson | … }}) or hand it to a flow (with=\"text={{ state.csv }}\").",
+    "EVENTS: <button label=\"Save\" run=\"my.save\" emit=\"saved\"/> sends an event after its own action (or alone: <button emit=\"saved\" label=\"…\"/>); <on event=\"saved\" action=\"state\" state=\"msg\" value=\"Saved\"/> handles it — the attributes of a button; <on keys=\"mod+s\" run=\"my.save\"/> handles a key (mod = Ctrl / ⌘; also on a button: keys=\"mod+k\"). Handlers may send events themselves (at most 8 deep).",
     "STATE: <state name=\"dir\" value=\"owe\"/> (a default), <tabs bind=\"dir\" options=\"owe:Label, owed:Label:3\"/> (:3 — a count beside the label), <select bind=… options=… label=…/>, <search bind=\"q\" placeholder=…/> (use it: rows | search(state.q)), <toggle bind=\"done\" label=…/> (state.done is \"true\"/\"\").",
     "PANES: <panes><pane title=\"…\" aside=\"3\" width=300>…</pane><pane title=\"…\" flush=true><ask/></pane><pane title=\"…\" width=360>…</pane></panes> — an app's screen: columns as high as the window, each scrolling by itself, one under the other on a phone. width: pixels, without it a column takes the room left. flush: no padding, for what fills its pane (<ask>).",
     "PAGE: <header title=\"…\" subtitle=\"…\" icon=\"📓\">buttons on its right</header> (a view's top, instead of <heading>), <toolbar>search, filters, buttons</toolbar> (a line with a rule under it), <menu label=\"⋯\" tip=\"…\">toggles, buttons</menu> (what is used now and then, behind one button: a dropdown),<cover src= h=200 title= subtitle=/> (a wide picture), <callout tone=info|good|warn|bad title=\"…\" icon=\"…\">text</callout>, <empty icon=\"📭\" title=\"…\" text=\"…\">a button</empty> (nothing here yet: what to do), <kv min=200><pair label=\"…\">value</pair>…</kv> (facts, label over value), <steps><step title=\"…\" state=done|active|todo>text</step>…</steps>, <quote cite=\"…\">text</quote>, <divider label=\"…\"/>, <avatar src= name=\"…\" size=32/> (initials without a picture), <logo name=\"{{ Channel }}\" size=sm|lg/> (a channel's mark: Gmail, Outlook, Teams, WhatsApp, Signal, E-Mail; in <tabs> a label \"logo-gmail Gmail\" shows the mark alone), <todomark/> (in a row: a dot when it flowed into a todo, a badge ☑ n for several), <progress value= max= label=\"…\" tone= show=true/> (show: the percent), <sparkline values=\"1,4,2\" wide=true/>. <tile> also takes icon=\"📈\" trend=\"+12 %\" spark=\"1,4,2\"; <button> also icon=\"➕\".",
@@ -1287,7 +1645,7 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
     `BUTTONS: <button action=… label=\"…\" row=\"{{ id }}\" (the row it acts on, outside a row) variant=primary|plain|quiet|danger|link confirm=\"…\" print=true (also on paper) disabled=\"{{ … }}\" wide=true keys=\"N\" (its key, shown in the tooltip)/> — actions: ${Object.entries(ACTIONS)
       .map(([k, v]) => `${k} (${v.what}${v.row ? "; in a row" : ""})`)
       .join(", ")}${actions.length ? `, ${actions.map((x) => `${x.name} (${x.description})`).join(", ")}` : ""}.`,
-    'FLOWS (what the app does on the server — a web request, a lookup, the AI, rows written; built in the Studio or with workspace_save_flow): <button run="flow.name" with="q={{ state.q }}, n=5" into="result" done="Saved." then="state=value" label="…"/> runs a flow (in a row: the row is its `row`), its output in data.result; <data name="films" flow="movie.search" with="query={{ state.q }}" when="{{ state.q }}" debounce=400/> loads a flow\'s output into data.films, again whenever with= changes (when=: only while it is filled) — data.films_status is loading|ok|error, data.films_error the error. Show it: {{#each data.films.hits}}…{{/each}}, <datatable source="data.films.hits">. LIFECYCLE (a database whose status follows transitions): <button transition="Approve" label="…" note=true/> in a row moves it on (its guard and required fields checked on the server), <transitions history=true/> in <selected>: the row\'s transitions as buttons and its way so far.',
+    'FLOWS (what the app does on the server — a web request, a lookup, the AI, rows written; built in the Studio or with workspace_save_flow): <button run="flow.name" with="q={{ state.q }}, n=5" into="result" done="Saved." then="state=value" label="…"/> runs a flow (in a row: the row is its `row`), its output in data.result; <data name="films" flow="movie.search" with="query={{ state.q }}" when="{{ state.q }}" debounce=400/> loads a flow\'s output into data.films, again whenever with= changes (when=: only while it is filled) — data.films_status is loading|stale|ok|error (stale: the last answer, kept in the browser, shown while it loads again), data.films_error the error. Show it: {{#each data.films.hits}}…{{/each}}, <datatable source="data.films.hits">. LIFECYCLE (a database whose status follows transitions): <button transition="Approve" label="…" note=true/> in a row moves it on (its guard and required fields checked on the server), <transitions history=true/> in <selected>: the row\'s transitions as buttons and its way so far.',
     "FILTERS for collections: where(\"Field\", \"value\") or where(\"Field\", \">\", 5) (=, !=, >, <, >=, <=, contains, empty, filled), only(\"Field\", state.s) (where, or all while nothing is picked), sort(\"Field\", \"desc\"), limit(5), search(state.q), count, sum(\"Field\"), avg(\"Field\"), min(\"Field\"), max(\"Field\"), pluck(\"Field\").",
     "FILTERS for values: host (an address's site), euro (euro(0): whole euros), number(2), percent, hours, date, relative, chip, upper, lower, truncate(40), clamp(3), default(\"—\"), join(\", \"), first, last, count, check, bold, muted, small, code, link, img(80), bar(max), initials.",
     "NAV: <nav title=\"…\"><entry label=\"…\" icon=\"📥\" state=\"scope\" value=\"inbox\" n=\"{{ … }}\" group=\"…\"/>…</nav> — the view's sidebar (beside the view, or — its setting — in the Workspace tree under the database); an entry sets the view's state, opens a row (row=\"{{ id }}\" — in {{#each}} the row by itself) or goes to an address (href). E.g. the newest five: {{#each rows | sort('Date', 'desc') | limit(5)}}<entry label=\"{{ title }}\" group=\"Newest\"/>{{/each}}.",

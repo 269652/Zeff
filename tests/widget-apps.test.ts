@@ -95,7 +95,7 @@ test("a widget block keeps its code and state through Markdown; libraries Zeff d
   const html = '<div id="f"></div>\n<script>\nconst s = `\n:::\n`;\nZeffKit.form("#f", { db: 12 });\n</script>';
   const doc = sanitizeDoc({ type: "doc", content: [{ type: "zeffApp", attrs: { title: "Leads", prompt: "a form", html, libs: "chart,evil", writes: "12,x", ai: false, state: '{"n":3}' } }] });
   const node = doc.content[0];
-  assert.deepEqual(node.attrs, { title: "Leads", prompt: "a form", html, libs: "chart", writes: "12", ai: false, flows: "", wid: "", state: '{"n":3}' });
+  assert.deepEqual(node.attrs, { title: "Leads", prompt: "a form", html, libs: "chart", writes: "12", ai: false, flows: "", meta: "", wid: "", state: '{"n":3}' });
   const md = docToMarkdown(doc);
   assert.match(md, /^:::app \{"title":"Leads","prompt":"a form","libs":\["chart"\],"writes":\[12\],"state":\{"n":3\}\}\n/);
   const back = markdownToDoc(md).content.find((n) => n.type === "zeffApp")!;

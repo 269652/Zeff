@@ -28,6 +28,8 @@ without rebuilding Zeff) are documented separately in [docs/plugins](../plugins/
 | --- | --- | --- |
 | [Todos](todos.md) | The todo list, Today and Tickets: what to do, derived from your mails, chats and tickets — each with its source, reason and a ready action | on |
 | [Workspace](workspace.md) | Pages, databases, boards, flows and routines — Zeff's notebook and the home of collections | on |
+| [Notebook](notebook.md) | Code blocks in pages that run Python, Node.js or Rust (Docker by default), and `.znb` files — Jupyter notebooks with Zeff's blocks; each language is a plugin of its own | on (running code off) |
+| [Notebook · Python](notebook.md#plugins) · [Node.js](notebook.md#plugins) · [Rust](notebook.md#plugins) | The languages of the Notebook, each its own plugin: install only those you want | on |
 | [Calendar](calendar.md) | One calendar for everything — Zeff's own calendars and your sources' (Outlook, Google) — plus the meetings your todos propose | on |
 | [Agenda](agenda.md) | Notes on a timeline, in projects, like the app *Agenda*: dated notes you pin, tick off and tag | off |
 | [Mail & Chat](mail-client.md) | A mail client, a chat and a combined inbox for every mail and message Zeff reads | on |
@@ -39,7 +41,7 @@ without rebuilding Zeff) are documented separately in [docs/plugins](../plugins/
 | [Finances](finances.md) | Your debts and what you are owed — instalments, payment plans, when you are debt-free | on |
 | [Documents](documents.md) | A store for your documents whose text Zeff reads: searchable, context for todos, a source of todos | off |
 | [News](news.md) | News from public feeds, scored for your interests, sources and open todos | off |
-| [Learn](learn.md) | Claude researches a topic and teaches it as a skill tree, with exercises built on the fly | off · beta |
+| [Learn](learn.md) | Learn rebuilt on Zeff's own building blocks (databases, an app view, flows, functions) — in the making, until it can do everything Learn does | off · beta |
 | [Studio](studio.md) | Flows drawn on a canvas, lifecycles, lambdas, screens and secrets for your Zeff apps — by hand or with a copilot | off · beta |
 | [Knowledge](knowledge.md) | What you should know right now, questions answered from your own data, and Confluence as a knowledge base | on |
 | [Correlations](correlations.md) | What goes with what in your days — mood or energy against meetings, hours, spending, sleep | on |

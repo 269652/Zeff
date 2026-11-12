@@ -28,6 +28,8 @@ export function checkPluginFolder(dir: string): CheckResult {
     if (!fs.existsSync(path.join(base, rel))) errors.push(`${what}: ${path.relative(root, path.join(base, rel)).replace(/\\/g, "/")} doesn't exist`);
   };
   for (const f of m.contributes.workerRules) need(f, "workerRules");
+  for (const f of m.contributes.functions) need(f.file, `function ${f.name}`);
+  for (const c of m.contributes.chats) need(c.rules, `chat ${c.id}'s rules`);
   for (const p of m.contributes.workPanels) need(p.entry, `panel "${p.id}"`, path.join(root, "ui"));
   const script = (argv: string[], what: string) => {
     for (const a of argv) if (/^\.[\\/]/.test(a)) need(a.slice(2), what);

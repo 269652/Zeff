@@ -28,6 +28,8 @@ export default async function WorkspacePage({ params }: { params: Promise<{ id: 
   // A row whose database has a custom view (a person's page): its page starts with that view's block — written once, here.
   const rowViews = isRow ? await import("@/plugins/workspace/row-views") : null;
   rowViews?.ensureRowView(page.id);
+  // A database's app views: their templates in the database (yours and the AI's to change), kept up with the app's while unchanged.
+  if (page.kind === "database") (await import("@/plugins/workspace/app-templates")).ensureAppTemplates(page.id);
   const fresh = getPage(page.id) ?? page;
   // What a person's page shows comes with the page — nothing to fetch after it.
   let person: unknown = null;

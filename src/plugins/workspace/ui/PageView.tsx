@@ -8,6 +8,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
+import { exportNotebookAction, importNotebookAction } from "@/plugins/notebook/server-actions";
 import { applyRowLayoutAction, archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, savePageAsPluginAction, historyAction, makeRoutineAction, restoreVersionAction, saveAsTemplateAction, savePageAction, setTemplateAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { CRUMB_SLOT, DatabaseView, RowProperties } from "./DatabaseView";
@@ -452,6 +453,38 @@ export function PageView({ page, row, database, form, person, app }: { page: Pag
                 }}
               >
                 📤 {t("Share as a read-only file (HTML)")}
+              </MenuItem>
+              <MenuItem
+                onClick={async () => {
+                  close();
+                  const r = await exportNotebookAction(page.id, "znb");
+                  if (r.ok) download(r.filename, r.json, "application/json;charset=utf-8");
+                  else toast(r.error, { tone: "error" });
+                }}
+              >
+                📓 {t("Export as a notebook (.znb)")}
+              </MenuItem>
+              <MenuItem
+                onClick={async () => {
+                  close();
+                  const r = await exportNotebookAction(page.id, "ipynb");
+                  if (r.ok) download(r.filename, r.json, "application/json;charset=utf-8");
+                  else toast(r.error, { tone: "error" });
+                }}
+              >
+                📓 {t("Export for Jupyter (.ipynb)")}
+              </MenuItem>
+              <MenuItem
+                onClick={async () => {
+                  close();
+                  const file = await pickFile(".znb,.ipynb,application/json");
+                  if (!file) return;
+                  const r = await importNotebookAction(await file.text(), page.id);
+                  if (r.ok) router.push(`/workspace/${r.id}`);
+                  else toast(r.error, { tone: "error" });
+                }}
+              >
+                📥 {t("Import a notebook as a sub-page")}
               </MenuItem>
               <MenuItem
                 onClick={async () => {

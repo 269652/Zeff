@@ -120,6 +120,26 @@ const BRIDGE = `<script>
       list: function () { return call("flow.list"); },
       run: function (name, input) { return call("flow.run", { flow: name, input: input || {} }); }
     },
+    // Server functions plugins bring (each only when the user allowed it for this widget): zeff.fn.call("my-plugin", "summarize", { text: … }).
+    fn: { call: function (plugin, name, args) { return call("fn.call", { plugin: plugin, name: name, args: args || {} }); } },
+    // A plugin's live chat (an agent with its own rules): where it stands, begin it, say something into it - each chat only when the user allowed it for this widget.
+    chat: {
+      state: function (chat, key) { return call("chat.state", { chat: chat, key: key }); },
+      begin: function (chat, key, title, first) { return call("chat.begin", { chat: chat, key: key, title: title || key, first: first || "" }); },
+      send: function (chat, key, text) { return call("chat.send", { chat: chat, key: key, text: text }); }
+    },
+    // Zeff's own structure — pages, databases (fields, views), blocks, flows, plugins — each kind only when the user allowed this widget.
+    meta: (function () {
+      function r(op) { return function (args) { return call("meta.read", { op: op, args: args || {} }); }; }
+      function w(op) { return function (args) { return call("meta.run", { op: op, args: args || {} }); }; }
+      return {
+        tree: r("tree"), schema: r("schema"), blocks: r("blocks.list"), flows: r("flows.list"), plugins: r("plugins.list"),
+        pageCreate: w("page.create"), pageUpdate: w("page.update"), pageArchive: w("page.archive"), pageDelete: w("page.delete"),
+        databaseCreate: w("database.create"), databaseAlter: w("database.alter"),
+        blockSave: w("block.save"), blockDelete: w("block.delete"), flowSave: w("flow.save"), flowDelete: w("flow.delete"),
+        pluginSave: w("plugin.save"), pluginDelete: w("plugin.delete")
+      };
+    })(),
     // What the widgets on one page share (kept with the page): the others hear zeff.on("page", ({ key, value }) => …).
     page: {
       get: function (key) { return call("page.get", key == null ? {} : { key: key }); },

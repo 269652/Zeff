@@ -1,6 +1,6 @@
 import "@/plugins/contributions";
 import { getSqlite } from "@/db";
-import { workspaceSources } from "./source-point";
+import { allSources } from "./source-point";
 import { listTodos } from "@/lib/todos/store";
 import { listJiraBoards } from "@/lib/jira/store";
 import { getJiraSyncConfig } from "@/lib/jira/sync";
@@ -49,7 +49,7 @@ export function sourcesOverview(): SourceView[] {
   if (isInstalled("todos")) out.push(todoSource());
   if (isInstalled("outlook-mail") || isInstalled("gmail") || isInstalled("imap-mail")) out.push(mailSource());
   if (isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal")) out.push(messageSource());
-  for (const c of workspaceSources.list()) for (const s of c.impl) if (!s.relationOnly) out.push(extSource(s));
+  for (const s of allSources()) if (!s.relationOnly) out.push(extSource(s));
   return out;
 }
 

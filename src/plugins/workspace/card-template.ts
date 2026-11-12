@@ -36,7 +36,8 @@ export const MAX_TEMPLATE = 8000;
 /** A tag's definition: whether it is empty, and what each attribute may be. */
 export type TagDef = { void?: boolean; attrs: Record<string, AttrKind> };
 /** "text": any words (a label, a name), "list": an expression giving rows or items (not interpolated), "any": every attribute let through as text. */
-export type AttrKind = "int" | "url" | "color" | "paint" | "num" | "text" | "list" | { oneOf: string[] };
+/** "code": a program (a widget's HTML/JS), as long as a widget may be (300 000) and not trimmed. */
+export type AttrKind = "int" | "url" | "color" | "paint" | "num" | "text" | "list" | "code" | { oneOf: string[] };
 /** On any tag: phone="hide" (not on a phone) or phone="only" (only there) — drawn in a box that takes no room (ui/card-template.tsx). */
 export const ANY_TAG_ATTRS: Record<string, AttrKind> = { phone: { oneOf: ["hide", "only"] } };
 export const CARD_TAGS: Record<string, TagDef> = {
@@ -325,11 +326,13 @@ export function cardScope(v: { row: Row; props: Property[]; titleName: string; k
   }
   set("title", { value: v.row.title, text: v.row.title, prop: null });
   if (v.titleName) set(v.titleName, { value: v.row.title, text: v.row.title, prop: null });
-  set("icon", { value: v.row.icon || null, text: v.row.icon, prop: null });
   set("id", { value: v.row.id, text: String(v.row.id), prop: null });
-  set("key", { value: v.key ?? null, text: v.key ?? "", prop: null });
-  set("created", { value: v.row.createdAt.slice(0, 10), text: v.row.createdAt.slice(0, 10), prop: null });
-  set("updated", { value: v.row.updatedAt.slice(0, 10), text: v.row.updatedAt.slice(0, 10), prop: null });
+  // (The row's own facts under a name a property of the database doesn't have: a property "Key", "Updated" … stays the property.)
+  const free = (name: string, f: Field) => !fields.has(norm(name)) && set(name, f);
+  free("icon", { value: v.row.icon || null, text: v.row.icon, prop: null });
+  free("key", { value: v.key ?? null, text: v.key ?? "", prop: null });
+  free("created", { value: v.row.createdAt.slice(0, 10), text: v.row.createdAt.slice(0, 10), prop: null });
+  free("updated", { value: v.row.updatedAt.slice(0, 10), text: v.row.updatedAt.slice(0, 10), prop: null });
   if (v.text !== undefined && !fields.has("text")) set("text", { value: v.text || null, text: v.text, prop: null });
   return { get: (name) => fields.get(norm(name)), now: v.now ?? new Date(), names: ["title", "key", "id", "icon", "created", "updated", ...(v.text !== undefined ? ["text"] : []), ...v.props.map((p) => p.name)] };
 }
@@ -495,6 +498,7 @@ function interpolate(raw: string, ctx: Ctx, line: number): string {
 }
 
 export function checkAttr(kind: AttrKind, v: string): string | null {
+  if (kind === "code") return v.length <= 300_000 ? v : null;
   const s = v.trim();
   if (kind === "text" || kind === "list") return s.slice(0, 4000);
   if (kind === "int") return /^\d{1,3}$/.test(s) ? s : null;
