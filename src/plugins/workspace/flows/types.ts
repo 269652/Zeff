@@ -217,7 +217,7 @@ export function normalizeNodes(raw: unknown, depth = 0, ids = new Set<string>())
 }
 
 /** The connectors' drivers a flow can be allowed to read into Zeff (FlowPermissions.sync). */
-export const SYNC_SOURCES = ["gcalendar"];
+export const SYNC_SOURCES = ["gcalendar", "teams", "whatsapp", "signal"];
 
 function normalizePermissions(raw: unknown): FlowPermissions {
   const o = obj(raw);

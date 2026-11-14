@@ -11,7 +11,13 @@ import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsO
  * port is on, the built-in counts as there for everything that asks (its settings, its actions, Google's write access …), but its own
  * sync steps don't run (the port brings its sync as a flow). Ports that replace a built-in's screens and data aren't here.
  */
-export const PROVIDED_BY: Partial<Record<PluginId, string>> = { "google-calendar": "google-calendar-ext", "local-ai": "local-ai-ext" };
+export const PROVIDED_BY: Partial<Record<PluginId, { port: string; /** Its own sync steps — the port's flow replaces them (the steps it shares with others, like finding todos in mail, stay). */ steps: string[] }>> = {
+  "google-calendar": { port: "google-calendar-ext", steps: ["gcalendar"] },
+  "local-ai": { port: "local-ai-ext", steps: [] },
+  teams: { port: "teams-ext", steps: ["teams"] },
+  whatsapp: { port: "whatsapp-ext", steps: ["whatsapp"] },
+  signal: { port: "signal-ext", steps: ["signal"] },
+};
 
 /** The built-ins there only through their port (PROVIDED_BY), per account — set by chosen(). */
 const providedOnlyBy = new Map<string, Set<PluginId>>();
@@ -26,7 +32,7 @@ function chosen(): Map<PluginId, boolean> {
   // A built-in off whose port is on (registry.ts: an external plugin's row is "x:<id>"; never in safe mode): there through it.
   const only = new Set<PluginId>();
   providedOnlyBy.set(currentAccountId(), only);
-  for (const [id, port] of Object.entries(PROVIDED_BY) as [PluginId, string][]) {
+  for (const [id, { port }] of Object.entries(PROVIDED_BY) as [PluginId, { port: string }][]) {
     if (out.get(id) || !rows.some((r) => r.id === `x:${port}` && r.installed) || safeMode()) continue;
     out.set(id, true);
     only.add(id);
@@ -149,7 +155,7 @@ export const stepAvailable = (key: string) => {
   const ps = pluginsOfStep(key);
   const on = installedPlugins();
   return (
-    (!ps.length || ps.some((p) => on.has(p) && !providedOnly().has(p))) &&
+    (!ps.length || ps.some((p) => on.has(p) && !(providedOnly().has(p) && PROVIDED_BY[p]!.steps.includes(key)))) &&
     (STEP_NEEDS[key] ?? []).every((n) => (Array.isArray(n) ? n.some((x) => on.has(x)) : on.has(n))) &&
     // A step an extension brings: only while it's on (its plugins there).
     stepExtensionOk(key)

@@ -224,7 +224,7 @@ const steppedStep = (id: SteppedId): Step => ({
   schedule: () => ({ everyMinutes: getBoardSettings().autoMinutes, lastAt: steppedLast(id).lastAt, window: t("workdays, with the briefing"), workdays: true }),
 });
 
-const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
+const CORE_STEPS: Partial<Record<SyncKey, Step>> & Record<(typeof CONNECTOR_STEPS)[number], Step> = {
   review: steppedStep("review"),
   matching: steppedStep("matching"),
   jira: {
@@ -856,3 +856,39 @@ export async function lastAndCurrentWeeks(): Promise<string[]> {
 
 /** Every account's running syncs (a deploy waits for all; the mirror copies all). */
 export const liveSyncsAll = (): [string, LiveSyncs][] => Object.entries(state.__zeffSyncsByAccount ?? {});
+
+/** The connectors a port's sync flow may run (connector.sync, the flow's `sync` permission): their reading is the kernel's driver. */
+export const CONNECTOR_STEPS = ["teams", "whatsapp", "signal"] as const;
+
+/**
+ * A connector's sync run for its port's flow (the flow action connector.sync) — the kernel's driver, whether or not the built-in step shows:
+ * `background` (by itself, a schedule): only while what it reads is there (the automation Chrome, Signal Desktop) — nothing is started for
+ * it. Recorded as the built-in step's run (its history and health go on).
+ */
+export async function runConnectorSync(key: (typeof CONNECTOR_STEPS)[number], background: boolean): Promise<{ ok: boolean; message: string }> {
+  if (isDemoAccount()) return { ok: false, message: t("This is the demo: nothing is synced here. Set up your own Zeff to read your mail and chats.") };
+  const l = live();
+  if (l.running.has(key) || CORE_STEPS[key].busy?.()) return { ok: false, message: t("{step} is already syncing.", { step: CORE_STEPS[key].label }) };
+  if (background && key === "whatsapp" && !(await (await import("@/plugins/drivers")).automationUp(undefined, 2000))) return { ok: true, message: "the automation Chrome isn't running — later" };
+  if (background && key === "signal") {
+    const { signalRunning, signalUp } = await import("@/plugins/signal/endpoint");
+    if (!(await signalUp()) && !(await signalRunning())) return { ok: true, message: "Signal Desktop isn't running — later" };
+  }
+  l.running.add(key);
+  try {
+    const r = await runStoppable(key, () => (key === "teams" ? import("@/lib/teams/sync").then((m) => m.syncTeams({ background })) : CORE_STEPS[key].run()));
+    if (!CORE_STEPS[key].ownRecord) record(key, r.ok, r.message);
+    try {
+      if (!r.message.includes(ABORTED)) noteSyncResult(key, r.ok, r.message);
+    } catch {
+      // (only the history misses a run)
+    }
+    return { ok: r.ok, message: r.message };
+  } catch (e) {
+    const message = errorMessage(e);
+    if (!CORE_STEPS[key].ownRecord) record(key, false, message);
+    return { ok: false, message };
+  } finally {
+    l.running.delete(key);
+  }
+}

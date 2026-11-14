@@ -22,7 +22,7 @@ import { syncSettings as keep } from "./keep/sync-settings";
 import { syncSettings as documents } from "./documents/sync-settings";
 import { syncSettings as googleCalendar } from "./google-calendar/sync-settings";
 import { syncSettings as googleDrive } from "./google-drive/sync-settings";
-import { onlyThroughPort } from "./state";
+import { onlyThroughPort, PROVIDED_BY } from "./state";
 import { flowByName, listFlows, setSyncFlowMinutes } from "./workspace/flows/store";
 import { syncSettings as news } from "./news/sync-settings";
 
@@ -65,7 +65,7 @@ export function installedSyncSettings(): { plugin: PluginManifest; settings: Req
     const m = on.has(plugin.id) ? MODULES[plugin.id] : undefined;
     if (!m) continue;
     // (a built-in there only through its port: its steps are the port's sync flows — their intervals in their place)
-    const intervals = (m.intervals ?? []).filter((i) => !seen.has(i.key) && stepExtensionOk(i.key)).flatMap((i) => (onlyThroughPort(plugin.id) ? portIntervals(i) : [i]));
+    const intervals = (m.intervals ?? []).filter((i) => !seen.has(i.key) && stepExtensionOk(i.key)).flatMap((i) => (onlyThroughPort(plugin.id) && PROVIDED_BY[plugin.id]?.steps.includes(i.key) ? portIntervals(i) : [i]));
     // A step an extension brings (Keep's Notiz-Durchsicht) only while it's on.
     const follows = (m.follows ?? []).filter((f) => !seen.has(f.key) && stepExtensionOk(f.key));
     for (const x of [...intervals, ...follows]) seen.add(x.key);

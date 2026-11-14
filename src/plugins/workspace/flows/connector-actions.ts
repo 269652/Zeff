@@ -34,3 +34,24 @@ export const CONNECTOR_ACTIONS: FlowAction[] = [
 
 // The kernel's own: always there (read with the other flow actions — flows/actions.ts flowActions()).
 extensionPoint<FlowAction[]>("workspace.flowActions").contribute("core:connectors", CONNECTOR_ACTIONS);
+
+// The connectors whose reading is a kernel step (Teams, WhatsApp, Signal): one action for all — the source named, allowed by the flow's `sync`.
+extensionPoint<FlowAction[]>("workspace.flowActions").contribute("core:connector-steps", [
+  {
+    name: "connector.sync",
+    group: "connectors",
+    label: "Read a connector",
+    summary: "A connector's messages read into Zeff — teams (your mentions and 1:1 messages), whatsapp (WhatsApp Web's chat list), signal (Signal Desktop) — as its sync does. By itself (by: schedule) only while what it reads is running. Needs the flow's sync permission for that source.",
+    input: [f("source", "text", { required: true, options: ["teams", "whatsapp", "signal"] }), f("background", "boolean", { help: "By itself: not when what it reads isn't running" }), f("by", "text", { help: "What started it (env.trigger.kind): \"schedule\" counts as by itself" })],
+    output: "{ ok, message }",
+    writes: true,
+    run: async (i, ctx) => {
+      const { CONNECTOR_STEPS, runConnectorSync } = await import("@/lib/sync/registry");
+      const source = String(i.source ?? "").trim() as (typeof CONNECTOR_STEPS)[number];
+      if (!(CONNECTOR_STEPS as readonly string[]).includes(source)) throw new Error(`connector.sync reads ${CONNECTOR_STEPS.join(", ")} — not “${source}”.`);
+      if (!(ctx.perms.sync ?? []).includes(source)) throw new Error(`This flow may not read ${source} into Zeff — grant “${source}” under the flow's permissions (sync).`);
+      if (ctx.dryRun) return { ok: true, message: `dry run: ${source} not read` };
+      return runConnectorSync(source, i.background === true || i.background === "true" || i.by === "schedule");
+    },
+  },
+]);

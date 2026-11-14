@@ -14,6 +14,7 @@ import type { SyncKey } from "./sync/shared";
 import { stepMinutes } from "./sync/intervals";
 import { noteSyncResult } from "./sync/health";
 import { ABORTED } from "./abort";
+import { onlyThroughPort } from "@/plugins/state";
 
 /** The automation Chrome is running (its debug port answers) — the Chrono, Punch and Outlook drivers would start it otherwise. */
 async function chromeUp(): Promise<boolean> {
@@ -63,7 +64,8 @@ export function startSyncScheduler(): void {
     { name: "drivedocs", settings: () => ({ syncMinutes: stepMinutes("drivedocs"), lastSyncAt: lastSyncOf("drivedocs") }), run: async () => startSync("drivedocs") },
     // Local folders (Documents): read in what's new or changed in them.
     { name: "localdocs", settings: () => ({ syncMinutes: stepMinutes("localdocs"), lastSyncAt: lastSyncOf("localdocs") }), run: async () => startSync("localdocs") },
-    { name: "teams", settings: getTeamsSettings, run: () => syncTeams({ background: true }) },
+    // (Teams through its port: the port's sync flow runs it — not this job too)
+    { name: "teams", settings: () => (onlyThroughPort("teams") ? { syncMinutes: 0, lastSyncAt: null } : getTeamsSettings()), run: () => syncTeams({ background: true }) },
     { name: "mail", settings: getMailSettings, run: async () => (await import("@/lib/mail/sync")).syncMail({ background: true }) },
     { name: "gitlab", settings: getGitlabSettings, run: () => syncGitlab({ background: true }) },
     // The Ticket-Lage run (through the AI provider): every N minutes, on workdays only.
