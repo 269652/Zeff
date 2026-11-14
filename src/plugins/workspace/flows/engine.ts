@@ -370,7 +370,7 @@ export async function runFlow(flow: Flow | string, input: Record<string, unknown
   // Safe mode (lib/kernel/safe-mode.ts): nothing starts by itself — a flow by clock or event waits; one you start runs.
   const kind = (opts.trigger as { kind?: string } | undefined)?.kind;
   if ((kind === "schedule" || kind === "event") && (await import("@/lib/kernel/safe-mode")).safeMode()) throw new Error(`Safe mode: the flow “${f.name}” doesn't start by itself.`);
-  const def: FlowDef = { name: f.name, title: f.title, inputs: f.inputs, nodes: f.nodes, output: f.output, permissions: f.permissions, triggers: f.triggers, lookup: f.lookup };
+  const def: FlowDef = { name: f.name, title: f.title, inputs: f.inputs, nodes: f.nodes, output: f.output, permissions: f.permissions, triggers: f.triggers, lookup: f.lookup, ...(f.sync ? { sync: f.sync } : {}) };
   const full = withDefaults(f.inputs, input);
   const runId = startFlowRun({ pageId: f.pageId, name: f.name, def }, opts.trigger ?? { kind: "manual" }, { ...full, ...(opts.row ? { __row: opts.row } : {}) }, !!opts.dry);
   return execute(runId, def, full, {}, [], { dry: !!opts.dry, row: opts.row, trigger: opts.trigger, resolve: opts.resolve });

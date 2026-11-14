@@ -21,6 +21,8 @@ import { remoteResult } from "@/lib/host/commands";
 import { delegates } from "@/lib/host/role";
 import { integrationServer, integrationServerIds } from "@/lib/integrations/server";
 import { accountFlag } from "@/lib/sync/account-flags";
+import { runFlow } from "@/plugins/workspace/flows/engine";
+import { flowRuns, listFlows, type Flow } from "@/plugins/workspace/flows/store";
 /** Quiet hours: from 19:00 to 08:00 nothing syncs by itself (by hand it still does). */
 export const QUIET = { from: 19, to: 8 };
 export const quietAt = (at = new Date()) => at.getHours() >= QUIET.from || at.getHours() < QUIET.to;
@@ -622,11 +624,52 @@ const CORE_STEPS: Partial<Record<SyncKey, Step>> = {
 const integrationSteps = (): Partial<Record<string, Step>> =>
   Object.fromEntries(integrationServerIds().flatMap((id) => { const x = integrationServer(id)?.syncStep; return x ? [[x.key, x.step]] : []; }));
 
-/** Every step's key, in the menu's order: Zeff's own, the integrations' right after the calendar. */
+/**
+ * The flows marked as a sync (a plugin's package brings them — Google Calendar's …; FlowDef.sync): each a step of the menu by the key
+ * "flow:<name>" — run there as a flow, its last run what the menu shows, its schedule trigger its interval (the flows' own clock runs it).
+ */
+function flowSteps(): Record<string, Step> {
+  let flows: Flow[];
+  try {
+    flows = listFlows().filter((f) => f.sync && f.enabled !== false);
+  } catch {
+    return {}; // (no Workspace in this account)
+  }
+  const said = (status: string, output: unknown, error: string | null) =>
+    error ?? (output && typeof output === "object" && typeof (output as { message?: unknown }).message === "string" ? (output as { message: string }).message : typeof output === "string" ? output : status);
+  return Object.fromEntries(
+    flows.map((f): [string, Step] => [
+      `flow:${f.name}`,
+      {
+        label: f.sync!.label,
+        href: `/workspace/${f.pageId}`,
+        what: f.sync!.what ?? f.description ?? "",
+        ownRecord: true,
+        run: async () => {
+          const r = await runFlow(f.name, {}, { trigger: { kind: "sync" } });
+          const ok = r.status === "done" && !(r.output && typeof r.output === "object" && (r.output as { ok?: unknown }).ok === false);
+          return { ok, message: said(r.status, r.output, r.error) };
+        },
+        last: () => {
+          const run = flowRuns(f.pageId, 1)[0];
+          if (!run) return { lastAt: null, lastOk: null, lastMessage: null };
+          const failed = run.status === "failed" || (!!run.output && typeof run.output === "object" && (run.output as { ok?: unknown }).ok === false);
+          return { lastAt: iso(run.endedAt ?? run.startedAt), lastOk: run.status === "done" ? !failed : failed ? false : null, lastMessage: said(run.status, run.output, run.error).slice(0, 500) };
+        },
+        schedule: () => {
+          const s = f.triggers.find((x) => x.kind === "schedule" && x.everyMinutes) as { everyMinutes?: number } | undefined;
+          return { everyMinutes: s?.everyMinutes ?? 0, lastAt: iso(f.lastRunAt), ...(f.sync!.chrome ? { window: t("while the automation Chrome runs") } : {}) };
+        },
+      },
+    ]),
+  );
+}
+
+/** Every step's key, in the menu's order: Zeff's own, the integrations' right after the calendar, the plugins' syncs (flows) after them. */
 const allKeys = (): SyncKey[] => {
   const own = Object.keys(integrationSteps());
   const at = SYNC_KEYS.indexOf("calendar") + 1;
-  return [...SYNC_KEYS.slice(0, at), ...own, ...SYNC_KEYS.slice(at)];
+  return [...SYNC_KEYS.slice(0, at), ...own, ...Object.keys(flowSteps()), ...SYNC_KEYS.slice(at)];
 };
 export const isSyncKey = (v: unknown): v is SyncKey => allKeys().includes(v as SyncKey);
 
@@ -636,7 +679,8 @@ export const isSyncKey = (v: unknown): v is SyncKey => allKeys().includes(v as S
  */
 let allSteps: Record<SyncKey, Step> | undefined;
 const STEPS = new Proxy({} as Record<SyncKey, Step>, {
-  get: (_target, key) => (allSteps ??= { ...CORE_STEPS, ...integrationSteps() } as Record<SyncKey, Step>)[key as SyncKey],
+  // (a flow's step read anew each time: flows come and go while Zeff runs)
+  get: (_target, key) => (typeof key === "string" && key.startsWith("flow:") ? flowSteps()[key] : (allSteps ??= { ...CORE_STEPS, ...integrationSteps() } as Record<SyncKey, Step>)[key as SyncKey]),
 });
 
 /** The next time a step runs by itself — within its window (workdays 7–20 h) when it has one. */

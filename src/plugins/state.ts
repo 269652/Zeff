@@ -3,14 +3,39 @@ import { getDb, schema } from "@/db";
 import { accountsInstalled, currentAccountId, setAccountsInstalled } from "@/db/accounts";
 import { emitChange } from "@/lib/events";
 import { stepExtensionOk } from "./extension-state";
+import { safeMode } from "@/lib/kernel/safe-mode";
 import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsOfStep, pluginsOfService, type PluginId } from "./catalog";
+
+/**
+ * Built-ins whose port (zeff-plugins) only drives what the kernel does for them — a connector, whose driver is the kernel's: while the
+ * port is on, the built-in counts as there for everything that asks (its settings, its actions, Google's write access …), but its own
+ * sync steps don't run (the port brings its sync as a flow). Ports that replace a built-in's screens and data aren't here.
+ */
+export const PROVIDED_BY: Partial<Record<PluginId, string>> = { "google-calendar": "google-calendar-ext" };
+
+/** The built-ins there only through their port (PROVIDED_BY), per account — set by chosen(). */
+const providedOnlyBy = new Map<string, Set<PluginId>>();
+const providedOnly = () => providedOnlyBy.get(currentAccountId()) ?? new Set<PluginId>();
 
 /** Each plugin as you set it (the plugins table), else its default — not yet looking at what it builds on. */
 function chosen(): Map<PluginId, boolean> {
-  const set = new Map(getDb().select().from(schema.plugins).all().filter((r) => isPluginId(r.id)).map((r) => [r.id as PluginId, r.installed]));
+  const rows = getDb().select().from(schema.plugins).all();
+  const set = new Map(rows.filter((r) => isPluginId(r.id)).map((r) => [r.id as PluginId, r.installed]));
   // Accounts: for all of them alike (else, in another account, there'd be no way back).
-  return new Map(PLUGINS.map((p) => [p.id, p.id === "accounts" ? accountsInstalled() : (set.get(p.id) ?? p.defaultInstalled)]));
+  const out = new Map(PLUGINS.map((p) => [p.id, p.id === "accounts" ? accountsInstalled() : (set.get(p.id) ?? p.defaultInstalled)]));
+  // A built-in off whose port is on (registry.ts: an external plugin's row is "x:<id>"; never in safe mode): there through it.
+  const only = new Set<PluginId>();
+  providedOnlyBy.set(currentAccountId(), only);
+  for (const [id, port] of Object.entries(PROVIDED_BY) as [PluginId, string][]) {
+    if (out.get(id) || !rows.some((r) => r.id === `x:${port}` && r.installed) || safeMode()) continue;
+    out.set(id, true);
+    only.add(id);
+  }
+  return out;
 }
+
+/** A built-in there only through its port (PROVIDED_BY): its own sync steps don't run — the port's flow does. */
+export const onlyThroughPort = (id: PluginId): boolean => (installedPlugins(), providedOnly().has(id));
 
 /**
  * What's installed, per account, for a moment: a page asks isInstalled() a dozen times and more —
@@ -124,7 +149,7 @@ export const stepAvailable = (key: string) => {
   const ps = pluginsOfStep(key);
   const on = installedPlugins();
   return (
-    (!ps.length || ps.some((p) => on.has(p))) &&
+    (!ps.length || ps.some((p) => on.has(p) && !providedOnly().has(p))) &&
     (STEP_NEEDS[key] ?? []).every((n) => (Array.isArray(n) ? n.some((x) => on.has(x)) : on.has(n))) &&
     // A step an extension brings: only while it's on (its plugins there).
     stepExtensionOk(key)

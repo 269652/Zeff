@@ -92,6 +92,8 @@ export type FlowPermissions = {
   send?: boolean;
   /** May call plugin methods that aren't marked safe for automations. */
   api?: boolean;
+  /** The sources it may read into Zeff — a connector's driver ("gcalendar": Google Calendar into Zeff's calendars). */
+  sync?: string[];
   /** The parts of Zeff's structure it may read or change (read, pages, databases, schema:<id>, blocks, flows, plugins, delete) — the meta.* actions. */
   meta?: string[];
   /** Most nodes one run may take (default 500). */
@@ -120,6 +122,8 @@ export type FlowDef = {
   requested?: FlowPermissions;
   triggers: FlowTrigger[];
   lookup?: FlowLookup;
+  /** A sync (a connector's: reading a source into Zeff): a step of its own in the Sync menu — run there, its runs its history, its schedule its interval. */
+  sync?: { label: string; what?: string; /** Runs by itself only while the automation Chrome runs. */ chrome?: boolean; /** The built-in's step it stands for (a port's: "gcalendar") — its interval on the Sync settings page is this flow's. */ replaces?: string };
   enabled?: boolean;
 };
 
@@ -212,6 +216,9 @@ export function normalizeNodes(raw: unknown, depth = 0, ids = new Set<string>())
   return out;
 }
 
+/** The connectors' drivers a flow can be allowed to read into Zeff (FlowPermissions.sync). */
+export const SYNC_SOURCES = ["gcalendar"];
+
 function normalizePermissions(raw: unknown): FlowPermissions {
   const o = obj(raw);
   const web = Array.isArray(o.web) ? [...new Set(o.web.map(str).filter((d) => d === "*" || /^(\*\.)?[a-z0-9.-]+\.[a-z]{2,}$/i.test(d)).map((d) => d.toLowerCase()))] : [];
@@ -225,6 +232,7 @@ function normalizePermissions(raw: unknown): FlowPermissions {
     ...(o.ai === true ? { ai: true } : {}),
     ...(o.send === true ? { send: true } : {}),
     ...(o.api === true ? { api: true } : {}),
+    ...(Array.isArray(o.sync) && o.sync.map(str).filter((x) => SYNC_SOURCES.includes(x)).length ? { sync: [...new Set(o.sync.map(str).filter((x) => SYNC_SOURCES.includes(x)))] } : {}),
     ...(metaOf(o.meta).length ? { meta: metaOf(o.meta) } : {}),
     ...(posInt(o.maxSteps) ? { maxSteps: Math.min(20000, posInt(o.maxSteps)!) } : {}),
   };
@@ -259,6 +267,8 @@ export function normalizeFlow(raw: unknown): FlowDef {
   const lk = obj(o.lookup);
   const lkFields: Record<string, string> = Array.isArray(lk.fields) ? Object.fromEntries(lk.fields.map(str).filter(Boolean).map((k) => [k, k])) : Object.fromEntries(Object.entries(obj(lk.fields)).filter(([k]) => !!k.trim()).map(([k, v]) => [k.trim(), str(v) || k.trim()]));
   const lookup = str(lk.label) ? { label: str(lk.label), what: str(lk.what), fields: lkFields, ...(lk.slow === true ? { slow: true } : {}) } : undefined;
+  const sy = obj(o.sync);
+  const sync = str(sy.label) ? { label: str(sy.label).slice(0, 60), ...(str(sy.what) ? { what: str(sy.what).slice(0, 300) } : {}), ...(sy.chrome === true ? { chrome: true } : {}), ...(/^[a-z][a-z0-9-]{0,40}$/.test(str(sy.replaces)) ? { replaces: str(sy.replaces) } : {}) } : undefined;
   const triggers = (Array.isArray(o.triggers) ? o.triggers : []).map(normalizeTrigger).filter((t): t is FlowTrigger => !!t);
   return {
     name,
@@ -271,6 +281,7 @@ export function normalizeFlow(raw: unknown): FlowDef {
     ...(o.requested && Object.keys(normalizePermissions(o.requested)).length ? { requested: normalizePermissions(o.requested) } : {}),
     triggers: triggers.length ? triggers : [{ kind: "manual" }],
     ...(lookup ? { lookup } : {}),
+    ...(sync ? { sync } : {}),
     enabled: o.enabled !== false,
   };
 }

@@ -101,6 +101,16 @@ export function saveFlow(pageId: number, raw: unknown): Flow {
   return getFlow(pageId)!;
 }
 
+/** How often a sync flow runs by itself (the Sync settings page): its schedule trigger every `minutes` (its hours kept) — 0: only by hand. */
+export function setSyncFlowMinutes(name: string, minutes: number): void {
+  const f = flowByName(name);
+  if (!f) throw new Error(`There is no flow “${name}”.`);
+  const had = f.triggers.find((x) => x.kind === "schedule");
+  const rest = f.triggers.filter((x) => x.kind !== "schedule");
+  const triggers = minutes > 0 ? [...rest, { ...(had ?? {}), kind: "schedule" as const, everyMinutes: Math.max(5, Math.min(10080, Math.round(minutes))) }] : rest;
+  saveFlow(f.pageId, { ...f, triggers: triggers.length ? triggers : [{ kind: "manual" as const }] });
+}
+
 /** A database a flow made is one it may write: added to its permissions (seen and taken back in the Studio). */
 export function grantWrite(name: string, dbId: number): void {
   const f = flowByName(name);

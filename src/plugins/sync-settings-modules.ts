@@ -22,6 +22,8 @@ import { syncSettings as keep } from "./keep/sync-settings";
 import { syncSettings as documents } from "./documents/sync-settings";
 import { syncSettings as googleCalendar } from "./google-calendar/sync-settings";
 import { syncSettings as googleDrive } from "./google-drive/sync-settings";
+import { onlyThroughPort } from "./state";
+import { flowByName, listFlows, setSyncFlowMinutes } from "./workspace/flows/store";
 import { syncSettings as news } from "./news/sync-settings";
 
 /** Each plugin's settings module for the Sync settings page — the plugins that bring a sync. */
@@ -62,13 +64,32 @@ export function installedSyncSettings(): { plugin: PluginManifest; settings: Req
   for (const plugin of PLUGINS) {
     const m = on.has(plugin.id) ? MODULES[plugin.id] : undefined;
     if (!m) continue;
-    const intervals = (m.intervals ?? []).filter((i) => !seen.has(i.key) && stepExtensionOk(i.key));
+    // (a built-in there only through its port: its steps are the port's sync flows — their intervals in their place)
+    const intervals = (m.intervals ?? []).filter((i) => !seen.has(i.key) && stepExtensionOk(i.key)).flatMap((i) => (onlyThroughPort(plugin.id) ? portIntervals(i) : [i]));
     // A step an extension brings (Keep's Notiz-Durchsicht) only while it's on.
     const follows = (m.follows ?? []).filter((f) => !seen.has(f.key) && stepExtensionOk(f.key));
     for (const x of [...intervals, ...follows]) seen.add(x.key);
     if (intervals.length || follows.length) out.push({ plugin, settings: { intervals, follows } });
   }
   return out;
+}
+
+/**
+ * The sync flows that stand for a built-in's step (FlowDef.sync.replaces — a port's: Google Calendar's) as the Sync settings page's
+ * intervals: how often each runs by itself is its schedule trigger (0: only by hand).
+ */
+function portIntervals(i: SyncInterval): SyncInterval[] {
+  return listFlows()
+    .filter((f) => f.sync?.replaces === i.key && f.enabled !== false)
+    .map((f): SyncInterval => ({
+      key: `flow:${f.name}`,
+      label: f.sync!.label,
+      what: f.sync!.what ?? i.what,
+      choices: i.choices,
+      ...(i.window ? { window: i.window } : {}),
+      get: () => (flowByName(f.name)?.triggers.find((x) => x.kind === "schedule") as { everyMinutes?: number } | undefined)?.everyMinutes ?? 0,
+      set: (minutes) => setSyncFlowMinutes(f.name, minutes),
+    }));
 }
 
 /** An installed plugin's sync by its key — what the page may set. */
