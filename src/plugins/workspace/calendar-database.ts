@@ -1,7 +1,7 @@
 import { getPref, setPref } from "@/lib/prefs";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { appViewsFor } from "./app-views";
+import { appViewFields, appViewsFor } from "./app-views";
 import { newView } from "./model";
 import { getDatabase, updatePage, updateSchema } from "./store";
 
@@ -34,7 +34,7 @@ export async function ensureCalendarDatabase(): Promise<void> {
     const cur = getDatabase(known)!.schema;
     const app = appViewsFor("calendar")[0];
     const typed = cur.dataType === "calendar" ? cur : { ...cur, dataType: "calendar" as const };
-    const views = app && !typed.views.some((v) => v.type === "app" && v.app === app.id) ? [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }, ...typed.views] : typed.views;
+    const views = app && !typed.views.some((v) => v.type === "app" && v.app === app.id) ? [{ ...newView(t(app.label), "table"), ...appViewFields(app) }, ...typed.views] : typed.views;
     if (typed !== cur || views !== typed.views) updateSchema(known, { ...typed, views });
     return;
   }

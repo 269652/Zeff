@@ -11,6 +11,7 @@ export const PORTS: Port[] = [
   { builtin: "browser", plugin: "browser-ext", switch: async () => (await import("./browser/to-plugin")).switchBrowserToPlugin() },
   { builtin: "correlations", plugin: "correlations-ext", switch: async () => (await import("./correlations/to-plugin")).switchCorrelationsToPlugin() },
   { builtin: "agenda", plugin: "agenda-ext", switch: async () => (await import("./agenda/to-plugin")).switchAgendaToPlugin() },
+  { builtin: "mail-client", plugin: "mail-client-ext", switch: async () => (await import("./mail-client/to-plugin")).switchMailClientToPlugin() },
 ];
 
 /** The port of a built-in, when there is one and it is in the plugins folder (installed from its repository). */

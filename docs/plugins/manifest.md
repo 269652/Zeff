@@ -426,11 +426,12 @@ The functions are the plugin's own (`contributes.functions`) and do only what yo
   `tone` is `good`, `warn` or `bad`. Links go inside Zeff or to a web address. A button runs `act` with `{ action, payload, config }`.
   What it gives (data as above) is shown; otherwise the data is read again. The data is kept for `ttl` seconds (default 60). Anything
   else the function gives shows as an error line in the widget.
-- **`pageNav`**: entries under pages in the Workspace tree. The function gives `[{ "pageId": 12, "entries": [{ "id", "label", "icon"?,
-  "n"?, "group"?, "href"? }] }]`, with the page ids of its own pages (its package's). An entry without `href` opens the page with
+- **`pageNav`**: entries under pages in the Workspace tree. The function gives
+  `[{ "pageId": 12, "entries": [{ "id", "label", "icon"?, "n"?, "group"?, "href"? }] }]`, with the page ids of its own pages (its package's). An entry without `href` opens the page with
   `?nav=<id>`.
-- **`reviewSources`**: things that wait for your word in the review queue, under `label`. `list` gives `[{ "id", "title", "detail"?,
-  "confidence"?, "href"?, "actions": [{ "id", "label", "primary"? }] }]`. An entry without buttons isn't shown. A button runs `act` with
+- **`reviewSources`**: things that wait for your word in the review queue, under `label`. `list` gives
+  `[{ "id", "title", "detail"?, "confidence"?, "href"?, "actions": [{ "id", "label", "primary"? }] }]`. An entry without buttons isn't
+  shown. A button runs `act` with
   `{ item, action }`, and what it gives (a text) is said.
 - **`reviewLinks`**: things waiting on a page of their own. The queue shows how many (`count` gives a number) and links to `href` (inside
   Zeff).
@@ -469,8 +470,8 @@ The functions are the plugin's own (`contributes.functions`) and do only what yo
 ```
 
 A folder of lambdas: `<name>/lambda.json` with its code (`index.mjs`, exporting `handler`), and `_lib.mjs` beside them, which each
-lambda gets as its `lib.mjs`. These are the same as the Studio's lambdas: lookups (`kind: "lookup"`) and functions (`kind:
-"function"`).
+lambda gets as its `lib.mjs`. These are the same as the Studio's lambdas: lookups (`kind: "lookup"`) and functions
+(`kind: "function"`).
 
 - **The sandbox.** Each lambda runs in a Node process of its own. It may read only its folder, it may reach only the domains its
   `lambda.json` names (never a private address), and it may call only the Zeff functions it names. There is a memory and a time limit.
@@ -504,11 +505,12 @@ the machine's own network) and `ai.websearch` (a search through the Claude login
 
 ### The `browser` permission
 
-`"permissions": ["browser"]` lets the plugin's lambdas open public pages in Zeff's automated Chrome (`context.zeff.call("web.browse",
-{ url, steps?, maxChars? })`, with `"zeff": ["web.browse"]` in `lambda.json`). The Chrome is a driver of the kernel
+`"permissions": ["browser"]` lets the plugin's lambdas open public pages in Zeff's automated Chrome
+(`context.zeff.call("web.browse", { url, steps?, maxChars? })`, with `"zeff": ["web.browse"]` in `lambda.json`). The Chrome is a driver
+of the kernel
 (`src/lib/web/browser.ts`): an empty profile, no logins, and never the machine's own network, also for what a page loads. You grant the
-permission when you switch the plugin on. The address must be one the lambda's `"web"` allows. The answer is `{ url, status, title,
-text, truncated, mainImage, images: [{ src, alt, width, height }], links: [{ href, text }] }`.
+permission when you switch the plugin on. The address must be one the lambda's `"web"` allows. The answer is
+`{ url, status, title, text, truncated, mainImage, images: [{ src, alt, width, height }], links: [{ href, text }] }`.
 
 ### Porting a built-in's pure code
 
@@ -521,3 +523,31 @@ through the kernel's reads (`series.read`, `series.catalog`, `web.read` …).
 Widgets can name a lambda too (`"lambda"` and `"actLambda"` instead of `"function"` and `"act"`). A select setting can take its options
 from Zeff (`"optionsFrom": "series"`). A port's widget takes over the id of the built-in it replaces (`"replaces": "correlations.findings"`),
 so the widgets on your pages keep working after the switch.
+
+## `contributes.compute` and `appViews` — screens without React
+
+```json
+"compute": "compute.js",
+"appViews": [{ "id": "mail", "dataType": "mail", "label": "Mail", "icon": "✉", "template": "views/mail.html" }]
+```
+
+- **`appViews`**: a screen for the databases of a type (mails, messages, the combined inbox …). Each is a template of the view
+  language in a file of the plugin. Zeff gives a new database of that type this screen as its first view, and offers it in the
+  database's View menu. Its words are shown in the user's language where Zeff's bundles know them.
+- **`compute`**: a script of pure functions a view runs in the browser: `<data name="app" compute="my-plugin.fn"/>`. The function is
+  called with `{ rows, props, state, extras, with, now }` and its answer is `data.app`. It runs again at once whenever one of those
+  changes, as fast as the built-in views' own code. The script runs in a sandboxed frame of its own: an opaque origin, no network, no
+  access to Zeff. It sees only what the view hands it. It must define `ZeffCompute` with the functions (esbuild:
+  `format: "iife", globalName: "ZeffCompute"`).
+- **Doing things.** A view's button does one of the kernel's actions as you: `<button do="row.op" with='…' confirm="…"/>`, with
+  `fill="state=field"` (fields of the answer into the view's state), `into=`, `done=`, `then="a=1; b="`. A `<data do="…">` does one by
+  itself, but only those that read or mark read (`AUTO_ACTIONS` in `src/plugins/workspace/flows/mail-actions.ts`); `reload=true` reads
+  the rows again after it. Which actions a button may do is fixed by the kernel (`USER_ACTIONS`): a conversation read, a reply drafted
+  by the AI, a row's action (a reply sent, kept as a draft or opened in Outlook), mails archived or marked read, a field set on rows,
+  Gmail's archive and unread, a new inbox.
+- **Text inputs** keep what you type per row when their state's name holds the row (`bind="reply{{ data.app.current.id }}"`).
+  `enter="event"` sends an event on Enter (a chat line), `rows=` sets a text area's height.
+
+Mail & Chat is built this way ([zeff-plugins/plugins/mail-client-ext](../../../zeff-plugins/plugins/mail-client-ext)): its compute
+script is the built-in's `view-data.ts`, bundled by `scripts/port-mail-client.mts`, and its screens are the built-in's templates
+turned into view language (`src/plugins/mail-client/port.meta.ts`).

@@ -4,6 +4,8 @@ import { extensionPoint } from "@/lib/plugin-kit/extension-point";
 import type { FieldSpec, FlowPermissions } from "./types";
 import { text } from "./expr";
 import { rawRowObject, rowObject } from "./rows";
+// The kernel's mail and message actions (mail.thread, row.op, mail.archive …), contributed as Zeff's own.
+import "./mail-actions";
 
 /**
  * The actions a flow's node can call — Zeff's own here (web, extraction, AI, lookups, databases, todos, plugin methods), more

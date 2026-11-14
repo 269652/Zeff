@@ -1,6 +1,7 @@
 import { getPref, setPref } from "@/lib/prefs";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
+import { appViewFields, appViewsFor } from "./app-views";
 import { newId, newView, type DbSchema, type PipelineStep } from "./model";
 import { createPage, getDatabase, updatePage } from "./store";
 
@@ -15,8 +16,10 @@ const CHATS = "workspace.chatsDb";
 const INBOX = "workspace.inboxDb";
 const SENT = "workspace.sentDb";
 
-function make(title: string, icon: string, step: PipelineStep, app: { id: string; label: string }): number {
-  const view = { ...newView(app.label, "table"), type: "app" as const, app: app.id };
+/** Its app: the mail client's (the built-in's, or a plugin's that brings one for the type — its port), else the built-in's id (a table while it is off). */
+function make(title: string, icon: string, step: PipelineStep, kind: "mail" | "message", fallback: { id: string; label: string; icon: string }): number {
+  const app = appViewsFor(kind)[0] ?? { ...fallback, plugin: "mail-client" };
+  const view = { ...newView(t(app.label), "table"), ...appViewFields(app) };
   const schema: DbSchema = { titleName: t("Subject"), properties: [], views: [view, newView(t("Table"), "table")], pipeline: { steps: [step] } };
   const id = createPage({ kind: "database", title, icon, schema });
   updatePage(id, { fullWidth: true });
@@ -34,18 +37,18 @@ export async function ensureMailDatabases(): Promise<void> {
   if (!isInstalled("workspace")) return;
   const made: number[] = [];
   if (getPref<number | null>(MAIL, null) === null && (isInstalled("outlook-mail") || isInstalled("gmail") || isInstalled("imap-mail"))) {
-    const id = make(t("Mail"), "✉️", { id: newId("s"), kind: "source", from: "mail", mail: { recentDays: 30 } }, { id: "mail", label: t("Mail") });
+    const id = make(t("Mail"), "✉️", { id: newId("s"), kind: "source", from: "mail", mail: { recentDays: 30 } }, "mail", { id: "mail", label: "Mail", icon: "✉" });
     setPref(MAIL, id);
     made.push(id);
   }
   if (getPref<number | null>(CHATS, null) === null && (isInstalled("teams") || isInstalled("whatsapp") || isInstalled("signal"))) {
-    const id = make(t("Chats"), "💬", { id: newId("s"), kind: "source", from: "messages", messages: { recentDays: 14 } }, { id: "chat", label: t("Chat") });
+    const id = make(t("Chats"), "💬", { id: newId("s"), kind: "source", from: "messages", messages: { recentDays: 14 } }, "message", { id: "chat", label: "Chat", icon: "💬" });
     setPref(CHATS, id);
     made.push(id);
   }
   // Gmail's sent mails sit in a folder of their own that "Mail" leaves out: a "Sent" database under it, once (a deleted one isn't made again).
   const mailId = homeDatabase("mail");
-  if (mailId && isInstalled("gmail") && isInstalled("mail-client") && getPref<number | null>(SENT, null) === null) {
+  if (mailId && isInstalled("gmail") && appViewsFor("mail").length > 0 && getPref<number | null>(SENT, null) === null) {
     const { createInbox } = await import("@/plugins/mail-client/templates");
     const id = await createInbox(mailId, "sent");
     setPref(SENT, id);

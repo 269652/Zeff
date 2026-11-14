@@ -90,7 +90,7 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   entry: T({ id: "text", label: "text", icon: "text", row: "text", state: "text", value: "text", href: "url", n: "text", group: "text" }, true),
   row: T({ fill: { oneOf: ["true", "false"] }, tip: "text", gap: "int", align: { oneOf: ["start", "center", "end", "baseline"] }, wrap: { oneOf: ["true", "false"] }, justify: { oneOf: ["start", "between", "end"] } }),
   grid: T({ cols: "int", gap: "int", min: "int" }),
-  col: T({ gap: "int", fill: { oneOf: ["true", "false"] }, width: "int", tip: "text", align: { oneOf: ["start", "center", "end"] }, max: "text" }),
+  col: T({ gap: "int", fill: { oneOf: ["true", "false"] }, width: "int", tip: "text", align: { oneOf: ["start", "center", "end"] }, max: "text", /** bottom: stays at the pane's bottom (a reply box). */ dock: { oneOf: ["bottom"] }, /** At most this % of the screen's height, scrolling in itself. */ scroll: "int", /** Opened at its end (a chat). */ end: { oneOf: ["true", "false"] } }),
   truncate: T({ tip: "text" }),
   mono: T({ tip: "text" }),
   b: T({ tip: "text" }),
@@ -124,6 +124,10 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   logo: T({ name: "text", size: { oneOf: ["sm", "lg"] } }, true),
   // In a row: whether it flowed into todos — a dot for one, a badge with their number for several (ui TodoMark).
   todomark: T({}, true),
+  // A row's suggested actions (the AI's: a reply, a follow-up), and what you should know about it (the know plugin: its people) —
+  // kit pieces the mail client's port reads by the row picked.
+  suggested: T({ row: "text" }, true),
+  know: T({ row: "text", compact: { oneOf: ["true", "false"] } }, true),
   panes: T({}),
   pane: T({ title: "text", aside: "text", width: "int", flush: { oneOf: ["true", "false"] } }),
   cover: T({ src: "url", h: "int", title: "text", subtitle: "text" }, true),
@@ -148,9 +152,9 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   table: T({ source: "list", columns: "text", sum: "text", empty: "text" }, true),
   chart: T({ source: "list", kind: { oneOf: ["bar", "column", "line", "pie"] }, group: "text", value: "text", calc: { oneOf: ["count", "sum", "avg"] } }, true),
   selected: T({ empty: "text" }),
-  button: T({ action: "text", label: "text", icon: "text", request: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text", emit: "text", run: "text", with: "text", into: "text", done: "text", then: "text", transition: "text", note: { oneOf: ["true", "false"] }, score: "text", correct: "text", total: "text", feedback: "text", finished: { oneOf: ["true", "false"] }, chat: "text", key: "text", text: "text", title: "text" }, true),
+  button: T({ action: "text", label: "text", icon: "text", request: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text", emit: "text", run: "text", do: "text", fill: "text", undo: "text", with: "text", into: "text", done: "text", then: "text", transition: "text", note: { oneOf: ["true", "false"] }, score: "text", correct: "text", total: "text", feedback: "text", finished: { oneOf: ["true", "false"] }, chat: "text", key: "text", text: "text", title: "text" }, true),
   // A flow's output loaded into data.<name> — again whenever what it is called with changes (flows/).
-  data: T({ name: "text", flow: "text", lambda: "text", with: "text", when: "text", debounce: "int", every: "int" }, true),
+  data: T({ name: "text", flow: "text", lambda: "text", compute: "text", do: "text", with: "text", when: "text", /** In ms (up to 3000). */ debounce: "num", /** In s. */ every: "num", reload: { oneOf: ["true", "false"] } }, true),
   // A row's lifecycle: its transitions as buttons (only those it can take now enabled) and its way so far.
   transitions: T({ history: { oneOf: ["true", "false"] } }, true),
   search: T({ bind: "text", placeholder: "text" }, true),
@@ -206,7 +210,7 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   tab: T({ id: "text", label: "text", n: "text" }),
   // A dialog (center) or a drawer (side=right), open while state.<bind> is filled.
   dialog: T({ bind: "text", title: "text", side: { oneOf: ["center", "right"] }, wide: { oneOf: ["true", "false"] } }),
-  input: T({ bind: "text", type: { oneOf: ["text", "number", "date", "time", "month", "color", "textarea", "email", "url"] }, label: "text", placeholder: "text", value: "text" }, true),
+  input: T({ /** Enter (not Shift+Enter) sends this event — a chat line sent with Enter. */ enter: "text", /** A textarea's height in lines. */ rows: "int", bind: "text", type: { oneOf: ["text", "number", "date", "time", "month", "color", "textarea", "email", "url"] }, label: "text", placeholder: "text", value: "text" }, true),
   slider: T({ bind: "text", min: "num", max: "num", step: "num", label: "text", value: "text", unit: "text" }, true),
   calendar: T({ source: "list", date: "list", bind: "text", empty: "text" }),
   heatmap: T({ source: "list", date: "list", value: "list", calc: { oneOf: ["count", "sum"] }, weeks: "int", label: "text", unit: "text" }, true),
@@ -1271,7 +1275,16 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
     }
     case "button": {
       // Only an event sent to the <on> handlers.
-      if (a.emit && !a.action && !a.run && !a.transition) return [{ t: "button", a: { ...a, action: "emit" }, c: [] }];
+      if (a.emit && !a.action && !a.run && !a.do && !a.transition) return [{ t: "button", a: { ...a, action: "emit" }, c: [] }];
+      // One of Zeff's own actions done by you (do="mail.archive" — those the kernel lets a button do: flows/user-actions.ts), as the
+      // built-in views' buttons do them: with= its input, into= its answer, confirm= asked first.
+      if (a.do) {
+        if (a.action || a.run || a.transition) return (err("A button runs an action, a flow (run=), a transition or one of Zeff's own (do=) — one of them."), []);
+        if (a.into && !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(a.into)) return (err(`into="${a.into}": a name (data.${a.into} holds the answer).`), []);
+        const out: Record<string, string> = { ...a, action: "do" };
+        if (ctx.row && !a.row) out.row = String(ctx.row.id);
+        return [{ t: "button", a: out, c: [] }];
+      }
       // A flow run (run="name") or a lifecycle's transition (transition="name") instead of an action.
       if (a.run || a.transition) {
         if (a.action) return (err("A button runs an action, a flow (run=) or a transition (transition=) — one of them."), []);
@@ -1324,11 +1337,17 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
     }
     case "data":
       if (!a.name || !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(a.name)) return (err('<data> needs name="…" (a name: data.<name> holds the output).'), []);
-      if (!a.flow && !a.lambda) return (err('<data> needs flow="…" (the flow whose output it loads) or lambda="…" (a function lambda).'), []);
+      if (!a.flow && !a.lambda && !a.compute && !a.do) return (err('<data> needs flow="…" (the flow whose output it loads), lambda="…" (a function lambda) or compute="plugin.fn" (a pure function of a plugin, run in the browser).'), []);
       return [{ t: "data", a, c: [] }];
     case "transitions":
       if (!ctx.row) return (err("<transitions/> shows a row's lifecycle — put it in <selected> or a row's own page."), []);
       return [{ t: "transitions", a: { ...a, row: String(ctx.row.id) }, c: [] }];
+    case "suggested":
+    case "know": {
+      const id = Number(a.row ?? ctx.row?.id);
+      if (!Number.isInteger(id) || id <= 0) return [];
+      return [{ t: n.name, a: { ...a, row: String(id) }, c: [] }];
+    }
     case "todomark":
       if (!ctx.row) return (err("<todomark/> marks a row — put it in a list's item, a timeline or <selected>."), []);
       return [{ t: "todomark", a: { row: String(ctx.row.id) }, c: [] }];

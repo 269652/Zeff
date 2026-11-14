@@ -1,7 +1,7 @@
 import { getPref, setPref } from "@/lib/prefs";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { appViewsFor } from "./app-views";
+import { appViewFields, appViewsFor } from "./app-views";
 import { emptyFilter, newId, newView, removeProperty, type DbSchema, type View } from "./model";
 import { createPage, getDatabase, updatePage, updateSchema } from "./store";
 
@@ -37,7 +37,7 @@ export async function ensureDocumentDatabases(): Promise<void> {
   if (getPref<number | null>(INBOX, null) !== null) return;
   const app = appViewsFor("documents")[0];
   const views: View[] = [
-    ...(app ? [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }] : []),
+    ...(app ? [{ ...newView(t(app.label), "table"), ...appViewFields(app) }] : []),
     { ...newView(t("Inbox"), "table"), filter: unreadOnly(), sorts: byAdded },
     { ...newView(t("All"), "table"), sorts: byAdded },
     newView(t("Gallery"), "gallery"),
@@ -78,7 +78,7 @@ function mend(id: number): void {
     setPref(V2, true);
   }
   const app = appViewsFor("documents")[0];
-  if (app && !next.views.some((v) => v.type === "app" && v.app === app.id)) next = { ...next, views: [{ ...newView(t(app.label), "table"), type: "app" as const, app: app.id }, ...next.views] };
+  if (app && !next.views.some((v) => v.type === "app" && v.app === app.id)) next = { ...next, views: [{ ...newView(t(app.label), "table"), ...appViewFields(app) }, ...next.views] };
   if (next !== cur) {
     updateSchema(id, next);
     // What the database got wrongly (mail rows) goes at the next read: now.

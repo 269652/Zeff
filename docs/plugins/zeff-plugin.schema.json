@@ -34,6 +34,30 @@
       "type": "string",
       "format": "uri"
     },
+    "repository": {
+      "description": "Where newer versions of it are: a GitHub repository (one repository may hold many plugins, each in a folder with its own zeff-plugin.json and version). Plugins → Sources checks it and updates on a click.",
+      "type": "object",
+      "properties": {
+        "url": {
+          "type": "string",
+          "pattern": "^https:\\/\\/github\\.com\\/[\\w.-]+\\/[\\w.-]+\\/?$"
+        },
+        "path": {
+          "description": "The plugin's folder in the repository (empty: its top).",
+          "type": "string",
+          "maxLength": 200,
+          "pattern": "^[\\w./-]*$"
+        },
+        "branch": {
+          "type": "string",
+          "maxLength": 100,
+          "pattern": "^[\\w./-]+$"
+        }
+      },
+      "required": [
+        "url"
+      ]
+    },
     "apiVersion": {
       "type": "integer",
       "minimum": 1,
@@ -857,6 +881,636 @@
             ]
           }
         },
+        "formulaFunctions": {
+          "default": [],
+          "description": "Functions for formulas (views, formula fields, tables): each a formula of its own, called by its name like Zeff's own (a name Zeff or another plugin has already is left out).",
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-zA-Z0-9]{0,39}$"
+              },
+              "args": {
+                "default": [],
+                "description": "Its arguments, by name — read in `value` as prop(\"name\").",
+                "maxItems": 8,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "pattern": "^[a-zA-Z][\\w]{0,39}$"
+                }
+              },
+              "value": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 2000,
+                "description": "What it gives: a formula of Zeff's formula language, its arguments as prop(\"name\") — no code, nothing it can change."
+              },
+              "what": {
+                "default": "",
+                "description": "One line: what it gives (the formula help and the AI read it).",
+                "type": "string",
+                "maxLength": 200
+              },
+              "unit": {
+                "type": "string",
+                "maxLength": 20
+              }
+            },
+            "required": [
+              "name",
+              "value"
+            ]
+          }
+        },
+        "metrics": {
+          "default": [],
+          "description": "Kennzahlen: numbers a plugin function gives, kept and asked again when they are older than everyMinutes.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60,
+                "description": "Its name as a Kennzahl (formulas read it with kennzahl(\"…\"))."
+              },
+              "unit": {
+                "default": "",
+                "type": "string",
+                "maxLength": 20
+              },
+              "what": {
+                "default": "",
+                "type": "string",
+                "maxLength": 200
+              },
+              "function": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function that gives the number (called with {}); its last answer is what the Kennzahl shows."
+              },
+              "everyMinutes": {
+                "default": 15,
+                "description": "How old its last answer may be before it is asked again (in the background).",
+                "type": "integer",
+                "minimum": 1,
+                "maximum": 1440
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "function"
+            ]
+          }
+        },
+        "appViews": {
+          "default": [],
+          "description": "App views for the databases of a type (a mail client for mails): a template of the view language each, made the database's view.",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "Its id (unique in the plugin)."
+              },
+              "dataType": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The databases of this type get it (as their first view when Zeff makes one, and in the View menu): \"mail\", \"message\", \"inbox\" …"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 40
+              },
+              "icon": {
+                "default": "🧩",
+                "type": "string",
+                "maxLength": 8
+              },
+              "template": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 200,
+                "description": "Its view template (the view language), a file in the plugin."
+              }
+            },
+            "required": [
+              "id",
+              "dataType",
+              "label",
+              "template"
+            ]
+          }
+        },
+        "rowBadges": {
+          "default": [],
+          "description": "Badges on the rows its sources brought (by their refs), given by a plugin function.",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "prefix": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}:$",
+                "description": "The rows its sources brought (by their record's ref) it puts badges on."
+              },
+              "function": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function that gives the badges: { \"film:12\": [{ \"label\": \"2 new\", \"tone\": \"warn\" }] }."
+              }
+            },
+            "required": [
+              "prefix",
+              "function"
+            ]
+          }
+        },
+        "tabMenus": {
+          "default": [],
+          "description": "The menu of a tab (its address): entries a plugin function gives.",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "tab": {
+                "type": "string",
+                "pattern": "^\\/[\\w/-]{0,80}$",
+                "description": "The tab (by its address, \"/my-app\") whose menu it fills."
+              },
+              "function": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function that gives the entries: [{ href, label, hint? }]."
+              }
+            },
+            "required": [
+              "tab",
+              "function"
+            ]
+          }
+        },
+        "widgets": {
+          "default": [],
+          "description": "Widgets for pages and the dashboard (New block → widget): a list, figures or one figure, given by a plugin function, with buttons that run another.",
+          "maxItems": 20,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "Its id: <plugin id>.<this>."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "icon": {
+                "default": "🧩",
+                "type": "string",
+                "maxLength": 8
+              },
+              "description": {
+                "default": "",
+                "type": "string",
+                "maxLength": 200
+              },
+              "size": {
+                "default": "half",
+                "type": "string",
+                "enum": [
+                  "third",
+                  "half",
+                  "full"
+                ]
+              },
+              "ttl": {
+                "default": 60,
+                "description": "Seconds its data is kept.",
+                "type": "integer",
+                "minimum": 5,
+                "maximum": 86400
+              },
+              "replaces": {
+                "description": "A built-in widget's id this one takes over (a port): its id is that one then, so the widgets on your pages go on working; while the built-in is there, the built-in's counts.",
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z][a-z0-9-]*.[a-z0-9.-]+$"
+              },
+              "settings": {
+                "default": [],
+                "maxItems": 10,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "key": {
+                      "type": "string",
+                      "pattern": "^[a-zA-Z][\\w]{0,39}$"
+                    },
+                    "label": {
+                      "type": "string",
+                      "minLength": 1,
+                      "maxLength": 60
+                    },
+                    "kind": {
+                      "default": "text",
+                      "type": "string",
+                      "enum": [
+                        "number",
+                        "select",
+                        "text",
+                        "checkbox"
+                      ]
+                    },
+                    "default": {
+                      "anyOf": [
+                        {
+                          "type": "string",
+                          "maxLength": 200
+                        },
+                        {
+                          "type": "number"
+                        },
+                        {
+                          "type": "boolean"
+                        }
+                      ]
+                    },
+                    "min": {
+                      "type": "number"
+                    },
+                    "max": {
+                      "type": "number"
+                    },
+                    "options": {
+                      "maxItems": 50,
+                      "type": "array",
+                      "items": {
+                        "type": "object",
+                        "properties": {
+                          "value": {
+                            "type": "string",
+                            "maxLength": 100
+                          },
+                          "label": {
+                            "type": "string",
+                            "maxLength": 100
+                          }
+                        },
+                        "required": [
+                          "value",
+                          "label"
+                        ]
+                      }
+                    },
+                    "optionsFrom": {
+                      "description": "A select's options from Zeff: \"series\" — the daily series you may see (your databases' fields first).",
+                      "type": "string",
+                      "enum": [
+                        "series"
+                      ]
+                    }
+                  },
+                  "required": [
+                    "key",
+                    "label"
+                  ]
+                }
+              },
+              "lambda": {
+                "description": "Or one of its lambdas (kind function), called the same way — no Notebook needed.",
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z][a-z0-9_-]*(.[a-z0-9_-]+)*$"
+              },
+              "function": {
+                "description": "The plugin function that gives its data, called with { config }: { \"kind\": \"list\", \"items\": [{ id, text, detail?, meta?, href?, badge?, tone?, done?, actions? }] }, { \"kind\": \"stats\", \"tiles\": [{ label, value, detail?, tone?, href? }] } or { \"kind\": \"figure\", value, caption, detail?, href? }.",
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              },
+              "actLambda": {
+                "description": "Or one of its lambdas for the buttons.",
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z][a-z0-9_-]*(.[a-z0-9_-]+)*$"
+              },
+              "act": {
+                "description": "The plugin function a button of it runs, called with { action, payload, config }; what it gives (data as above) is shown, else the data is read again.",
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              }
+            },
+            "required": [
+              "id",
+              "label"
+            ]
+          }
+        },
+        "pageNav": {
+          "default": [],
+          "description": "Entries under its pages in the Workspace tree, given by a plugin function.",
+          "maxItems": 5,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "function": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function that gives entries under pages in the Workspace tree: [{ pageId, entries: [{ id, label, icon?, n?, group?, href? }] }]."
+              }
+            },
+            "required": [
+              "function"
+            ]
+          }
+        },
+        "reviewSources": {
+          "default": [],
+          "description": "Things that wait for your word in the review queue, listed and decided by plugin functions.",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "Its id: <plugin id>-<this> in the review queue."
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "list": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function that gives what waits for a word: [{ id, title, detail?, confidence?, href?, actions: [{ id, label, primary? }] }]."
+              },
+              "act": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function a button runs, called with { item, action }; what it gives (a text) is said."
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "list",
+              "act"
+            ]
+          }
+        },
+        "services": {
+          "default": [],
+          "description": "Places of the kernel it fills (web.search …): what Zeff calls stays the same, this plugin answers.",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "enum": [
+                  "web.search"
+                ],
+                "description": "A service of the kernel (lib/kernel/contract.ts KERNEL_SERVICES)."
+              },
+              "lambda": {
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+)*$",
+                "description": "Its lambda (kind function) that answers in the service's shape."
+              }
+            },
+            "required": [
+              "name",
+              "lambda"
+            ]
+          }
+        },
+        "compute": {
+          "description": "A script of pure functions its views run in the browser (<data compute=\"<plugin>.<fn>\">): it defines ZeffCompute = { fn(input) }; input is the view's rows, fields, state, extras and with=. It runs in a sandboxed frame of its own — no network, nothing of Zeff.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "lambdas": {
+          "description": "A folder of lambdas (<name>/lambda.json and its code, _lib.mjs shared): lookups and functions that run without the Notebook, each in a Node process of its own with only the domains and Zeff calls it names. Their secrets are the plugin's settings they name.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        },
+        "tools": {
+          "default": [],
+          "description": "Tools for the AI (Zeff's MCP, the Workspace chat, agents), each done by a plugin function — beside Zeff's own.",
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "name": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9_]{2,40}$",
+                "description": "Its name among Zeff's tools — one Zeff or another plugin already has is left out."
+              },
+              "title": {
+                "default": "",
+                "type": "string",
+                "maxLength": 80
+              },
+              "description": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 1500,
+                "description": "What it does and when the AI should use it — the AI reads only this."
+              },
+              "function": {
+                "description": "The plugin function that does it: called with the arguments; what it returns is the answer (text, or JSON).",
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              },
+              "lambda": {
+                "description": "Or one of its lambdas (contributes.lambdas, kind function) — runs without the Notebook: a Node process of its own, only the domains it names.",
+                "type": "string",
+                "maxLength": 80,
+                "pattern": "^[a-z][a-z0-9_-]*(\\.[a-z0-9_-]+)*$"
+              },
+              "input": {
+                "default": [],
+                "maxItems": 20,
+                "type": "array",
+                "items": {
+                  "type": "object",
+                  "properties": {
+                    "name": {
+                      "type": "string",
+                      "maxLength": 40,
+                      "pattern": "^[A-Za-z][A-Za-z0-9_]*$"
+                    },
+                    "type": {
+                      "default": "text",
+                      "type": "string",
+                      "enum": [
+                        "text",
+                        "number",
+                        "boolean",
+                        "json",
+                        "list"
+                      ]
+                    },
+                    "description": {
+                      "default": "",
+                      "type": "string",
+                      "maxLength": 300
+                    },
+                    "required": {
+                      "default": false,
+                      "type": "boolean"
+                    }
+                  },
+                  "required": [
+                    "name"
+                  ]
+                }
+              },
+              "readOnly": {
+                "default": false,
+                "description": "It only reads: the AI may call it without asking where its tools are limited to reading.",
+                "type": "boolean"
+              }
+            },
+            "required": [
+              "name",
+              "description"
+            ]
+          }
+        },
+        "settings": {
+          "default": [],
+          "description": "What the user sets for it (Plugins → its Settings): texts, numbers, choices and secrets (kept encrypted). Its functions get them as `inputs.zeffSettings`.",
+          "maxItems": 30,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "key": {
+                "type": "string",
+                "pattern": "^[a-zA-Z][\\w]{0,39}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "kind": {
+                "default": "text",
+                "description": "secret: kept encrypted, never shown again once saved (an API key).",
+                "type": "string",
+                "enum": [
+                  "text",
+                  "secret",
+                  "number",
+                  "checkbox",
+                  "select"
+                ]
+              },
+              "help": {
+                "default": "",
+                "type": "string",
+                "maxLength": 300
+              },
+              "required": {
+                "default": false,
+                "type": "boolean"
+              },
+              "default": {
+                "anyOf": [
+                  {
+                    "type": "string",
+                    "maxLength": 500
+                  },
+                  {
+                    "type": "number"
+                  },
+                  {
+                    "type": "boolean"
+                  }
+                ]
+              },
+              "options": {
+                "maxItems": 50,
+                "type": "array",
+                "items": {
+                  "type": "string",
+                  "maxLength": 100
+                }
+              }
+            },
+            "required": [
+              "key",
+              "label"
+            ]
+          }
+        },
+        "reviewLinks": {
+          "default": [],
+          "description": "Things waiting on a page of their own: the review queue shows how many and links there.",
+          "maxItems": 10,
+          "type": "array",
+          "items": {
+            "type": "object",
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$"
+              },
+              "label": {
+                "type": "string",
+                "minLength": 1,
+                "maxLength": 60
+              },
+              "href": {
+                "type": "string",
+                "pattern": "^\\/(?!\\/)[^\\s]{0,300}$",
+                "description": "Where the things waiting are (inside Zeff)."
+              },
+              "count": {
+                "type": "string",
+                "pattern": "^[a-z][a-z0-9-]{0,39}$",
+                "description": "The plugin function that gives how many wait (a number)."
+              }
+            },
+            "required": [
+              "id",
+              "label",
+              "href",
+              "count"
+            ]
+          }
+        },
         "workspacePackages": {
           "default": [],
           "description": "Workspace apps it brings: package files (JSON — a page exported with its databases, widgets, flows), offered under New → templates and made with one click.",
@@ -867,6 +1521,53 @@
             "minLength": 1,
             "maxLength": 200
           }
+        },
+        "locales": {
+          "default": {},
+          "description": "Its texts in other languages: per language code a JSON file { \"English text\": \"translation\" } — for its views, blocks, pages and messages (English is the text itself). Zeff's own texts win where both have one.",
+          "type": "object",
+          "propertyNames": {
+            "type": "string",
+            "pattern": "^[a-z]{2}$"
+          },
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          }
+        },
+        "language": {
+          "description": "A language pack: the language its locales file for this code makes Zeff speak (Settings → Language offers it while the plugin is installed).",
+          "type": "object",
+          "properties": {
+            "code": {
+              "type": "string",
+              "pattern": "^[a-z]{2}$"
+            },
+            "name": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Its name in English (German)."
+            },
+            "native": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 40,
+              "description": "Its name in itself (Deutsch)."
+            },
+            "locale": {
+              "type": "string",
+              "pattern": "^[a-z]{2}-[A-Z]{2}$",
+              "description": "Dates and numbers: de-DE."
+            }
+          },
+          "required": [
+            "code",
+            "name",
+            "native",
+            "locale"
+          ]
         }
       }
     }

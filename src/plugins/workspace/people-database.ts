@@ -1,7 +1,7 @@
 import { getPref, setPref } from "@/lib/prefs";
 import { isInstalled } from "@/plugins/state";
 import { t } from "@/lib/i18n/server";
-import { appViewsFor } from "./app-views";
+import { appViewFields, appViewsFor } from "./app-views";
 import { newView } from "./model";
 import { getDatabase, rawRows, updateSchema } from "./store";
 
@@ -23,7 +23,7 @@ export async function ensurePeopleDatabase(): Promise<void> {
     // The overview view (made before it existed: put first).
     const cur = getDatabase(known)!.schema;
     const app = appViewsFor("people")[0];
-    if (app && !cur.views.some((v) => v.type === "app" && v.app === app.id)) updateSchema(known, { ...cur, views: [{ ...newView(t(app.label), "table"), type: "app", app: app.id }, ...cur.views] });
+    if (app && !cur.views.some((v) => v.type === "app" && v.app === app.id)) updateSchema(known, { ...cur, views: [{ ...newView(t(app.label), "table"), ...appViewFields(app) }, ...cur.views] });
     return;
   }
   if (getPref<number | null>(PEOPLE, null) !== null) return;

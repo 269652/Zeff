@@ -15,6 +15,7 @@
  *
  * Functions run as every plugin function does (plugin-fn.ts): through the Notebook plugin, with what the user granted them. Server only.
  */
+import fs from "node:fs";
 import path from "node:path";
 import { currentAccountId } from "@/db/accounts";
 import { builtinLambdasPoint } from "./lambdas/store";
@@ -29,6 +30,8 @@ import { workspaceMetrics, type MetricProvider } from "./metric-point";
 import { runPluginFunction } from "./plugin-fn";
 import { rowBadgeSources } from "./row-badge-point";
 import { pageNavProviders, type PageNav } from "./app-nav-point";
+import { extAppViews } from "./app-views";
+import type { DataType } from "./model";
 import { workspaceWidgets, type WidgetData, type WidgetItem, type WidgetTile, type WorkspaceWidget } from "./widget-point";
 import { reviewLinks, reviewSources, type ReviewEntry, type ReviewLink, type ReviewSource } from "@/lib/review/point";
 
@@ -150,6 +153,22 @@ builtinLambdasPoint.provide("ext:lambdas", () =>
     if (!rel) return [];
     const dir = path.resolve(p.dir, rel);
     return dir.startsWith(path.resolve(p.dir) + path.sep) ? [{ plugin: who(p), impl: { dir } }] : [];
+  }),
+);
+
+// App views (contributes.appViews): a template of the view language for the databases of a type — read from the plugin's file.
+extAppViews.provide("ext:appViews", () =>
+  enabledPlugins().flatMap((p) => {
+    const list = p.manifest.contributes.appViews.flatMap((a) => {
+      const file = path.resolve(p.dir, a.template);
+      if (!file.startsWith(path.resolve(p.dir) + path.sep)) return [];
+      try {
+        return [{ id: `${p.id}.${a.id}`, plugin: p.id, dataType: a.dataType as DataType, label: a.label, icon: a.icon, template: fs.readFileSync(file, "utf8") }];
+      } catch {
+        return [];
+      }
+    });
+    return list.length ? [{ plugin: who(p), impl: list }] : [];
   }),
 );
 

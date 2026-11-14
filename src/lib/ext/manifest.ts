@@ -243,6 +243,13 @@ const widgetDecl = z.object({
   actLambda: z.string().regex(/^[a-z][a-z0-9_-]*(.[a-z0-9_-]+)*$/).max(80).optional().describe("Or one of its lambdas for the buttons."),
   act: shortId.optional().describe("The plugin function a button of it runs, called with { action, payload, config }; what it gives (data as above) is shown, else the data is read again."),
 });
+const appViewDecl = z.object({
+  id: shortId.describe("Its id (unique in the plugin)."),
+  dataType: z.string().regex(/^[a-z][a-z0-9-]{0,39}$/).describe('The databases of this type get it (as their first view when Zeff makes one, and in the View menu): "mail", "message", "inbox" …'),
+  label: z.string().min(1).max(40),
+  icon: z.string().max(8).default("🧩"),
+  template: relPath.describe("Its view template (the view language), a file in the plugin."),
+});
 const pageNavDecl = z.object({
   function: shortId.describe("The plugin function that gives entries under pages in the Workspace tree: [{ pageId, entries: [{ id, label, icon?, n?, group?, href? }] }]."),
 });
@@ -300,6 +307,7 @@ const contributes = z.object({
   functions: z.array(fnDecl).max(50).default([]).describe("Server functions of its own: code (Python or Node.js) that runs in the Notebook's sessions and is called over HTTP (POST /api/ext/fn/<plugin>/<name>), from Notebook cells (zeff.call) and by other functions."),
   formulaFunctions: z.array(formulaFnDecl).max(30).default([]).describe("Functions for formulas (views, formula fields, tables): each a formula of its own, called by its name like Zeff's own (a name Zeff or another plugin has already is left out)."),
   metrics: z.array(metricDecl).max(20).default([]).describe("Kennzahlen: numbers a plugin function gives, kept and asked again when they are older than everyMinutes."),
+  appViews: z.array(appViewDecl).max(10).default([]).describe("App views for the databases of a type (a mail client for mails): a template of the view language each, made the database's view."),
   rowBadges: z.array(rowBadgeDecl).max(10).default([]).describe("Badges on the rows its sources brought (by their refs), given by a plugin function."),
   tabMenus: z.array(tabMenuDecl).max(10).default([]).describe("The menu of a tab (its address): entries a plugin function gives."),
   widgets: z.array(widgetDecl).max(20).default([]).describe("Widgets for pages and the dashboard (New block → widget): a list, figures or one figure, given by a plugin function, with buttons that run another."),
@@ -310,6 +318,7 @@ const contributes = z.object({
     .max(10)
     .default([])
     .describe("Places of the kernel it fills (web.search …): what Zeff calls stays the same, this plugin answers."),
+  compute: relPath.optional().describe("A script of pure functions its views run in the browser (<data compute=\"<plugin>.<fn>\">): it defines ZeffCompute = { fn(input) }; input is the view's rows, fields, state, extras and with=. It runs in a sandboxed frame of its own — no network, nothing of Zeff."),
   lambdas: relPath.optional().describe("A folder of lambdas (<name>/lambda.json and its code, _lib.mjs shared): lookups and functions that run without the Notebook, each in a Node process of its own with only the domains and Zeff calls it names. Their secrets are the plugin's settings they name."),
   tools: z.array(toolDecl).max(30).default([]).describe("Tools for the AI (Zeff's MCP, the Workspace chat, agents), each done by a plugin function — beside Zeff's own."),
   settings: z.array(settingDecl).max(30).default([]).describe("What the user sets for it (Plugins → its Settings): texts, numbers, choices and secrets (kept encrypted). Its functions get them as `inputs.zeffSettings`."),
@@ -349,7 +358,7 @@ export const manifestSchema = z
       .describe("Where newer versions of it are: a GitHub repository (one repository may hold many plugins, each in a folder with its own zeff-plugin.json and version). Plugins → Sources checks it and updates on a click."),
     apiVersion: z.number().int().min(1).max(API_VERSION).describe(`The extension API version it was written for (this Zeff speaks up to ${API_VERSION}).`),
     permissions: z.array(permissionId).max(30).default([]).describe("What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, workspace.write …)."),
-    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], apps: [], hooks: {}, workspacePackages: [], functions: [], flowActions: [], lookups: [], sources: [], fieldTypes: [], chats: [], schedules: [], locales: {}, formulaFunctions: [], metrics: [], rowBadges: [], tabMenus: [], widgets: [], pageNav: [], reviewSources: [], reviewLinks: [], tools: [], settings: [], services: [] }),
+    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], apps: [], hooks: {}, workspacePackages: [], functions: [], flowActions: [], lookups: [], sources: [], fieldTypes: [], chats: [], schedules: [], locales: {}, formulaFunctions: [], metrics: [], appViews: [], rowBadges: [], tabMenus: [], widgets: [], pageNav: [], reviewSources: [], reviewLinks: [], tools: [], settings: [], services: [] }),
   })
   .superRefine((m, ctx) => {
     const has = (p: Permission) => m.permissions.includes(p);

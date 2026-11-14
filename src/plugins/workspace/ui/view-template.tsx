@@ -1,6 +1,9 @@
 "use client";
 
 import { confirmAction } from "@/components/confirm";
+import { ComputeData } from "./compute-data";
+import { SuggestedActions } from "./suggested";
+import { KnowPanel } from "@/plugins/know/ui/KnowPanel";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 import { useLang, useT } from "@/components/I18nProvider";
@@ -31,7 +34,7 @@ import { useWidgetOutputs } from "./use-outputs";
 import { WidgetFrame } from "@/components/widgets/WidgetFrame";
 import { ChatBox } from "./chat-box";
 import { errorMessage, resultMessage } from "../widget-tell";
-import { chatStartAction, chatTellAction, runFlowAction } from "../actions";
+import { chatStartAction, chatTellAction, runFlowAction, runUserAction } from "../actions";
 import { PackageUpdateNote } from "./package-update-note";
 import { parseWith } from "../flows/with";
 import type { BlockDef } from "../blocks";
@@ -239,6 +242,33 @@ export function TemplateView({ src, onErrors, module, meta, current, draftBlocks
         }
         case "run":
           return await runFlowButton(a, { row: rowId, setData, setState, reload: () => (props.reload(), app.reload()), t });
+        case "do": {
+          // One of Zeff's own actions, done by you (actions/flows.ts runUserAction): the row it stands in goes along as `row`.
+          const r = await runUserAction(a.do, { ...(rowId ? { row: rowId } : {}), ...parseWith(a.with) });
+          if (!r.ok) return void toast(r.error, { tone: "error" });
+          // (what didn't work of it — a mail its server didn't archive — said as an error)
+          const failed = (r.output as { failed?: unknown } | null)?.failed;
+          if (Array.isArray(failed) && failed.length) toast(failed.map(String).join(" · "), { tone: "error" });
+          if (a.into) setData(a.into, { [a.into]: r.output, [`${a.into}_status`]: "ok", [`${a.into}_error`]: null });
+          // fill="body=text, to=to": fields of the answer into the view's state (a draft into the reply's boxes)
+          const out = (r.output && typeof r.output === "object" ? r.output : {}) as Record<string, unknown>;
+          for (const [k, field] of Object.entries(parseWith(a.fill))) setState(k, String(out[String(field)] ?? ""));
+          // (a link it gives — a draft opened in Outlook — opens; what it did is said)
+          if (typeof out.href === "string" && /^https?:\/\//.test(out.href)) window.open(out.href, "_blank", "noopener");
+          else if (typeof out.href === "string" && out.href.startsWith("/workspace/")) router.push(out.href);
+          else if (typeof out.what === "string" && out.what && !a.done) toast(out.what, { tone: "ok" });
+          // (undo='{…}': the notice offers Undo — the same action with this input)
+          const undo = a.undo ? () => void runUserAction(a.do, { ...(rowId ? { row: rowId } : {}), ...parseWith(a.undo) }).then((u) => (u.ok ? (props.reload(), app.reload()) : toast(u.error, { tone: "error" }))) : undefined;
+          if (a.done) toast(a.done, { tone: "ok", ...(undo ? { action: { label: t("Undo"), run: undo } } : {}) });
+          // (then="a=1; b=": states set after it worked)
+          for (const pair of (a.then ?? "").split(";")) {
+            const i = pair.indexOf("=");
+            if (i > 0) setState(pair.slice(0, i).trim(), pair.slice(i + 1).trim());
+          }
+          props.reload();
+          app.reload();
+          return;
+        }
         case "transition":
           return await transitionButton(a, { row: rowId, reload: () => (props.reload(), app.reload()), t });
         case "print":
@@ -312,6 +342,13 @@ export function TemplateView({ src, onErrors, module, meta, current, draftBlocks
               {inner}
             </div>
           );
+        }
+        // dock=bottom: stays at the bottom of the pane while what is above it scrolls (a reply box). scroll=N: at most N% of the
+        // screen's height, scrolling in itself — end=true: opened at its end, kept there as more comes (a chat's newest message).
+        if (n.t === "col" && (a.dock === "bottom" || Number(a.scroll) > 0)) {
+          const inner = draw({ ...n, a: { ...a, dock: "", scroll: "", end: "" } }, key, ext);
+          if (a.dock === "bottom") return <div key={key} className="ws-reply-dock">{inner}</div>;
+          return <ScrollBox key={key} vh={Math.min(90, Number(a.scroll))} end={a.end === "true"}>{inner}</ScrollBox>;
         }
         if (a.fill !== "true" && !a.tip && !a.max) return undefined;
         // (Taking the room left — and letting what is in it be cut to one line; max=70ch: not wider than that.)
@@ -479,10 +516,20 @@ export function TemplateView({ src, onErrors, module, meta, current, draftBlocks
         );
       case "drop":
         return <DropTarget key={key} a={a} onDropped={(v) => (setState(a.bind, v), a.emit && setPending({ event: a.emit, id: ++pendingSeq.current }))}>{kids(n.c)}</DropTarget>;
+      case "suggested": {
+        // The row's suggested actions — its "rowactions" (the AI's), when the row is one of this view's.
+        const r = props.rows.find((x) => x.id === Number(a.row));
+        const value = r?.cells.rowactions;
+        return typeof value === "string" && value ? <SuggestedActions key={key} rowId={Number(a.row)} value={value} onDone={() => (props.reload(), app.reload())} /> : null;
+      }
+      case "know":
+        return <KnowPanel key={key} row={Number(a.row)} compact={a.compact !== "false"} />;
       case "todomark":
         return <TodoMark key={key} mark={props.data.extras?.todoMarks?.[Number(a.row)]} />;
       case "data":
-        return <FlowData key={key} a={a} setData={setData} row={current?.id} />;
+        // (compute=: a plugin's pure function in the browser — compute-data.tsx; else a flow's or a lambda's answer)
+        if (a.compute) return <ComputeData key={key} a={a} setData={setData} rows={props.rows} props={schema.properties} state={state} extras={props.data.extras as Record<string, unknown> | undefined} />;
+        return <FlowData key={key} a={a} setData={setData} row={current?.id} reload={props.reload} />;
       case "transitions":
         return <TransitionsBlock key={key} row={Number(a.row)} history={a.history === "true"} reload={props.reload} />;
       case "task": {
@@ -768,6 +815,23 @@ export function TemplateView({ src, onErrors, module, meta, current, draftBlocks
 }
 
 /** A block that is a widget (blocks.ts): its code in the frame, the block's parameters as zeff.context.params. */
+/** A column that scrolls in itself (<col scroll=60>) — with end=true opened at its end and kept there as more comes (a chat). */
+function ScrollBox({ vh, end, children }: { vh: number; end: boolean; children: ReactNode }) {
+  const box = useRef<HTMLDivElement>(null);
+  const size = useRef(0);
+  useEffect(() => {
+    const el = box.current;
+    if (!el || !end || el.scrollHeight === size.current) return;
+    size.current = el.scrollHeight;
+    el.scrollTop = el.scrollHeight;
+  });
+  return (
+    <div ref={box} className="min-h-0 overflow-y-auto" style={{ maxHeight: `${vh}vh` }}>
+      {children}
+    </div>
+  );
+}
+
 function BlockWidget({ block, params, title, height, pageId }: { block: string; params: string; title: string; height?: number; pageId: number | null }) {
   const t = useT();
   const defs = useBlockDefs();

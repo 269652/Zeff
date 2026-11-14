@@ -62,6 +62,7 @@ export const KERNEL_CONTRACT = {
     // What a plugin shows on its pages: the pages of its package, with their views, blocks and widgets.
     "workspace.pageApps": { form: "covered", by: "workspacePackages" },
     "workspace.pageNav": { form: "stored", manifest: "pageNav" },
+    "workspace.appViews": { form: "stored", manifest: "appViews" },
     "workspace.rowBadges": { form: "stored", manifest: "rowBadges" },
     "workspace.sources": { form: "stored", manifest: "sources" },
     // A plugin's templates are its packages (offered under New → templates).
@@ -70,7 +71,7 @@ export const KERNEL_CONTRACT = {
   },
 
   /** What a plugin's manifest may bring (`contributes` in zeff-plugin.json, lib/ext/manifest.ts). */
-  manifestContributes: ["apps", "chats", "fieldTypes", "flowActions", "formulaFunctions", "functions", "hooks", "lambdas", "language", "locales", "lookups", "metrics", "pageNav", "reviewLinks", "reviewSources", "rowBadges", "schedules", "services", "settings", "sources", "tabMenus", "tools", "widgets", "workCommands", "workPanels", "workerMcpServers", "workerRules", "workspacePackages"],
+  manifestContributes: ["apps", "appViews", "chats", "compute", "fieldTypes", "flowActions", "formulaFunctions", "functions", "hooks", "lambdas", "language", "locales", "lookups", "metrics", "pageNav", "reviewLinks", "reviewSources", "rowBadges", "schedules", "services", "settings", "sources", "tabMenus", "tools", "widgets", "workCommands", "workPanels", "workerMcpServers", "workerRules", "workspacePackages"],
 
   /** What a server function or a Notebook cell may ask Zeff for (`zeff.*` in Python and Node.js; notebook/zeff-access.ts). */
   functionCalls: ["add_row", "ai", "api", "call", "database", "databases", "delete_row", "meta", "metric", "metrics", "output", "outputs", "publish", "table", "tables", "update_row"],
@@ -89,9 +90,9 @@ export const KERNEL_CONTRACT = {
     "a", "ask", "avatar", "b", "badge", "bar", "board", "box", "button", "calendar", "callout", "cards", "case", "chart", "chat", "chip", "clamp",
     "code", "codewidget", "col", "column", "copy", "cover", "data", "datatable", "def", "dialog", "divider", "dossier", "dot", "drag", "drop",
     "empty", "entry", "facets", "field", "fill", "form", "gallery", "gauge", "graph", "grid", "groups", "grow", "header", "heading", "heatmap",
-    "hr", "i", "img", "input", "kv", "let", "list", "logo", "lookup", "markdown", "menu", "mono", "muted", "nav", "noprint", "on", "otherwise",
+    "hr", "i", "img", "input", "know", "kv", "let", "list", "logo", "lookup", "markdown", "menu", "mono", "muted", "nav", "noprint", "on", "otherwise",
     "pair", "pane", "panes", "part", "pivot", "printonly", "progress", "quickadd", "quote", "rating", "row", "schedule", "search", "section",
-    "select", "selected", "setting", "settings", "slider", "slot", "small", "sparkline", "split", "state", "step", "steps", "strike", "subview",
+    "select", "selected", "setting", "settings", "slider", "slot", "small", "sparkline", "split", "state", "step", "steps", "strike", "subview", "suggested",
     "switch", "tab", "table", "tabs", "tabset", "text", "theme", "tile", "timeline", "todomark", "toggle", "toolbar", "transitions", "truncate",
     "upload", "use", "widget",
   ],

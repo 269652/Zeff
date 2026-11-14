@@ -128,11 +128,22 @@ function InputBlock({ a, env }: { a: Record<string, string>; env: BlockEnv }) {
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- only what was typed
   }, [v]);
+  // enter="event": Enter (not Shift+Enter) sets what is typed at once and sends the event — a chat line sent with Enter.
+  const onKeyDown = a.enter
+    ? (e: React.KeyboardEvent) => {
+        if (e.key !== "Enter" || e.shiftKey || e.nativeEvent.isComposing) return;
+        e.preventDefault();
+        env.setState(a.bind, v);
+        env.emitLater?.(a.enter);
+      }
+    : undefined;
+  // (rows=: a textarea's height in lines — one: a chat's line, no handle)
+  const rows = Number(a.rows) > 0 ? Math.min(40, Number(a.rows)) : undefined;
   const field =
     type === "textarea" ? (
-      <textarea className="input min-h-20 w-full text-sm" placeholder={a.placeholder} aria-label={a.label || a.placeholder} value={v} onChange={(e) => setV(e.target.value)} />
+      <textarea className={`input w-full text-sm ${rows ? (rows <= 2 ? "min-h-10 resize-none" : "") : "min-h-20"}`} rows={rows} placeholder={a.placeholder} aria-label={a.label || a.placeholder} value={v} onChange={(e) => setV(e.target.value)} onKeyDown={onKeyDown} />
     ) : (
-      <input type={type} className={`input py-1 text-sm ${type === "color" ? "h-8 w-12 p-0.5" : type === "number" ? "w-28" : type === "text" || type === "email" || type === "url" ? "w-full min-w-40" : "w-auto"}`} placeholder={a.placeholder} aria-label={a.label || a.placeholder} value={v} onChange={(e) => setV(e.target.value)} />
+      <input type={type} className={`input py-1 text-sm ${type === "color" ? "h-8 w-12 p-0.5" : type === "number" ? "w-28" : type === "text" || type === "email" || type === "url" ? "w-full min-w-40" : "w-auto"}`} placeholder={a.placeholder} aria-label={a.label || a.placeholder} value={v} onChange={(e) => setV(e.target.value)} onKeyDown={onKeyDown} />
     );
   if (!a.label) return <span className={`print:hidden ${type === "textarea" ? "block w-full" : "inline-flex"}`}>{field}</span>;
   return (

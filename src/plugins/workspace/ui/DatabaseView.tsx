@@ -235,10 +235,12 @@ export function DatabaseView({ initial, dbId, viewId, onView, embedded = false, 
     all: (ids) => setPicked((cur) => (ids.every((x) => cur.has(x)) ? new Set() : new Set(ids))),
   };
 
-  const addView = (type: ViewType, app?: { id: string; label: string }) => {
+  const addView = (type: ViewType, app?: { id: string; label: string; template?: string }) => {
     const names: Record<ViewType, string> = { table: t("Table"), board: t("Board"), list: t("List"), gallery: t("Gallery"), calendar: t("Calendar"), timeline: t("Timeline"), chart: t("Chart"), todo: t("Todos"), app: app?.label ?? t("App") };
     const v = newView(names[type], type);
-    if (app) v.app = app.id;
+    if (app) v.app = app.template !== undefined ? "template" : app.id;
+    // (a plugin's app view: a template view of its template)
+    if (app?.template !== undefined) v.template = app.template;
     if (type === "board") v.groupBy = schema.properties.find((p) => p.type === "status" || p.type === "select")?.id;
     if (type === "calendar" || type === "timeline") v.dateProp = schema.properties.find((p) => p.type === "date")?.id;
     if (type === "chart") v.groupBy = schema.properties.find((p) => p.type === "status" || p.type === "select")?.id;

@@ -51,8 +51,8 @@ repository it came from — also the old one when packages.json moved the plugin
 
 Line endings don't count (a Windows copy and the repository's are the same text). Files made here that the plugin never had stay.
 
-With a conflict nothing is written: the update **waits** (`<plugins>/.merges/<id>.json`) and its note says so. **Settle the
-conflicts** opens the merge (`MergeResolver.tsx`): per file the result (git's text with both sides between `<<<<<<<` and `>>>>>>>`),
+With a conflict nothing is written: the update **waits** (`<plugins>/.merges/<id>.json`) and its note says so. **Settle the conflicts**
+opens the merge (`MergeResolver.tsx`): per file the result (git's text with both sides between `<<<<<<<` and `>>>>>>>`),
 mine, theirs and base; **Keep mine**, **Take theirs**, **✨ Merge with AI** (`merge-ai.ts` — the AI's merged text lands in the result
 with a note of what it decided, for you to check) or your own text, then **Use this text**. When every conflict is settled,
 **Finish the update** writes it; **Drop the update** leaves the plugin as it is. After an update the plugin's app (its workspace
