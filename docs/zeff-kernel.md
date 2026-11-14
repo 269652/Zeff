@@ -220,7 +220,7 @@ About 11k lines and about 20 plugins. Each one is a few days. Expect a handful o
 
 ### 4. Port tier B: apps of medium size
 
-agenda, mail-client, loops, jira-lage, timeline, cases, finances, documents: about 14k lines. Each is roughly a Learn. Their screens
+agenda (✅ ported: `agenda-ext`, see runtime conversion), mail-client, loops, jira-lage, timeline, cases, finances, documents: about 14k lines. Each is roughly a Learn. Their screens
 are views and widgets, their syncs are functions and schedules, and their AI tasks are functions with `zeff.ai`.
 
 ### 5. Port tier C: the heavy UIs

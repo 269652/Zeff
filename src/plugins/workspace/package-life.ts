@@ -2,7 +2,7 @@ import { isInstalled } from "@/plugins/state";
 import { sanitizeDoc, type DocNode } from "./doc";
 import { normalizeForm } from "./form-spec";
 import { pageKind, type DbSchema } from "./model";
-import { exportPackage, installPackage, mapDoc, mapSchema, pageTitleOf, type PackageItem, type WorkspacePackage } from "./packages";
+import { exportPackage, installPackage, localizePackage, mapDoc, mapSchema, pageTitleOf, type PackageItem, type WorkspacePackage } from "./packages";
 import { addSavePoint, savePoint, savePoints, type SavePoint } from "./app-savepoints";
 import { blocksFolder, getBlock, saveBlock } from "./block-store";
 import { addRow, createPage, getPage, setPageProps, updatePage, updateSchema } from "./store";
@@ -108,7 +108,9 @@ export function packagePermissions(pkg: WorkspacePackage): { flows: string[]; ro
 // ---------------------------------------------------------------------------
 
 /** Installs a package and remembers it (when it has a version): the later versions update these pages in place. */
-export function installRemember(pkg: WorkspacePackage, parentId: number | null): { rootId: number; id: string; remembered: boolean } {
+export function installRemember(rawPkg: WorkspacePackage, parentId: number | null): { rootId: number; id: string; remembered: boolean } {
+  // (in the user's language — the snapshot too, so the next update merges like with like)
+  const pkg = localizePackage(rawPkg);
   const problems = checkRequirements(pkg);
   if (problems.length) throw new Error(problems.join(" "));
   const id = packageIdOf(pkg);
@@ -359,9 +361,10 @@ function applyBlocks(id: string, pkg: WorkspacePackage, env: { force: boolean; c
 
 const APPLIERS: Applier[] = [applyDatabase, applyForm, applyFlow, applyContent];
 
-export async function updateTracked(id: string, pkg: WorkspacePackage, opts: { force?: boolean; rollback?: boolean; /** The flows of the new version get what they ask for (as when it was installed with "allow"). */ allow?: boolean; /** (A save point brought back: no version snapshot of it, no save point before — the caller kept one.) */ fromSavePoint?: boolean } = {}): Promise<UpdateReport> {
+export async function updateTracked(id: string, rawPkg: WorkspacePackage, opts: { force?: boolean; rollback?: boolean; /** The flows of the new version get what they ask for (as when it was installed with "allow"). */ allow?: boolean; /** (A save point brought back: no version snapshot of it, no save point before — the caller kept one.) */ fromSavePoint?: boolean } = {}): Promise<UpdateReport> {
   const inst = getInstalled(id);
   if (!inst) throw new Error(`The package “${id}” is not installed.`);
+  const pkg = localizePackage(rawPkg);
   if (!pkg.version) throw new Error("This package has no version.");
   if (!opts.rollback && compareVersions(pkg.version, inst.version) <= 0) throw new Error(`Version ${pkg.version} is not newer than the installed ${inst.version}.`);
   const problems = checkRequirements(pkg);

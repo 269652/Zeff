@@ -25,7 +25,7 @@ export function isAgendaDb(schema: DbSchema): boolean {
 }
 
 /** The fields the screen goes by, found in a schema: by name, else by kind (the first date, relation, checkboxes in their order). */
-function fieldsOf(schema: DbSchema): { names: AgendaNames; date?: Property; done?: Property; reminder?: Property; event?: Property } {
+export function fieldsOf(schema: DbSchema): { names: AgendaNames; date?: Property; done?: Property; reminder?: Property; event?: Property } {
   const want = agendaNames(t);
   const props = schema.properties;
   const named = (name: string, type: Property["type"] | Property["type"][]) => props.find((p) => p.name.toLowerCase() === name.toLowerCase() && ([] as string[]).concat(type).includes(p.type));

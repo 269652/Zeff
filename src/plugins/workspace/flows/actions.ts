@@ -3,7 +3,7 @@ import { lookup as dnsLookup } from "node:dns/promises";
 import { extensionPoint } from "@/lib/plugin-kit/extension-point";
 import type { FieldSpec, FlowPermissions } from "./types";
 import { text } from "./expr";
-import { rowObject } from "./rows";
+import { rawRowObject, rowObject } from "./rows";
 
 /**
  * The actions a flow's node can call — Zeff's own here (web, extraction, AI, lookups, databases, todos, plugin methods), more
@@ -454,13 +454,14 @@ const CORE: FlowAction[] = [
     group: "data",
     label: "Read rows",
     summary: 'Rows of a database (by its name or id): where {"Status": "Open"} (the fields that must be so), search (a text), sort ("Field" or "-Field"), limit.',
-    input: [f("database", "db", { required: true }), f("where", "json"), f("search", "text"), f("sort", "text"), f("limit", "number", { default: 100 })],
+    input: [f("database", "db", { required: true }), f("where", "json"), f("search", "text"), f("sort", "text"), f("limit", "number", { default: 100 }), f("raw", "boolean", { help: "the values as kept: a relation's row ids, a date as written ({ start, end } for a range), a choice's option name" })],
     output: "{ rows: [{ id, title, <field>: value … }], count }",
     run: async (i) => {
       const db = await databaseOf(i.database);
       const { rowsOf } = await import("../store");
       const d = rowsOf(db)!;
-      let rows = d.rows.map((r) => rowObject(d.schema, r));
+      // (raw: what code needs — ids and dates as kept — not the words shown)
+      let rows = d.rows.map((r) => (i.raw === true ? rawRowObject(d.schema, r) : rowObject(d.schema, r)));
       const where = i.where && typeof i.where === "object" ? (i.where as Record<string, unknown>) : {};
       const low = (v: unknown) => text(v).trim().toLowerCase();
       for (const [k, want] of Object.entries(where)) rows = rows.filter((r) => { const key = Object.keys(r).find((x) => x.toLowerCase() === k.toLowerCase()); const v = key ? r[key] : undefined; return typeof want === "boolean" ? (v === true) === want : low(v) === low(want); });
@@ -473,6 +474,26 @@ const CORE: FlowAction[] = [
       }
       const count = rows.length;
       return { rows: rows.slice(0, Math.min(5000, Number(i.limit) || 100)), count };
+    },
+  },
+  {
+    name: "db.schema",
+    group: "data",
+    label: "A database's fields",
+    summary: "What a database is made of: its title's name, its fields (name, type, a choice's options, the database a relation points to) and its kind (dataType: agenda, calendar …).",
+    input: [f("database", "db", { required: true })],
+    output: "{ id, title, titleName, dataType, fields: [{ name, type, options?, relation? }] }",
+    run: async (i) => {
+      const db = await databaseOf(i.database);
+      const { getDatabase } = await import("../store");
+      const d = getDatabase(db)!;
+      return {
+        id: d.page.id,
+        title: d.page.title,
+        titleName: d.schema.titleName || "Name",
+        dataType: d.schema.dataType ?? null,
+        fields: d.schema.properties.map((p) => ({ name: p.name, type: p.type, ...(p.options?.length ? { options: p.options.map((o) => o.name) } : {}), ...(p.relationDb !== undefined ? { relation: p.relationDb } : {}) })),
+      };
     },
   },
   {
@@ -530,6 +551,33 @@ const CORE: FlowAction[] = [
         updatePage(id, { content: { ...getPage(id)!.content, content: [...(getPage(id)!.content.content ?? []), ...(markdownToDoc(text(i.markdown)).content ?? [])] } });
       }
       return { id, existed: false };
+    },
+  },
+  {
+    name: "db.add",
+    group: "data",
+    label: "Add a row (typed values)",
+    summary: 'A new row with its values as they are, the way the assistant writes rows: {"Field": value} — a date "YYYY-MM-DD" or { start, end }, the row ids (or titles) of a relation, an option by its name (a new one made), true/false, numbers — and markdown (its page).',
+    input: [f("database", "db", { required: true }), f("title", "text", { required: true }), f("values", "json"), f("markdown", "text")],
+    output: "{ id }",
+    writes: true,
+    needs: ["write"],
+    run: async (i, ctx) => {
+      const db = await databaseOf(i.database);
+      ctx.canWrite(db);
+      const title = text(i.title).trim().slice(0, 300);
+      if (!title) throw new Error("db.add: a row needs a title.");
+      const store = await import("../store");
+      const { valuesToCells } = await import("../mcp-db");
+      const d = store.getDatabase(db)!;
+      const c = await valuesToCells(d.schema, i.values && typeof i.values === "object" && !Array.isArray(i.values) ? (i.values as Record<string, unknown>) : {});
+      if (c.schema !== d.schema) store.updateSchema(db, c.schema);
+      const id = store.addRow(db, { title, cells: c.cells });
+      if (text(i.markdown).trim()) {
+        const { markdownToDoc } = await import("../doc");
+        store.updatePage(id, { content: markdownToDoc(text(i.markdown)) });
+      }
+      return { id };
     },
   },
   {

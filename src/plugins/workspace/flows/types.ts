@@ -82,8 +82,8 @@ export const NODE_KINDS: FlowNodeKind[] = ["action", "set", "if", "switch", "for
 export type FlowPermissions = {
   /** Web addresses it may fetch: domains ("api.themoviedb.org", "*.wikipedia.org"), or "*" for any public address. */
   web?: string[];
-  /** Databases it may write (ids), or "all". */
-  write?: number[] | "all";
+  /** Databases it may write (ids — a package's own also as "@pkg.iN"), or "all". */
+  write?: (number | string)[] | "all";
   /** May make databases (db.ensure) — and write the ones it made. */
   create?: boolean;
   /** May use the AI (costs). */
@@ -215,7 +215,9 @@ export function normalizeNodes(raw: unknown, depth = 0, ids = new Set<string>())
 function normalizePermissions(raw: unknown): FlowPermissions {
   const o = obj(raw);
   const web = Array.isArray(o.web) ? [...new Set(o.web.map(str).filter((d) => d === "*" || /^(\*\.)?[a-z0-9.-]+\.[a-z]{2,}$/i.test(d)).map((d) => d.toLowerCase()))] : [];
-  const write = o.write === "all" ? ("all" as const) : Array.isArray(o.write) ? [...new Set(o.write.map(posInt).filter((n): n is number => !!n))] : [];
+  // (a database by its id — or a package's own by its place in it, "@my-pkg.i3", whatever id it got when installed)
+  const writeOne = (x: unknown): number | string | undefined => (typeof x === "string" && /^@[a-z0-9][a-z0-9.-]*\.i\d+$/.test(x.trim()) ? x.trim() : posInt(x));
+  const write = o.write === "all" ? ("all" as const) : Array.isArray(o.write) ? [...new Set(o.write.map(writeOne).filter((n): n is number | string => !!n))] : [];
   return {
     ...(web.length ? { web } : {}),
     ...(write === "all" || write.length ? { write } : {}),

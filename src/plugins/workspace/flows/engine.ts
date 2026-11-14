@@ -1,4 +1,5 @@
 import { checkedUrl, flowAction, type ActionCtx } from "./actions";
+import { isPackageRef, packagePage } from "../package-refs";
 import { fill, holds, evalExpr, text, type Scope } from "./expr";
 import { runScript } from "./sandbox";
 import { askUser, answerAsk, cancelAsk, expireAsks, type Ask } from "../asks";
@@ -98,7 +99,9 @@ function actionCtx(ctx: Ctx, logs: string[]): ActionCtx {
     web: (url) => checkedUrl(url, ctx.perms, ctx.resolve),
     canWrite: (dbId) => {
       const w = ctx.perms.write;
-      if (!(w === "all" || (Array.isArray(w) && w.includes(dbId)))) throw new Error(`This flow may not write the database ${dbId} — grant it under the flow's permissions (write).`);
+      // (a package's flow names its own databases by their place in it — "@agenda-ext.i3" — whatever ids they got when it was installed)
+      const mine = (x: number | string) => x === dbId || (isPackageRef(x) && packagePage(x) === dbId);
+      if (!(w === "all" || (Array.isArray(w) && w.some(mine)))) throw new Error(`This flow may not write the database ${dbId} — grant it under the flow's permissions (write).`);
     },
     may: (need) => {
       if (!ctx.perms[need]) throw new Error(`This flow may not ${need === "ai" ? "use the AI" : need === "send" ? "send anything out" : need === "create" ? "make databases" : "call that plugin method"} — grant it under the flow's permissions (${need}).`);

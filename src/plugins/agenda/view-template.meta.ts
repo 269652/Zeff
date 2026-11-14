@@ -89,3 +89,98 @@ export const AGENDA_VIEW: ViewAppMeta = {
   appData: "app.projects: the projects ({ title, icon, category, open — its open notes }) by category, the archived ones not; app.events: today's events of the calendar ({ title, time })",
   defaultTemplate: (t) => agendaScreen(agendaNames(t), t),
 };
+
+// ---------------------------------------------------------------------------
+// The port (zeff-plugins/plugins/agenda-ext): the same screen, made of the view language alone
+// ---------------------------------------------------------------------------
+
+/** The port's names in Zeff: its sidebar lambda and the flow that adds a note (in its package). */
+export const AGENDA_PORT = { plugin: "agenda-ext", data: "agenda.data", addNote: "agenda.add-note" } as const;
+
+/** The form for a new note (the built-in's NewNote, view-parts.tsx) as a dialog; its Save runs the package's flow. */
+function newNoteDialog(n: AgendaNames, t: T): string {
+  const s = (name: string, value = "") => `<state name="${name}" value="${value}"/>`;
+  const names = JSON.stringify({ date: n.date, project: n.project, agenda: n.agenda, pinned: n.pinned, tags: n.tags, reminder: n.reminder });
+  const input = `{"database": {{ db.id }}, "title": {{ state.nt | tojson }}, "dated": {{ state.ndated | tojson }}, "start": {{ state.ns | tojson }}, "end": {{ state.ne | tojson }}, "project": {{ state.np | tojson }}, "agenda": {{ state.nag | tojson }}, "pinned": {{ state.npin | tojson }}, "tags": {{ state.ntags | tojson }}, "reminder": {{ state.nrem | tojson }}, "text": {{ state.ntext | tojson }}, "names": ${names}}`;
+  const reset = ["nt", "ne", "ntags", "nrem", "ntext", "nag", "npin", "adding"].map((k) => `<on event="agenda-note-saved" action="state" state="${k}" value=""/>`).join("");
+  return [
+    s("nt"), s("ndated", "true"), s("ns"), s("ne"), s("np"), s("nag"), s("npin"), s("ntags"), s("nrem"), s("ntext"),
+    `<dialog bind="adding" title="${q(t("New note"))}">`,
+    `<input bind="nt" label="${q(t("Title"))}" placeholder="${q(t("What is it about?"))}"/>`,
+    `<toggle bind="ndated" label="${q(t("Has a date"))}"/>`,
+    `{{#if state.ndated}}<row gap=2><input bind="ns" type="date" label="${q(t("Date"))}"/><input bind="ne" type="date" label="${q(t("Until (a range)"))}"/></row>{{/if}}`,
+    `{{#if data.agenda.projectOptions}}<select bind="np" options="{{ data.agenda.projectOptions }}" label="${q(t("Project"))}"/>{{/if}}`,
+    `<row gap=3><toggle bind="nag" label="${q(t("On the agenda"))}"/><toggle bind="npin" label="📌 ${q(t("Pinned"))}"/></row>`,
+    `<input bind="ntags" label="${q(t("Tags"))}" placeholder="${q(t("comma separated — a new one is made"))}"/>`,
+    `<input bind="nrem" type="date" label="${q(t("Reminder"))}"/>`,
+    `<input bind="ntext" type="textarea" label="${q(t("Text"))}"/>`,
+    `<button run="${AGENDA_PORT.addNote}" with='${input}' emit="agenda-note-saved" done="${q(t("Saved."))}" label="${q(t("Save"))}" variant=primary disabled="{{ state.nt ? 'false' : 'true' }}"/>`,
+    "</dialog>",
+    reset,
+  ].join("\n");
+}
+
+/**
+ * The port's screen: the built-in's (agendaScreen) — the same timeline, sidebar, filters and panes — with what was code made of the
+ * view language: the projects and today's events from the plugin's lambda (<data lambda>), the new-note form a dialog, New in the
+ * toolbar. One source: what changes in the built-in's screen changes in the port's.
+ */
+export const agendaScreenPort = (n: AgendaNames, t: T): string => toPortScreen(agendaScreen(n, t), n, t);
+
+/**
+ * A built-in Agenda screen — the plugin's, or one you changed — as the port's: the same template with what was code made of the view
+ * language (the new-note part a dialog, app.projects / app.events the lambda's, New in the toolbar). What you changed in it stays.
+ * One already made so comes back as it is.
+ */
+export function toPortScreen(template: string, n: AgendaNames, t: T): string {
+  if (template.includes(`lambda="${AGENDA_PORT.data}"`)) return template;
+  let s = template;
+  s = s.replace(/<part name="agenda\.new"[^>]*\/>/, newNoteDialog(n, t));
+  s = s.split("app.projects").join("data.agenda.projects").split("app.events").join("data.agenda.events");
+  s = s.replace(`<toolbar><search bind="q"`, `<toolbar><button action="state" state="adding" value="true" label="${q(t("New note"))}" variant=primary/><search bind="q"`);
+  // (with= as JSON: the done field's name quoted, so a package made in your language calls it by its name there — localizePackage)
+  return `<data name="agenda" lambda="${AGENDA_PORT.data}" with='{"db": {{ db.id }}, "done": "${n.done}"}'/>\n${s}`;
+}
+
+/** The flow that adds a note (in the port's package): the dialog's values as the note's fields — a range, a project, tags made when new. */
+export const ADD_NOTE_FLOW = {
+  name: AGENDA_PORT.addNote,
+  title: "Add an Agenda note",
+  inputs: [
+    { name: "database", type: "db", required: true },
+    { name: "title", type: "text", required: true },
+    { name: "dated", type: "text" },
+    { name: "start", type: "text" },
+    { name: "end", type: "text" },
+    { name: "project", type: "text" },
+    { name: "agenda", type: "text" },
+    { name: "pinned", type: "text" },
+    { name: "tags", type: "text" },
+    { name: "reminder", type: "text" },
+    { name: "text", type: "text" },
+    { name: "names", type: "json" },
+  ],
+  nodes: [
+    {
+      id: "values",
+      kind: "script",
+      code: [
+        "const input = flowInput;",
+        "const n = input.names || {};",
+        "const yes = (v) => v === true || v === 'true';",
+        "const today = env.today;",
+        "const v = {};",
+        "if (yes(input.dated) && n.date) { const start = input.start || today; v[n.date] = input.end && input.end > start ? { start, end: input.end } : start; }",
+        "if (input.project && n.project) v[n.project] = [input.project];",
+        "if (yes(input.agenda) && n.agenda) v[n.agenda] = true;",
+        "if (yes(input.pinned) && n.pinned) v[n.pinned] = true;",
+        "if (input.reminder && n.reminder) v[n.reminder] = input.reminder;",
+        "const tags = String(input.tags || '').split(',').map((x) => x.trim()).filter(Boolean);",
+        "if (tags.length && n.tags) v[n.tags] = [...new Set(tags)];",
+        "return v;",
+      ].join("\n"),
+    },
+    { id: "add", kind: "action", action: "db.add", input: { database: "{{ input.database }}", title: "{{ input.title }}", values: "{{ steps.values }}", markdown: "{{ input.text }}" } },
+  ],
+  output: "{{ steps.add }}",
+};

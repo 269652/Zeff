@@ -1324,7 +1324,7 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
     }
     case "data":
       if (!a.name || !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(a.name)) return (err('<data> needs name="…" (a name: data.<name> holds the output).'), []);
-      if (!a.flow) return (err('<data> needs flow="…" (the flow whose output it loads).'), []);
+      if (!a.flow && !a.lambda) return (err('<data> needs flow="…" (the flow whose output it loads) or lambda="…" (a function lambda).'), []);
       return [{ t: "data", a, c: [] }];
     case "transitions":
       if (!ctx.row) return (err("<transitions/> shows a row's lifecycle — put it in <selected> or a row's own page."), []);

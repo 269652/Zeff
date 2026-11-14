@@ -76,6 +76,11 @@ export type WorkspacePackage = {
   plugins?: string[];
   migrations?: PackageMigration[];
   tests?: PackageTest[];
+  /**
+   * Made in the user's language: its databases' field names, options and views, and its titles, as the language bundles (Zeff's, its
+   * plugin's) have them — and its views' templates and flows calling those fields by their new names (localizePackage).
+   */
+  localize?: boolean;
 };
 export type PackageMeta = { id: string; name: string; icon: string; description: string };
 
@@ -290,7 +295,58 @@ export function exportPackage(rootId: number, opts: { name: string; description?
 }
 
 /** A package made: new pages under `parentId`, every reference to the new ids, routines off. The id of its first page. */
-export function installPackage(pkg: WorkspacePackage, parentId: number | null): { rootId: number; ids: number[]; map: Record<string, number> } {
+/**
+ * A package made in the user's language (`localize: true`): every field name, option name, title column and view name its databases
+ * have — translated by the language bundles, a name they don't know staying as it is — and every place its templates, flows and
+ * blocks call one of those names ('Date', "Date", [Date]) following it. A package without `localize` comes back as it is. Pure but for
+ * the user's language.
+ */
+export function localizePackage(pkg: WorkspacePackage): WorkspacePackage {
+  if (!pkg.localize) return pkg;
+  const names = new Map<string, string>();
+  const tr = (s: string) => {
+    const out = inLanguage(s);
+    if (out !== s) names.set(s, out);
+    return out;
+  };
+  const items = pkg.items.map((i) => {
+    if (i.kind !== "database" || !i.schema) return i;
+    const s = i.schema;
+    return {
+      ...i,
+      schema: {
+        ...s,
+        titleName: tr(s.titleName || "Name"),
+        properties: s.properties.map((p) => ({ ...p, name: tr(p.name), ...(p.options ? { options: p.options.map((o) => ({ ...o, name: tr(o.name) })) } : {}) })),
+        views: s.views.map((v) => ({ ...v, name: tr(v.name) })),
+      },
+    };
+  });
+  if (!names.size) return { ...pkg, items };
+  // What calls a field by its name: the views' templates, the flows (their nodes and inputs), the blocks — as a quoted or bracketed name.
+  const swap = (text: string) => {
+    let out = text;
+    for (const [from, to] of names) {
+      const esc = from.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+      // ('Date', "Date" or [Date] — a quote closed by the same quote, a bracket by a bracket)
+      out = out.replace(new RegExp(`(['"\\[])${esc}(['"\\]])`, "g"), (m, a: string, b: string) => ((a === "[" ? b === "]" : b === a) ? `${a}${to}${b}` : m));
+    }
+    return out;
+  };
+  const deep = <T,>(v: T): T => JSON.parse(swap(JSON.stringify(v))) as T;
+  return {
+    ...pkg,
+    items: items.map((i) => ({
+      ...i,
+      ...(i.kind === "database" && i.schema ? { schema: { ...i.schema, views: i.schema.views.map((v) => (v.template ? { ...v, template: swap(v.template) } : v)) } } : {}),
+      ...(i.flow ? { flow: deep(i.flow) } : {}),
+    })),
+    ...(pkg.blocks ? { blocks: deep(pkg.blocks) } : {}),
+  };
+}
+
+export function installPackage(rawPkg: WorkspacePackage, parentId: number | null): { rootId: number; ids: number[]; map: Record<string, number> } {
+  const pkg = localizePackage(rawPkg);
   if (!pkg || pkg.format !== 1 || !Array.isArray(pkg.items)) throw new Error("This is not a package of pages.");
   if (!pkg.items.length) throw new Error("The package holds nothing.");
   if (pkg.items.length > MAX_ITEMS) throw new Error("The package is too large (too many pages).");
@@ -325,6 +381,13 @@ export function installPackage(pkg: WorkspacePackage, parentId: number | null): 
     } catch {
       /* (a block that does not hold: left out — the view says it is missing) */
     }
+  }
+  // The databases' fields first without the back sides of their relations: a back side (Projects › Notes) needs the other database's
+  // relation to be there already — one made after it otherwise has none yet. The whole schema follows below.
+  for (const i of pkg.items) {
+    if (i.kind !== "database" || !i.schema) continue;
+    const s = mapSchema(i.schema, f);
+    updateSchema(made.get(String(i.id))!, { ...s, properties: s.properties.filter((p) => !p.backOf) });
   }
   // Rows: made first without their links, then the links (a row may link one made after it).
   const rowMade = new Map<string, number>();
