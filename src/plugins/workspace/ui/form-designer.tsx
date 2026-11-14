@@ -1,5 +1,6 @@
 "use client";
 
+import { HistoryButton } from "./version-history";
 import { useEffect, useRef, useState, type DragEvent, type KeyboardEvent, type ReactNode } from "react";
 import { confirmAction } from "@/components/confirm";
 import { useT } from "@/components/I18nProvider";
@@ -431,6 +432,7 @@ export function FormDesigner({ initial, onChange }: { initial: FormRun; /** Told
       {/* The canvas */}
       <section aria-label={t("The form")} className="@container min-w-0 space-y-3">
         <div className="flex flex-wrap items-center gap-1" role="group" aria-label={t("Steps")}>
+          <span className="order-last ml-auto"><HistoryButton of={{ kind: "form", ref: initial.id }} /></span>
           {def.steps.map((s, i) => (
             <button
               key={s.id}

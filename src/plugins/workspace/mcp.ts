@@ -18,6 +18,8 @@ import { registerWidgetTools } from "./mcp-widgets";
 import { registerBlockTools } from "./mcp-blocks";
 import { registerFunctionTools } from "./mcp-functions";
 import { registerPackageTools } from "./mcp-packages";
+import { registerVersionTools } from "./mcp-versions";
+import { registerModTools } from "@/lib/mods/mcp";
 import { mayRead, refusal } from "@/lib/boundaries";
 import { labelResolver, pageLabel } from "./sensitivity";
 
@@ -371,6 +373,9 @@ export function registerWorkspaceTools(real: McpServer, h: Helpers): void {
   registerFunctionTools(server, h);
   // Packages that live: installed, on offer, install, update in place, history, roll back, tests.
   registerPackageTools(server, h);
+  registerVersionTools(server, h);
+  // Mods: Zeff itself changed through its hooks (lib/mods).
+  registerModTools(server, h as never);
   // The Kennzahlen (named numbers) — read, and made from a formula.
   registerMetricTools(server, h);
 }

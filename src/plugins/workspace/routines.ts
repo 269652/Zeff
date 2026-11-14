@@ -2,6 +2,7 @@ import { getSqlite } from "@/db";
 import { isToolGroup } from "./agent-tools";
 import { FILTER_OPS, newId, type FilterRule } from "./model";
 import { getPage, inTemplates } from "./store";
+import { keepPartVersion } from "./part-versions";
 
 /**
  * Routines — Automations (deterministic steps, one after another, with gates, branches and conditions) and Agents (an LLM run on
@@ -249,6 +250,8 @@ export function updateRoutine(pageId: number, patch: Partial<Pick<RoutineConfig,
   const cur = getRoutine(pageId);
   if (!cur) throw new Error("This page is no routine.");
   const next = normalizeRoutine({ ...cur, ...patch });
+  // What it was: a version to go back to (part-versions.ts).
+  if (JSON.stringify([cur.enabled, cur.triggers, cur.permissions, cur.steps, cur.provider ?? null]) !== JSON.stringify([next.enabled, next.triggers, next.permissions, next.steps, next.provider ?? null])) keepPartVersion("routine", pageId, { kind: cur.kind, enabled: cur.enabled, triggers: cur.triggers, permissions: cur.permissions, steps: cur.steps, ...(cur.provider ? { provider: cur.provider } : {}) });
   db().prepare("update ws_routines set enabled = ?, config = ?, next_run_at = null where page_id = ?").run(next.enabled ? 1 : 0, JSON.stringify({ triggers: next.triggers, permissions: next.permissions, steps: next.steps, ...(next.provider ? { provider: next.provider } : {}) }), pageId);
   return getRoutine(pageId)!;
 }

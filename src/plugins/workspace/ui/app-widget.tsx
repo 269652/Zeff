@@ -14,6 +14,7 @@ import { postJson } from "@/lib/post-json";
 import { allowWidgetAction, saveBlockAction, publishWidgetValueAction, revokeWidgetAction, saveWidgetVersionAction, setWidgetPageStateAction, widgetCallAction, widgetContextAction, widgetGrantAction, widgetPageStateAction, widgetVersionAction, widgetVersionsAction } from "../actions";
 import type { MadeWidget } from "../widget-make";
 import { GripBar } from "./app-nodes";
+import { useBlockActions } from "./block-toolbar";
 import { VisualModel } from "@/lib/widgets/visual";
 import { VisualCanvas } from "./widget-visual";
 import { lastSaid, saidKey, startEdit, stopEdit } from "./widget-edit-store";
@@ -431,10 +432,12 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
     t("A 3D model of …"),
     t("A Wolfram|Alpha-like calculator"),
   ];
+  // The block's bar (over it on hover, or when picked): Edit is the visual editor, ✨ the chat that improves it.
+  const blockActions = useBlockActions(html && mode === "show" ? { edit: startDesign, ai: () => (setMode("chat"), void loadVersions()) } : {}, { edit: t("Edit visually") });
   const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
   return (
-    <NodeViewWrapper className="ws-app-widget ws-module-block my-2" contentEditable={false}>
+    <NodeViewWrapper className="ws-app-widget ws-module-block my-2" contentEditable={false} {...blockActions}>
       <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={title || t("Widget")}>
         {html && mode === "show" && (
           <>
@@ -613,33 +616,10 @@ function AppView({ node, updateAttributes, editor, getPos, deleteNode, extension
       {html ? (
         <div className={mode === "chat" ? "grid items-start gap-3 lg:grid-cols-[minmax(0,1fr)_22rem]" : ""}>
           <div className="relative min-w-0">
-            {/* Top right, over the widget: faint, clear when the pointer is near — the way into the chat that improves it. */}
-            {editable && mode === "show" && (
-              <div className="absolute top-1 right-1 z-10 flex gap-1 opacity-30 transition-opacity focus-within:opacity-100 hover:opacity-100">
-                {/* The visual editor: move, restyle and write in the widget; the sidebar shows its outline and properties. */}
-                <button
-                  type="button"
-                  title={t("Edit visually — move, restyle and write in the widget; its outline and properties come to the sidebar")}
-                  aria-label={t("Edit visually")}
-                  className="flex size-7 items-center justify-center rounded-md border border-violet-200 bg-violet-50/90 text-sm text-violet-700 shadow-sm dark:border-violet-800 dark:bg-violet-950/90 dark:text-violet-200"
-                  onClick={startDesign}
-                >
-                  ✎
-                </button>
-                {/* The chat: a pencil with an AI badge — say what should be different. */}
-                <button
-                  type="button"
-                  title={t("Improve this widget — talk to the AI")}
-                  aria-label={t("Improve this widget — talk to the AI")}
-                  className="flex size-7 items-center justify-center rounded-md border border-violet-200 bg-violet-50/90 text-sm text-violet-700 shadow-sm dark:border-violet-800 dark:bg-violet-950/90 dark:text-violet-200"
-                  onClick={() => (setMode("chat"), void loadVersions())}
-                >
-                  ✨
-                </button>
-              </div>
-            )}
+            {/* (Edit visually and ✨ Improve with AI: the block's bar over it — block-toolbar.tsx.) */}
             {mode === "design" && model ? (
-              <VisualCanvas model={model} />
+              // (its own clicks pick what is in the widget, not the block)
+              <div data-no-pick><VisualCanvas model={model} /></div>
             ) : (
               <AppWidget html={html} libs={libs} title={title || t("Widget")} wants={wants} pageId={pageId} state={String(node.attrs.state ?? "")} onState={(json) => updateAttributes({ state: json })} showGrants={editable && mode !== "show"} onError={setBroke} wid={wid || undefined} />
             )}

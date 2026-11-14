@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { listFunctions, type FnInfo } from "./functions";
+import { rememberUndo } from "@/plugins/workspace/undo";
 
 /**
  * A plugin function's code, changed at runtime — by you or the AI, like a flow: the code before kept as a version beside it (the plugin's
@@ -56,6 +57,7 @@ export function saveFunctionSource(plugin: string, name: string, code: string): 
   }
   const before = fs.readFileSync(f.abs, "utf8");
   if (before === code) return { versions: functionVersions(f).length };
+  rememberUndo(`function:${plugin}.${name}`, { kind: "function", plugin, name, code: before });
   const dir = versionsDir(f);
   fs.mkdirSync(dir, { recursive: true });
   fs.writeFileSync(path.join(dir, `${Date.now()}${path.extname(f.file)}`), before);

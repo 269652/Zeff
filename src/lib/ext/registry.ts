@@ -4,6 +4,7 @@ import { eq } from "drizzle-orm";
 import { BASE_DIR, currentAccountId } from "@/db/accounts";
 import { getDb, schema } from "@/db";
 import { getPref, setPref } from "@/lib/prefs";
+import { safeMode } from "@/lib/kernel/safe-mode";
 import { parseManifest, type Manifest, type Permission } from "./manifest";
 // The permissions a manifest may ask for are the ones the plugins bring: they register when this is loaded.
 import "@/lib/plugins/api";
@@ -68,8 +69,9 @@ export function scanPlugins(force = false): Scan {
 const stateKey = (id: string) => `x:${id}`;
 const grantKey = (id: string) => `ext:granted:${id}`;
 
-/** On for the account this runs for? (Off unless you turned it on.) */
+/** On for the account this runs for? (Off unless you turned it on — and off for all while Zeff is in safe mode: lib/kernel/safe-mode.ts.) */
 export function isEnabled(id: string): boolean {
+  if (safeMode()) return false;
   return !!getDb().select({ installed: schema.plugins.installed }).from(schema.plugins).where(eq(schema.plugins.id, stateKey(id))).get()?.installed;
 }
 

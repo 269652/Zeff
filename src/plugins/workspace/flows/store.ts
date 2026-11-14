@@ -2,6 +2,7 @@ import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { createPage, getPage, inTemplates } from "../store";
 import { normalizeFlow, type FlowDef } from "./types";
+import { keepPartVersion } from "../part-versions";
 
 /**
  * Where flows live: each is a page of the Workspace (its title, its place in the tree — an app's flows under the app) with its
@@ -92,6 +93,9 @@ export function saveFlow(pageId: number, raw: unknown): Flow {
   const def = normalizeFlow(raw);
   const other = flowByName(def.name);
   if (other && other.pageId !== pageId) throw new Error(`There is a flow named “${def.name}” already.`);
+  // The definition it had: a version to go back to (part-versions.ts).
+  const was = db().prepare("select name, def, enabled from ws_flows where page_id = ?").get(pageId) as { name: string; def: string; enabled: number };
+  if (was.def !== stored(def) || was.name !== def.name || !!was.enabled !== (def.enabled !== false)) keepPartVersion("flow", pageId, { ...parse<object>(was.def, {}), name: was.name, enabled: !!was.enabled });
   db().prepare("update ws_flows set name = ?, def = ?, enabled = ?, next_run_at = null where page_id = ?").run(def.name, stored(def), def.enabled === false ? 0 : 1, pageId);
   emitChange("workspace");
   return getFlow(pageId)!;

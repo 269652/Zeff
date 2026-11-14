@@ -12,6 +12,8 @@ import { headers } from "next/headers";
 import { prefixOf, PREFIX_ATTR, PREFIX_HEADER } from "@/lib/account-routes";
 import { accountNavScript } from "@/lib/account-nav-script";
 import { InlineScript } from "@/components/InlineScript";
+
+import { modsForPage } from "@/lib/mods/page";
 import localFont from "next/font/local";
 import { SiteHeader, type MenuGroup, type MenuLink } from "@/components/SiteHeader";
 import { BadgeLookProvider } from "@/components/BadgeLookProvider";
@@ -74,12 +76,14 @@ const headerAccount = () => {
   return { current: chip(currentAccount()), list: listAccounts().map(chip) };
 };
 import { Toaster } from "@/components/Toaster";
+import { PluginUpdates } from "@/components/ext/PluginUpdates";
 import { StalePageGuard } from "@/components/StalePageGuard";
 import { FlowAsks } from "@/plugins/workspace/ui/flow-asks";
 import { LockWatcher } from "@/components/LockWatcher";
 import { lockEnabled } from "@/lib/lock/shared";
 import { SetupGate } from "@/components/SetupGate";
 import { DemoBar } from "@/components/DemoBar";
+import { SafeModeBar } from "@/components/SafeModeBar";
 import { getAppSettings } from "@/lib/ai";
 import { MainArea } from "@/components/MainArea";
 import { PluginFlagsProvider } from "@/components/PluginFlags";
@@ -113,15 +117,25 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
   const attention = setupPending ? [] : await listAttention();
   // The account's route ("/privat", "" for the first account — the proxy's header): the browser keeps it (account-nav-script).
   const prefix = (await headers()).get(PREFIX_HEADER) ?? "";
+  // The mods that are on (docs/mods.md): loaded on the server (again when one changed), and what the page brings of them.
+  const mods = modsForPage();
+  // The plugins' own texts in this language (contributes.locales): a script of their own, cached for good (its address has their version).
+  const { pluginStringsVersion } = await import("@/lib/i18n/plugin-strings");
+  const stringsVersion = lang === "en" ? "" : pluginStringsVersion(lang);
   return (
     <html
       lang={lang}
       className={`${geistSans.variable} ${geistMono.variable} h-full antialiased`}
       {...(prefix ? { [PREFIX_ATTR]: prefix } : {})}
     >
-      {prefix && (
+      {(prefix || mods.script || mods.css || stringsVersion) && (
         <head>
-          <InlineScript html={accountNavScript(prefix)} />
+          {prefix && <InlineScript html={accountNavScript(prefix)} />}
+          {/* eslint-disable-next-line @next/next/no-sync-scripts -- the texts must be there before React draws the page (else it shows English first) */}
+          {stringsVersion && <script src={`/api/i18n/${lang}?v=${stringsVersion}`} />}
+          {/* The mods that are on (lib/mods): their browser parts, before React starts — and their styles. */}
+          {mods.script && <InlineScript html={mods.script} />}
+          {mods.css && <style data-zeff-mods="" dangerouslySetInnerHTML={{ __html: mods.css }} />}
         </head>
       )}
       {/* An app shell: the window is the page — the body never scrolls; the content does, in itself. */}
@@ -150,6 +164,7 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
             backupMenu={installedPlugins().has("backup")}
           />
           {isDemoAccount() && <DemoBar />}
+          <SafeModeBar />
           {!setupPending && <AttentionBar items={attention} />}
           <MainArea>
             <PluginFlagsProvider installed={[...installedPlugins()]} off={getTodoDisplayOff()} grants={setupPending ? [] : googleGrants()}>
@@ -170,6 +185,8 @@ export default async function RootLayout({ children }: LayoutProps<"/">) {
           <StalePageGuard />
           {/* What flows ask you (a check-in, an approval): a card on every page. */}
           {!setupPending && installedPlugins().has("workspace") && <FlowAsks />}
+          {/* A newer version of a plugin in its repository: the note with Update / Later (and the merge when both sides changed). */}
+          {!setupPending && <PluginUpdates />}
           </BadgeLookProvider>
         </I18nProvider>
       </body>

@@ -40,6 +40,7 @@ without rebuilding Zeff) are documented separately in [docs/plugins](../plugins/
 | [Cases](cases.md) | One place per matter: what belongs to a case number — its sources, the other side, what is owed, the next deadline | on |
 | [Finances](finances.md) | Your debts and what you are owed — instalments, payment plans, when you are debt-free | on |
 | [Documents](documents.md) | A store for your documents whose text Zeff reads: searchable, context for todos, a source of todos | off |
+| [Explorer](explorer.md) | The files of this computer in the Workspace, like Windows Explorer: import into Documents, watch folders, view and edit files | off |
 | [News](news.md) | News from public feeds, scored for your interests, sources and open todos | off |
 | [Learn](learn.md) | Learn rebuilt on Zeff's own building blocks (databases, an app view, flows, functions) — in the making, until it can do everything Learn does | off · beta |
 | [Studio](studio.md) | Flows drawn on a canvas, lifecycles, lambdas, screens and secrets for your Zeff apps — by hand or with a copilot | off · beta |

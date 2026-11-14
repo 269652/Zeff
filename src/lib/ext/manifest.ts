@@ -194,6 +194,67 @@ const fieldTypeDecl = z.object({
   options: z.array(z.string().max(60)).max(100).default([]),
 });
 
+// The stored forms of the Workspace's extension points (docs/kernel-contract.md): what a built-in plugin brings in TypeScript, an
+// external plugin declares here — a formula, or a function of its own that answers.
+const formulaFnDecl = z.object({
+  name: z.string().regex(/^[a-z][a-zA-Z0-9]{0,39}$/, "a formula name: letters and digits, starting with a small letter"),
+  args: z.array(z.string().regex(/^[a-zA-Z][\w]{0,39}$/)).max(8).default([]).describe('Its arguments, by name — read in `value` as prop("name").'),
+  value: z.string().min(1).max(2000).describe('What it gives: a formula of Zeff\'s formula language, its arguments as prop("name") — no code, nothing it can change.'),
+  what: z.string().max(200).default("").describe("One line: what it gives (the formula help and the AI read it)."),
+  unit: z.string().max(20).optional(),
+});
+const metricDecl = z.object({
+  id: shortId,
+  label: z.string().min(1).max(60).describe("Its name as a Kennzahl (formulas read it with kennzahl(\"…\"))."),
+  unit: z.string().max(20).default(""),
+  what: z.string().max(200).default(""),
+  function: shortId.describe("The plugin function that gives the number (called with {}); its last answer is what the Kennzahl shows."),
+  everyMinutes: z.number().int().min(1).max(1440).default(15).describe("How old its last answer may be before it is asked again (in the background)."),
+});
+const rowBadgeDecl = z.object({
+  prefix: z.string().regex(/^[a-z][a-z0-9-]{0,39}:$/, 'the start of its records\' refs, with the colon: "film:"').describe("The rows its sources brought (by their record's ref) it puts badges on."),
+  function: shortId.describe('The plugin function that gives the badges: { "film:12": [{ "label": "2 new", "tone": "warn" }] }.'),
+});
+const tabMenuDecl = z.object({
+  tab: z.string().regex(/^\/[\w/-]{0,80}$/).describe('The tab (by its address, "/my-app") whose menu it fills.'),
+  function: shortId.describe("The plugin function that gives the entries: [{ href, label, hint? }]."),
+});
+const widgetSettingDecl = z.object({
+  key: z.string().regex(/^[a-zA-Z][\w]{0,39}$/),
+  label: z.string().min(1).max(60),
+  kind: z.enum(["number", "select", "text", "checkbox"]).default("text"),
+  default: z.union([z.string().max(200), z.number(), z.boolean()]).optional(),
+  min: z.number().optional(),
+  max: z.number().optional(),
+  options: z.array(z.object({ value: z.string().max(100), label: z.string().max(100) })).max(50).optional(),
+});
+const widgetDecl = z.object({
+  id: shortId.describe("Its id: <plugin id>.<this>."),
+  label: z.string().min(1).max(60),
+  icon: z.string().max(8).default("🧩"),
+  description: z.string().max(200).default(""),
+  size: z.enum(["third", "half", "full"]).default("half"),
+  ttl: z.number().int().min(5).max(86400).default(60).describe("Seconds its data is kept."),
+  settings: z.array(widgetSettingDecl).max(10).default([]),
+  function: shortId.describe('The plugin function that gives its data, called with { config }: { "kind": "list", "items": [{ id, text, detail?, meta?, href?, badge?, tone?, done?, actions? }] }, { "kind": "stats", "tiles": [{ label, value, detail?, tone?, href? }] } or { "kind": "figure", value, caption, detail?, href? }.'),
+  act: shortId.optional().describe("The plugin function a button of it runs, called with { action, payload, config }; what it gives (data as above) is shown, else the data is read again."),
+});
+const pageNavDecl = z.object({
+  function: shortId.describe("The plugin function that gives entries under pages in the Workspace tree: [{ pageId, entries: [{ id, label, icon?, n?, group?, href? }] }]."),
+});
+const reviewSourceDecl = z.object({
+  id: shortId.describe("Its id: <plugin id>-<this> in the review queue."),
+  label: z.string().min(1).max(60),
+  list: shortId.describe("The plugin function that gives what waits for a word: [{ id, title, detail?, confidence?, href?, actions: [{ id, label, primary? }] }]."),
+  act: shortId.describe("The plugin function a button runs, called with { item, action }; what it gives (a text) is said."),
+});
+const reviewLinkDecl = z.object({
+  id: shortId,
+  label: z.string().min(1).max(60),
+  href: z.string().regex(/^\/(?!\/)[^\s]{0,300}$/).describe("Where the things waiting are (inside Zeff)."),
+  count: shortId.describe("The plugin function that gives how many wait (a number)."),
+});
+
 const contributes = z.object({
   workerRules: z
     .union([relPath, z.array(relPath).max(10)])
@@ -212,7 +273,28 @@ const contributes = z.object({
   lookups: z.array(lookupDecl).max(20).default([]).describe("Lookups for views (<lookup>: a film, a book …): a search and a details function of the plugin."),
   sources: z.array(sourceDecl).max(20).default([]).describe("Data sources for the pipelines: a database can follow one; a function of the plugin reads its records."),
   functions: z.array(fnDecl).max(50).default([]).describe("Server functions of its own: code (Python or Node.js) that runs in the Notebook's sessions and is called over HTTP (POST /api/ext/fn/<plugin>/<name>), from Notebook cells (zeff.call) and by other functions."),
+  formulaFunctions: z.array(formulaFnDecl).max(30).default([]).describe("Functions for formulas (views, formula fields, tables): each a formula of its own, called by its name like Zeff's own (a name Zeff or another plugin has already is left out)."),
+  metrics: z.array(metricDecl).max(20).default([]).describe("Kennzahlen: numbers a plugin function gives, kept and asked again when they are older than everyMinutes."),
+  rowBadges: z.array(rowBadgeDecl).max(10).default([]).describe("Badges on the rows its sources brought (by their refs), given by a plugin function."),
+  tabMenus: z.array(tabMenuDecl).max(10).default([]).describe("The menu of a tab (its address): entries a plugin function gives."),
+  widgets: z.array(widgetDecl).max(20).default([]).describe("Widgets for pages and the dashboard (New block → widget): a list, figures or one figure, given by a plugin function, with buttons that run another."),
+  pageNav: z.array(pageNavDecl).max(5).default([]).describe("Entries under its pages in the Workspace tree, given by a plugin function."),
+  reviewSources: z.array(reviewSourceDecl).max(10).default([]).describe("Things that wait for your word in the review queue, listed and decided by plugin functions."),
+  reviewLinks: z.array(reviewLinkDecl).max(10).default([]).describe("Things waiting on a page of their own: the review queue shows how many and links there."),
   workspacePackages: z.array(relPath).max(20).default([]).describe("Workspace apps it brings: package files (JSON — a page exported with its databases, widgets, flows), offered under New → templates and made with one click."),
+  locales: z
+    .record(z.string().regex(/^[a-z]{2}$/, "a language code: de, es …"), relPath)
+    .default({})
+    .describe('Its texts in other languages: per language code a JSON file { "English text": "translation" } — for its views, blocks, pages and messages (English is the text itself). Zeff\'s own texts win where both have one.'),
+  language: z
+    .object({
+      code: z.string().regex(/^[a-z]{2}$/),
+      name: z.string().min(1).max(40).describe("Its name in English (German)."),
+      native: z.string().min(1).max(40).describe("Its name in itself (Deutsch)."),
+      locale: z.string().regex(/^[a-z]{2}-[A-Z]{2}$/).describe("Dates and numbers: de-DE."),
+    })
+    .optional()
+    .describe("A language pack: the language its locales file for this code makes Zeff speak (Settings → Language offers it while the plugin is installed)."),
 });
 
 export const manifestSchema = z
@@ -224,9 +306,17 @@ export const manifestSchema = z
     description: z.string().max(300).default(""),
     author: z.string().max(100).optional(),
     homepage: z.url().optional(),
+    repository: z
+      .object({
+        url: z.string().regex(/^https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/?$/, "a GitHub repository: https://github.com/owner/repo"),
+        path: z.string().max(200).regex(/^[\w./-]*$/).optional().describe("The plugin's folder in the repository (empty: its top)."),
+        branch: z.string().max(100).regex(/^[\w./-]+$/).optional(),
+      })
+      .optional()
+      .describe("Where newer versions of it are: a GitHub repository (one repository may hold many plugins, each in a folder with its own zeff-plugin.json and version). Plugins → Sources checks it and updates on a click."),
     apiVersion: z.number().int().min(1).max(API_VERSION).describe(`The extension API version it was written for (this Zeff speaks up to ${API_VERSION}).`),
     permissions: z.array(permissionId).max(30).default([]).describe("What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, workspace.write …)."),
-    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], apps: [], hooks: {}, workspacePackages: [], functions: [], flowActions: [], lookups: [], sources: [], fieldTypes: [], chats: [], schedules: [] }),
+    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], apps: [], hooks: {}, workspacePackages: [], functions: [], flowActions: [], lookups: [], sources: [], fieldTypes: [], chats: [], schedules: [], locales: {}, formulaFunctions: [], metrics: [], rowBadges: [], tabMenus: [], widgets: [], pageNav: [], reviewSources: [], reviewLinks: [] }),
   })
   .superRefine((m, ctx) => {
     const has = (p: Permission) => m.permissions.includes(p);

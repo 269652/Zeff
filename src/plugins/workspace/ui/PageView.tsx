@@ -9,6 +9,9 @@ import { useEffect, useRef, useState, type ReactNode } from "react";
 import { toast } from "@/components/Toaster";
 import { useT } from "@/components/I18nProvider";
 import { exportNotebookAction, importNotebookAction } from "@/plugins/notebook/server-actions";
+import { AppHistory } from "./app-history";
+import { PackageUpdateNote } from "./package-update-note";
+import { appHistoryAction } from "../actions";
 import { applyRowLayoutAction, archivePageAction, closeRowAction, reopenRowAction, restorePageAction, createPageAction, duplicatePageAction, exportHtmlAction, exportMarkdownAction, exportPackageAction, savePageAsPluginAction, historyAction, makeRoutineAction, restoreVersionAction, saveAsTemplateAction, savePageAction, setTemplateAction, versionAction } from "../actions";
 import type { DatabaseData } from "../actions";
 import { CRUMB_SLOT, DatabaseView, RowProperties } from "./DatabaseView";
@@ -56,17 +59,39 @@ function download(name: string, text: string, type: string) {
   URL.revokeObjectURL(url);
 }
 
+type AppHistoryData = NonNullable<Extract<Awaited<ReturnType<typeof appHistoryAction>>, { ok: true }>["app"]>;
+
 function History({ pageId, onClose }: { pageId: number; onClose: () => void }) {
   const t = useT();
   const router = useRouter();
   const [versions, setVersions] = useState<{ id: number; at: string; title: string; size: number }[] | null>(null);
   const [preview, setPreview] = useState<{ id: number; markdown: string } | null>(null);
+  // The top page of an installed app: its history is also the whole app's (every page below it) — shown first.
+  const [app, setApp] = useState<AppHistoryData | null>(null);
+  const [tab, setTab] = useState<"app" | "page">("app");
   useEffect(() => {
     void historyAction(pageId).then((r) => setVersions(r.ok ? r.versions : []));
+    void appHistoryAction(pageId).then((r) => r.ok && setApp(r.app));
   }, [pageId]);
   return (
-    <Modal title={t("Page history")} onClose={onClose} wide>
-      {versions === null ? (
+    <Modal title={app ? t("History") : t("Page history")} onClose={onClose} wide>
+      {app && (
+        <div className="mb-3 flex gap-1 border-b border-zinc-200 dark:border-zinc-800" role="tablist">
+          {(
+            [
+              ["app", t("Whole app")],
+              ["page", t("This page's text")],
+            ] as const
+          ).map(([k, label]) => (
+            <button key={k} type="button" role="tab" aria-selected={tab === k} className={`-mb-px border-b-2 px-3 py-1.5 text-sm ${tab === k ? "border-indigo-500 font-medium" : "border-transparent text-zinc-500"}`} onClick={() => setTab(k)}>
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+      {app && tab === "app" ? (
+        <AppHistory app={app} pageId={pageId} onDone={onClose} />
+      ) : versions === null ? (
         <p className="text-sm text-zinc-500">{t("Loading …")}</p>
       ) : !versions.length ? (
         <p className="text-sm text-zinc-500">{t("No earlier versions yet — one is kept every ten minutes you edit.")}</p>
@@ -618,6 +643,8 @@ export function PageView({ page, row, database, form, person, app }: { page: Pag
         {row && <LinkedPanel target={{ rowId: page.id }} />}
 
         <SystemPageBar pageId={page.id} />
+        {/* A page of an installed app (its top page): a newer version of the app is said here too, with its button. (A database says it in its views.) */}
+        {!row && page.kind === "page" && <PackageUpdateNote dbId={page.id} />}
         {appRow && (
           <div role="tablist" aria-label={t("Show as")} className="flex gap-1 print:hidden">
             {(["app", "fields", "page"] as const).map((m) => (

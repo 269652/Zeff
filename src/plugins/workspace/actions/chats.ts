@@ -49,16 +49,19 @@ export async function chatStateAction(chat: string, key: string) {
   });
 }
 
-/** A message into a chat of that key — what a widget reports, a button says: into its running session, or resuming it. */
+/**
+ * A message into a chat of that key — what a widget reports, a button says: into its running session, or resuming it. A chat that has not
+ * begun hears nothing ({ runId: null }) — an exercise done before its lesson's chat was opened still counts, it just has no one to tell.
+ */
 export async function chatTellAction(chat: string, key: string, text: string) {
   return run(async () => {
     const { extChat, todoOfKey } = await import("@/lib/work/ext-chat");
     const c = extChat(String(chat));
-    const todoId = c && todoOfKey(`${c.plugin}.${c.id}`, String(key));
-    if (!todoId) throw new Error("This chat has not begun.");
+    if (!c) throw new Error(`There is no chat "${chat}".`);
+    const todoId = todoOfKey(`${c.plugin}.${c.id}`, String(key));
     const { runsForTodos } = await import("@/lib/work/store");
-    const newest = runsForTodos([todoId]).get(todoId)?.[0];
-    if (!newest) throw new Error("This chat has not begun.");
+    const newest = todoId ? runsForTodos([todoId]).get(todoId)?.[0] : undefined;
+    if (!newest) return { runId: null };
     const { chatSendAction } = await import("@/app/chat/actions");
     const r = await chatSendAction({ text: String(text).slice(0, 4000), runId: newest.id });
     if (!r.ok) throw new Error(r.error);

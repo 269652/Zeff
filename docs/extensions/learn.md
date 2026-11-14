@@ -20,6 +20,15 @@
 
 ### Using it
 
+The **Learn page** (the app's top page) is an overview of every course: steps mastered, cards due and how many you know well, the streak,
+XP today and this week, exercises done, XP per day, your cards by stack and one line per course. Each of these is a block of its own,
+right in the page (no database around it), laid out in rows: `learn.header` (the heading and ↻, which reads every figure again),
+`learn.stat` — one figure as a tile, which one is its parameter `metric` (`steps`, `due`, `known`, `streak`, `xp-today`, `xp-week`,
+`exercises`, `level`) — `learn.xp-days` (the heatmap, `weeks` back), `learn.stacks` and `learn.course-lines`. So each can be picked,
+moved, removed, set under ⚙ or changed on its own when the page is edited. They all read the flow `learn.dashboard`, which runs once for
+all of them. `learn.overview` is still there — all of them in one block, as earlier Learn pages have it.
+Its 🕘 *History* → *Whole app* keeps save points of the whole app (see [Workspace](workspace.md#versions-of-everything-you-build)).
+
 The view has four tabs:
 
 - **Home** — type a topic and press **Research and plan** (a web search finds curricula and textbooks, the AI plans the course on them and
@@ -27,7 +36,12 @@ The view has four tabs:
   (a setting of the app, in the form under the cards).
 - **Skill tree** — the steps. **Master** ticks a step by hand (its experience is given once); **Open lesson** goes to the lesson. A step
   opens once everything it requires is mastered.
-- **Review** — the card that is due: *Show answer*, then *Again / Hard / Good / Easy*. The next review is worked out by the SM-2 rules.
+- **Review** — one card at a time: the question, *Show the answer* right under it, then *Again / Hard / Good / Easy*. Cards live in **four
+  stacks** by how well you know them — stack 1 every day, 2 every 3 days, 3 every week, 4 every 3 weeks: *Good* moves a card up one, *Easy*
+  two, *Hard* keeps it, *Again* puts it back in stack 1 and shows it again at the end of the round. On the card: 💡 *Hint* (a nudge that
+  does not give the answer away), 📖 *Explain* and 🧪 *Exercise* (a small exercise for the card, kept with it) — answered by the plugin's
+  card helper below the card. A card keeps an exercise of its own (the teacher makes one with each card): folded under it, no AI needed.
+  The *Cards* database has the stacks as a tab of their own.
 - **Lesson** — a live chat with your teacher (a Claude session in Zeff, the plugin's own *kind of chat*; it calls Learn's functions through Zeff's tools). The conversation is kept in the **Conversations** database: what you change or delete there is what the teacher goes on with. The teacher answers, may leave up to eight cards, build exercises — an **exercise set** for Zeff's exercise kit (choice, number,
   text, formula, cloze, order, match, categorize, hotspot, slider, table, plot, code, scenario, cards) or a **widget of its own** (a
   simulation, a 3D model) — shown right there, and master the step when you have shown that you reached its goal. **Make it a todo** puts “Learn: …” on your todo list;

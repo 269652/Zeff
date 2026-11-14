@@ -1,7 +1,7 @@
 import { getSqlite } from "@/db";
 import { t } from "@/lib/i18n/server";
 import type { NavEntry } from "@/plugins/documents/nav";
-import { appNavProviders } from "./app-nav-point";
+import { appNavProviders, pageNavProviders } from "./app-nav-point";
 import { dateRange, type View } from "./model";
 import { getDatabase, labelFns, labelsFor, rowsOf } from "./store";
 import { viewAppMeta } from "./view-apps";
@@ -14,7 +14,7 @@ import { navOf, renderView, viewDefaults } from "./view-template";
  * view's template; one can be hidden and shown again (`navHidden`), never deleted.
  */
 export type AppNavEntry = NavEntry & { hidden: boolean; /** Where it leads (a row's page, an address); none: the view, with the entry picked (?nav=). */ href?: string };
-export type AppNav = { viewId: string; /** The view's app (people …). */ app?: string; entries: AppNavEntry[] };
+export type AppNav = { viewId: string; /** The view's app (people …). */ app?: string; entries: AppNavEntry[]; /** A plugin's page's (pageNavProviders): its entries can't be hidden from the tree (the plugin's own setting shows them). */ fixed?: boolean };
 
 const loaded = async () => void (await import("@/plugins/contributions"));
 const providerOf = (app: string | undefined) => (app ? appNavProviders.list().flatMap((c) => c.impl).find((p) => p.app === app) : undefined);
@@ -52,6 +52,14 @@ export async function appNavs(): Promise<Record<number, AppNav>> {
     if (!provider && !entries.length && !/<nav[\s>]/.test(templateOf(view))) continue;
     const hidden = new Set(view.navHidden ?? []);
     out[id] = { viewId: view.id, ...(view.app ? { app: view.app } : {}), entries: entries.map((e) => ({ ...e, hidden: hidden.has(e.id) })) };
+  }
+  // Plugins' own pages (the Explorer's places under an Explorer page).
+  for (const c of pageNavProviders.list()) {
+    try {
+      for (const n of await c.impl.navs()) out[n.pageId] = { viewId: "", fixed: true, entries: n.entries.map((e) => ({ ...e, hidden: false })) };
+    } catch (e) {
+      console.error(`[workspace] ${c.plugin}'s page navigation failed`, e);
+    }
   }
   // The entries closed (close-row.ts): under their database too, the newest ten — those its own navigation shows already not twice.
   const closed = getSqlite()

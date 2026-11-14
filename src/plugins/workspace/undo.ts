@@ -10,7 +10,16 @@ import { withCause } from "@/lib/cause";
  */
 
 type Raw = Record<string, unknown> & { id: number };
-type Scope = { before: Map<number, Raw>; made: Set<number> };
+/**
+ * What an action changed outside the pages - a flow's or a database's fields' version, a plugin function's code, a block, a mod - kept as
+ * how to put it back (undoExtra below). The first one per key counts: the state before the whole action.
+ */
+export type UndoExtra =
+  | { kind: "part"; version: number }
+  | { kind: "function"; plugin: string; name: string; code: string }
+  | { kind: "block"; name: string; def: unknown | null }
+  | { kind: "mod"; id: string; version: string | null; enabled?: boolean };
+type Scope = { before: Map<number, Raw>; made: Set<number>; extra: Map<string, UndoExtra> };
 
 const scope = new AsyncLocalStorage<Scope>();
 const MAX_PAGES = 500;
@@ -41,6 +50,16 @@ export function made(id: number): void {
   scope.getStore()?.made.add(id);
 }
 
+/** Whether an action that can be undone is running (its changes are journaled). */
+export const inJournal = (): boolean => !!scope.getStore();
+
+/** Another store says: this (not a page) is about to change - how to put it back. Only the first per `key` in an action counts. */
+export function rememberUndo(key: string, extra: UndoExtra): void {
+  const s = scope.getStore();
+  if (!s || s.extra.has(key) || s.extra.size > MAX_PAGES) return;
+  s.extra.set(key, extra);
+}
+
 type Actor = UndoEntry["actor"];
 
 /**
@@ -49,7 +68,7 @@ type Actor = UndoEntry["actor"];
  */
 export function journaled<T>(label: string, fn: () => T, actor: Actor = "you", onSaved?: (undoId: number | null) => void): T {
   if (scope.getStore()) return withCause(label, fn);
-  const s: Scope = { before: new Map(), made: new Set() };
+  const s: Scope = { before: new Map(), made: new Set(), extra: new Map() };
   const done = () => {
     save(s, label, actor);
     onSaved?.(lastSaved.get(s) ?? null);
@@ -76,14 +95,14 @@ export async function undoable<T>(label: string, fn: () => Promise<T> | T, actor
 const lastSaved = new WeakMap<Scope, number>();
 
 function save(s: Scope, label: string, actor: Actor): void {
-  const pages = s.before.size + s.made.size;
+  const pages = s.before.size + s.made.size + s.extra.size;
   if (!pages) return;
   try {
     const sqlite = table();
     const big = s.before.size > MAX_PAGES || pages > MAX_PAGES;
     const r = sqlite
       .prepare("insert into ws_undo (at, label, actor, pages, data) values (?, ?, ?, ?, ?)")
-      .run(new Date().toISOString(), label.slice(0, 160), actor, pages, big ? null : JSON.stringify({ rows: [...s.before.values()], made: [...s.made] }));
+      .run(new Date().toISOString(), label.slice(0, 160), actor, pages, big ? null : JSON.stringify({ rows: [...s.before.values()], made: [...s.made], extra: [...s.extra.values()] }));
     lastSaved.set(s, Number(r.lastInsertRowid));
     sqlite.prepare("delete from ws_undo where at < ? or id not in (select id from ws_undo order by id desc limit ?)").run(new Date(Date.now() - KEEP_DAYS * 86400000).toISOString(), MAX_ENTRIES);
   } catch {
@@ -111,9 +130,49 @@ export async function undo(id: number): Promise<{ restored: number; trashed: num
   if (!row) throw new Error("That change is no longer in the history.");
   if (!row.data) throw new Error("That action touched too many pages to be kept — it can't be undone.");
   if (row.undone) throw new Error("That change was undone already.");
-  const data = JSON.parse(row.data) as { rows: Raw[]; made: number[] };
+  const data = JSON.parse(row.data) as { rows: Raw[]; made: number[]; extra?: UndoExtra[] };
   const { restoreRaw } = await import("./store");
   const out = restoreRaw(data.rows, data.made);
+  // What changed beside the pages, put back newest first; one that can't be put back doesn't stop the others.
+  const failed: string[] = [];
+  for (const x of [...(data.extra ?? [])].reverse()) {
+    try {
+      await undoExtra(x);
+    } catch (e) {
+      failed.push(e instanceof Error ? e.message : String(e));
+    }
+  }
   table().prepare("update ws_undo set undone = 1 where id = ?").run(id);
-  return out;
+  if (failed.length) throw new Error(`Undone, except: ${failed.join("; ")}`);
+  return { ...out, restored: out.restored + (data.extra?.length ?? 0) };
+}
+
+/** One change beside the pages put back. */
+async function undoExtra(x: UndoExtra): Promise<void> {
+  switch (x.kind) {
+    case "part":
+      await (await import("./part-restore")).restorePart(x.version);
+      return;
+    case "function":
+      (await import("@/plugins/notebook/function-source")).saveFunctionSource(x.plugin, x.name, x.code);
+      return;
+    case "block": {
+      const b = await import("./block-store");
+      if (x.def) b.saveBlock(x.def, { source: "restore", note: "undone" });
+      else await b.deleteBlock(x.name);
+      return;
+    }
+    case "mod": {
+      const store = await import("@/lib/mods/store");
+      if (x.version === null) store.removeMod(x.id);
+      else {
+        store.restoreModVersion(x.id, x.version);
+        const b = await (await import("@/lib/mods/build")).buildMod(x.id);
+        // (On again only when it was on before the change, and it still builds.)
+        if (x.enabled && b.ok) store.setModState(x.id, { enabled: true, disabledReason: undefined });
+      }
+      (await import("@/lib/mods/server")).loadMods(true);
+      return;
+    }
+  }
 }

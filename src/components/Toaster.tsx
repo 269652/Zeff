@@ -57,7 +57,7 @@ export function Toaster() {
   );
   return (
     // On a phone: above the tab bar, small (two lines each; the newest three) — the page stays in sight.
-    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-50 flex flex-col items-center gap-2 px-3 sm:bottom-4 sm:px-4" aria-live="polite" role="status">
+    <div className="pointer-events-none fixed inset-x-0 bottom-[calc(4.25rem+env(safe-area-inset-bottom))] z-[90] flex flex-col items-center gap-2 px-3 sm:bottom-4 sm:px-4" aria-live="polite" role="status">
       {list.map((item, i) => (
         // (On a phone only the newest three; the others come when those go.)
         <div

@@ -12,6 +12,7 @@ import p_copilot_cli from "./copilot-cli/plugin";
 import p_correlations from "./correlations/plugin";
 import p_documents from "./documents/plugin";
 import p_entities from "./entities/plugin";
+import p_explorer from "./explorer/plugin";
 import p_finances from "./finances/plugin";
 import p_gitlab from "./gitlab/plugin";
 import p_gmail from "./gmail/plugin";
@@ -21,9 +22,7 @@ import p_imap_mail from "./imap-mail/plugin";
 import p_jira from "./jira/plugin";
 import p_jira_lage from "./jira-lage/plugin";
 import p_knowledge_hub from "./knowledge-hub/plugin";
-import p_lang_de from "./lang-de/plugin";
 import p_lang_en from "./lang-en/plugin";
-import p_lang_es from "./lang-es/plugin";
 import p_learn from "./learn/plugin";
 import p_llm from "./llm/plugin";
 import p_local_ai from "./local-ai/plugin";
@@ -51,4 +50,4 @@ import p_workspace from "./workspace/plugin";
 import p_zeiterfassung from "./zeiterfassung/plugin";
 
 /** Every built-in plugin's manifest (unsorted; plugins/catalog.ts orders them). */
-export const BUILTIN_MANIFESTS = [p_accounts, p_agenda, p_auto_actions, p_backup, p_browser, p_calendar, p_cases, p_claude_cli, p_codex_cli, p_copilot_cli, p_correlations, p_documents, p_entities, p_finances, p_gitlab, p_gmail, p_google_calendar, p_google_drive, p_imap_mail, p_jira, p_jira_lage, p_knowledge_hub, p_lang_de, p_lang_en, p_lang_es, p_learn, p_llm, p_local_ai, p_lookups, p_loops, p_mail_client, p_news, p_notebook, p_notebook_node, p_notebook_python, p_notebook_rust, p_outlook, p_people, p_revolut, p_signal, p_studio, p_teams, p_timeline, p_todos, p_web_search, p_whatsapp, p_work, p_work_elevated, p_workspace, p_zeiterfassung] as const;
+export const BUILTIN_MANIFESTS = [p_accounts, p_agenda, p_auto_actions, p_backup, p_browser, p_calendar, p_cases, p_claude_cli, p_codex_cli, p_copilot_cli, p_correlations, p_documents, p_entities, p_explorer, p_finances, p_gitlab, p_gmail, p_google_calendar, p_google_drive, p_imap_mail, p_jira, p_jira_lage, p_knowledge_hub, p_lang_en, p_learn, p_llm, p_local_ai, p_lookups, p_loops, p_mail_client, p_news, p_notebook, p_notebook_node, p_notebook_python, p_notebook_rust, p_outlook, p_people, p_revolut, p_signal, p_studio, p_teams, p_timeline, p_todos, p_web_search, p_whatsapp, p_work, p_work_elevated, p_workspace, p_zeiterfassung] as const;

@@ -7,6 +7,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { Switch } from "@/components/Switch";
 import { toast } from "@/components/Toaster";
+import { HistoryButton } from "./version-history";
 import { approveReportAction, dryRunRoutineAction, makeRoutineAction, routineChoicesAction, routineReportsAction, routineRunsAction, routineViewAction, runRoutineAction, saveRoutineAction } from "../actions";
 import type { DryRun } from "../automation";
 import type { RoutineView } from "../routine-view";
@@ -107,6 +108,7 @@ export function RoutineControls({ pageId, editable }: { pageId: number; editable
         <span className="font-semibold">{view.kind === "agent" ? t("Agent") : t("Automation")}</span>
         <Switch className="ml-2 text-sm" checked={view.enabled} disabled={!editable} onChange={(on) => void save({ enabled: on })} labelOn={t("On")} labelOff={t("Off")} label={t("Switched on")} title={t("Switched on, its schedule and events run it by themselves.")} />
         <span className="flex-1" />
+        {editable && <HistoryButton of={{ kind: "routine", ref: pageId }} />}
         {view.nextRunAt && <span className="text-xs text-zinc-500">{t("Next: {when}", { when: new Date(view.nextRunAt).toLocaleString() })}</span>}
         {view.kind === "automation" && (
           <button type="button" className="btn btn-sm" disabled={busy || !!view.problem} title={t("Try it: what it would change — nothing is changed, nothing sent")} onClick={() => void tryIt()}>

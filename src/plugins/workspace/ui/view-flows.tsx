@@ -15,12 +15,47 @@ export { parseWith };
 
 export type SetData = (name: string, patch: Record<string, unknown>) => void;
 
+type FlowAnswer = Awaited<ReturnType<typeof runFlowAction>>;
+
+/**
+ * The same flow asked with the same values by several <data> at once — blocks side by side on a page (stat tiles, a heatmap, a list),
+ * each reading what it shows from one flow — runs once: they all get that one answer. An answer counts as shared for a moment after it
+ * came (blocks that are drawn a little later), not longer: a <data> asked again later asks the flow again.
+ */
+const SHARE_MS = 2000;
+const shared = new Map<string, { done: number; answer: Promise<FlowAnswer> }>();
+export function runFlowShared(flow: string, inputs: Record<string, unknown>, opts: { row?: number } = {}): Promise<FlowAnswer> {
+  const key = JSON.stringify([flow, inputs, opts.row ?? null]);
+  const now = Date.now();
+  for (const [k, v] of shared) if (now - v.done > SHARE_MS) shared.delete(k);
+  const hit = shared.get(key);
+  if (hit) return hit.answer;
+  const entry = { done: Infinity, answer: runFlowAction(flow, inputs, opts) };
+  entry.answer.finally(() => (entry.done = Date.now())).catch(() => undefined);
+  shared.set(key, entry);
+  return entry.answer;
+}
+
+const RELOAD_EVENT = "zeff:flowdata-reload";
+/** Every <data> on the screen loads again (a reload button: the blocks of a page that read from flows, not only its own). */
+export function reloadFlowData(): void {
+  shared.clear();
+  if (typeof window !== "undefined") window.dispatchEvent(new Event(RELOAD_EVENT));
+}
+
 /** Loads a flow's output into data.<name> (nothing drawn): again when its input changes, after a pause while it is typed. */
 export function FlowData({ a, setData, row }: { a: Record<string, string>; setData: SetData; row?: number }) {
   const key = JSON.stringify([a.flow, a.with ?? "", a.when ?? "__"]);
   const seq = useRef(0);
   const keptFor = useRef("");
   const keptText = useRef<string | null>(null);
+  // (Bumped by reloadFlowData: asked anew.)
+  const [round, setRound] = useState(0);
+  useEffect(() => {
+    const again = () => setRound((n) => n + 1);
+    window.addEventListener(RELOAD_EVENT, again);
+    return () => window.removeEventListener(RELOAD_EVENT, again);
+  }, []);
   useEffect(() => {
     const name = a.name;
     if (a.when !== undefined && !a.when.trim()) {
@@ -43,7 +78,7 @@ export function FlowData({ a, setData, row }: { a: Record<string, string>; setDa
     const timer = setTimeout(
       async () => {
         setData(name, { [`${name}_status`]: "loading" });
-        const r = await runFlowAction(a.flow, parseWith(a.with), row ? { row } : {});
+        const r = await runFlowShared(a.flow, parseWith(a.with), row ? { row } : {});
         if (mine !== seq.current) return;
         if (!r.ok) return setData(name, { [`${name}_status`]: "error", [`${name}_error`]: r.error });
         const res = r;
@@ -62,7 +97,7 @@ export function FlowData({ a, setData, row }: { a: Record<string, string>; setDa
     );
     return () => clearTimeout(timer);
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the key holds what it depends on
-  }, [key]);
+  }, [key, round]);
   return null;
 }
 

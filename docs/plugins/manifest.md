@@ -30,11 +30,40 @@ on the Plugins page (*Not loaded: …*). A manifest is JSON (a BOM is fine). The
 | `version` | string | no | Free text (`1.2.0`), shown on the Plugins page. Default `0.0.0`. |
 | `description` | string | no | One or two sentences, up to 300 characters. |
 | `author`, `homepage` | string | no | Shown / informational. `homepage` must be a URL. |
+| `repository` | object | no | Where newer versions are: `{ "url": "https://github.com/owner/repo", "path": "apps/notes", "branch": "main" }` — a GitHub repository, the plugin's folder in it (empty: its top), the branch (default: the repository's). Plugins → *Sources* then checks it and updates on a click. |
 | `permissions` | string[] | no | What the plugin may do, see below. Default none. |
 | `contributes` | object | no | What it adds, see below. |
 | `$schema` | string | no | For editors. Ignored by Zeff. |
 
 Unknown fields are ignored.
+
+## Versions and updates from GitHub
+
+One GitHub repository can hold many plugins and apps — each in a folder with its own `zeff-plugin.json`, whose `version` (semver,
+`1.4.2`) is the one that counts:
+
+```
+zeff-apps/
+  apps/notes/zeff-plugin.json      { "id": "notes", "version": "1.1.0", … }
+  apps/notes/app.json              (its Workspace app: contributes.workspacePackages)
+  tools/calc/zeff-plugin.json      { "id": "calc", "version": "2.0.0", … }
+```
+
+In Zeff, **Plugins → Sources → Add a repository** (a private one with a token you enter there). Zeff reads the repository's tree and
+every manifest in it (up to four folders deep), shows each plugin with the version there against the one installed, and offers
+**Install** or **Update to x.y.z** (and *Update all*). A click fetches exactly that folder at the commit it read and writes it into the
+plugins folder (the folder is named by the `id`). What happens then:
+
+- A plugin installed from a source starts **switched off**; permissions an update adds are held back until you switch it on again.
+- A function you (or the AI) changed in Zeff — its versions are in `.versions/` — **stays as you made it**; files the new version no
+  longer has go (only files the source brought).
+- Its Workspace app, when installed, is **updated in place** the usual way (what you changed there stays; a save point is kept first).
+- Zeff remembers where each came from (repository, folder, branch, commit). A plugin can also name its repository itself (`repository`
+  above): it then shows up under Sources without being added. Nothing is checked or updated by itself — *Check now* reads again (the
+  answer is kept ten minutes).
+
+To publish a new version: change the folder, raise `version` in its `zeff-plugin.json`, push. (`Save as plugin` on a page writes such a
+folder — commit it into your repository.)
 
 ## Permissions
 
@@ -168,6 +197,35 @@ an app's widgets and flows may do is asked of whoever installs it.
 The easiest way to make one: open the page in the Workspace, **⋯ → Save as plugin** — Zeff writes the folder
 (`app-<name>/zeff-plugin.json` and `app.json`) into the plugins folder; saved again, its version goes one up. Copy
 the folder to hand the app on.
+
+### `locales`
+
+The plugin's texts in other languages — per language code a JSON file (relative to the plugin folder) mapping the English text to
+its translation, like Zeff's own bundles. They count for everything the plugin draws through Zeff: its views, blocks and pages
+(the view language translates their words) and its packages' page titles. (Texts a function returns are not translated yet — a
+`zeff.t()` in functions is still to come.)
+English needs no file — it is the text itself. Where Zeff's own bundle has the same text, Zeff's translation wins.
+
+```json
+"locales": { "de": "i18n/de.json", "es": "i18n/es.json" }
+```
+
+On the server the files are read from the plugins folder (again when one changes); the browser gets them as one script per language
+(`/api/i18n/<lang>?v=<version>`, cached until a text changes). A plugin that used to be built in takes its texts out of Zeff's bundles
+with `npx tsx scripts/i18n-extract-plugin.mts <plugin folder>` (the ones Zeff itself still uses stay there too).
+
+### `language`
+
+A language pack: the language its `locales` file for that code makes Zeff speak. Settings → Language offers it while the plugin is
+installed.
+
+```json
+"language": { "code": "es", "name": "Spanish", "native": "Español", "locale": "es-ES" },
+"locales": { "es": "es.json" }
+```
+
+Zeff's own German and Spanish are such packs (zeff-plugins: `plugins/lang-de`, `plugins/lang-es`); without them Zeff speaks
+English. Today the codes Zeff can speak are en, de and es. A pack's texts come before every other plugin's own.
 
 ## Rules the validator applies
 
@@ -312,3 +370,67 @@ functions, which do what the user granted them.
 - `conversation` keeps the conversation in a **database you can edit**, one row per message (yours, the agent's, an exercise made, a step
   mastered — `watch` names the plugin functions whose calls are messages of their own). The view shows the conversation from there. What you
   change or delete in the database is what the chat goes on with: the next message starts a fresh session with the stored conversation.
+
+## `contributes.formulaFunctions`, `metrics`, `rowBadges`, `tabMenus` — extension points without TypeScript
+
+What Zeff's own plugins bring to these extension points in TypeScript, a plugin declares here ([the kernel contract](../kernel-contract.md)).
+They are there while the plugin is on, gone when it is off or Zeff is in safe mode, and changed when the plugin changes, with no restart.
+
+```json
+"formulaFunctions": [
+  { "name": "withVat", "args": ["net", "rate"], "value": "prop(\"net\") * (1 + prop(\"rate\") / 100)", "what": "A price with VAT.", "unit": "€" }
+],
+"metrics": [
+  { "id": "watched", "label": "Films watched", "unit": "films", "function": "count", "everyMinutes": 15 }
+],
+"rowBadges": [
+  { "prefix": "film:", "function": "badges" }
+],
+"tabMenus": [
+  { "tab": "/films", "function": "menu" }
+]
+```
+
+- **`formulaFunctions`**: a formula of its own, no code and nothing it can change. Its arguments are read in `value` as `prop("name")`.
+  It is called like Zeff's own functions, `withVat(100, 19)`, in views, formula fields and tables. A name the formula language already
+  has, its other names included (`wenn`, `gross` …), is left out.
+- **`metrics`**: a Kennzahl (`kennzahl("Films watched")` in formulas, the Kennzahlen widgets). The function is called with `{}` and gives
+  a number. The Kennzahl shows its last answer and asks again in the background once that is older than `everyMinutes` (1–1440, default
+  15), so a formula never waits for it.
+- **`rowBadges`**: badges on the rows a plugin's source brought, by their record's ref. The function gives
+  `{ "film:12": [{ "label": "2 new", "tone": "unread", "count": 2 }] }`. Only refs starting with `prefix` count. `tone` is `important`,
+  `unread`, `activity` (default) or `messages`.
+- **`tabMenus`**: the menu of a tab, by its address. The function gives `[{ "href": "/films/1", "label": "Alien", "hint": "1979" }]`.
+  Only addresses inside Zeff count.
+
+The functions are the plugin's own (`contributes.functions`) and do only what you granted them.
+
+## `contributes.widgets`, `pageNav`, `reviewSources`, `reviewLinks` — more extension points from functions
+
+```json
+"widgets": [
+  { "id": "latest", "label": "Latest films", "icon": "🎬", "size": "half", "ttl": 60, "function": "latest", "act": "press",
+    "settings": [{ "key": "max", "label": "How many", "kind": "number", "default": 5, "min": 1, "max": 20 }] }
+],
+"pageNav": [{ "function": "places" }],
+"reviewSources": [{ "id": "ratings", "label": "Ratings to confirm", "list": "ratings", "act": "rate" }],
+"reviewLinks": [{ "id": "inbox", "label": "New films", "href": "/films/inbox", "count": "inbox-count" }]
+```
+
+- **`widgets`**: a widget for pages and the dashboard, among Zeff's own (New block → widget), with the id `<plugin id>.<id>`. `function`
+  is called with `{ config }` (the settings as set) and gives one of:
+  - `{ "kind": "list", "items": [{ "id", "text", "detail"?, "icon"?, "meta"?, "badge"?, "href"?, "tone"?, "done"?, "actions"?: [{ "id", "label" }] }], "title"?, "count"?, "empty"?, "footer"?: { "text", "href" } }`;
+  - `{ "kind": "stats", "tiles": [{ "label", "value", "detail"?, "tone"?, "href"?, "bar"?: { "value", "max" } }] }`;
+  - `{ "kind": "figure", "value", "caption", "detail"?, "href"? }`.
+
+  `tone` is `good`, `warn` or `bad`. Links go inside Zeff or to a web address. A button runs `act` with `{ action, payload, config }`.
+  What it gives (data as above) is shown; otherwise the data is read again. The data is kept for `ttl` seconds (default 60). Anything
+  else the function gives shows as an error line in the widget.
+- **`pageNav`**: entries under pages in the Workspace tree. The function gives `[{ "pageId": 12, "entries": [{ "id", "label", "icon"?,
+  "n"?, "group"?, "href"? }] }]`, with the page ids of its own pages (its package's). An entry without `href` opens the page with
+  `?nav=<id>`.
+- **`reviewSources`**: things that wait for your word in the review queue, under `label`. `list` gives `[{ "id", "title", "detail"?,
+  "confidence"?, "href"?, "actions": [{ "id", "label", "primary"? }] }]`. An entry without buttons isn't shown. A button runs `act` with
+  `{ item, action }`, and what it gives (a text) is said.
+- **`reviewLinks`**: things waiting on a page of their own. The queue shows how many (`count` gives a number) and links to `href` (inside
+  Zeff).

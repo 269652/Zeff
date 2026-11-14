@@ -29,7 +29,8 @@ export function collectKeys(dirs = ["src", "integrations"]): Map<string, string[
     };
     visit(sf);
   }
-  // The view templates the plugins bring in their packages (src/plugins/*/bundled/*.package.json): their sentences, as drawn.
+  // The view templates the plugins bring in their packages (src/plugins/*/bundled/*.package.json): their sentences, as drawn. (A plugin in
+  // the zeff-plugins repository brings its texts itself — contributes.locales; scripts/i18n-extract-plugin.mts writes them.)
   for (const file of dirs.filter((d) => fs.existsSync(path.join(ROOT, d))).flatMap((d) => walkPackages(path.join(ROOT, d)))) {
     const at = path.relative(ROOT, file).split(path.sep).join("/");
     for (const src of packageTemplates(JSON.parse(fs.readFileSync(file, "utf8")))) for (const key of templateWords(src)) keys.set(key, [...(keys.get(key) ?? []), at]);
@@ -37,14 +38,14 @@ export function collectKeys(dirs = ["src", "integrations"]): Map<string, string[
   return keys;
 }
 
-/** The packages bundled with plugins (a bundled/ folder's *.package.json). */
+/** The packages plugins bring (a bundled/ folder's *.package.json, or one beside a zeff-plugin.json). */
 function walkPackages(d: string): string[] {
   return fs.readdirSync(d, { withFileTypes: true }).flatMap((e) =>
-    e.isDirectory() ? (e.name.startsWith(".") || e.name === "node_modules" ? [] : walkPackages(path.join(d, e.name))) : e.name.endsWith(".package.json") && path.basename(d) === "bundled" ? [path.join(d, e.name)] : [],
+    e.isDirectory() ? (e.name.startsWith(".") || e.name === "node_modules" ? [] : walkPackages(path.join(d, e.name))) : e.name.endsWith(".package.json") && (path.basename(d) === "bundled" || fs.existsSync(path.join(d, "zeff-plugin.json"))) ? [path.join(d, e.name)] : [],
   );
 }
 
-/** A package's view templates (its databases' views) — and its pages' titles (named in the user's language when it is installed) as a template of words. */
-function packageTemplates(pkg: { items?: { title?: string; schema?: { views?: { template?: string }[] } }[] }): string[] {
-  return (pkg.items ?? []).flatMap((i) => [...(i.schema?.views ?? []).map((v) => v.template ?? ""), i.title ?? ""]).filter(Boolean);
+/** A package's view templates (its databases' views, its blocks) — and its pages' titles (named in the user's language when it is installed) as a template of words. */
+function packageTemplates(pkg: { items?: { title?: string; schema?: { views?: { template?: string }[] } }[]; blocks?: { def?: { template?: string } }[] }): string[] {
+  return [...(pkg.items ?? []).flatMap((i) => [...(i.schema?.views ?? []).map((v) => v.template ?? ""), i.title ?? ""]), ...(pkg.blocks ?? []).map((b) => b.def?.template ?? "")].filter(Boolean);
 }

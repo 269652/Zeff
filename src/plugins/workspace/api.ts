@@ -149,7 +149,7 @@ const RAW_API: ApiContribution = {
   methods: {
     "workspace.widgets.check": {
       automatic: true,
-      summary: "Whether a widget can be shown (html, libs) or an exercise set is right (spec: an object or JSON text): { ok, problems, libs, html } — html is the exercise set made into a widget.",
+      summary: "Whether a widget can be shown (html, libs), an exercise set is right (spec: an object or JSON text) or an exercise in the view language draws (view: a template, it must report with <button action=\"report\">): { ok, problems, libs, html } — html is the exercise set made into a widget.",
       run: async (p) => {
         const { checkWidgetHtml, WIDGET_LIBS } = await import("@/lib/widgets/sandbox");
         const { checkSpec, specHtml } = await import("@/lib/widgets/spec");
@@ -165,6 +165,15 @@ const RAW_API: ApiContribution = {
         const unknown = libs.filter((x) => !(x in WIDGET_LIBS));
         let html = typeof p.html === "string" ? p.html : "";
         const problems: string[] = unknown.map((x) => `no library "${x}" (there are: ${Object.keys(WIDGET_LIBS).join(", ")})`);
+        // An exercise in the view language (view: a template, drawn in a <subview>): it must draw without a mistake and report its result.
+        if (typeof p.view === "string" && p.view.trim()) {
+          const { renderView } = await import("./view-template");
+          const wrapped = `<subview template="{{ app.v }}" report="check"/>`;
+          const r = renderView(wrapped, { rows: [], props: [], titleName: "Name", state: {}, app: { v: p.view }, data: {}, db: { id: 0, title: "" } });
+          problems.push(...r.errors.map((e) => e.message.replace(/^<subview> /, "")));
+          if (!/action\s*=\s*["']?report/.test(p.view)) problems.push('it never reports: a <button action="report" score="{{ … }}" finished=true> sends the result (score 0..1)');
+          return { ok: problems.length === 0, problems, libs: [], html: "" };
+        }
         if (spec !== undefined && spec !== null && spec !== "") {
           problems.push(...checkSpec(spec));
           if (!problems.length) {
@@ -181,12 +190,13 @@ const RAW_API: ApiContribution = {
     },
     "workspace.widgets.guide": {
       automatic: true,
-      summary: "How to write a widget and an exercise set (what an AI that builds exercises reads): the sandbox, the libraries, the bridge, the exercise kit's types.",
+      summary: "How to write a widget, an exercise set and an exercise in the view language (what an AI that builds exercises reads): the three kinds and when to take which, the sandbox, the libraries, the bridge, the exercise kit's types.",
       run: async () => {
         const { WIDGET_GUIDE } = await import("@/lib/widgets/guide");
         const { KIT_GUIDE } = await import("@/lib/widgets/kit-guide");
+        const { VIEW_EXERCISE_GUIDE } = await import("@/lib/widgets/view-exercise-guide");
         const { WIDGET_LIBS } = await import("@/lib/widgets/sandbox");
-        return { guide: WIDGET_GUIDE, exercises: KIT_GUIDE, libs: Object.fromEntries(Object.entries(WIDGET_LIBS).map(([k, v]) => [k, v.what])) };
+        return { guide: WIDGET_GUIDE, exercises: KIT_GUIDE, views: VIEW_EXERCISE_GUIDE, libs: Object.fromEntries(Object.entries(WIDGET_LIBS).map(([k, v]) => [k, v.what])) };
       },
     },
     "workspace.rows.add": {

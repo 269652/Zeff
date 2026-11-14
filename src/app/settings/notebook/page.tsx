@@ -6,6 +6,9 @@ import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { grantFunctionAction, revokeGrantAction, saveNotebookSettingsAction, webhookSecretAction } from "@/plugins/notebook/server-actions";
 import { declaredFunctions } from "@/plugins/notebook/functions";
+import { HistoryButton } from "@/plugins/workspace/ui/version-history";
+import { RepairButton } from "@/plugins/workspace/ui/repair-button";
+import { functionRepairRequest } from "@/plugins/workspace/repair-requests";
 import { webhookSecret } from "@/plugins/notebook/webhooks";
 import { needsGranted } from "@/plugins/notebook/grants";
 import { allGrants } from "@/plugins/notebook/grants";
@@ -145,6 +148,18 @@ export default async function NotebookSettingsPage({ searchParams }: { searchPar
                     {allowed && needs.length > 0 && <span className="ml-auto text-xs text-emerald-700 dark:text-emerald-300">{t("Allowed")}</span>}
                   </div>
                   {needs.length > 0 ? <p className="text-xs text-zinc-500">{t("They ask for:")} {needs.join(", ")}</p> : <p className="text-xs text-zinc-500">{t("They need nothing of Zeff's data.")}</p>}
+                  {/* Each function's code before (changed by you or the AI): looked at, brought back. */}
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-zinc-500">🕘 {t("History of the functions, check with the AI")}</summary>
+                    <div className="mt-1 flex flex-wrap gap-1.5">
+                      {mine.map((f) => (
+                        <span key={f.name} className="inline-flex gap-1">
+                          <HistoryButton of={{ kind: "function", plugin: id, name: f.name }} label={f.name} title={`${t("Function history")}: ${id}.${f.name}`} />
+                          <RepairButton request={functionRepairRequest(id, f.name)} label={t("Check")} />
+                        </span>
+                      ))}
+                    </div>
+                  </details>
                   {mine.some((f) => f.webhook) && (
                     <div className="space-y-1 border-t border-zinc-200 pt-1 text-xs dark:border-zinc-800">
                       <p className="text-zinc-500">

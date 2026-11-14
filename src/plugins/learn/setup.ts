@@ -1,6 +1,6 @@
 /**
- * Learn is an external plugin (src/plugins/learn/bundled) built on Zeff's own layers: databases, one app view, flows and server
- * functions in a package. This is what makes it Zeff's Learn: the plugin's files are put into the plugins folder, the plugin switched on,
+ * Learn is an external plugin (in the zeff-plugins repository: plugins/learn) built on Zeff's own layers: databases, one app view, flows
+ * and server functions in a package. This is what makes it Zeff's Learn: the plugin installed from that repository, switched on,
  * its package installed, what it asks for given, and what the old Learn had kept brought over. Each step is told to the person first
  * (the /learn page) and done on one click; nothing here runs by itself. Server only.
  */
@@ -10,7 +10,6 @@ import { getPlugin, pluginsRoot, scanPlugins, setEnabled } from "@/lib/ext/regis
 import { isInstalled, setInstalled } from "@/plugins/state";
 
 export const LEARN_PLUGIN = "learn-ext";
-const BUNDLED = path.join(/*turbopackIgnore: true*/ process.cwd(), "src", "plugins", "learn", "bundled");
 
 export type LearnStatus = {
   /** The Notebook plugin (it runs the plugin's functions) is installed, and running code is switched on. */
@@ -28,13 +27,31 @@ export type LearnStatus = {
   ready: boolean;
 };
 
-const bundledVersion = (): string => {
+/** The version of Learn's app (its package) in the plugins folder ("": not there). */
+const packageVersion = (): string => {
   try {
-    return String((JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ path.join(BUNDLED, "zeff-plugin.json"), "utf8")) as { version?: string }).version ?? "0.0.0");
+    return String((JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ path.join(pluginsRoot(), LEARN_PLUGIN, "learn.package.json"), "utf8")) as { version?: string }).version ?? "");
   } catch {
-    return "0.0.0";
+    return "";
   }
 };
+
+/**
+ * A newer Learn is in the plugins folder (its files came from the zeff-plugins repository, newer than the app installed) — what the note
+ * in its views offers to bring in. Cheap (two small files read). null when Learn is not set up yet (its own page says what to do) or up to
+ * date. (A newer version in the repository itself is the app's update note — packages-sync.ts.)
+ */
+export async function learnUpdate(): Promise<{ from: string; to: string } | null> {
+  if (!isInstalled("learn")) return null;
+  const { getInstalled } = await import("@/plugins/workspace/package-registry");
+  const inst = getInstalled(LEARN_PLUGIN);
+  if (!inst) return null;
+  const { compareVersions } = await import("@/plugins/workspace/semver");
+  // (the app's version is its package's — the plugin's own version moves too when only its files or texts change)
+  const to = packageVersion();
+  if (!to || compareVersions(to, inst.version) <= 0) return null;
+  return { from: inst.version, to };
+}
 
 export async function learnStatus(): Promise<LearnStatus> {
   const life = await import("@/plugins/workspace/package-life");
@@ -47,6 +64,7 @@ export async function learnStatus(): Promise<LearnStatus> {
     codeRuns: notebookEnabled(),
     pluginOn: !!getPlugin(LEARN_PLUGIN)?.enabled,
     packageVersion: inst?.version ?? null,
+    // (Newer in the plugins folder, or newer in the files that came with Zeff and not copied there yet.)
     updateAvailable: !!inst && !!offered?.version && life.compareVersions(offered.version, inst.version) > 0,
     rootId: inst?.rootId ?? null,
     coursesId: inst?.map.i2 ?? null,
@@ -57,21 +75,22 @@ export async function learnStatus(): Promise<LearnStatus> {
   return s;
 }
 
-/** The plugin's files into the plugins folder — when they are not there, or the bundled ones are newer. */
-function copyPlugin(): string | null {
-  const dest = path.join(/*turbopackIgnore: true*/ pluginsRoot(), LEARN_PLUGIN);
-  let have = "";
-  try {
-    have = String((JSON.parse(fs.readFileSync(/*turbopackIgnore: true*/ path.join(dest, "zeff-plugin.json"), "utf8")) as { version?: string }).version ?? "");
-  } catch {
-    // not there yet
+/**
+ * The plugin's files in the plugins folder: when they aren't there yet, installed from the repository that has Learn (packages.json names
+ * zeff-plugins; or a source added under Plugins → Sources) and written into packages.json. Newer versions come as the app's update notes,
+ * merged with what was changed here (sources.ts).
+ */
+async function ensurePlugin(): Promise<string | null> {
+  if (scanPlugins(true).plugins.some((p) => p.id === LEARN_PLUGIN)) return null;
+  const src = await import("@/lib/ext/sources");
+  for (const st of await src.checkAll({ fresh: true })) {
+    if (!st.plugins.some((p) => p.id === LEARN_PLUGIN)) continue;
+    const r = await src.installFromSource(st.source.id, LEARN_PLUGIN);
+    if (r.conflicts.length) throw new Error(`Learn's files differ from what is in the plugins folder (${r.conflicts.join(", ")}) — settle it in the update note.`);
+    (await import("@/lib/ext/packages-sync")).rememberInPackages(LEARN_PLUGIN);
+    return `plugin ${r.to} installed from ${st.source.url}`;
   }
-  if (have && bundledVersion() === have) return null;
-  fs.mkdirSync(/*turbopackIgnore: true*/ pluginsRoot(), { recursive: true });
-  // (A function changed here — by you or the AI, its versions kept in .versions/ — stays as it is: a newer Learn doesn't take it back.)
-  const changedHere = (file: string) => fs.existsSync(/*turbopackIgnore: true*/ path.join(dest, ".versions", path.relative(BUNDLED, file).split(path.sep).join("_")));
-  fs.cpSync(/*turbopackIgnore: true*/ BUNDLED, dest, { recursive: true, filter: (src) => !changedHere(src) });
-  return have ? `plugin files updated (${have} → ${bundledVersion()})` : "plugin files put into the plugins folder";
+  throw new Error("Learn comes from the zeff-plugins repository — name it in packages.json (or add it under Plugins → Sources).");
 }
 
 /**
@@ -90,8 +109,8 @@ export async function setupLearn(): Promise<string[]> {
     rt.setNotebookEnabled(true);
     done.push("running code switched on (Settings → Notebook)");
   }
-  const copied = copyPlugin();
-  if (copied) done.push(copied);
+  const installed = await ensurePlugin();
+  if (installed) done.push(installed);
   scanPlugins(true);
   if (!getPlugin(LEARN_PLUGIN)?.enabled) {
     setEnabled(LEARN_PLUGIN, true);

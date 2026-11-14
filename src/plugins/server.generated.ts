@@ -5,6 +5,7 @@ import "./cases/server";
 import "./correlations/server";
 import "./documents/server";
 import "./entities/server";
+import "./explorer/server";
 import "./finances/server";
 import "./gitlab/server";
 import "./jira/server";

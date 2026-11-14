@@ -67,6 +67,8 @@ export type EventInfo = { db?: number; row?: number; field?: string; value?: str
 export async function fireRoutineEvent(event: RowEvent | "pipeline.ran" | "signal", info: EventInfo, opts: { force?: boolean; depth?: number } = {}): Promise<number> {
   // (A signal is sent on purpose, also from inside a routine: `force`. How deep signals went is carried along.)
   if ((isQuiet() && !opts.force) || !isInstalled("workspace")) return 0;
+  // Safe mode (lib/kernel/safe-mode.ts): no routine starts by itself.
+  if ((await import("@/lib/kernel/safe-mode")).safeMode()) return 0;
   const fieldName = info.field?.toLowerCase();
   const title = info.row ? (getPage(info.row)?.title ?? "") : "";
   let ran = 0;

@@ -33,5 +33,6 @@ pull request's description:
 ## Pull requests
 
 - One topic per pull request, with tests for what changes.
-- Keep the text of the interface in English inside `t()`; translations live in the language plugins.
+- Keep the text of the interface in English inside `t()`; translations live in the language packs of the zeff-plugins repository
+  (`plugins/lang-de/bundle.json`, `plugins/lang-es/bundle.json`) — `npm run i18n` checks them against the code.
 - No formatting-only changes to files you don't otherwise touch.

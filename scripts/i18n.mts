@@ -1,6 +1,7 @@
 /**
  * The language bundles against the code: every text passed to t("…") (server) or a useT() t("…")
- * (client) is a key; each bundle (src/plugins/lang-<code>/bundle.json) maps it to its language.
+ * (client) is a key; each language pack (zeff-plugins: plugins/lang-<code>/bundle.json — ZEFF_PLUGINS_REPO, else ../zeff-plugins)
+ * maps it to its language; English's few overrides are src/plugins/lang-en/bundle.json.
  *
  *   npm run i18n              what's missing in each bundle, and what's no longer used
  *   npm run i18n -- --write   add the missing keys (empty: shown in English until translated),
@@ -16,7 +17,8 @@ import { collectKeys } from "../src/lib/i18n/collect";
 const ROOT = process.cwd();
 const write = process.argv.includes("--write");
 
-const bundlePath = (lang: string) => path.join(ROOT, "src", "plugins", `lang-${lang}`, "bundle.json");
+const REPO = path.resolve(ROOT, process.env.ZEFF_PLUGINS_REPO ?? "../zeff-plugins");
+const bundlePath = (lang: string) => (lang === "en" ? path.join(ROOT, "src", "plugins", "lang-en", "bundle.json") : path.join(REPO, "plugins", `lang-${lang}`, "bundle.json"));
 
 if (process.argv[1] && /i18n\.mts$/.test(process.argv[1])) {
   const keys = collectKeys();

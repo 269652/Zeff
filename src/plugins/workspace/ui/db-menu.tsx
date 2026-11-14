@@ -9,6 +9,8 @@ import { isDayList, newId, VIEW_TYPES, type DbSchema, type View, type ViewType }
 import { viewAppMeta } from "../view-apps";
 import { appAvailable } from "./app-view";
 import { Dropdown, MenuItem, MenuSection } from "./kit";
+import { HistoryModal, type HistoryOf } from "./version-history";
+import { useState } from "react";
 
 /**
  * A database's "⋯" menu: what is set on the database and its view, in five headed sections — Fields & forms, Data & sources,
@@ -51,12 +53,17 @@ export function DatabaseMenu(p: {
   const template = view.template ?? viewAppMeta(view.app ?? "")?.defaultTemplate(t) ?? "";
   const hasNav = view.type === "app" && (data.extras?.appViews?.find((a) => a.id === view.app)?.nav || /<nav[\s>]/.test(template));
   const hasAi = schema.properties.some((x) => x.type === "ai");
+  // A history opened from the menu (the menu closes; the history stays open).
+  const [history, setHistory] = useState<HistoryOf | null>(null);
   return (
+    <>
+    {history && <HistoryModal of={history} onClose={() => setHistory(null)} />}
     <Dropdown label="⋯" align="right" title={t("More")} className="btn btn-sm shrink-0">
       {(close) => (
         <>
           <MenuSection title={t("Fields & forms")}>
             <MenuItem onClick={() => (close(), p.open("schema"))}>⚙ {t("Edit properties …")}</MenuItem>
+            <MenuItem onClick={() => (close(), setHistory({ kind: "fields", ref: dbId }))}>🕘 {t("History of the fields …")}</MenuItem>
             <MenuItem checked={!!schema.entryForm} onClick={() => (close(), p.open("form"))}>
               📝 {t("Entry form …")}
             </MenuItem>
@@ -231,6 +238,7 @@ export function DatabaseMenu(p: {
                 <MenuItem checked={p.codeOpen} onClick={() => (close(), p.toggleCode())}>
                   &lt;/&gt; {t("Code")}
                 </MenuItem>
+                <MenuItem onClick={() => (close(), setHistory({ kind: "view", dbId, viewId: view.id }))}>🕘 {t("History of this view …")}</MenuItem>
                 {view.template && <MenuItem onClick={() => (close(), confirmAction(t("Back to the default view? Your changes are gone.")) && p.resetTemplate())}>↺ {t("Reset to default")}</MenuItem>}
               </>
             )}
@@ -274,5 +282,6 @@ export function DatabaseMenu(p: {
         </>
       )}
     </Dropdown>
+    </>
   );
 }

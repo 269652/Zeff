@@ -1,10 +1,12 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useDeferredValue, useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { postJson } from "@/lib/post-json";
 import { blockSignature, BLOCK_PARAM_TYPES, type BlockDef, type BlockParam } from "@/plugins/workspace/blocks";
+import { PageBlock } from "@/plugins/workspace/ui/page-block";
+import { TemplateOutline } from "./TemplateOutline";
 import { blockLibraryAction, blockVersionsAction, deleteBlockAction, installLibraryBlocksAction, listBlocksAction, removedBlocksAction, restoreBlockVersionAction, saveBlockAction } from "@/plugins/workspace/actions";
 
 /**
@@ -15,6 +17,7 @@ import { blockLibraryAction, blockVersionsAction, deleteBlockAction, installLibr
 
 type Version = { n: number; at: string; source: string; note: string; size: number };
 type Flow = { name: string; pageId: number; title: string };
+const NO_PARAMS: Record<string, string> = {};
 const STARTER = `<card>\n  <b>{{ props.title }}</b>\n</card>`;
 const nameOk = (s: string) => /^[a-z][a-z0-9_-]{0,39}(\.[a-z0-9_-]{1,40}){0,3}$/.test(s);
 
@@ -25,6 +28,24 @@ function Editor({ block, onChanged, onGone, openFlow }: { block: BlockDef; onCha
   const [flows, setFlows] = useState<Flow[]>([]);
   const [busy, setBusy] = useState(false);
   const [problems, setProblems] = useState<string | null>(null);
+  const code = useRef<HTMLTextAreaElement>(null);
+  const [caret, setCaret] = useState(1);
+  const [wide, setWide] = useState(true);
+  // (The preview follows the code a moment behind the typing.)
+  const shown = useDeferredValue(def);
+  const caretAt = (el: HTMLTextAreaElement) => setCaret(el.value.slice(0, el.selectionStart).split("\n").length);
+  // A line picked in the outline: the cursor goes to its start, the code scrolls it to the top third.
+  const jump = (line: number) => {
+    const el = code.current;
+    if (!el) return;
+    const at = el.value.split("\n").slice(0, line - 1).reduce((n, l) => n + l.length + 1, 0);
+    el.focus();
+    el.setSelectionRange(at, at);
+    const lh = parseFloat(getComputedStyle(el).lineHeight) || 16;
+    // (Long lines wrap: the share of the text before it is a better guess than the line number alone.)
+    el.scrollTop = Math.max(0, (at / Math.max(1, el.value.length)) * el.scrollHeight - el.clientHeight / 3 - lh);
+    setCaret(line);
+  };
   const load = useCallback(() => {
     void blockVersionsAction(block.name).then((r) => {
       if (!r.ok) return;
@@ -61,7 +82,7 @@ function Editor({ block, onChanged, onGone, openFlow }: { block: BlockDef; onCha
   const when = (iso: string) => new Date(iso).toLocaleString(undefined, { day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" });
 
   return (
-    <div className="max-w-4xl space-y-4">
+    <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-2">
         <h2 className="text-lg font-semibold">
           {def.icon || "🧩"} {def.title || def.name}
@@ -115,11 +136,38 @@ function Editor({ block, onChanged, onGone, openFlow }: { block: BlockDef; onCha
       ) : (
         <div className="space-y-1.5">
           <div className="label mb-0">{t("Template")}</div>
-          <textarea className="input h-72 font-mono text-xs" spellCheck={false} value={def.template} onChange={(e) => setDef({ ...def, template: e.target.value })} />
+          <div className="grid gap-2 md:grid-cols-[14rem_minmax(0,1fr)]">
+            <div className="h-48 md:h-96">
+              <TemplateOutline src={def.template} caretLine={caret} onPick={jump} />
+            </div>
+            <textarea
+              ref={code}
+              className="input h-96 font-mono text-xs leading-5"
+              spellCheck={false}
+              value={def.template}
+              onChange={(e) => (setDef({ ...def, template: e.target.value }), caretAt(e.target))}
+              onSelect={(e) => caretAt(e.currentTarget)}
+            />
+          </div>
           <div className="label mb-0">{t("Example")}</div>
           <textarea className="input h-16 font-mono text-xs" spellCheck={false} value={def.example ?? ""} onChange={(e) => setDef({ ...def, example: e.target.value })} />
         </div>
       )}
+
+      <section className="space-y-1.5">
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="label mb-0">👁 {t("Preview")}</div>
+          <span className="text-xs text-zinc-500">{dirty ? t("With your changes, not saved yet.") : t("As saved.")} {t("On a page, with no rows.")}</span>
+          <button type="button" className="btn btn-sm ml-auto" onClick={() => setWide(!wide)}>
+            {wide ? t("Narrow") : t("Wide")}
+          </button>
+        </div>
+        <div className="rounded-xl border border-dashed border-zinc-300 bg-zinc-50/50 p-4 dark:border-zinc-700 dark:bg-zinc-950/40">
+          <div className={wide ? "" : "mx-auto max-w-sm"}>
+            <PageBlock block={shown.name} params={NO_PARAMS} pageId={0} title={shown.title || shown.name} draft={shown} />
+          </div>
+        </div>
+      </section>
       {problems && (
         <p role="alert" className="rounded-lg border border-red-300 bg-red-50 px-3 py-2 text-sm whitespace-pre-line text-red-800 dark:border-red-900 dark:bg-red-950/40 dark:text-red-200">
           {problems}
@@ -294,80 +342,90 @@ function NewBlock({ onMade }: { onMade: (name: string) => void }) {
   );
 }
 
-export function Blocks({ initial, openFlow }: { initial: string | null; openFlow: (pageId: number) => void }) {
-  const t = useT();
+/** Your blocks and the removed ones, read for the Studio's sidebar and its screen alike. */
+export function useBlockList() {
   const [blocks, setBlocks] = useState<BlockDef[]>([]);
   const [removed, setRemoved] = useState<{ name: string; at: string }[]>([]);
-  const [open, setOpen] = useState<string | "new" | "library" | null>(initial);
-  const [q, setQ] = useState("");
   const load = useCallback(() => {
     void listBlocksAction().then((r) => r.ok && setBlocks(r.blocks));
     void removedBlocksAction().then((r) => r.ok && setRemoved(r.removed));
   }, []);
   useEffect(load, [load]);
+  return { blocks, removed, load };
+}
+
+export type BlockOpen = string | "new" | "library" | null;
+
+/** The blocks in the Studio's sidebar (under 🧩 Blocks): a new one, the library, yours, the removed ones to bring back. */
+export function BlockNav({ list, open, q, onOpen, item }: { list: ReturnType<typeof useBlockList>; open: BlockOpen; q: string; onOpen: (o: BlockOpen) => void; item: (active: boolean) => string }) {
+  const t = useT();
+  const { blocks, removed, load } = list;
   const shown = blocks.filter((b) => !q || `${b.name} ${b.title ?? ""} ${b.description}`.toLowerCase().includes(q.toLowerCase()));
+  return (
+    <ul className="ml-6 space-y-0.5 border-l border-zinc-200 pl-2 dark:border-zinc-800">
+      <li>
+        <button type="button" className={item(open === "new")} onClick={() => onOpen("new")}>
+          <span className="min-w-0 flex-1 truncate">+ {t("Block")}</span>
+        </button>
+      </li>
+      <li>
+        <button type="button" className={item(open === "library")} onClick={() => onOpen("library")}>
+          <span className="min-w-0 flex-1 truncate">📚 {t("Library")}</span>
+        </button>
+      </li>
+      {shown.map((b) => (
+        <li key={b.name}>
+          <button type="button" className={item(open === b.name)} title={b.name} onClick={() => onOpen(b.name)}>
+            <span aria-hidden>{b.icon || (b.widget ? "🧪" : "🧩")}</span>
+            <span className="min-w-0 flex-1 truncate">{b.title || b.name}</span>
+          </button>
+        </li>
+      ))}
+      {!blocks.length && <li className="px-2 text-xs text-zinc-500">{t("No blocks yet.")}</li>}
+      {removed.map((r) => (
+        <li key={r.name}>
+          <button
+            type="button"
+            className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900"
+            title={t("Bring it back")}
+            onClick={async () => {
+              const vs = await blockVersionsAction(r.name);
+              if (!vs.ok || !vs.versions.length) return;
+              const back = await restoreBlockVersionAction(r.name, (vs.versions as Version[])[0].n);
+              if (!back.ok) return toast(back.error, { tone: "error" });
+              load();
+              onOpen(r.name);
+            }}
+          >
+            ↶ <span className="min-w-0 flex-1 truncate font-mono text-xs">{r.name}</span>
+          </button>
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+/** The block picked in the sidebar: a new one, the library, or one of yours in its editor. */
+export function BlockPane({ list, open, onOpen, openFlow }: { list: ReturnType<typeof useBlockList>; open: BlockOpen; onOpen: (o: BlockOpen) => void; openFlow: (pageId: number) => void }) {
+  const t = useT();
+  const { blocks, load } = list;
   const picked = open && open !== "new" && open !== "library" ? blocks.find((b) => b.name === open) : null;
   return (
-    <div className="grid gap-4 md:grid-cols-[16rem_1fr]">
-      <div className="space-y-2">
-        <button type="button" className="btn btn-primary w-full" onClick={() => setOpen("new")}>
-          + {t("Block")}
-        </button>
-        <button type="button" className={`btn w-full ${open === "library" ? "ring-2 ring-indigo-300" : ""}`} onClick={() => setOpen("library")}>
-          📚 {t("Library")}
-        </button>
-        <input type="search" className="input" placeholder={t("Search the blocks")} value={q} onChange={(e) => setQ(e.target.value)} />
-        <ul className="space-y-0.5">
-          {shown.map((b) => (
-            <li key={b.name}>
-              <button type="button" className={`flex w-full items-center gap-2 rounded-md px-2 py-1.5 text-left text-sm ${open === b.name ? "bg-indigo-50 font-medium text-indigo-800 dark:bg-indigo-950/60 dark:text-indigo-200" : "hover:bg-zinc-50 dark:hover:bg-zinc-900"}`} onClick={() => setOpen(b.name)}>
-                <span aria-hidden>{b.icon || (b.widget ? "🧪" : "🧩")}</span>
-                <span className="min-w-0 flex-1">
-                  <span className="block truncate">{b.title || b.name}</span>
-                  <span className="block truncate font-mono text-[11px] text-zinc-500">{b.name}</span>
-                </span>
-              </button>
-            </li>
-          ))}
+    <div className="min-w-0">
+      {open === "new" && <NewBlock onMade={(n) => (load(), onOpen(n))} />}
+      {open === "library" && <Library onChanged={load} onOpen={onOpen} />}
+      {picked && <Editor key={`${picked.name}${picked.updatedAt}`} block={picked} onChanged={load} onGone={() => (onOpen(null), load())} openFlow={openFlow} />}
+      {!open && (
+        <div className="max-w-2xl space-y-2">
+          <h2 className="text-lg font-semibold">🧩 {t("Blocks")}</h2>
+          <p className="text-sm text-zinc-500">{t("Pick a block, or make a new one. Views use them as <use block=\"name\"/>; the assistant can build them too.")}</p>
           {!blocks.length && (
-            <li className="px-2 text-sm text-zinc-500">
-              {t("No blocks yet.")}{" "}
-              <button type="button" className="text-indigo-700 underline dark:text-indigo-300" onClick={() => setOpen("library")}>
-                {t("Start with the library")}
-              </button>
-            </li>
+            <button type="button" className="btn btn-primary" onClick={() => onOpen("library")}>
+              {t("Start with the library")}
+            </button>
           )}
-        </ul>
-        {removed.length > 0 && (
-          <div className="space-y-1 border-t border-zinc-200 pt-2 dark:border-zinc-800">
-            <div className="label mb-0">{t("Removed")}</div>
-            {removed.map((r) => (
-              <button
-                key={r.name}
-                type="button"
-                className="flex w-full items-center gap-2 rounded-md px-2 py-1 text-left text-sm text-zinc-500 hover:bg-zinc-50 dark:hover:bg-zinc-900"
-                title={t("Bring it back")}
-                onClick={async () => {
-                  const vs = await blockVersionsAction(r.name);
-                  if (!vs.ok || !vs.versions.length) return;
-                  const back = await restoreBlockVersionAction(r.name, (vs.versions as Version[])[0].n);
-                  if (!back.ok) return toast(back.error, { tone: "error" });
-                  load();
-                  setOpen(r.name);
-                }}
-              >
-                ↶ <span className="min-w-0 flex-1 truncate font-mono text-xs">{r.name}</span>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-      <div className="min-w-0">
-        {open === "new" && <NewBlock onMade={(n) => (load(), setOpen(n))} />}
-        {open === "library" && <Library onChanged={load} onOpen={setOpen} />}
-        {picked && <Editor key={`${picked.name}${picked.updatedAt}`} block={picked} onChanged={load} onGone={() => (setOpen(null), load())} openFlow={openFlow} />}
-        {!open && <p className="text-sm text-zinc-500">{t("Pick a block, or make a new one. Views use them as <use block=\"name\"/>; the assistant can build them too.")}</p>}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

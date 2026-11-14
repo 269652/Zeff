@@ -86,6 +86,10 @@ export const catalogTexts = (t: T) => [
   t("Documents and backups in your Drive"),
   t("Backups to Google Drive"),
   t("Copies each backup to Drive as it is made (encrypted ones only, unless you allow others there); what the retention removes here goes from Drive too, if set. Off until you turn it on — a backup is your whole database."),
+  // Explorer (explorer/plugin.ts).
+  t("The files of this computer in the Workspace, like Windows Explorer: drives, folders and files with their dates and sizes. Import files or whole folders into Documents, watch a folder so what changes in it comes into Documents by itself (right away, not only on the schedule), and open text, Markdown, CSV, pictures, PDFs, Office files, audio and video in a viewer — text files you can edit and save right there."),
+  t("Zeff running on the computer whose files you want to see (in Docker: only the folders mounted into it)."),
+  t("The files of this computer, in the Workspace"),
   t("Documents to Google Drive"),
   t("Copies your documents to a folder in Drive (and keeps it up to date). What you add to that folder in Drive comes into Zeff only if you switch that on under Settings → Connections → Google Drive."),
   t("The language Zeff speaks"),

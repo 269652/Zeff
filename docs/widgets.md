@@ -9,6 +9,7 @@ shown:
 | A page's block (`zeffApp`) | `/` → *AI … → Widget (AI-built)*: you describe it, `makeWidget` builds it; or the assistant's `workspace_widget` with `page`; or Markdown `:::app` | yes |
 | The Workspace assistant's answer | `workspace_widget` → a chat embed (`WidgetEmbed`), *+ Add to this page* | yes |
 | A widget kept in a row (an exercise, a simulation) | `<codewidget>` in a view, from the row's code or exercise set | its results go to a flow |
+| An exercise in the view language, kept in a row | `<subview>` in a view (no frame, no code: Zeff's own parts); `<button action="report">` | its results go to a flow |
 
 ## Talking to a plugin's chat
 

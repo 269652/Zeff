@@ -284,6 +284,8 @@ ${blocks(kids)}
       const a = { ...(config && typeof config === "object" && Object.keys(config).length ? { config } : {}), ...(n.attrs?.title ? { title: String(n.attrs.title) } : {}), ...(n.attrs?.header ? { header: String(n.attrs.header) } : {}) };
       return `:::widget ${String(n.attrs?.widget ?? "")}${Object.keys(a).length ? ` ${JSON.stringify(a)}` : ""}`;
     }
+    case "zeffBlock":
+      return `:::use ${String(n.attrs?.block ?? "")}${n.attrs?.params && n.attrs.params !== "{}" ? ` ${String(n.attrs.params)}` : ""}`;
     case "databaseView":
       return `:::database ${String(n.attrs?.dbId ?? "")}${/^[\w~-]+$/.test(String(n.attrs?.viewId ?? "")) ? ` @${String(n.attrs!.viewId)}` : ""}${n.attrs?.title ? ` ${String(n.attrs.title)}` : ""}`;
     case "todoListEmbed":
@@ -454,6 +456,13 @@ export function markdownToDoc(md: string): Doc {
       const fm = /^:::form(?:\s+(\d+))?\s*$/.exec(l);
       if (fm) {
         out.push({ type: "zeffForm", attrs: { formId: fm[1] ? Number(fm[1]) : null } });
+        i++;
+        continue;
+      }
+      // :::use name [{"param":"value"}]  - a block of your own (the view language) right in the page
+      const use = /^:::use\s+([a-z][a-z0-9_.-]*)\s*(\{.*\})?\s*$/.exec(l);
+      if (use) {
+        out.push({ type: "zeffBlock", attrs: { block: use[1], params: blockParams(use[2] ?? "{}") } });
         i++;
         continue;
       }
@@ -699,6 +708,8 @@ const NODE_ATTRS: Record<string, string[]> = {
   zeffRef: ["kind", "ref", "label", "href"],
   inlineFormula: ["src"],
   databaseView: ["dbId", "viewId", "title"],
+  // A block of your own (the view language) right in the page: its name, its parameters (a JSON object of texts).
+  zeffBlock: ["block", "params"],
   pageEmbed: ["pageId", "title"],
   todoListEmbed: ["pageId", "listId"],
   zeffModule: ["module", "key"],
@@ -840,6 +851,11 @@ export function sanitizeDoc(input: unknown): Doc {
       if (o.type === "zeffRef") {
         const href = attrs.href === undefined ? "" : safeHref(attrs.href);
         if (href === null) delete attrs.href;
+      }
+      if (o.type === "zeffBlock") {
+        const name = String(attrs.block ?? "").trim().toLowerCase();
+        attrs.block = /^[a-z][a-z0-9_-]{0,39}(\.[a-z0-9_-]{1,40}){0,3}$/.test(name) ? name : "";
+        attrs.params = blockParams(attrs.params);
       }
       if (o.type === "zeffModule") {
         if (!(BLOCK_MODULES as readonly unknown[]).includes(attrs.module)) return null;
@@ -1037,4 +1053,20 @@ export function toggleTask(doc: Doc, index: number, checked: boolean): Doc {
     return n.content ? { ...n, content: n.content.map(walk) } : n;
   };
   return walk(doc) as Doc;
+}
+
+/** A page block's parameters as they are kept: a JSON object of texts (at most 30, each up to 1000 characters); anything else: {}. */
+export function blockParams(raw: unknown): string {
+  let v: unknown = raw;
+  if (typeof raw === "string") {
+    try {
+      v = JSON.parse(raw);
+    } catch {
+      return "{}";
+    }
+  }
+  if (!v || typeof v !== "object" || Array.isArray(v)) return "{}";
+  const out: Record<string, string> = {};
+  for (const [k, x] of Object.entries(v as Record<string, unknown>).slice(0, 30)) if (/^[A-Za-z_][A-Za-z0-9_]{0,39}$/.test(k) && (typeof x === "string" || typeof x === "number" || typeof x === "boolean")) out[k] = String(x).slice(0, 1000);
+  return JSON.stringify(out);
 }

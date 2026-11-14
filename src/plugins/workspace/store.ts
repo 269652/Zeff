@@ -12,6 +12,7 @@ import { isInstalled } from "@/plugins/state";
 import { isPluginId } from "@/plugins/catalog";
 import { isSystemPage, systemPageIds } from "@/lib/prompts/system-pages";
 import { inAgentScope, runAgentGuards } from "./agent-scope";
+import { keepPartVersion } from "./part-versions";
 import { emitChange } from "@/lib/events";
 import { emitRowEvent, isViaSource } from "./events";
 import { allSources } from "./source-point";
@@ -876,6 +877,8 @@ export function updateSchema(id: number, next: unknown): DbSchema {
     }
   }
   const dropped = cur.schema.properties.filter((p) => !ids.has(p.id)).map((p) => p.id);
+  // Its fields changed (added, renamed, removed, their choices): the ones it had kept — a version to go back to (part-versions.ts).
+  if (JSON.stringify(cur.schema.properties) !== JSON.stringify(schema.properties)) keepPartVersion("fields", id, { titleName: cur.schema.titleName, properties: cur.schema.properties });
   const d = db();
   touch(id);
   // A view's template changed (by you, the AI, an update): the one before kept — a version to go back to (view-versions.ts).

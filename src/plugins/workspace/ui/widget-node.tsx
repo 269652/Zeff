@@ -3,18 +3,28 @@
 import { mergeAttributes, Node } from "@tiptap/core";
 import { NodeViewWrapper, ReactNodeViewRenderer, type NodeViewProps } from "@tiptap/react";
 import Link from "next/link";
-import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { useRouter } from "next/navigation";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { widgetActAction, widgetCatalogAction, widgetDataAction } from "../actions";
 import { searchPeopleAction } from "@/plugins/people/server-actions";
 import type { CatalogWidget } from "../widgets";
 import { GripBar } from "./app-nodes";
-import type { WidgetData, WidgetItem, WidgetTile } from "../widget-point";
+import { useBlockActions } from "./block-toolbar";
+import type { WidgetCard, WidgetData, WidgetItem, WidgetTile } from "../widget-point";
 import { WS_CHANGED } from "./ChatPanel";
 import { TemplateBody } from "./card-template";
 import { useComboboxKeys, useLatestSearch } from "@/components/Combobox";
 import { TodoCheck } from "@/components/TodoCheck";
+import type { DatabaseData } from "../actions";
+import type { View } from "../model";
+import type { TplError } from "../view-template";
+import type { ViewAppMeta } from "../view-apps";
+import { defaultWidgetTemplate, WIDGET_ACTIONS, WIDGET_APP_DATA, WIDGET_PARTS } from "../widget-templates";
+import type { PartProps, ViewAppModule } from "./app-view";
+import { BlockCode } from "./block-code";
+import { TemplateView } from "./view-template";
 
 /**
  * A widget a plugin supplies, as a block of a page (the dashboard is a page of them): live data with an action right there. The plugin
@@ -243,6 +253,94 @@ function WidgetBody({ data, busy, act, hideTitle = false }: { data: WidgetData; 
   );
 }
 
+// ---------------------------------------------------------------------------
+// The widget drawn by the view language (widget-templates.ts): its data is app.*, the rich pieces are parts, `widget` its action
+// ---------------------------------------------------------------------------
+
+type WidgetApp = Record<string, unknown> & { __act: (action: string, id: string) => void; __busy: boolean };
+const AppCtx = createContext<WidgetApp | null>(null);
+const NO_APP: WidgetApp = { __act: () => {}, __busy: false };
+const find = <T,>(list: unknown, key: string | undefined, by: (x: T) => string): T | undefined => (Array.isArray(list) ? (list as T[]).find((x) => by(x) === key) : undefined);
+const asApp = (p: PartProps) => p.app as WidgetApp;
+
+const WIDGET_MODULE: ViewAppModule = {
+  parts: {
+    item: (p) => {
+      const app = asApp(p);
+      const item = find<WidgetItem>(app.items, p.attrs.key, (x) => x.id);
+      return item ? (
+        <ul className="-mx-0.5 py-px">
+          <ItemRow item={item} busy={app.__busy} act={app.__act} />
+        </ul>
+      ) : null;
+    },
+    tile: (p) => {
+      const tile = find<WidgetTile>(asApp(p).tiles, p.attrs.key, (x) => x.label);
+      return tile ? <Tile tile={tile} /> : null;
+    },
+    card: (p) => {
+      const c = find<WidgetCard>(asApp(p).cards, p.attrs.key, (x) => x.id);
+      return c ? (
+        <Go href={c.href} className="block min-w-0 rounded-xl border border-zinc-200/80 bg-white p-3 text-inherit no-underline shadow-sm transition hover:-translate-y-px hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
+          <TemplateBody nodes={c.nodes} />
+        </Go>
+      ) : null;
+    },
+    figure: (p) => {
+      const app = asApp(p);
+      return (
+        <Go href={app.href as string | undefined} className="block px-2 text-inherit no-underline">
+          <span className="block text-4xl leading-none font-semibold tracking-tight tabular-nums">{String(app.value ?? "")}</span>
+          <span className="mt-1 block text-sm text-zinc-500">{String(app.caption ?? "")}</span>
+          {!!app.detail && <span className="block text-xs text-zinc-400">{String(app.detail)}</span>}
+        </Go>
+      );
+    },
+    footer: (p) => <Footer footer={asApp(p).footer as { text: string; href: string } | undefined} />,
+    empty: (p) => <Empty text={asApp(p).empty as string | undefined} />,
+  },
+  useAppData: () => ({ data: useContext(AppCtx) ?? NO_APP, reload: () => {} }),
+  actions: {
+    widget: (env) => {
+      const app = env.app as WidgetApp;
+      if (env.attrs.do) app.__act(env.attrs.do, env.attrs.item ?? "");
+    },
+  },
+};
+const WIDGET_META: ViewAppMeta = { app: "widget", label: "Widget", parts: WIDGET_PARTS, actions: WIDGET_ACTIONS, appData: WIDGET_APP_DATA, defaultTemplate: () => "" };
+
+/** A widget's data drawn by `src` (its block's template, else the one for its kind). */
+function WidgetTemplated({ src, data, busy, act, hideTitle, pageId, onErrors }: { src: string; data: Exclude<WidgetData, { kind: "error" }>; busy: boolean; act: (action: string, id: string) => void; hideTitle: boolean; pageId: number; onErrors?: (e: TplError[]) => void }) {
+  const router = useRouter();
+  const app = useMemo<WidgetApp>(
+    () => ({ ...data, has: data.kind === "list" ? data.items.length > 0 : data.kind === "cards" ? data.cards.length > 0 : true, hideTitle, __act: act, __busy: busy }),
+    [data, hideTitle, act, busy],
+  );
+  // (A widget has no database: an empty one stands in, named as the page it is on.)
+  const db = useMemo(
+    () =>
+      ({
+        id: pageId,
+        title: "",
+        icon: "",
+        schema: { titleName: "Name", properties: [], views: [] },
+        rows: [],
+        labels: { people: {}, pages: {}, todos: {} },
+        templates: [],
+        related: {},
+        locked: true,
+        extras: { keys: {}, subtasks: {}, tickets: {}, todosOn: false, briefing: false, knowledge: false, me: { names: [], ids: [] }, source: null, previews: {} },
+      }) as unknown as DatabaseData,
+    [pageId],
+  );
+  const view: View = useMemo(() => ({ id: "widget", name: "widget", type: "app", app: "widget", template: src, filter: { op: "and", rules: [] }, sorts: [], hidden: [] }), [src]);
+  return (
+    <AppCtx.Provider value={app}>
+      <TemplateView src={src} onErrors={onErrors} module={WIDGET_MODULE} meta={WIDGET_META} view={view} data={db} rows={[]} openRow={(id) => router.push(`/workspace/${id}`)} reload={() => router.refresh()} />
+    </AppCtx.Provider>
+  );
+}
+
 function Skeleton() {
   return (
     <div className="space-y-2 px-2 py-1" aria-hidden>
@@ -354,6 +452,11 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
   const [busy, setBusy] = useState(false);
   const [loading, setLoading] = useState(false);
   const [settings, setSettings] = useState(false);
+  // Its code (the </> of its bar): the template it is drawn with — its own, else the one for its kind of data; the widget shows what
+  // is typed until it is saved (into this block) or left.
+  const own = String(node.attrs.template ?? "");
+  const [code, setCode] = useState<string | null>(null);
+  const [codeErrors, setCodeErrors] = useState<TplError[]>([]);
   const live = useRef(true);
   const def = defs.find((d) => d.id === id);
   useEffect(() => {
@@ -373,7 +476,7 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
     setData(r.ok ? r.data : { kind: "error", message: r.error });
     // eslint-disable-next-line react-hooks/preserve-manual-memoization -- see above
   }, [id, configKey]);
-  // eslint-disable-next-line react-hooks/preserve-manual-memoization -- see load
+   
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect -- read when shown, again every minute and when the workspace changes
     void load();
@@ -387,6 +490,10 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
       document.removeEventListener("visibilitychange", again);
     };
   }, [load]);
+  // The block's bar (over it on hover, or when picked): Edit opens its settings; read it again.
+  const kind = data && data.kind !== "error" ? data.kind : null;
+  const asComes = kind ? defaultWidgetTemplate(kind) : "";
+  const blockActions = useBlockActions(id ? { edit: () => setSettings((s) => !s), ...(kind ? { code: () => setCode((c) => (c === null ? own || asComes : null)) } : {}), reload: () => void load() } : {});
   const act = async (action: string, itemId: string) => {
     setBusy(true);
     const r = await widgetActAction(id, action, { id: itemId }, JSON.parse(configKey));
@@ -395,6 +502,12 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
     setData(r.data);
     window.dispatchEvent(new Event(WS_CHANGED));
   };
+  // (one function for the template's parts and its `widget` action — the latest act, without drawing the widget again each time)
+  const actRef = useRef(act);
+  useEffect(() => {
+    actRef.current = act;
+  });
+  const actStable = useCallback((a: string, itemId: string) => void actRef.current(a, itemId), []);
   const setConfig = (key: string, value: string | number | boolean, more: Record<string, unknown> = {}) => updateAttributes({ config: JSON.stringify({ ...config, [key]: value, ...more }) });
   const label = ownTitle || def?.label || id;
   const count = data && (data.kind === "list" || data.kind === "cards") ? data.count : undefined;
@@ -403,26 +516,16 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
   // Its header line (its name): as the block says, else as the widget wants it — without it the controls float top right.
   const head = String(node.attrs.header ?? "");
   const showHeader = head === "show" ? true : head === "hide" ? false : def?.header !== false;
-  const controls = (
+  // While the page is edited the block's bar over it has these (they would sit under it); read-only they show here.
+  const controls = editor.isEditable ? null : (
     <span className={`flex items-center gap-0.5 transition ${showHeader ? "" : "absolute top-1.5 right-1.5 z-10 rounded-lg bg-white/90 shadow-sm dark:bg-zinc-900/90"} ${settings ? "opacity-100" : "opacity-0 group-hover/widget:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100"}`}>
       <button type="button" className="grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Read again")} aria-label={t("Read again")} onClick={() => void load()}>
         <span className={loading ? "inline-block animate-spin" : ""}>↻</span>
       </button>
-      {editor.isEditable && (
-        <button type="button" className="grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Settings")} aria-label={t("Settings")} aria-pressed={settings} onClick={() => setSettings(!settings)}>
-          ⚙
-        </button>
-      )}
-      {editor.isEditable && (
-        // Removed right here (not only while arranging the page — then the grip bar's ✕ is the one).
-        <button type="button" className="ws-widget-remove grid size-7 place-items-center rounded-lg text-zinc-400 hover:bg-zinc-100 hover:text-zinc-700 dark:hover:bg-zinc-800 dark:hover:text-zinc-200" title={t("Remove this block")} aria-label={t("Remove this block")} onClick={() => deleteNode()}>
-          ✕
-        </button>
-      )}
     </span>
   );
   return (
-    <NodeViewWrapper className="ws-widget ws-module-block my-1" contentEditable={false} data-app-block="widget">
+    <NodeViewWrapper className="ws-widget ws-module-block my-1" contentEditable={false} data-app-block="widget" data-code-open={code !== null || undefined} {...blockActions}>
       <GripBar editor={editor} node={node} getPos={getPos} deleteNode={deleteNode} label={label || t("Widget")} />
       {!id ? (
         <Picker defs={defs} pick={(w) => updateAttributes({ widget: w, config: "{}" })} />
@@ -487,7 +590,31 @@ function WidgetView({ node, updateAttributes, editor, getPos, deleteNode, extens
               </button>
             </div>
           )}
-          {data ? <WidgetBody data={data} busy={busy} act={(a, itemId) => void act(a, itemId)} hideTitle={!showHeader} /> : <Skeleton />}
+          {!data ? (
+            <Skeleton />
+          ) : data.kind === "error" ? (
+            <WidgetBody data={data} busy={busy} act={actStable} />
+          ) : (
+            <WidgetTemplated src={code ?? (own || asComes)} data={data} busy={busy} act={actStable} hideTitle={!showHeader} pageId={pageId} onErrors={code !== null ? setCodeErrors : undefined} />
+          )}
+          {code !== null && editor.isEditable && (
+            <BlockCode
+              title={`${def?.icon ? `${def.icon} ` : ""}${label}`}
+              value={code}
+              saved={own || asComes}
+              onChange={setCode}
+              errors={codeErrors}
+              scope={t("This widget only — the plugin gives the data (app.*), the template lays it out")}
+              parts={WIDGET_PARTS}
+              actions={WIDGET_ACTIONS}
+              onReset={() => setCode(asComes)}
+              onClose={() => setCode(null)}
+              onSave={(template) => {
+                updateAttributes({ template: template.trim() === asComes.trim() ? "" : template });
+                return null;
+              }}
+            />
+          )}
         </section>
       )}
     </NodeViewWrapper>
@@ -505,7 +632,8 @@ export const ZeffWidget = Node.create<{ pageId: number }>({
   draggable: true,
   addAttributes() {
     // header: "" as the widget wants it, "show" / "hide" as set on this block.
-    return { widget: { default: "" }, config: { default: "{}" }, title: { default: "" }, header: { default: "" } };
+    // template: the view language it is drawn with ("" — the one for its kind of data, widget-templates.ts).
+    return { widget: { default: "" }, config: { default: "{}" }, title: { default: "" }, header: { default: "" }, template: { default: "" } };
   },
   parseHTML() {
     return [{ tag: "div[data-zeff-widget]" }];

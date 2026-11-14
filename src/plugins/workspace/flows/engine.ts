@@ -364,6 +364,9 @@ async function executeLoud(runId: number, def: FlowDef, input: Record<string, un
 export async function runFlow(flow: Flow | string, input: Record<string, unknown> = {}, opts: RunOptions = {}): Promise<RunResult> {
   const f = typeof flow === "string" ? flowByName(flow) : flow;
   if (!f) throw new Error(`There is no flow “${String(flow)}”.`);
+  // Safe mode (lib/kernel/safe-mode.ts): nothing starts by itself — a flow by clock or event waits; one you start runs.
+  const kind = (opts.trigger as { kind?: string } | undefined)?.kind;
+  if ((kind === "schedule" || kind === "event") && (await import("@/lib/kernel/safe-mode")).safeMode()) throw new Error(`Safe mode: the flow “${f.name}” doesn't start by itself.`);
   const def: FlowDef = { name: f.name, title: f.title, inputs: f.inputs, nodes: f.nodes, output: f.output, permissions: f.permissions, triggers: f.triggers, lookup: f.lookup };
   const full = withDefaults(f.inputs, input);
   const runId = startFlowRun({ pageId: f.pageId, name: f.name, def }, opts.trigger ?? { kind: "manual" }, { ...full, ...(opts.row ? { __row: opts.row } : {}) }, !!opts.dry);

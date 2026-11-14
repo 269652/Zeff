@@ -2,10 +2,12 @@ import { isInstalled } from "@/plugins/state";
 import { sanitizeDoc, type DocNode } from "./doc";
 import { normalizeForm } from "./form-spec";
 import { pageKind, type DbSchema } from "./model";
-import { installPackage, mapDoc, mapSchema, pageTitleOf, type PackageItem, type WorkspacePackage } from "./packages";
+import { exportPackage, installPackage, mapDoc, mapSchema, pageTitleOf, type PackageItem, type WorkspacePackage } from "./packages";
+import { addSavePoint, savePoint, savePoints, type SavePoint } from "./app-savepoints";
+import { blocksFolder, getBlock, saveBlock } from "./block-store";
 import { addRow, createPage, getPage, setPageProps, updatePage, updateSchema } from "./store";
 import { setPageState } from "./widget-bridge";
-import { adoptFlow, getFlow, saveFlow } from "./flows/store";
+import { adoptFlow, createFlow, flowByName, getFlow, saveFlow } from "./flows/store";
 import { createRoutine } from "./routines";
 import { compareVersions, satisfies } from "./semver";
 import { getInstalled, hashOf, keepSnapshot, listInstalled, MAX_HISTORY, packageIdOf, read, readSnaps, versionsKept, write, type HistoryEntry, type TestResult } from "./package-registry";
@@ -132,31 +134,53 @@ function allowRequested(rootId: number, id: string): string[] {
 
 export type UpdateReport = { id: string; from: string; to: string; changes: string[]; kept: string[]; tests: TestResult[]; /** The flows given what they ask for (allow). */ allowed?: string[] };
 
-/** Properties and views the package adds to a database you changed; yours stay as they are. */
-function mergeSchema(current: DbSchema, next: DbSchema): { schema: DbSchema; added: string[] } {
+/**
+ * Properties and views the package adds to a database you changed; yours stay as they are. A view of the package's own takes what the new
+ * version changed in it where you left it as one of the versions before had it (its template, its sorts …, each on its own) — a column
+ * width of yours doesn't keep a new screen of the app away. Without the versions before (no snapshots) the views stay as they are.
+ */
+function mergeSchema(current: DbSchema, next: DbSchema, before: DbSchema[] = []): { schema: DbSchema; added: string[] } {
   const added: string[] = [];
   const props = [...current.properties];
   for (const p of next.properties) {
     if (props.some((x) => x.id === p.id)) continue;
     props.push(p);
-    added.push(`property “${p.name}”`);
+    added.push(`added property “${p.name}”`);
   }
+  const same = (a: unknown, b: unknown) => JSON.stringify(a ?? null) === JSON.stringify(b ?? null);
   const views = [...current.views];
   for (const v of next.views) {
-    if (views.some((x) => x.id === v.id)) continue;
-    views.push(v);
-    added.push(`view “${v.name}”`);
+    const at = views.findIndex((x) => x.id === v.id);
+    if (at < 0) {
+      views.push(v);
+      added.push(`added view “${v.name}”`);
+      continue;
+    }
+    const olds = before.flatMap((b) => b.views.filter((x) => x.id === v.id)) as unknown as Record<string, unknown>[];
+    if (!olds.length) continue;
+    const mine = views[at] as unknown as Record<string, unknown>;
+    const merged: Record<string, unknown> = { ...mine };
+    let took = false;
+    for (const [k, nv] of Object.entries(v as unknown as Record<string, unknown>)) {
+      if (same(mine[k], nv) || !olds.some((was) => same(mine[k], was[k]))) continue;
+      merged[k] = nv;
+      took = true;
+    }
+    if (took) {
+      views[at] = merged as unknown as (typeof views)[number];
+      added.push(`view “${v.name}” updated`);
+    }
   }
   return { schema: { ...current, properties: props, views }, added };
 }
 
 /** What an item is updated with: whether it is new, whether it is as the package left it (else it is yours), the package's numbers → pages. */
-type ItemEnv = { isNew: boolean; untouched: boolean; f: (local: unknown) => number | undefined; changes: string[]; kept: string[] };
+type ItemEnv = { isNew: boolean; untouched: boolean; f: (local: unknown) => number | undefined; changes: string[]; kept: string[]; /** The item as the versions before had it (their snapshots, those kept). */ before: PackageItem[] };
 type PageOf = NonNullable<ReturnType<typeof getPage>>;
 /** One kind of item brought to the new version; true: it was one of this kind. Add a kind of item = add one function here. */
 type Applier = (i: PackageItem, page: PageOf, env: ItemEnv) => boolean;
 
-const applyDatabase: Applier = (i, page, { isNew, untouched, f, changes, kept }) => {
+const applyDatabase: Applier = (i, page, { isNew, untouched, f, changes, kept, before }) => {
   if (i.kind !== "database" || !i.schema) return false;
   const mapped = mapSchema(i.schema, f);
   if (untouched) {
@@ -165,10 +189,10 @@ const applyDatabase: Applier = (i, page, { isNew, untouched, f, changes, kept })
       if (!isNew) changes.push(`“${page.title}”: structure updated`);
     }
   } else {
-    const merged = mergeSchema(page.schema!, mapped);
+    const merged = mergeSchema(page.schema!, mapped, before.flatMap((b) => (b.kind === "database" && b.schema ? [mapSchema(b.schema, f)] : [])));
     if (merged.added.length) {
       updateSchema(page.id, merged.schema);
-      changes.push(`“${page.title}”: added ${merged.added.join(", ")}`);
+      changes.push(`“${page.title}”: ${merged.added.join(", ")}`);
     }
     kept.push(`“${page.title}”: your changes to its structure stay`);
   }
@@ -216,21 +240,70 @@ const applyContent: Applier = (i, page, { isNew, untouched, f, changes, kept }) 
   return true;
 };
 
+/**
+ * The package's blocks of your own (its pages and views use them): one that is not there is made, with its flows (permissions asked for
+ * again); one you left as a version before had it takes the new version; one you changed stays yours (unless `force`).
+ */
+function applyBlocks(id: string, pkg: WorkspacePackage, env: { force: boolean; changes: string[]; kept: string[] }): void {
+  const before = Object.values(readSnaps()[id] ?? {}).flatMap((p) => p.blocks ?? []);
+  const plain = (d: unknown) => {
+    const { updatedAt: _u, ...rest } = (d ?? {}) as Record<string, unknown>;
+    void _u;
+    return JSON.stringify(rest);
+  };
+  for (const b of (pkg.blocks ?? []).slice(0, 50)) {
+    try {
+      const name = String(b?.def?.name ?? "").toLowerCase();
+      if (!name) continue;
+      const cur = getBlock(name);
+      if (cur && plain(cur) === plain(b.def)) continue;
+      const untouched = !cur || env.force || before.some((o) => String(o.def?.name).toLowerCase() === name && plain(o.def) === plain(cur));
+      if (!untouched) {
+        env.kept.push(`block “${name}”: your version stays`);
+        continue;
+      }
+      saveBlock(b.def, { source: "package", note: pkg.name });
+      env.changes.push(cur ? `block “${name}” updated` : `new block “${name}”`);
+      for (const raw of (Array.isArray(b.flows) ? b.flows : []).slice(0, 20)) {
+        try {
+          if (typeof raw.name === "string" && !flowByName(raw.name)) createFlow({ ...raw, permissions: {} }, blocksFolder());
+        } catch {
+          /* (not a flow) */
+        }
+      }
+    } catch {
+      /* (a block that does not hold: left out — where it is used says it is missing) */
+    }
+  }
+}
+
 const APPLIERS: Applier[] = [applyDatabase, applyForm, applyFlow, applyContent];
 
-export async function updateTracked(id: string, pkg: WorkspacePackage, opts: { force?: boolean; rollback?: boolean; /** The flows of the new version get what they ask for (as when it was installed with "allow"). */ allow?: boolean } = {}): Promise<UpdateReport> {
+export async function updateTracked(id: string, pkg: WorkspacePackage, opts: { force?: boolean; rollback?: boolean; /** The flows of the new version get what they ask for (as when it was installed with "allow"). */ allow?: boolean; /** (A save point brought back: no version snapshot of it, no save point before — the caller kept one.) */ fromSavePoint?: boolean } = {}): Promise<UpdateReport> {
   const inst = getInstalled(id);
   if (!inst) throw new Error(`The package “${id}” is not installed.`);
   if (!pkg.version) throw new Error("This package has no version.");
   if (!opts.rollback && compareVersions(pkg.version, inst.version) <= 0) throw new Error(`Version ${pkg.version} is not newer than the installed ${inst.version}.`);
   const problems = checkRequirements(pkg);
   if (problems.length) throw new Error(problems.join(" "));
+  // The whole app as it is now: a save point, so this update or roll-back can be undone.
+  if (!opts.fromSavePoint) {
+    try {
+      keepAppState(id, opts.rollback ? `Before going back to ${pkg.version}` : `Before the update to ${pkg.version}`, true);
+    } catch {
+      /* (a save point that can't be made doesn't stop the update) */
+    }
+  }
   const changes: string[] = [];
   const kept: string[] = [];
   const oldVersion = inst.version;
-  const map = { ...inst.map };
-  const hashes = { ...inst.hashes };
+  const now0 = getInstalled(id) ?? inst;
+  const map = { ...now0.map };
+  const hashes = { ...now0.hashes };
   const f = (local: unknown) => map[String(local)];
+  // What the versions before were (their snapshots): what you left as one of them had it may take what the new version changed.
+  const oldItems = new Map<string, PackageItem[]>();
+  for (const snap of Object.values(readSnaps()[id] ?? {})) for (const x of snap.items ?? []) oldItems.set(String(x.id), [...(oldItems.get(String(x.id)) ?? []), x]);
 
   if (!opts.rollback) {
     // (A page that was yours-untouched stays so after the migration changed it: the new structure still replaces it.)
@@ -266,7 +339,8 @@ export async function updateTracked(id: string, pkg: WorkspacePackage, opts: { f
       kept.push(`“${page.title}” is a ${page.kind} now, the package says ${i.kind} — left as it is`);
       continue;
     }
-    for (const apply of APPLIERS) if (apply(i, page, { isNew, untouched, f, changes, kept })) break;
+    const before = oldItems.get(key) ?? [];
+    for (const apply of APPLIERS) if (apply(i, page, { isNew, untouched, f, changes, kept, before })) break;
     if (isNew && i.widgetState && typeof i.widgetState === "object") for (const [k, v] of Object.entries(i.widgetState).slice(0, 100)) {
       try {
         setPageState(pid, k, v);
@@ -276,6 +350,7 @@ export async function updateTracked(id: string, pkg: WorkspacePackage, opts: { f
     }
     if (isNew && i.routine) createRoutine(pid, i.routine.kind, { enabled: false, triggers: i.routine.triggers ?? [], permissions: i.routine.permissions, steps: i.routine.steps ?? [], provider: i.routine.provider });
   }
+  applyBlocks(id, pkg, { force: !!opts.force, changes, kept });
   if (!opts.rollback) migrate({ ...inst, map }, pkg, changes, "data");
   for (const [k, pid] of Object.entries(inst.map)) if (!byId.has(k) && getPage(pid)) kept.push(`“${getPage(pid)!.title}” is no longer in the package — it stays`);
 
@@ -285,7 +360,7 @@ export async function updateTracked(id: string, pkg: WorkspacePackage, opts: { f
   const all = read();
   all[id] = { ...inst, name: pkg.name, version: pkg.version, map, hashes, updatedAt: now, history: [...inst.history, entry].slice(-MAX_HISTORY) };
   write(all);
-  keepSnapshot(id, pkg);
+  if (!opts.fromSavePoint) keepSnapshot(id, pkg);
   const allowed = opts.allow ? allowRequested(all[id].rootId, id) : [];
   const tests = await runPackageTests(id, pkg);
   if (tests.length) {
@@ -302,6 +377,31 @@ export async function rollbackTracked(id: string, version: string): Promise<Upda
   const snap = readSnaps()[id]?.[version];
   if (!snap) throw new Error(`No snapshot of version ${version} is kept (${Object.keys(readSnaps()[id] ?? {}).join(", ") || "none"}).`);
   return updateTracked(id, snap, { force: true, rollback: true });
+}
+
+/**
+ * A version kept (or the one installed now) as a separate app of its own — or, `template`, as one of your templates — beside the installed
+ * one, which stays as it is. Its pages, databases (empty: a version keeps the structure, not your entries), views, forms and widgets are
+ * its own; flows are named globally, so where the installed app has a flow of that name the copy uses that one (as any package does). Its
+ * flows get no permissions and its routines are switched off, as with every install. Not remembered as an installed package.
+ */
+export async function snapshotAsNew(id: string, version: string, opts: { template?: boolean } = {}): Promise<{ rootId: number; title: string }> {
+  const inst = getInstalled(id);
+  const snap = readSnaps()[id]?.[version];
+  if (!snap) throw new Error(`No snapshot of version ${version} is kept (${Object.keys(readSnaps()[id] ?? {}).join(", ") || "none"}).`);
+  // (Without id and version: not remembered, not updated with the installed one.)
+  const r = installPackage({ ...snap, id: undefined, version: undefined, migrations: undefined, requires: undefined }, null);
+  const title = `${getPage(r.rootId)?.title || inst?.name || snap.name} (${version})`;
+  updatePage(r.rootId, { title });
+  if (opts.template) (await import("./templates")).setTemplate(r.rootId, true);
+  return { rootId: r.rootId, title };
+}
+
+/** A version kept as a package file's content (the one installed now: its current pages, `exportPackage`). */
+export function snapshotPackage(id: string, version: string): WorkspacePackage {
+  const snap = readSnaps()[id]?.[version];
+  if (!snap) throw new Error(`No snapshot of version ${version} is kept (${Object.keys(readSnaps()[id] ?? {}).join(", ") || "none"}).`);
+  return snap;
 }
 
 
@@ -338,4 +438,61 @@ export async function findOffered(key: string): Promise<WorkspacePackage | null>
   const { listPackages } = await import("./packages");
   const k = key.trim().toLowerCase();
   return listPackages().find((o) => o.id.toLowerCase() === k || packageIdOf(o.pkg) === k || o.name.toLowerCase() === k)?.pkg ?? null;
+}
+
+// ---------------------------------------------------------------------------
+// Save points of the whole app (app-savepoints.ts): its top page and everything below it at one moment
+// ---------------------------------------------------------------------------
+
+/** The installed app whose top page this is (its history is the whole app's). */
+export const appOfPage = (pageId: number) => listInstalled().find((p) => p.rootId === Number(pageId)) ?? null;
+
+/**
+ * The whole app as it is now kept as a save point. A page added below it since it was installed becomes part of it here (a number of its
+ * own in the app), so a save point brings it back as it was too, instead of making it again.
+ */
+export function keepAppState(id: string, label: string, auto = false): SavePoint | null {
+  const inst = getInstalled(id);
+  if (!inst) throw new Error(`The package “${id}” is not installed.`);
+  const ids = new Map(Object.entries(inst.map).map(([k, v]) => [v, k] as [number, string]));
+  const before = ids.size;
+  const pkg = exportPackage(inst.rootId, { name: inst.name, ids });
+  if (ids.size > before) {
+    const all = read();
+    const me = all[id];
+    for (const [pageId, n] of ids) {
+      if (n in me.map) continue;
+      me.map[n] = pageId;
+      me.hashes[n] = hashOf(pageId);
+    }
+    write(all);
+  }
+  return addSavePoint(id, { ...pkg, id, version: inst.version }, { label, auto, version: inst.version });
+}
+
+/** The whole app back to a save point (what it is now kept as one first). Entries stay; pages added since stay. */
+export async function restoreSavePoint(id: string, n: number): Promise<UpdateReport> {
+  const inst = getInstalled(id);
+  const sp = savePoint(id, Number(n));
+  if (!inst || !sp) throw new Error("There is no such save point.");
+  keepAppState(id, `Before going back to the save point of ${sp.at.slice(0, 16).replace("T", " ")}`, true);
+  return updateTracked(id, { ...sp.pkg, id, version: inst.version }, { force: true, rollback: true, fromSavePoint: true });
+}
+
+/** A save point as a separate app beside this one, or one of your templates (as snapshotAsNew). */
+export async function savePointAsNew(id: string, n: number, opts: { template?: boolean } = {}): Promise<{ rootId: number; title: string }> {
+  const sp = savePoint(id, Number(n));
+  if (!sp) throw new Error("There is no such save point.");
+  const r = installPackage({ ...sp.pkg, id: undefined, version: undefined, migrations: undefined, requires: undefined }, null);
+  const title = `${getPage(r.rootId)?.title || sp.pkg.name} (${sp.at.slice(0, 16).replace("T", " ")})`;
+  updatePage(r.rootId, { title });
+  if (opts.template) (await import("./templates")).setTemplate(r.rootId, true);
+  return { rootId: r.rootId, title };
+}
+
+/** The whole app's history for its top page: the versions kept (install, updates) and the save points, newest first. */
+export function appHistory(id: string): { id: string; name: string; version: string; versions: string[]; savePoints: SavePoint[] } {
+  const inst = getInstalled(id);
+  if (!inst) throw new Error(`The package “${id}” is not installed.`);
+  return { id, name: inst.name, version: inst.version, versions: [...versionsKept(id)].reverse(), savePoints: savePoints(id) };
 }

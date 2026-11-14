@@ -23,7 +23,7 @@ import { keysMatch } from "../view-keys";
 import { themeStyle } from "../view-theme";
 import { loadViewSettingsAction, saveViewSettingAction } from "../actions";
 import { settingValue, type SettingDecl } from "../view-settings";
-import { FlowData, runFlowButton, transitionButton, TransitionsBlock } from "./view-flows";
+import { FlowData, reloadFlowData, runFlowButton, transitionButton, TransitionsBlock } from "./view-flows";
 import { WidgetBlock } from "./widget-node";
 import { useBlockDefs } from "./use-blocks";
 import { AppWidget } from "./app-widget";
@@ -31,8 +31,10 @@ import { useWidgetOutputs } from "./use-outputs";
 import { WidgetFrame } from "@/components/widgets/WidgetFrame";
 import { ChatBox } from "./chat-box";
 import { errorMessage, resultMessage } from "../widget-tell";
-import { chatTellAction, runFlowAction } from "../actions";
+import { chatStartAction, chatTellAction, runFlowAction } from "../actions";
+import { PackageUpdateNote } from "./package-update-note";
 import { parseWith } from "../flows/with";
+import type { BlockDef } from "../blocks";
 
 /**
  * A view drawn from its template (view-template.ts): the nodes as this page's own components — tiles, tabs, lists, a table of cells,
@@ -40,7 +42,14 @@ import { parseWith } from "../flows/with";
  * here; what the app loads (app.*) comes from its hook.
  */
 
-type Props = AppViewProps & { src: string; onErrors?: (errors: { line: number; message: string }[]) => void; module: ViewAppModule; meta: ViewAppMeta; /** A row's own page: the row it is. */ current?: Row };
+type Props = AppViewProps & {
+  src: string;
+  onErrors?: (errors: { line: number; message: string }[]) => void;
+  module: ViewAppModule;
+  meta: ViewAppMeta;
+  /** A row's own page: the row it is. */ current?: Row;
+  /** Blocks drawn as given here instead of as saved (the Studio's preview of a block being edited). */ draftBlocks?: BlockDef[];
+};
 
 const TONE: Record<string, string> = { good: "text-emerald-700 dark:text-emerald-400", warn: "text-amber-700 dark:text-amber-400", bad: "text-red-600 dark:text-red-400", muted: "text-zinc-500" };
 const BOX_TONE: Record<string, string> = { accent: "border-transparent bg-indigo-50 shadow-none dark:bg-indigo-950/40", muted: "bg-zinc-50 dark:bg-zinc-900/40", good: "border-emerald-200 bg-emerald-50/50 dark:border-emerald-900 dark:bg-emerald-950/20", warn: "border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20", bad: "border-red-200 bg-red-50/50 dark:border-red-900 dark:bg-red-950/20" };
@@ -52,7 +61,7 @@ const json = <T,>(s: string | undefined, fallback: T): T => {
   }
 };
 
-export function TemplateView({ src, onErrors, module, meta, current, ...props }: Props) {
+export function TemplateView({ src, onErrors, module, meta, current, draftBlocks, ...props }: Props) {
   const t = useT();
   // (The template is written in English: in English there is nothing to look up.)
   const lang = useLang();
@@ -79,7 +88,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
   const state = useMemo(() => ({ ...defaults, ...fromLink, ...own, ...fromTree }), [defaults, fromLink, own, fromTree]);
   const setState = useCallback((name: string, value: string) => setOwn((s) => ({ ...s, [name]: value })), []);
   const app = module.useAppData(props, state);
-  const blocks = useBlockDefs();
+  const saved = useBlockDefs();
+  const blocks = useMemo(() => (draftBlocks?.length && saved ? [...saved.filter((b) => !draftBlocks.some((d) => d.name === b.name)), ...draftBlocks] : saved), [saved, draftBlocks]);
   const outputs = useWidgetOutputs();
   // The app's settings (<setting>, <settings/>): saved per database.
   const [settings, setSettings] = useState<Record<string, string>>({});
@@ -198,11 +208,27 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
           return void (rowId && props.rowOps?.hide(rowId));
         case "state":
           return void (a.state && setState(a.state, a.value ?? ""));
+        case "report": {
+          // A <subview>'s result: as a code widget's zeff.report — its flow, and the chat it tells.
+          const num = (v: string | undefined) => (v === undefined || v.trim() === "" || Number.isNaN(Number(v)) ? undefined : Number(v));
+          return void (await reportWidget(a, { score: Math.max(0, Math.min(1, num(a.score) ?? 0)), correct: num(a.correct), total: num(a.total), note: a.feedback ?? "", done: a.finished === "true" }));
+        }
         case "select":
           return void (rowId && setState(a.selkey || "selected", String(rowId)));
         case "url":
           // Zeff's own pages in place, a mail written in the mail program, anything else in a new tab.
           return void (a.href && (a.href.startsWith("/") ? router.push(a.href) : a.href.startsWith("mailto:") ? (window.location.href = a.href) : window.open(a.href, "_blank", "noopener")));
+        case "say": {
+          // Into a plugin's live chat: its running session hears it; a chat that has not begun begins with it. The <chat> box shows the rest.
+          if (!a.chat || !a.key || !a.text?.trim()) return;
+          const told = await chatTellAction(a.chat, a.key, a.text);
+          if (!told.ok) return void toast(told.error, { tone: "error" });
+          if (!told.runId) {
+            const begun = await chatStartAction(a.chat, a.key, a.title || a.key, a.text);
+            if (!begun.ok) return void toast(begun.error, { tone: "error" });
+          }
+          return;
+        }
         case "assistant": {
           if (!a.request?.trim()) return;
           toast(t("The assistant is on it …"), { ms: 5000 });
@@ -218,6 +244,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
         case "print":
           return window.print();
         case "reload":
+          // (The flows read on the screen too — every <data>, the blocks beside this one on a page as well.)
+          reloadFlowData();
           props.reload();
           return app.reload();
         default: {
@@ -369,6 +397,12 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
             </div>
           </section>
         );
+      case "subview":
+        return (
+          <div key={key} className="space-y-3" data-subview={a.title || undefined}>
+            {kids(n.c)}
+          </div>
+        );
       case "box":
         // (A box with an action is what you click, like a button: a card that opens something.)
         const go = !!(a.action || a.run || a.emit || a.href);
@@ -411,6 +445,8 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
             placeholder={a.placeholder || t("Your message …")}
             begin={a.begin || t("Start")}
             onGrew={() => (a.bump ? setState(a.bump, String(Number(r.state[a.bump] ?? 0) + 1)) : props.reload())}
+            write={a.write === "true"}
+            quiet={a.quiet === "true"}
           />
         );
       case "codewidget":
@@ -717,12 +753,14 @@ export function TemplateView({ src, onErrors, module, meta, current, ...props }:
       <div className="flex flex-col gap-5 md:flex-row md:items-start" data-print-root style={theme as CSSProperties}>
         <ViewNav title={nav.title} entries={nav.entries} active={(e) => (e.state ? (r.state[e.state] ?? "") === (e.value ?? "") : false)} onPick={go} />
         <div className="min-w-0 flex-1 space-y-5">
+          {!onErrors && <PackageUpdateNote dbId={props.data.id} reload={props.reload} />}
           <Level nodes={r.nodes} ext={ext} />
         </div>
       </div>
     );
   return (
     <div className="space-y-5" data-print-root style={theme as CSSProperties}>
+      {!onErrors && <PackageUpdateNote dbId={props.data.id} reload={props.reload} />}
       {!onErrors && r.errors.length > 0 && <TemplateTrouble errors={r.errors} view={props.view.name} dbId={props.data.id} dbTitle={props.data.title} reload={props.reload} />}
       <Level nodes={r.nodes} ext={ext} />
     </div>

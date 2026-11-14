@@ -24,6 +24,7 @@ import type { TreeItem } from "../store";
 import { Modal } from "./kit";
 import { pickFile, uploadImage } from "./kit";
 import { MentionCommand } from "./mention";
+import { ZeffBlockNode } from "./page-block-node";
 import { AiBlockNode, BlockGaps, Callout, DatabaseViewNode, FlexBox, RowViewNode, ZeffModuleNode, ZeffRef } from "./nodes";
 import { ZeffButton, ZeffField, ZeffRelated } from "./app-nodes";
 import { ROW_BLOCKS, ZeffActivity, ZeffBelongs } from "./row-blocks";
@@ -49,6 +50,9 @@ import { AiComposer } from "./ai-composer";
 import type { AiChip } from "../ai-entry";
 import { NodeSelection, TextSelection } from "@tiptap/pm/state";
 import { TableTools } from "./table-tools";
+import { BlockSelect } from "./block-select";
+import { BlockDrag } from "./block-drag";
+import { BlockToolbar } from "./block-toolbar";
 import type { FormulaData } from "../page-sheet";
 import "./workspace.css";
 import { kindIcon } from "../model";
@@ -131,6 +135,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
   const [todos, setTodos] = useState<{ text: string; ticket: string; on: boolean }[] | null>(null);
   const [todosBusy, setTodosBusy] = useState(false);
   const handleNode = useRef<{ pos: number; size: number } | null>(null);
+  const box = useRef<HTMLDivElement | null>(null);
 
   const report = useCallback(
     (s: SaveState) => {
@@ -384,10 +389,13 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
       Callout,
       FlexBox,
       BlockGaps,
+      BlockSelect,
+      BlockDrag,
       InlineFormula,
       ZeffRef,
       DatabaseViewNode,
       ZeffModuleNode.configure({ pageId: contextRowId ?? pageId }),
+      ZeffBlockNode.configure({ pageId: contextRowId ?? pageId }),
       ZeffRoutine.configure({ pageId }),
       ZeffWidget.configure({ pageId: contextRowId ?? pageId }),
       ZeffApp.configure({ pageId: contextRowId ?? pageId }),
@@ -531,7 +539,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
 
   if (!editor) return <div className="min-h-48" aria-busy="true" />;
   return (
-    <div className={`ws-editor ${smallText ? "ws-small" : ""}`}>
+    <div ref={box} className={`ws-editor ${smallText ? "ws-small" : ""}`}>
       {/* The sticky "Run all" of a page with code cells (not in a small editor, nor in a row's detail view). */}
       {editable && !smallText && !contextRowId && <RunAllButton editor={editor} pageId={pageId} />}
       {state === "conflict" && (
@@ -689,6 +697,7 @@ export function Editor({ pageId, contextRowId, initial, rev, editable, smallText
         </BubbleMenu>
       )}
       <EditorContent editor={editor} />
+      {editable && <BlockToolbar editor={editor} box={box} />}
       <TableTools editor={editor} />
 
       {aiBusy && <p className="mt-2 text-sm text-violet-700 dark:text-violet-300">✨ {t("The AI is working …")}</p>}

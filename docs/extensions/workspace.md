@@ -166,7 +166,7 @@ A package with an `id` and a `version` is **remembered** when it is installed (w
 version **updates those pages in place** — *Workspace settings → Packages*, or the assistant's tools `workspace_package_*`:
 
 - **What you changed stays.** A page, form, flow or database you did not touch is brought to the new version; one you changed keeps your
-  version (a database you changed still gets the properties and views the package adds). *Update, replacing my changes* lets the package win.
+  version (a database you changed still gets the properties and views the package adds, and in each of the package's views what the new version changed where you left it as one of the versions before had it — a new template comes in though you hid a column). *Update, replacing my changes* lets the package win. A view of an installed package says when a newer version is there (*Update now*, or *Later* till a still newer one) — Learn's new versions come with Zeff itself.
 - **Data is migrated** by steps the package declares per version (`migrations`): `rename_property`, `remove_property` (before the new
   structure is applied) and `fill`, `copy`, `map` (after it, so they can use a new property).
 - **Requirements** (`requires`: other packages with a version range like `^1.0.0`; `plugins`) are checked before installing; what a
@@ -185,6 +185,45 @@ version **updates those pages in place** — *Workspace settings → Packages*, 
     { "op": "fill", "db": "i2", "property": "Owner", "value": "unassigned" } ] }],
   "tests": [{ "name": "deals have an Owner", "check": "property", "db": "i2", "property": "Owner" }] }
 ```
+
+- **A kept version as a new app or a template.** Workspace settings → Packages → *Kept versions*: each version (the newest 8, the one installed
+  now among them) can be brought back (*Back to this*), or made *As a new app* / *As a template* beside the installed one, which stays as it
+  is. A version keeps the structure (pages, fields, views, flows, forms), not your entries: its databases start empty; its flows get no
+  permissions, its routines are off; where the installed app has a flow of the same name, the copy uses that one (flows are named
+  globally). The assistant: `workspace_package_version_as_new`, `workspace_export_package` (a page tree as it is now, or a kept version, as
+  a package file's JSON), `workspace_save_as_template`.
+
+##### Versions of everything you build
+
+Every part of an app keeps the states it had, so a change — yours or the AI's — can be looked at and taken back. A restore keeps what
+the part is now as a version first, so it can be undone the same way.
+
+| Part | Kept | Where you go back | The assistant |
+| --- | --- | --- | --- |
+| A page's text | 60, one per 10 minutes of editing | 🕘 *History* on the page | `workspace_page_versions`, `workspace_restore_page_version` |
+| A view's template | 60 per view | ⋯ → *History of this view* | `workspace_view_versions`, `workspace_restore_view` |
+| A database's fields | 60 | ⋯ → *History of the fields* | `workspace_part_versions` (fields), `workspace_restore_part` |
+| A flow | 60 | 🕘 *History* in the flow editor | `workspace_part_versions` (flow), `workspace_restore_part` |
+| A routine | 60 | 🕘 *History* on the routine | `workspace_part_versions` (routine), `workspace_restore_part` |
+| A form | 60, one per 5 minutes of designing | 🕘 *History* in the designer | `workspace_part_versions` (form), `workspace_restore_part` |
+| A widget | 60 | *Improve the widget* → *Back to this* | — |
+| A block | 40 | Studio → Blocks → *Versions* | `workspace_block_versions` |
+| A plugin's function | 30 | Settings → Notebook → *History of the functions* | `workspace_function_source`, `workspace_restore_function` |
+| A whole app (package): versions | 8 (install, updates) | 🕘 *History* on its top page → *Whole app*; Workspace settings → Packages | `workspace_app_history`, `workspace_package_rollback` |
+| A whole app: save points | 30 — kept on a click (*Keep the current state*) and by themselves before every update, roll-back and going back | 🕘 *History* on its top page → *Whole app* | `workspace_app_history`, `workspace_keep_app_state`, `workspace_restore_app` |
+
+Safe by design (`part-restore.ts`): a flow or routine brought back keeps the permissions it has now and whether it is on; fields come
+back as they were, but a field added since stays with its data — a restore never removes a field. The versions of flows, fields, routines
+and forms live in one table (`part-versions.ts`, `ws_part_versions`).
+
+A **save point** is the whole app at one moment — its top page and every page below it: pages, fields, views, flows, forms, routines, not the
+entries (`app-savepoints.ts`). Going back to one brings all of it back at once (entries stay; what the app is now is kept as a save point
+first); a page you added below the app becomes part of it when a save point is kept, so it is brought back as it was rather than made again.
+Any save point or version can also become a new app or a template beside the installed one.
+
+**Repair with the AI** — one click, never by itself: a view whose template has mistakes, a widget that broke, a flow whose last run failed
+(in the flow editor), a plugin's function (Settings → Notebook → *Check*) and an installed app (Workspace settings → Packages). The
+Workspace assistant gets what is wrong and the tools to read, try, save and go back to a version (`repair-requests.ts`), and says what it did.
 
 #### Pipelines: databases that fill themselves
 
@@ -380,7 +419,14 @@ from blocks: lists, cards, tables, boards, charts, tiles, panes, forms and more.
   the flow `report` (the `with=` values plus the result); the flow's answer may carry a `notice` that is shown (`+3 XP`). Mistakes in a set
   are said at the tag. Plugin functions can check a widget or a set first with the API method `workspace.widgets.check`, and read how to write
   them with `workspace.widgets.guide`.
-- **A live chat** (`<chat chat="my-plugin.lesson" key="{{ state.step }}" bump="n"/>`): the box of a plugin's kind of chat ([manifest `chats`](../plugins/manifest.md)) — begin, the live agent session, the message box. The conversation itself is shown by the view from the database the chat keeps it in; `bump` names a state that is counted up when the conversation grew, so `<data>` reloads.
+- **A view inside a view** (`<subview template="{{ View }}" report="my.flow" with="exercise={{ id }}" tell="my-plugin.lesson"
+  tellkey="{{ state.step }}" title="{{ title }}"/>`): a template kept in a row — an exercise in the view language, written by the AI —
+  drawn in place, with state of its own (its `<state>`s don't touch the outer view's). Its mistakes are said at the tag, with the line
+  inside the subview. `<button action="report" score="{{ … }}" correct= total= feedback="…" finished=true label="Done"/>` in it sends the
+  result just as a code widget's `zeff.report` does (the flow `report`, the chat `tell`). Between an exercise set (most reliable) and a
+  code widget (anything code can do), it is the middle kind of exercise: steps, branches and computed feedback, checked before it is
+  shown (`workspace.widgets.check` with `view`; the guide's `views` part says how to write one). A `<codewidget>` can stand in it.
+- **A live chat** (`<chat chat="my-plugin.lesson" key="{{ state.step }}" bump="n"/>`): the box of a plugin's kind of chat ([manifest `chats`](../plugins/manifest.md)) — begin, the live agent session, the message box. The conversation itself is shown by the view from the database the chat keeps it in; `bump` names a state that is counted up when the conversation grew, so `<data>` reloads. A button says something into it: `<button action="say" chat="my-plugin.lesson" key="{{ state.step }}" text="Give me a hint." label="Hint"/>` — the running session hears it, a chat that has not begun begins with it (`title=` names it). Learn's card review has a *Hint* button and a chat about the card beside it this way (the chat `learn-ext.card`, one per card).
 - **A graph** (`<graph source="data.map.nodes" id="id" label="label" requires="requires" group="group" color="color" state="state" progress="progress" ring="ring" thread="data.map.thread" walked=2 bind="picked" emit="opened"/>`): things that depend on each other — a skill tree, a plan, a process, an org chart — drawn in columns (an item stands one column after everything it requires), in bands when `group` is a field, with the lines between them. `state` is `done` (ticked), `locked` (a lock) or open; `progress` (0–1) is a ring around the node with the text `ring` in it; `thread` is a list of ids the red thread goes through, the first `walked` stretches solid, the rest dashed, numbered. Clicking a node sets `state.<bind>` to its id and sends the event.
 - **Theming**: `<theme accent="#0ea5e9" radius="lg" font="serif"/>` — the view's accent colour (buttons, links, chips), the roundness of
   its corners (`none`, `sm`, `md`, `lg`) and its font (`sans`, `serif`, `mono`). On that view only; dark mode keeps working.
@@ -402,6 +448,14 @@ stars, and use it in the Deals view"*). It reads how blocks are made, saves the 
 first and refuses it with every mistake named — and puts it into a view. What a block's flow may reach (the web, a
 database, the AI) the assistant only **asks for**: you grant it on the flow's page in the Studio (the flows stand
 under the page **🧩 Blocks**).
+
+**On a page, without a database.** A block can also stand right in a page: type **/** → *Your block* and pick it (its parameters
+under ⚙), or the assistant writes `:::use name {"param":"value"}` into the page. It is drawn by the same engine as in a view, on no
+rows: what it shows it reads through its flows (`<data flow=…>`). A dashboard on an app's top page is made of such blocks (Learn's
+page: a heading, eight figure tiles of `learn.stat` in two rows, the heatmap beside the cards by stack, the courses). Blocks side by side
+that read the same flow with the same values ask it once: the `<data>` of each gets the one answer (asked at the same time, or within a
+moment); a button `action="reload"` has every `<data>` on the screen read again, the blocks beside it too. The blocks a page uses go with it when it is exported or packed, and a package's update brings its blocks — one
+you left as it came takes the new version, one you changed stays yours.
 
 **Widgets as blocks.** A block can also be a **widget** instead of a template: code in the sandbox (a calculator, a 3D
 model, a plot — see [Widgets](../widgets.md)). Its parameters reach it as `zeff.context.params` (a list parameter
@@ -719,6 +773,7 @@ The Workspace owns these points (other plugins contribute; `src/plugins/<x>/serv
 | `workspace.fieldTypes` | [field-point.ts](../../src/plugins/workspace/field-point.ts) | Custom field types (rating, percentage …) | workspace |
 | `workspace.rowBadges` | [row-badge-point.ts](../../src/plugins/workspace/row-badge-point.ts) | Tree badges for a source's rows | people |
 | `workspace.appNav` | [app-nav-point.ts](../../src/plugins/workspace/app-nav-point.ts) | Navigation entries of an app view | documents |
+| `workspace.pageNav` | [app-nav-point.ts](../../src/plugins/workspace/app-nav-point.ts) | Entries under a plugin's own page in the tree (`?nav=<id>`, no Hide) | explorer |
 | `workspace.lambdas` | [lambdas/store.ts](../../src/plugins/workspace/lambdas/store.ts) | A folder of built-in lambdas | lookups |
 | `workspace.lookups` | [lookup-point.ts](../../src/plugins/workspace/lookup-point.ts) | Sources for a view's `<lookup>` | (none yet; lookups come as lambdas) |
 | `workspace.flowActions` | [flows/actions.ts](../../src/plugins/workspace/flows/actions.ts) | Actions for flow nodes | (none yet) |

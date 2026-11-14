@@ -116,15 +116,17 @@ export function startSyncScheduler(): void {
         } catch (e) {
           console.error("[backup]", e);
         }
+        // Safe mode (lib/kernel/safe-mode.ts): what you built doesn't start by itself — no pipelines, routines or flows by clock.
+        const safe = (await import("@/lib/kernel/safe-mode")).safeMode();
         // The Workspace's pipelines with a clock that are due (their AI outside the quiet hours).
         try {
-          if ((await import("@/plugins/state")).isInstalled("workspace")) (await import("@/plugins/workspace/pipeline")).runDuePipelines({ ai: !quietAt() });
+          if (!safe && (await import("@/plugins/state")).isInstalled("workspace")) (await import("@/plugins/workspace/pipeline")).runDuePipelines({ ai: !quietAt() });
         } catch (e) {
           console.error("[pipelines]", e);
         }
         // The routines (automations and agents) with a clock that are due; agents' runs follow their workers.
         try {
-          if ((await import("@/plugins/state")).isInstalled("workspace")) {
+          if (!safe && (await import("@/plugins/state")).isInstalled("workspace")) {
             await (await import("@/plugins/workspace/routine-triggers")).runDueRoutines();
             (await import("@/plugins/workspace/routine-agent")).syncAgentRuns();
             // The flows with a clock, and the runs whose wait is over.

@@ -18,7 +18,7 @@ type State = { todoId: number | null; version: number; live: WorkRunView | null;
  * looks at the chat every few seconds — which also brings the conversation database up to date — and says (`onGrew`) when that has more in
  * it, so the view reloads what it shows from there.
  */
-export function ChatBox({ chat, keyName, title, first, placeholder, begin, onGrew }: { chat: string; keyName: string; title: string; first: string; placeholder: string; begin: string; onGrew: () => void }) {
+export function ChatBox({ chat, keyName, title, first, placeholder, begin, onGrew, write = false, quiet = false }: { chat: string; keyName: string; title: string; first: string; placeholder: string; begin: string; onGrew: () => void; /** Not begun yet: a message box (what you write begins it) instead of the button. */ write?: boolean; /** No box of its own: it only keeps the conversation up to date (buttons with action="say" talk to it) and says when something went wrong. */ quiet?: boolean }) {
   const t = useT();
   const [s, setS] = useState<State | null>(null);
   const [busy, setBusy] = useState(false);
@@ -42,7 +42,31 @@ export function ChatBox({ chat, keyName, title, first, placeholder, begin, onGre
     return () => clearInterval(timer);
   }, [look]);
 
+  if (quiet) {
+    if (!s?.last) return null;
+    return s.stuck || (!s.live && (s.last.status === "failed" || s.last.status === "interrupted")) ? (
+      <div className="space-y-2">
+        {s.stuck && <StuckRun runId={s.stuck} />}
+        {!s.live && (s.last.status === "failed" || s.last.status === "interrupted") && <FailedRun runId={s.last.id} error={s.last.error} text="" />}
+      </div>
+    ) : null;
+  }
   if (!s) return <p className="text-sm text-zinc-500">{t("Loading …")}</p>;
+  if ((!s.todoId || !s.last) && write) {
+    return (
+      <ChatComposer
+        stay
+        placeholder={placeholder}
+        onSend={async (text) => {
+          const r = await chatStartAction(chat, keyName, title, text);
+          if (!r.ok) return { ok: false, error: r.error };
+          grew.current();
+          void look();
+          return { ok: true };
+        }}
+      />
+    );
+  }
   if (!s.todoId || !s.last) {
     return (
       <button

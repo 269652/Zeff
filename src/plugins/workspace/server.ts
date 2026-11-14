@@ -52,6 +52,8 @@ import { TASKS_SOURCE } from "./task-source";
 import { onTodoDone } from "@/lib/todos/done-hooks";
 import { blockTodoDone } from "./task-lists";
 import { todoDone } from "./todo-engine";
+// What external plugins bring to the extension points from their manifests (formula functions, Kennzahlen, row badges, tab menus).
+import "./ext-points";
 
 /** What Workspace registers for other plugins (loaded through plugins/contributions). */
 collectionProviders.contribute("workspace", workspaceCollections);

@@ -189,9 +189,12 @@ function mapTriggers(triggers: Trigger[], f: Mapper): Trigger[] {
 const USED_BLOCK = /<use\b[^>]*?\bblock\s*=\s*["']([^"'{}]+)["']/g;
 const usedBlocks = (src: string): string[] => [...src.matchAll(USED_BLOCK)].map((m) => m[1].trim().toLowerCase());
 
-/** The blocks of your own the exported views use — and the blocks those use — with their flows. */
+/** The blocks placed right in a page (zeffBlock nodes), anywhere in its content. */
+const pageBlocks = (doc: DocNode | undefined): string[] => (!doc ? [] : [...(doc.type === "zeffBlock" && doc.attrs?.block ? [String(doc.attrs.block).toLowerCase()] : []), ...(doc.content ?? []).flatMap(pageBlocks)]);
+
+/** The blocks of your own the exported views and pages use — and the blocks those use — with their flows. */
 function blocksOf(items: PackageItem[]): PackageBlock[] {
-  const queue = items.flatMap((i) => (i.schema?.views ?? []).flatMap((v) => (v.template ? usedBlocks(v.template) : [])));
+  const queue = items.flatMap((i) => [...(i.schema?.views ?? []).flatMap((v) => (v.template ? usedBlocks(v.template) : [])), ...pageBlocks(i.content as DocNode | undefined)]);
   const seen = new Set<string>();
   const out: PackageBlock[] = [];
   while (queue.length && out.length < 50) {
@@ -217,7 +220,7 @@ function blocksOf(items: PackageItem[]): PackageBlock[] {
 }
 
 /** The pages of a tree as a package: the page and what is below it (databases with their schema, the routines), references by local number. */
-export function exportPackage(rootId: number, opts: { name: string; description?: string; icon?: string; includeRows?: boolean }): WorkspacePackage {
+export function exportPackage(rootId: number, opts: { name: string; description?: string; icon?: string; includeRows?: boolean; /** Pages that keep a number of their own (an installed package's: its item ids); the others get new ones, added to it. */ ids?: Map<number, string> }): WorkspacePackage {
   const root = getPage(rootId);
   if (!root) throw new Error("There is no such page.");
   const all = tree();
@@ -229,7 +232,15 @@ export function exportPackage(rootId: number, opts: { name: string; description?
     for (const c of all.filter((x) => x.parentId === id)) walk(c.id, seen);
   };
   walk(rootId, new Set());
-  const local = new Map(order.map((id, i) => [id, `i${i + 1}`]));
+  const taken = new Set(opts.ids?.values() ?? []);
+  let next = 0;
+  const fresh = (): string => {
+    while (taken.has(`i${++next}`));
+    return `i${next}`;
+  };
+  const local = new Map(order.map((id) => [id, opts.ids?.get(id) ?? fresh()]));
+  // (The numbers given to pages that had none are added to `ids`: the caller learns them.)
+  if (opts.ids) for (const [id, n] of local) if (!opts.ids.has(id)) opts.ids.set(id, n);
   const f: Mapper = (id) => local.get(Number(id));
   // (With rows: each row a number of its own, so a relation between rows of the package stays — one outside it is left out.)
   const rowLocal = new Map<number, string>();

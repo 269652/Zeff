@@ -2,7 +2,9 @@ import Link from "next/link";
 import { t } from "@/lib/i18n/server";
 import { checkRequirements, getInstalled, packageIdOf, packagePermissions, packageStatus } from "../package-life";
 import { listPackages } from "../packages";
-import { installPackageFormAction, rollbackPackageFormAction, testPackageFormAction, updatePackageFormAction } from "../actions/package-forms";
+import { RepairButton } from "./repair-button";
+import { packageRepairRequest } from "../repair-requests";
+import { installPackageFormAction, rollbackPackageFormAction, snapshotAsNewFormAction, testPackageFormAction, updatePackageFormAction } from "../actions/package-forms";
 
 /** Workspace settings → Packages: the apps installed (version, update, roll back, tests, history) and the ones on offer with what they ask for. */
 export async function PackagesView({ ok }: { ok?: string }) {
@@ -50,18 +52,43 @@ export async function PackagesView({ ok }: { ok?: string }) {
                     <input type="hidden" name="id" value={p.id} />
                     <button className="btn btn-sm">{t("Run tests")}</button>
                   </form>
-                  {p.versionsKept
-                    .filter((v) => v !== p.version)
-                    .map((v) => (
-                      <form key={v} action={rollbackPackageFormAction}>
-                        <input type="hidden" name="id" value={p.id} />
-                        <input type="hidden" name="version" value={v} />
-                        <button className="btn btn-sm" title={t("Bring this version's structure back")}>
-                          ↶ {v}
-                        </button>
-                      </form>
-                    ))}
+                  <RepairButton request={packageRepairRequest(p.id, p.name, p.rootId)} pageId={p.rootId} />
                 </div>
+                {p.versionsKept.length > 0 && (
+                  <details className="text-xs">
+                    <summary className="cursor-pointer text-zinc-600 dark:text-zinc-400">{t("Kept versions ({n})", { n: p.versionsKept.length })}</summary>
+                    <p className="mt-1 text-zinc-500">{t("A version keeps the app's structure (pages, fields, views, flows, forms) — not your entries. As a new app or a template it is made beside this one, which stays as it is.")}</p>
+                    <ul className="mt-1 space-y-1">
+                      {[...p.versionsKept].reverse().map((v) => (
+                        <li key={v} className="flex flex-wrap items-center gap-1.5">
+                          <span className="w-16 font-medium">{v}</span>
+                          {v === p.version ? (
+                            <span className="text-zinc-500">{t("installed now")}</span>
+                          ) : (
+                            <form action={rollbackPackageFormAction}>
+                              <input type="hidden" name="id" value={p.id} />
+                              <input type="hidden" name="version" value={v} />
+                              <button className="btn btn-sm" title={t("Bring this version's structure back")}>
+                                ↶ {t("Back to this")}
+                              </button>
+                            </form>
+                          )}
+                          <form action={snapshotAsNewFormAction}>
+                            <input type="hidden" name="id" value={p.id} />
+                            <input type="hidden" name="version" value={v} />
+                            <button className="btn btn-sm">＋ {t("As a new app")}</button>
+                          </form>
+                          <form action={snapshotAsNewFormAction}>
+                            <input type="hidden" name="id" value={p.id} />
+                            <input type="hidden" name="version" value={v} />
+                            <input type="hidden" name="template" value="1" />
+                            <button className="btn btn-sm">📋 {t("As a template")}</button>
+                          </form>
+                        </li>
+                      ))}
+                    </ul>
+                  </details>
+                )}
                 {full && (
                   <details className="text-xs text-zinc-600 dark:text-zinc-400">
                     <summary className="cursor-pointer">{t("History")}</summary>

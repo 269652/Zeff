@@ -127,6 +127,15 @@ export const blockSlashItems = (t: T): SlashItem[] => [
   columns(t, 3),
   columns(t, 4),
   {
+    key: "own-block",
+    title: t("Your block"),
+    hint: t("One of your own blocks (Studio → Blocks) right in the page — a dashboard, a finder, a card"),
+    icon: "🧩",
+    group: t("Blocks"),
+    keywords: ["block", "baustein", "own", "eigener", "dashboard", "use", "studio"],
+    run: ({ editor, range }) => chain(editor, range).insertContent([{ type: "zeffBlock", attrs: { block: "", params: "{}" } }, { type: "paragraph" }]).run(),
+  },
+  {
     key: "pick-blocks",
     opens: "blocks",
     title: t("Ready-made blocks …"),

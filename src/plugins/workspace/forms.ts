@@ -4,6 +4,7 @@ import { addRow, createPage, getDatabase, getPage, rawRows, setCell, setPageProp
 import { getPerson } from "@/plugins/people/store";
 import { coerceAnswers, formCells, formErrors, formFields, formProps, formRowsItems, newFormDef, normalizeForm, shownFields, stampNow, tableFormDef, withHiddenDefaults, type Answers, type FormDef } from "./form-spec";
 import { newId, newProperty, TITLE, type Property, type PropType } from "./model";
+import { keepPartVersion } from "./part-versions";
 
 /**
  * Forms as pages of their own (kind "form"): what one asks is kept in the page's `props.form` (form-spec.ts says what it may be), the
@@ -78,6 +79,8 @@ export function saveForm(id: number, raw: unknown): FormRun {
     if (!db) throw new Error(t("No such database."));
     def = normalizeForm(def, db.props);
   }
+  // What it asked before: a version to go back to — one per few minutes (the designer saves as you type).
+  if (p.props.form && JSON.stringify(p.props.form) !== JSON.stringify(def)) keepPartVersion("form", id, p.props.form, { gapMs: 5 * 60_000 });
   setPageProps(id, { ...p.props, form: def });
   return getForm(id)!;
 }

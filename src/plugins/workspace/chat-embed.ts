@@ -15,7 +15,10 @@ export type TicketsEmbed = { kind: "tickets"; dbId: number; board: string; href:
 /** A widget the assistant built (workspace_widget): its code, what it asks to be allowed, the page it was put into (if any). */
 export type WidgetEmbed = { kind: "widget"; href: string; title: string; html: string; libs: string[]; writes: number[]; ai: boolean; flows?: string[]; pageId: number | null };
 
-export type ChatEmbed = TicketsEmbed | WidgetEmbed;
+/** A mod the assistant wrote (workspace_mod_save): off until the user switches it on — right here, under the answer. */
+export type ModEmbed = { kind: "mod"; href: string; id: string; name: string; description: string; problems: string[]; isNew: boolean; accounts?: string[]; hooks: string[] };
+
+export type ChatEmbed = TicketsEmbed | WidgetEmbed | ModEmbed;
 
 /** The embeds a tool's result carries (none: []). */
 export const embedsOf = (res: unknown): ChatEmbed[] => (res && typeof res === "object" ? ((res as { [CHAT_EMBED]?: ChatEmbed[] })[CHAT_EMBED] ?? []) : []);

@@ -161,6 +161,15 @@ export default async function PluginsPage() {
           </ul>
         </section>
       ))}
+      {/* Plugins work in Zeff; mods change Zeff itself (lib/mods) — a page of their own. */}
+      <section className="card flex flex-wrap items-center gap-3 p-4 text-sm">
+        <span className="min-w-0 flex-1 text-zinc-600 dark:text-zinc-300">
+          <b>🧬 {t("Mods")}</b> — {t("plugins work inside Zeff (apps, functions, flows; sandboxed). Mods change Zeff itself: any of its functions and components, without touching its code.")}
+        </span>
+        <Link href="/mods" className="btn btn-sm">
+          {t("Mods →")}
+        </Link>
+      </section>
       <ExternalPlugins />
     </div>
   );

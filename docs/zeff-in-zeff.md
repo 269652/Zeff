@@ -69,3 +69,15 @@ The Learn that was built into Zeff is gone; Learn is now this plugin ([docs](ext
 (`src/plugins/learn/bundled`), set up on one click on `/learn`, with the old data brought over. Building it added to Zeff's kit, all of it
 general: `<codewidget>`, `<chat>` and plugin chats, `<graph>`, `zeff.api` / `zeff.ai` for code, plugin schedules, a calendar API,
 package references (`@pkg.iN`), widgets reaching plugin chats. A copy of the removed code is kept next to the project (`Zeff-learn-alt`).
+
+## Versions and repair for every part
+
+Every part an app is built of keeps its earlier states and can be brought back by you or the assistant — a page's text, a view's template, a database's fields, a flow, a routine, a form, a widget, a block, a plugin's function, a whole package ([table](extensions/workspace.md#versions-of-everything-you-build)); a whole app keeps versions and save points of every page below its top page (its *History* → *Whole app*), each brought back at once or made a new app or a template. *Repair with the AI* is one click for views, widgets, flows, functions and installed apps. Tested in `tests/part-versions.test.ts`.
+
+## Changes you ask for, at runtime
+
+Zeff changes for your case when you say so — not by itself. You point at a piece of the screen (👆 in the Workspace assistant), say what
+would work better, and the assistant changes the smallest thing that does it: what you built, a plugin's app or function, or — when Zeff
+itself must change — a [mod](mods.md#for-your-case-point-say-try-keep-or-undo). A mod comes as a card under the answer to switch on and try,
+is for the account you are in, and *Undo* takes back everything the answer changed (pages, part versions, functions, blocks, mods). A mod
+an update of Zeff held back is adapted with one click. Tested in `tests/mods.test.ts`.

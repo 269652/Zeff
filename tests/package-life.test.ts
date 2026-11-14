@@ -149,3 +149,32 @@ test("a package without a version is installed as before, not remembered; a fail
   const status = await life.packageStatus();
   assert.deepEqual(status.map((s) => s.id).sort(), ["crm", "crm2"]);
 });
+
+test("a view of the package you left as an older version had it takes the new version's change — what you changed in it stays", async () => {
+  const w = await import("@/plugins/workspace/store");
+  const life = await import("@/plugins/workspace/package-life");
+  const view = (template: string) => ({ id: "app", name: "App", type: "table", app: "template", template, filter: { and: [] }, sorts: [], hidden: [] });
+  const pkg = (version: string, template: string) => ({ format: 1 as const, id: "views", name: "Views", version, items: [{ id: "i1", kind: "database", title: "Things", schema: schemaOf([prop("n", "N", "number")], [view(template)]) }] });
+  await life.installTracked(pkg("1.0.0", "<text>one</text>") as never, null);
+  const db = life.getInstalled("views")!.map.i1;
+  const nId = w.getPage(db)!.schema!.properties.find((p) => p.name === "N")!.id;
+  const app = () => w.getPage(db)!.schema!.views.find((x) => x.id === "app") as unknown as { template: string; hidden: string[] };
+  // Yours: a property (so the database is no longer as the package left it), and in the app's view a column hidden or a template.
+  const mine = (view: Record<string, unknown>) => {
+    const sch = w.getPage(db)!.schema!;
+    w.updateSchema(db, { ...sch, properties: [...sch.properties.filter((p) => p.name !== "Mine"), prop("mine", "Mine", "text")], views: sch.views.map((v) => ({ ...v, ...view })) } as never);
+  };
+  mine({ hidden: [nId] });
+  const rep = await life.updateTracked("views", pkg("1.1.0", "<text>two</text>") as never);
+  assert.equal(app().template, "<text>two</text>");
+  assert.deepEqual(app().hidden, [nId]);
+  assert.ok(rep.changes.some((c) => c.includes("view “App” updated")), rep.changes.join("|"));
+  // A view that once missed a version (its template still 1.0.0's) is still reached.
+  mine({ template: "<text>one</text>" });
+  await life.updateTracked("views", pkg("1.2.0", "<text>three</text>") as never);
+  assert.equal(app().template, "<text>three</text>");
+  // A template you wrote yourself stays.
+  mine({ template: "<text>my own</text>" });
+  await life.updateTracked("views", pkg("1.3.0", "<text>four</text>") as never);
+  assert.equal(app().template, "<text>my own</text>");
+});

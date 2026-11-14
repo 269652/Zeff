@@ -738,6 +738,8 @@ function run(n: Node, ctx: FormulaContext): FormulaValue {
 
 /** The function names, for the editor's help. */
 export const FORMULA_FUNCTIONS = ["if", "ifs", "iferror", "prop", "kennzahl", ...Object.keys(FUNCTIONS)].sort();
+/** A name the formula language already knows — a function or one of its other names (wenn, gross …): a plugin's own can't take it. */
+export const isBuiltInFormulaName = (name: string): boolean => name.toLowerCase() in ALIASES || FORMULA_FUNCTIONS.some((f) => f.toLowerCase() === name.toLowerCase());
 
 /** How each function is called — the editor shows it beside the name. */
 export const FORMULA_SIGNATURES: Record<string, string> = {

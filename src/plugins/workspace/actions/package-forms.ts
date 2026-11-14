@@ -63,3 +63,16 @@ export async function testPackageFormAction(fd: FormData): Promise<void> {
   }
   return back(msg);
 }
+
+/** A kept version as a separate app (or one of your templates) beside the installed one. */
+export async function snapshotAsNewFormAction(fd: FormData): Promise<void> {
+  let msg: string;
+  try {
+    const template = fd.get("template") === "1";
+    const r = await (await import("../package-life")).snapshotAsNew(String(fd.get("id") ?? ""), String(fd.get("version") ?? ""), { template });
+    msg = template ? t("Saved as a template: {title}", { title: r.title }) : t("Made as a new app: {title}", { title: r.title });
+  } catch (e) {
+    msg = said(e);
+  }
+  return back(msg);
+}

@@ -54,3 +54,34 @@ export async function rollbackPackageAction(id: string, version: string) {
 export async function testPackageAction(id: string) {
   return run(async () => ({ results: await (await import("../package-life")).runPackageTests(String(id)) }));
 }
+
+/**
+ * A newer version of the package this database belongs to (one of its pages, made by installing it): what the note in its views offers.
+ * Learn's comes with Zeff itself (its bundled files newer than what is installed). null: none, or the database belongs to no package.
+ */
+export async function packageUpdateOfAction(dbId: number) {
+  return run(async () => {
+    const { listInstalled, compareVersions, offeredPackage } = await import("../package-life");
+    const inst = listInstalled().find((p) => p.rootId === Number(dbId) || Object.values(p.map).includes(Number(dbId)));
+    if (!inst) return { update: null };
+    if (inst.id === "learn-ext") {
+      const u = await (await import("@/plugins/learn/setup")).learnUpdate();
+      if (u) return { update: { id: inst.id, name: inst.name, ...u } };
+    }
+    const offered = await offeredPackage(inst.id);
+    const newer = offered?.version && compareVersions(offered.version, inst.version) > 0;
+    return { update: newer ? { id: inst.id, name: inst.name, from: inst.version, to: offered!.version! } : null };
+  });
+}
+
+/** That newer version brought in (the note's button): Learn as "Set up Learn" does it (its files, its package, what it asks for), any other package updated in place. */
+export async function bringPackageUpdateAction(id: string) {
+  return run(async () => {
+    if (String(id) === "learn-ext") return { done: await (await import("@/plugins/learn/setup")).setupLearn() };
+    const life = await import("../package-life");
+    const pkg = await life.offeredPackage(String(id));
+    if (!pkg) throw new Error("No newer package is on offer for this one.");
+    const r = await life.updateTracked(String(id), pkg);
+    return { done: [`${r.from} → ${r.to}`] };
+  });
+}

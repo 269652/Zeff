@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
 import { checkFlowAction, flowCatalogAction, flowDatabasesAction, flowSecretsAction, getFlowAction, listFlowsAction, runFlowAction, saveFlowAction } from "@/plugins/workspace/actions";
+import { HistoryButton } from "@/plugins/workspace/ui/version-history";
+import { RepairButton } from "@/plugins/workspace/ui/repair-button";
+import { flowRepairRequest } from "@/plugins/workspace/repair-requests";
 import { askWorkspace } from "@/plugins/workspace/ui/chat-client";
 import type { FlowRun } from "@/plugins/workspace/flows/store";
 import { FIELD_TYPES, NODE_KINDS, type FieldSpec, type FlowDef, type FlowNode, type FlowNodeKind, type FlowPermissions, type FlowTrigger } from "@/plugins/workspace/flows/types";
@@ -172,10 +175,21 @@ export function FlowEditor({ pageId, onChanged }: { pageId: number; onChanged: (
         <button type="button" className="btn btn-sm" disabled={busy} onClick={() => void start(false)}>
           ▶ {t("Run")}
         </button>
+        <HistoryButton of={{ kind: "flow", ref: pageId }} />
         <button type="button" className="btn btn-sm btn-primary" disabled={!dirty} onClick={() => void save()}>
           {t("Save")}
         </button>
       </header>
+
+      {/* Its last run failed: said here, with the AI to repair it (as a view's template, a widget). */}
+      {runs[0]?.status === "failed" && (
+        <div className="flex flex-wrap items-center gap-2 rounded-xl border border-red-200 bg-red-50/70 p-3 text-sm dark:border-red-900 dark:bg-red-950/30" role="status">
+          <span className="min-w-0 flex-1">
+            <b>{t("The last run failed.")}</b> <span className="break-words">{(runs[0].error ?? "").slice(0, 300)}</span>
+          </span>
+          <RepairButton request={flowRepairRequest(draft.name, runs[0].error ?? "", runs[0].id)} pageId={pageId} onDone={() => window.location.reload()} />
+        </div>
+      )}
 
       {draft.inputs.length > 0 && (
         <div className="flex flex-wrap items-end gap-2 rounded-xl border border-zinc-200 p-2 dark:border-zinc-800">

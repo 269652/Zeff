@@ -2,6 +2,7 @@ import { getSqlite } from "@/db";
 import { emitChange } from "@/lib/events";
 import { createPage } from "./store";
 import { blockFlowName, normalizeBlock, type BlockDef } from "./blocks";
+import { rememberUndo } from "./undo";
 
 /**
  * Where the blocks of your own live (blocks.ts): one row per block, its definition as JSON. Its flows are flows like any other
@@ -48,6 +49,9 @@ export function saveBlock(raw: unknown, opts: { source?: BlockVersionSource; not
   const { updatedAt: _drop, ...def } = b;
   void _drop;
   const json = JSON.stringify(def);
+  // (Inside an AI answer: what it was before, for Undo - or that it is new.)
+  const had = db().prepare("select def from ws_blocks where name = ?").get(b.name) as { def: string } | undefined;
+  rememberUndo(`block:${b.name}`, { kind: "block", name: b.name, def: had ? { ...JSON.parse(had.def), name: b.name } : null });
   const last = db().prepare("select n, def from ws_block_versions where name = ? order by n desc limit 1").get(b.name) as { n: number; def: string } | undefined;
   if (!last || last.def !== json) {
     db().prepare("insert into ws_block_versions (name, n, at, source, note, def) values (?, ?, ?, ?, ?, ?)").run(b.name, (last?.n ?? 0) + 1, at, opts.source ?? (last ? "edit" : "first"), (opts.note ?? "").slice(0, 300), json);

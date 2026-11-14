@@ -1,8 +1,10 @@
 /**
  * Rich text for views: <markdown value="{{ text }}"/> turns Markdown into the view's own nodes (headings, bold, italic, code, links, lists,
- * quotes, rules, code blocks) — no HTML ever passes through, so what is written can only be what these nodes are. Client-safe.
+ * quotes, rules, code blocks) — no HTML ever passes through, so what is written can only be what these nodes are. A picture block of an
+ * agent's message (```svg, ```plot, ```chart, ```widget) is its widget in the sandboxed frame. Client-safe.
  */
 import type { VNode } from "./card-template";
+import { BLOCK_KINDS, blockWidget, type BlockKind } from "@/lib/widgets/inline";
 
 const SAFE_LINK = /^(https?:\/\/|\/|mailto:|tel:)/i;
 export const MAX_MARKDOWN = 60_000;
@@ -38,8 +40,17 @@ export function markdownNodes(src: string): VNode[] {
     const line = lines[i];
     if (/^\s*```/.test(line)) {
       flush();
+      const lang = line.trim().slice(3).trim().toLowerCase();
       const code: string[] = [];
       for (i++; i < lines.length && !/^\s*```/.test(lines[i]); i++) code.push(lines[i]);
+      // An agent's picture block (```svg, ```plot, ```chart, ```widget — an exercise set of the kit): its widget, sandboxed, as in the chat.
+      if ((BLOCK_KINDS as readonly string[]).includes(lang)) {
+        const w = blockWidget(lang as BlockKind, code.join("\n"));
+        if (w.ok) {
+          blocks.push({ t: "codewidget", a: { html: w.html, libs: w.libs.join(","), title: w.title }, c: [] });
+          continue;
+        }
+      }
       blocks.push({ t: "text", a: { pre: "true" }, c: [{ t: "mono", a: {}, c: [code.join("\n")] }] });
       continue;
     }

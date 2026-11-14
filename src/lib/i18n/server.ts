@@ -1,18 +1,20 @@
 import { currentAccountId } from "@/db/accounts";
 import { getPref, setPref } from "@/lib/prefs";
 import { setFormatResolver } from "@/lib/format";
-import { isInstalled } from "@/plugins/state";
 import { DEFAULT_LANG, LANGS, LANGUAGES, isLang, translate, type Lang, type Vars } from "./shared";
 
 /**
  * The language of the account this runs for (server side): as set on the Settings page, while its
- * bundle (plugin) is installed — else English.
+ * language pack (a runtime plugin from zeff-plugins: lang-de, lang-es) is installed — else English.
  */
 
 const PREF = "language";
 
-/** The languages there are: those whose bundle is installed (English always — it's the text itself). */
-export const availableLanguages = (): Lang[] => LANGS.filter((l) => l === "en" || isInstalled(LANGUAGES[l].plugin));
+/** The languages there are: English (the text itself), and each whose language pack is installed. */
+// (The language packs among the runtime plugins: plugin-strings.ts tells them once it is loaded — the root layout loads it. No import of
+// it here: t() is imported almost everywhere, also while Zeff's modules are still loading.)
+const packs = (): { code: string }[] => (globalThis as { __zeffPluginLanguages?: () => { code: string }[] }).__zeffPluginLanguages?.() ?? [];
+export const availableLanguages = (): Lang[] => LANGS.filter((l) => l === "en" || packs().some((p) => p.code === l));
 
 /** Per account, for a moment: t() asks for every text of a page. Dropped when it's set. */
 const memo = globalThis as unknown as { __zeffLanguage?: Map<string, { at: number; lang: Lang }> };

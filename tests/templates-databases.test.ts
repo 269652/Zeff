@@ -1,17 +1,20 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { setupTempData } from "./helpers";
+import { skipWithoutRepo, loadRepoLanguages } from "./plugins-repo";
 
 setupTempData();
 
 async function setup() {
   const { setInstalled } = await import("@/plugins/state");
-  for (const p of ["workspace", "people", "todos", "cases", "lang-de"]) setInstalled(p, true);
+  for (const p of ["workspace", "people", "todos", "cases"]) setInstalled(p, true);
   await import("@/plugins/contributions");
+  // (German comes from its language pack in zeff-plugins)
+  await loadRepoLanguages();
   (await import("@/lib/i18n/server")).setLanguage("de");
 }
 
-test("the database templates speak your language: the database, its fields, views, choices and examples — the cards name the fields as they are called", async () => {
+test("the database templates speak your language: the database, its fields, views, choices and examples — the cards name the fields as they are called", { skip: skipWithoutRepo("lang-de") }, async () => {
   await setup();
   const { fromTemplate } = await import("@/plugins/workspace/templates");
   const { getDatabase, rawRows } = await import("@/plugins/workspace/store");
@@ -33,7 +36,7 @@ test("the database templates speak your language: the database, its fields, view
   }
 });
 
-test("contracts: the running ones' sum a month under the table — published as Fixkosten (the Finances overview reads it) unless that name is taken", async () => {
+test("contracts: the running ones' sum a month under the table — published as Fixkosten (the Finances overview reads it) unless that name is taken", { skip: skipWithoutRepo("lang-de") }, async () => {
   await setup();
   // Without the Finances plugin: its example rows (with it the statements' recurring payments come instead).
   (await import("@/plugins/state")).setInstalled("finances", false);
@@ -54,7 +57,7 @@ test("contracts: the running ones' sum a month under the table — published as 
   assert.equal(v!.value, Math.round(v!.sources.reduce((n, s) => n + (s.value ?? 0), 0) * 100) / 100);
 });
 
-test("no debts or instalment plans of your own, with or without the Finances plugin (its debts database is the place)", async () => {
+test("no debts or instalment plans of your own, with or without the Finances plugin (its debts database is the place)", { skip: skipWithoutRepo("lang-de") }, async () => {
   await setup();
   const { setInstalled } = await import("@/plugins/state");
   const { templateMetas } = await import("@/plugins/workspace/templates");
@@ -65,7 +68,7 @@ test("no debts or instalment plans of your own, with or without the Finances plu
   }
 });
 
-test("the gallery: where most start first; what was made of a template (and is still there) is offered to open — a page in the bin is not", async () => {
+test("the gallery: where most start first; what was made of a template (and is still there) is offered to open — a page in the bin is not", { skip: skipWithoutRepo("lang-de") }, async () => {
   await setup();
   const { templateMetas, fromTemplate } = await import("@/plugins/workspace/templates");
   assert.deepEqual(

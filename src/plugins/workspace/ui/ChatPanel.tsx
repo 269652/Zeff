@@ -12,11 +12,13 @@ import type { ChatStep } from "../agent";
 import type { ChatEmbed } from "../chat-embed";
 import { TicketsEmbedCard } from "@/plugins/jira-lage/TicketPick";
 import { WidgetEmbedCard } from "./widget-embed";
+import { ModEmbedCard } from "./mod-embed";
+import { pickElement, pointedLabel, pointedText, type Pointed } from "@/lib/mods/pick";
 
 /** Tell this to the editors and databases on screen: the workspace was changed by the assistant - read it again. */
 export const WS_CHANGED = "ws-changed";
 
-export type Msg = { role: "user" | "assistant"; text: string; steps?: ChatStep[]; error?: boolean; /** The history entry of what this answer changed (Undo). */ undoId?: number | null; undone?: boolean; /** What its tools showed (a filtered Jira board). */ embeds?: ChatEmbed[] };
+export type Msg = { role: "user" | "assistant"; text: string; /** What the user pointed at on the screen with it (lib/mods/pick.ts): told to the AI with the text. */ pointed?: Pointed; steps?: ChatStep[]; error?: boolean; /** The history entry of what this answer changed (Undo). */ undoId?: number | null; undone?: boolean; /** What its tools showed (a filtered Jira board). */ embeds?: ChatEmbed[] };
 
 /** A talk begun in the page's ✨ composer (ai-composer.tsx) goes on here: the panel opens with it. */
 const WS_CHAT = "ws-chat";
@@ -47,6 +49,8 @@ export function ChatPanel() {
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [text, setText] = useState("");
   const [busy, setBusy] = useState(false);
+  /** What the user pointed at, sent with the next message. */
+  const [pointed, setPointed] = useState<Pointed | null>(null);
   /** What the running answer has done so far. */
   const [live, setLive] = useState<ChatStep[]>([]);
   const end = useRef<HTMLDivElement>(null);
@@ -89,15 +93,18 @@ export function ChatPanel() {
   const send = async (said: string) => {
     const v = said.trim();
     if (!v || busy) return;
-    const next: Msg[] = [...msgs, { role: "user", text: v }];
+    const next: Msg[] = [...msgs, { role: "user", text: v, ...(pointed ? { pointed } : {}) }];
     setMsgs(next);
     setText("");
+    setPointed(null);
     setBusy(true);
     // The database open beside it shows that the assistant is at work on it (AiWorking.tsx).
     announceAiWorking(pageId, true);
     try {
       setLive([]);
-      const r = await askWorkspace(next.map((m) => ({ role: m.role, text: m.text })), pageId, setLive);
+      const r = await askWorkspace(next.map((m) => ({ role: m.role, text: m.pointed ? `${m.text}
+
+${pointedText(m.pointed)}` : m.text })), pageId, setLive);
       if (!r.ok) setMsgs([...next, { role: "assistant", text: r.error, error: true }]);
       else {
         setMsgs([...next, { role: "assistant", text: r.reply || t("Done."), steps: r.steps, undoId: r.undoId, ...(r.embeds?.length ? { embeds: r.embeds } : {}) }]);
@@ -154,8 +161,9 @@ export function ChatPanel() {
                     </ul>
                   </details>
                 )}
+                {m.pointed && <div className="text-xs text-violet-600 dark:text-violet-300">👆 {pointedLabel(m.pointed)}</div>}
                 <div className="whitespace-pre-wrap">{m.text}</div>
-                {m.role === "assistant" && m.embeds?.map((e, j) => (e.kind === "tickets" ? <TicketsEmbedCard key={j} embed={e} /> : e.kind === "widget" ? <WidgetEmbedCard key={j} embed={e} pageId={pageId} /> : null))}
+                {m.role === "assistant" && m.embeds?.map((e, j) => (e.kind === "tickets" ? <TicketsEmbedCard key={j} embed={e} /> : e.kind === "widget" ? <WidgetEmbedCard key={j} embed={e} pageId={pageId} /> : e.kind === "mod" ? <ModEmbedCard key={j} embed={e} /> : null))}
                 {m.role === "assistant" && m.undoId && (
                   <button
                     type="button"
@@ -204,9 +212,32 @@ export function ChatPanel() {
               aria-label={t("Message to the assistant")}
               disabled={busy}
             />
-            <div className="flex items-center justify-between">
+            {pointed && (
+              <div className="flex items-center gap-1 rounded-full bg-violet-50 px-2 py-0.5 text-xs text-violet-700 dark:bg-violet-950/40 dark:text-violet-300">
+                <span className="min-w-0 flex-1 truncate" title={pointedText(pointed)}>
+                  👆 {pointedLabel(pointed)}
+                </span>
+                <button type="button" className="text-zinc-400 hover:text-zinc-600" aria-label={t("Forget what you pointed at")} onClick={() => setPointed(null)}>
+                  ✕
+                </button>
+              </div>
+            )}
+            <div className="flex items-center justify-between gap-2">
               <button type="button" className="text-xs text-zinc-500 hover:underline" disabled={busy || !msgs.length} onClick={() => setMsgs([])}>
                 {t("New chat")}
+              </button>
+              <span className="flex-1" />
+              <button
+                type="button"
+                className="btn btn-sm"
+                disabled={busy}
+                title={t("Point at a piece of Zeff — then say what would work better for you there")}
+                onClick={async () => {
+                  const p = await pickElement();
+                  if (p) setPointed(p);
+                }}
+              >
+                👆 {t("Point at it")}
               </button>
               <button className="btn btn-primary btn-sm" disabled={busy || !text.trim()}>
                 {t("Send")}

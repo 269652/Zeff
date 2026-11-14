@@ -83,3 +83,6 @@ scripts/.probe-*.mjs
 companion/app/_zc/offline.js
 companion/app/_zc/offline.css
 companion/app/_zc/Geist-latin.woff2
+
+# The catalog of mod hooks (scripts/mods/catalog.cjs), made by the build
+/zeff-hooks.json

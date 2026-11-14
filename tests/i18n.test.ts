@@ -1,8 +1,12 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { before } from "node:test";
 import { collectKeys } from "../src/lib/i18n/collect";
 import { rich } from "../src/lib/i18n/rich";
 import { bundleOf, translate } from "../src/lib/i18n/shared";
+import { skipWithoutRepo, loadRepoLanguages } from "./plugins-repo";
+
+// (German and Spanish are language packs in zeff-plugins: read from there)
+before(async () => void (await loadRepoLanguages()));
 
 /** A text in a language: its bundle's, else English; {placeholders} filled in either. */
 test("texts are translated, English when a bundle lacks them, placeholders filled", () => {
@@ -21,7 +25,7 @@ test("rich() puts markup where the translation has its tag", () => {
 });
 
 /** Every text in the code has its German and Spanish — a new one without them fails here (npm run i18n -- --write, then translate). */
-test("every UI text is in the German and the Spanish bundle", () => {
+test("every UI text is in the German and the Spanish pack", { skip: skipWithoutRepo("lang-de") }, () => {
   const keys = [...collectKeys().keys()];
   assert.ok(keys.length > 0, "no t(\"…\") texts found");
   for (const lang of ["de", "es"] as const) {

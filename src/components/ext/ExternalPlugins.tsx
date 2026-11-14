@@ -5,6 +5,7 @@ import { permissionTexts } from "@/lib/ext/permission-texts";
 import { allPlugins, pluginsRoot, scanPlugins } from "@/lib/ext/registry";
 import { t } from "@/lib/i18n/server";
 import { ExtToggle } from "./ExtToggle";
+import { PluginSources } from "./PluginSources";
 
 /**
  * The Plugins page's section for external plugins (src/lib/ext): the folders in the plugins folder
@@ -28,6 +29,7 @@ export function ExternalPlugins() {
         {t("Plugins you add without changing Zeff: put a folder with a zeff-plugin.json into the plugins folder — it shows up here at once, no restart. They can add rules for Code's workers, “/” commands, views, MCP servers and event hooks.")}{" "}
         <code className="rounded bg-zinc-100 px-1 text-xs dark:bg-zinc-800">{root}</code>
       </p>
+      <PluginSources />
       {plugins.length === 0 && problems.length === 0 && <p className="card p-4 text-sm text-zinc-500">{t("No external plugins yet. docs/plugins/ has the reference and examples/plugins/ two plugins to start from.")}</p>}
       <ul className="grid gap-3 md:grid-cols-2">
         {plugins.map((p) => {

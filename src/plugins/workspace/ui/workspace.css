@@ -1012,6 +1012,12 @@
 .ws-flex[data-dir="row"] {
   background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 4%, transparent);
 }
+/* A column inside a row is only how the row is split: no box of its own around its blocks — the row is the box. */
+.ws-flex[data-dir="row"] > .ws-flex-body > div > * > .ws-flex[data-dir="col"] {
+  margin: 0;
+  padding: 0;
+  background: none;
+}
 /* Controls (grips, labels, buttons) are in the flow — never over the content — and only while arranging the layout. */
 .ws-flex-bar,
 .ws-grip-bar,
@@ -1651,4 +1657,196 @@ th:hover > .ws-sort-btn,
   .ws-sort-btn {
     opacity: 0.7;
   }
+}
+
+/* ---------------------------------------------------------------------------
+   Blocks that hold no text (widgets, your own blocks, views …) handled like blocks: picked, between them a cursor, a bar over them
+   (block-select.ts, block-toolbar.tsx)
+   --------------------------------------------------------------------------- */
+.ws-editor {
+  position: relative;
+}
+/* 8px between two such blocks (4px of room each side, counted as the gap: a click there puts the cursor between them). */
+.ws-editor .ProseMirror[contenteditable="true"] > .react-renderer {
+  padding-block: 4px;
+}
+.ws-editor .ProseMirror > .react-renderer > [data-node-view-wrapper] {
+  margin-block: 0;
+}
+/* Picked: a clear ring and a faint tint — also every one inside a selection over several blocks. */
+.ws-editor .ProseMirror-focused .react-renderer.ProseMirror-selectednode > [data-node-view-wrapper],
+.ws-editor .ProseMirror .ws-block-in-sel > [data-node-view-wrapper] {
+  border-radius: 0.75rem;
+  outline: 2px solid var(--color-indigo-500, #6366f1);
+  outline-offset: 4px;
+  background: color-mix(in oklab, var(--color-indigo-500, #6366f1) 6%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in oklab, var(--color-indigo-500, #6366f1) 6%, transparent);
+}
+.ws-editor .ProseMirror .ws-block-in-sel > [data-node-view-wrapper] {
+  outline-style: dashed;
+}
+.ws-editor .ProseMirror .react-renderer.ProseMirror-selectednode,
+.ws-editor .ProseMirror .ws-block-in-sel {
+  /* no browser outline of its own */
+  outline: none;
+}
+/* Under the pointer: a quiet frame (it is a block of its own, the bar acts on it). */
+.ws-block-hover {
+  position: absolute;
+  pointer-events: none;
+  z-index: 5;
+  border-radius: 0.8rem;
+  outline: 1px dashed color-mix(in oklab, var(--color-indigo-500, #6366f1) 45%, transparent);
+  outline-offset: 4px;
+}
+.ws-block-bar {
+  position: absolute;
+  z-index: 30;
+  /* above the block, its right edge on the block's: never over what the block shows */
+  transform: translate(-100%, calc(-100% - 0.45rem));
+  display: flex;
+  align-items: center;
+  gap: 0.1rem;
+  padding: 0.15rem;
+  border-radius: 0.6rem;
+  border: 1px solid var(--color-zinc-200, #e4e4e7);
+  background: var(--color-white, #fff);
+  box-shadow: 0 4px 14px -4px rgb(0 0 0 / 0.15);
+  animation: ws-bar-in 0.12s ease-out;
+}
+/* (a bridge down to the block: the pointer crossing the gap stays on the bar) */
+.ws-block-bar::after {
+  content: "";
+  position: absolute;
+  inset-inline: 0;
+  top: 100%;
+  height: 0.6rem;
+}
+.dark .ws-block-bar {
+  border-color: var(--color-zinc-700, #3f3f46);
+  background: var(--color-zinc-900, #18181b);
+}
+.ws-block-bar[data-picked="true"] {
+  border-color: var(--color-indigo-300, #a5b4fc);
+}
+@keyframes ws-bar-in {
+  from {
+    opacity: 0;
+    translate: 0 3px;
+  }
+}
+@media print {
+  .ws-block-bar,
+  .ws-block-hover,
+  .ws-gap-add {
+    display: none;
+  }
+}
+/* Between two blocks: where a new line goes — a line across with ＋ at its start. */
+.ws-gap-add {
+  position: absolute;
+  z-index: 20;
+  height: 0;
+  border-top: 2px solid color-mix(in oklab, var(--color-indigo-500, #6366f1) 35%, transparent);
+  pointer-events: none;
+}
+.ws-gap-add button {
+  pointer-events: auto;
+  position: absolute;
+  left: -0.6rem;
+  top: -0.7rem;
+  display: grid;
+  place-items: center;
+  width: 1.3rem;
+  height: 1.3rem;
+  border-radius: 999px;
+  font-size: 0.8rem;
+  line-height: 1;
+  color: #fff;
+  background: var(--color-indigo-500, #6366f1);
+  box-shadow: 0 1px 4px rgb(0 0 0 / 0.2);
+  cursor: pointer;
+}
+/* The cursor between blocks: a line across the page (not a short stub), blinking. */
+.ws-editor .ProseMirror > .ProseMirror-gapcursor {
+  left: 0;
+  right: 0;
+}
+.ws-editor .ProseMirror > .ProseMirror-gapcursor:after {
+  width: 100%;
+  border-top: 2px solid var(--color-indigo-500, #6366f1);
+}
+/* The cursor between blocks inside a row or a column (a flex box): a line in its place among them, taking no room —
+   across a column, down between the columns of a row. */
+.ws-flex > .ws-flex-body > div > .ProseMirror-gapcursor {
+  position: relative;
+  flex: none;
+  align-self: stretch;
+  width: auto;
+  height: 0;
+  margin-block: -0.5rem;
+}
+.ws-flex[data-gap="sm"] > .ws-flex-body > div > .ProseMirror-gapcursor {
+  margin-block: -0.2rem;
+}
+.ws-flex[data-gap="lg"] > .ws-flex-body > div > .ProseMirror-gapcursor {
+  margin-block: -0.875rem;
+}
+.ws-flex > .ws-flex-body > div > .ProseMirror-gapcursor:after {
+  top: 0;
+  width: 100%;
+  border-top: 2px solid var(--color-indigo-500, #6366f1);
+}
+@media (min-width: 40.01rem) {
+  .ws-flex[data-dir="row"] > .ws-flex-body > div > .ProseMirror-gapcursor {
+    width: 0;
+    height: auto;
+    margin-block: 0;
+    margin-inline: -0.5rem;
+  }
+  .ws-flex[data-dir="row"][data-gap="sm"] > .ws-flex-body > div > .ProseMirror-gapcursor {
+    margin-inline: -0.2rem;
+  }
+  .ws-flex[data-dir="row"][data-gap="lg"] > .ws-flex-body > div > .ProseMirror-gapcursor {
+    margin-inline: -0.875rem;
+  }
+  .ws-flex[data-dir="row"] > .ws-flex-body > div > .ProseMirror-gapcursor:after {
+    top: 0;
+    bottom: 0;
+    width: 0;
+    border-top: 0;
+    border-left: 2px solid var(--color-indigo-500, #6366f1);
+  }
+}
+
+/* Moving a block by holding it (block-drag.ts): it lifts, a line shows where it lands. */
+.ws-editor .ProseMirror[contenteditable="true"] > .react-renderer > [data-node-view-wrapper] {
+  -webkit-touch-callout: none;
+}
+.ws-block-lifted > [data-node-view-wrapper] {
+  opacity: 0.45;
+  transform: scale(0.99);
+  transition:
+    opacity 0.12s,
+    transform 0.12s;
+}
+body.ws-dragging-block,
+body.ws-dragging-block * {
+  cursor: grabbing !important;
+  user-select: none !important;
+}
+.ws-drop-line {
+  position: absolute;
+  z-index: 40;
+  pointer-events: none;
+  border-radius: 999px;
+  background: var(--color-indigo-500, #6366f1);
+  box-shadow: 0 0 0 3px color-mix(in oklab, var(--color-indigo-500, #6366f1) 20%, transparent);
+}
+
+/* The block whose code is open in the drawer (block-code.tsx): marked on the page, where what is typed shows. */
+.ws-editor [data-code-open] {
+  border-radius: 0.75rem;
+  outline: 2px dashed var(--color-indigo-500, #6366f1);
+  outline-offset: 4px;
 }

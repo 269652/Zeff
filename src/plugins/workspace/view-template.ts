@@ -62,6 +62,7 @@ export type ViewData = {
 export const MAX_VIEW_TEMPLATE = 60000;
 
 const ACTIONS: Record<string, { row?: boolean; what: string }> = {
+  report: { what: "inside a <subview>: its result — score=\"{{ … }}\" (0..1), correct=, total=, feedback=\"…\", finished=true — to the subview's report flow (and the chat it tells), as a code widget's zeff.report" },
   new: { what: 'a new row (values="Status=Active, Amount=5" to start with) — opened' },
   open: { row: true, what: "open the row's page" },
   set: { row: true, what: 'set a property: prop="Status" value="Done"' },
@@ -73,7 +74,8 @@ const ACTIONS: Record<string, { row?: boolean; what: string }> = {
   select: { row: true, what: "pick the row (state.selected) — <selected> shows it" },
   url: { what: 'go to an address: href="/todos"' },
   print: { what: "print the view (a PDF)" },
-  reload: { what: "read the data again" },
+  reload: { what: "read the data again (every <data> on the screen too — the blocks beside it on a page)" },
+  say: { what: 'say something into a plugin’s live chat (the one a <chat> shows): chat="plugin.chat" key="{{ … }}" text="Give me a hint" — a chat that has not begun begins with it (title= names it)' },
   assistant: { what: 'hand a request to the Workspace assistant, who works it through with all its tools in the background: request="…", what was typed in it with {{ state.name }} (not in a row: a row\'s text must not become a request)' },
 };
 
@@ -146,7 +148,7 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   table: T({ source: "list", columns: "text", sum: "text", empty: "text" }, true),
   chart: T({ source: "list", kind: { oneOf: ["bar", "column", "line", "pie"] }, group: "text", value: "text", calc: { oneOf: ["count", "sum", "avg"] } }, true),
   selected: T({ empty: "text" }),
-  button: T({ action: "text", label: "text", icon: "text", request: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text", emit: "text", run: "text", with: "text", into: "text", done: "text", then: "text", transition: "text", note: { oneOf: ["true", "false"] } }, true),
+  button: T({ action: "text", label: "text", icon: "text", request: "text", row: "text", prop: "text", value: "text", values: "text", state: "text", href: "url", confirm: "text", variant: { oneOf: ["primary", "plain", "quiet", "danger", "link"] }, print: { oneOf: ["true", "false"] }, tip: "text", disabled: { oneOf: ["true", "false"] }, wide: { oneOf: ["true", "false"] }, keys: "text", emit: "text", run: "text", with: "text", into: "text", done: "text", then: "text", transition: "text", note: { oneOf: ["true", "false"] }, score: "text", correct: "text", total: "text", feedback: "text", finished: { oneOf: ["true", "false"] }, chat: "text", key: "text", text: "text", title: "text" }, true),
   // A flow's output loaded into data.<name> — again whenever what it is called with changes (flows/).
   data: T({ name: "text", flow: "text", with: "text", when: "text", debounce: "int", every: "int" }, true),
   // A row's lifecycle: its transitions as buttons (only those it can take now enabled) and its way so far.
@@ -171,7 +173,8 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   // A function of your own (value-returning, may call itself - within a budget): <def name="fact" args="n" value="if(n <= 1, 1, n * fact(n - 1))"/>.
   def: T({ name: "text", args: "text", value: "text" }, true),
   // Rich text: Markdown as the view's own nodes (headings, bold, italic, code, links, lists, quotes) - no HTML.
-  markdown: T({ value: "text" }, true),
+  // (Its text may be long — a message with an exercise in it: kept whole, up to what markdownNodes reads, not cut at 4000 as a label.)
+  markdown: T({ value: "code" }, true),
   // A widget written by anyone (the AI, a teacher): its code from the data, in the sandboxed frame - no network, no access to Zeff, only
   // results (zeff.report) that come back as a flow run: report="flow" with="exercise={{ id }}" (+ score, correct, total, note, done, answers).
   // A live chat with an agent (a plugin's manifest chats): the box under a conversation that the view shows from its database - starts on the first
@@ -181,8 +184,10 @@ export const VIEW_TAGS: Record<string, TagDef> = {
   graph: T({ source: "list", id: "text", label: "text", requires: "text", group: "text", color: "text", state: "text", progress: "text", ring: "text", thread: "list", walked: "int", bind: "text", emit: "text", empty: "text", /** map: a dependency map (nodes with their parts) in a sideways scrolling strip; its data: source = [{ key, title, status, path, group, after, foundation, summary, steps }], groups = [{ key, title }], route = { keys, walked }. */ look: { oneOf: ["graph", "map"] }, groups: "list", route: "text", stepbind: "text", stepemit: "text" }, true),
   // Things with a time as a calendar (day, week — hours, side by side where they overlap —, month, agenda): open, move, drag a new one.
   schedule: T({ source: "list", start: "text", end: "text", title: "text", id: "text", color: "text", allday: "text", editable: "text", view: "text", day: "text", bind: "text", emit: "text", move: "text", create: "text", daybind: "text", empty: "text" }, true),
-  chat: T({ chat: "text", key: "text", title: "text", first: "text", placeholder: "text", begin: "text", bump: "text" }, true),
+  chat: T({ chat: "text", key: "text", title: "text", first: "text", placeholder: "text", begin: "text", bump: "text", write: { oneOf: ["true", "false"] }, quiet: { oneOf: ["true", "false"] } }, true),
   codewidget: T({ html: "code", spec: "code", libs: "text", title: "text", height: "int", report: "text", with: "text", fail: "text", tell: "text", tellkey: "text", kind: "text" }, true),
+  // A view template from the data (an exercise the AI wrote), drawn here with its own state; its <button action="report"> sends a result like a code widget's.
+  subview: T({ template: "code", title: "text", report: "text", with: "text", tell: "text", tellkey: "text", kind: "text" }, true),
   // A file chosen by the user, read as text into state.<bind> (its name in state.<bind>_name): a CSV, a JSON, a text.
   // How the view looks: its accent colour (#rrggbb), the roundness of its corners and its font - on the view only.
   theme: T({ accent: "text", radius: { oneOf: ["none", "sm", "md", "lg"] }, font: { oneOf: ["sans", "serif", "mono"] } }, true),
@@ -277,6 +282,8 @@ type Ctx = {
   /** Inside a block: its use's own state's prefix ("_b3_"), its parameters, what goes into its slots, the blocks it stands in. */
   prefix: string;
   block: { name: string; props: Record<string, unknown>; slots: Map<string, { nodes: TNode[]; ctx: Ctx }> } | null;
+  /** Inside a <subview>: where its result goes (its report flow, with=, the chat it tells). */
+  report?: Record<string, string> | null;
   stack: string[];
   seq: { n: number };
 };
@@ -1149,6 +1156,19 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
       if (a.bump && !/^[\p{L}_][\p{L}\p{N}_]*$/u.test(a.bump)) return (err('<chat bump="…">: the name of a state.'), []);
       return [{ t: "chat", a: { ...a, ...(a.bump ? { bump: ctx.prefix + a.bump } : {}) }, c: [] }];
     }
+    case "subview": {
+      // Its own state (a name of its own for each template), its result to the report flow; its mistakes said with the line in it.
+      const src = a.template ?? "";
+      if (!src.trim()) return [];
+      if (src.length > MAX_VIEW_TEMPLATE) return (err("<subview>: its template is too long."), []);
+      let h = 0;
+      for (let i = 0; i < src.length; i++) h = (h * 31 + src.charCodeAt(i)) | 0;
+      const inner = parseView(src);
+      const own: Ctx = { ...ctx, prefix: `${ctx.prefix}sv${(h >>> 0).toString(36)}_`, report: { report: a.report ?? "", with: a.with ?? "", tell: a.tell ?? "", tellkey: a.tellkey ?? "", kind: a.kind ?? "", title: a.title ?? "" }, errors: [] };
+      const nodes = drawList(inner.nodes, own);
+      for (const e of [...inner.errors, ...own.errors]) ctx.errors.push({ line: n.line, message: `<subview> line ${e.line}: ${e.message}` });
+      return [{ t: "subview", a: { title: a.title ?? "" }, c: nodes }];
+    }
     case "codewidget": {
       let html = a.html ?? "";
       const libs = (a.libs ?? "").split(",").map((x) => x.trim()).filter((x) => x in WIDGET_LIBS);
@@ -1262,9 +1282,14 @@ function drawTag(n: Extract<TNode, { k: "tag" }>, ctx: Ctx): VNode[] {
         return [{ t: "button", a: out, c: [] }];
       }
       const action = a.action ?? "";
+      if (action === "report") {
+        if (!ctx.report) return (err("action=\"report\" sends a <subview>'s result — it stands inside one."), []);
+        return [{ t: "button", a: { ...a, ...ctx.report }, c: [] }];
+      }
       const known = ACTIONS[action];
       if (!known && !ctx.actions.has(action)) return (err(`There is no action “${action}” — there are ${[...Object.keys(ACTIONS), ...ctx.actions].join(", ")}.`), []);
       if (known?.row && !ctx.row && !a.row) return (err(`“${action}” acts on a row — put the button in a list's item, an {{#each rows}} or <selected>.`), []);
+      if (action === "say" && (!a.chat || !a.key || !a.text)) return (err('“say” needs chat="plugin.chat", key="…" and text="…".'), []);
       if (action === "assistant" && !a.request) return (err('“assistant” needs request="…".'), []);
       if (action === "assistant" && ctx.row) return (err("“assistant” can't stand in a row: what a row says must not become a request."), []);
       const out: Record<string, string> = { ...a };
@@ -1680,7 +1705,7 @@ export function viewReference(parts: PartMeta[] = [], actions: ActionMeta[] = []
 /** How a block of your own is made — what the AI reads before workspace_save_block. */
 export function blockReference(blocks: BlockDef[] = []): string {
   return [
-    "BLOCKS OF YOUR OWN — a building block of the view language made from the view language: parameters, a template, and flows for what it does on the server. Every view can use it: <use block=\"name\" param=\"…\"/>.",
+    "BLOCKS OF YOUR OWN — a building block of the view language made from the view language: parameters, a template, and flows for what it does on the server. Every view can use it: <use block=\"name\" param=\"…\"/>. A page can show it too, with no database around it: a line `:::use name {\"param\":\"value\"}` in the page's Markdown (workspace_write_page) — there it has no rows (rows is empty); it reads what it shows through flows (<data flow=…>). A dashboard, a finder, a summary on a page: a block, not a database view — a dashboard best as several small blocks (a figure tile with a parameter for which figure, a chart, a list) laid out in rows on the page, each moved, set and changed on its own: blocks that read the same flow with the same with= ask it once.",
     "",
     "WHAT A BLOCK IS (workspace_save_block): name (lowercase, digits, - _, parts joined by dots: \"crm.deal-card\"), title, description (one line: what it shows or does — the views' authors pick by it), icon (one emoji), params [{ name, type: text|number|boolean|list|color|url, required, default, help, options: [allowed values] }], template, example (a <use …/> line), flows (optional: what it does on the server).",
     "",

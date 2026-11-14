@@ -5,6 +5,22 @@
  */
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs" || process.env.NEXT_PHASE === "phase-production-build") return;
+  // The start guard (lib/kernel/boot-guard.ts): after two starts in a row that didn't come up, safe mode is on by itself.
+  const boot = await import("./lib/kernel/boot-guard").catch(() => null);
+  try {
+    const r = boot?.beginBoot();
+    if (r?.safeModeOn) console.warn(`[safe mode] on by itself: ${r.failures} failed starts in a row${r.stoppedIn ? ` (stopped while ${r.stoppedIn})` : ""}`);
+  } catch (e) {
+    console.error("[safe mode] the start guard failed", e);
+  }
+  // The mods that are on (docs/mods.md): their hooks in place before the first request — also for what renders no page (API, actions).
+  boot?.bootStep("loading the mods");
+  try {
+    const failed = (await import("./lib/mods/server")).loadMods(true);
+    if (failed.length) console.warn("[mods] not loaded:", failed.join("; "));
+  } catch (e) {
+    console.error("[mods] loading failed", e);
+  }
   // A big streamed page makes Next's gzip stream collect drain listeners while it waits for the socket: Node warned about
   // "a possible memory leak" on every such page (thousands of lines that hid the real errors in the log). They go when the
   // response ends, so the limit is raised — a true leak still shows, only later.
@@ -23,6 +39,7 @@ export async function register() {
     const { startSyncScheduler } = await import("./lib/sync-scheduler");
     startSyncScheduler();
     console.log("[sync host] the scheduler and the runs are here now");
+    boot?.bootReady();
     return;
   }
   try {
@@ -33,6 +50,19 @@ export async function register() {
     }
   } catch (e) {
     console.error("[context] unifying linked sources failed", e);
+  }
+  boot?.bootStep("following packages.json (the plugins)");
+  try {
+    // The runtime plugins' own texts (contributes.locales) for t() on the server — also before the first page is drawn.
+    await import("./lib/i18n/plugin-strings");
+  } catch (e) {
+    console.error("[i18n] reading the plugins' texts failed", e);
+  }
+  try {
+    // packages.json (the plugins this Zeff has, and where from): followed when it changes; the repositories checked for newer versions.
+    (await import("./lib/ext/packages-sync")).startPackagesWatch();
+  } catch (e) {
+    console.error("[packages] starting the watch on packages.json failed", e);
   }
   try {
     // The lock (Settings → Lock): the key watcher ends every session the moment the security key is pulled out.
@@ -94,6 +124,7 @@ export async function register() {
   } catch (e) {
     console.error("[boards] keeping comments failed", e);
   }
+  boot?.bootStep("resuming the work runs");
   try {
     const { resumeWork } = await import("./lib/work/runner");
     // Workers that outlived the old server are watched again, the queue goes on — in every account: one left out kept its
@@ -117,6 +148,7 @@ export async function register() {
   } catch (e) {
     console.error("[knowledge] listing the knowledge servers failed", e);
   }
+  boot?.bootStep("starting the plugins' event watcher");
   try {
     const { startExtWatcher } = await import("./lib/ext/work");
     startExtWatcher(); // external plugins' work.changed / todos.changed events
@@ -127,4 +159,5 @@ export async function register() {
     const { startSyncScheduler } = await import("./lib/sync-scheduler");
     startSyncScheduler();
   }
+  boot?.bootReady();
 }

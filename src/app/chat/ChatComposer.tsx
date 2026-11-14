@@ -10,7 +10,7 @@ import { chatSendAction } from "./actions";
  * The chat's message box: a new chat (no `runId`) or the next message in one. Enter sends on a computer (Shift+Enter: a
  * new line); on a phone the send button does. `suggestions`: a few to start with, one tap each.
  */
-export function ChatComposer({ runId, placeholder, suggestions = [], stay = false }: { runId?: number; placeholder?: string; suggestions?: string[]; /** Stay on this page after sending (a lesson) instead of going to the chat's. */ stay?: boolean }) {
+export function ChatComposer({ runId, placeholder, suggestions = [], stay = false, onSend }: { runId?: number; placeholder?: string; suggestions?: string[]; /** Stay on this page after sending (a lesson) instead of going to the chat's. */ stay?: boolean; /** Sends it another way (a chat that begins with this message). */ onSend?: (text: string) => Promise<{ ok: boolean; error?: string }> }) {
   const t = useT();
   const router = useRouter();
   const [text, setText] = useState("");
@@ -20,6 +20,12 @@ export function ChatComposer({ runId, placeholder, suggestions = [], stay = fals
     const v = value.trim();
     if (!v || pending) return;
     start(async () => {
+      if (onSend) {
+        const r = await onSend(v);
+        if (!r.ok) return void toast(r.error ?? t("Didn't work."), { tone: "error" });
+        setText("");
+        return;
+      }
       const r = await chatSendAction({ text: v, runId });
       if (!r.ok) return void toast(r.error, { tone: "error" });
       setText("");

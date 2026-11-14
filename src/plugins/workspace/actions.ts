@@ -26,5 +26,6 @@ export * from "./actions/wrap";
 export * from "./actions/view-settings";
 export * from "./actions/package-life";
 export * from "./actions/chats";
+export * from "./actions/versions";
 
 

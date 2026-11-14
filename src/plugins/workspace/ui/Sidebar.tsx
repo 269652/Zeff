@@ -281,11 +281,11 @@ function TreeSidebar({ appNav = {}, items: treeItems, favorites, badges = noBadg
                   <span className="truncate">{e.label}</span>
                   {e.n > 0 ? <span className={`ml-auto shrink-0 pl-1 text-xs tabular-nums ${e.id === "inbox" ? "font-semibold text-indigo-600 dark:text-indigo-400" : "text-zinc-400"}`}>{e.n}</span> : <FoldedBadge badge={live.rows[Number(/^\/workspace\/(\d+)$/.exec(e.href ?? "")?.[1] ?? 0)]} />}
                 </Link>
-                <span data-hover className="flex shrink-0 items-center">
+                {!nav.fixed && <span data-hover className="flex shrink-0 items-center">
                   <button type="button" className="icon-btn size-6 text-xs" title={e.hidden ? t("Show again") : t("Hide")} aria-label={e.hidden ? t("Show again") : t("Hide")} onClick={() => void set(e.id, !e.hidden)}>
                     {e.hidden ? "👁" : "🚫"}
                   </button>
-                </span>
+                </span>}
               </div>
             </li>
           );
