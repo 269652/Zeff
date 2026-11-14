@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
-import { saveWebSearchAction, testWebSearchAction } from "@/plugins/web-search/server-actions";
+import { saveWebSearchAction, switchWebSearchToPluginAction, testWebSearchAction } from "@/plugins/web-search/server-actions";
 import { canSearch, getSearchConfig, searchReady } from "@/plugins/web-search/search";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -62,6 +62,11 @@ export default async function WebSearchSettingsPage({ searchParams }: { searchPa
           </button>
           <span className="text-xs text-zinc-500">{searchReady(c) ? t("Ready.") : canSearch(c) ? t("Ready: without a key, through your Claude login.") : t("Not set up yet.")}</span>
         </div>
+      </form>
+      <form action={switchWebSearchToPluginAction} className="card space-y-2 p-4">
+        <h2 className="text-sm font-semibold">{t("Web search as a plugin")}</h2>
+        <p className="text-xs text-zinc-500">{t("The same search as a plugin from its repository: it updates without a new Zeff, and its keys are kept encrypted. Your provider and keys come along. Install it first under Plugins → Sources.")}</p>
+        <button className="btn btn-sm">{t("Switch to the plugin")}</button>
       </form>
     </div>
   );

@@ -5,6 +5,8 @@ import { permissionTexts } from "@/lib/ext/permission-texts";
 import { allPlugins, pluginsRoot, scanPlugins } from "@/lib/ext/registry";
 import { t } from "@/lib/i18n/server";
 import { ExtToggle } from "./ExtToggle";
+import { ExtSettings, type ExtSettingView } from "./ExtSettings";
+import { settingsView } from "@/lib/ext/plugin-settings";
 import { PluginSources } from "./PluginSources";
 
 /**
@@ -73,6 +75,7 @@ export function ExternalPlugins() {
                   ))}
                 </ul>
               )}
+              {c.settings?.length > 0 && <ExtSettings id={p.id} settings={settingsView(p.id, p.manifest) as ExtSettingView[]} />}
               {runs.length > 0 && (
                 <ul className="space-y-0.5 border-t border-zinc-100 pt-2 text-xs dark:border-zinc-800">
                   {runs.map((r, i) => (

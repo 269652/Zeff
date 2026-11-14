@@ -86,7 +86,7 @@ export async function lambdasAction() {
   return run(async () => {
     const { listLambdas } = await import("@/plugins/workspace/lambdas/store");
     const { lambdaMissing } = await import("@/plugins/workspace/lambdas/sources");
-    return { lambdas: listLambdas().map((l) => ({ name: l.manifest.name, label: l.manifest.label, what: l.manifest.what, kind: l.manifest.kind, builtin: l.builtin, changed: l.changed, missing: lambdaMissing(l.manifest) })) };
+    return { lambdas: listLambdas().map((l) => ({ name: l.manifest.name, label: l.manifest.label, what: l.manifest.what, kind: l.manifest.kind, builtin: l.builtin, changed: l.changed, missing: lambdaMissing(l.manifest, l.plugin) })) };
   });
 }
 

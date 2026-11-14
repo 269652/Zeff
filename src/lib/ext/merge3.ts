@@ -78,7 +78,7 @@ export function resolve(f: FilePlan, how: NonNullable<FilePlan["resolved"]>, con
 export type PendingMerge = {
   pluginId: string;
   /** Where the update comes from (what the plugin's origin becomes when it is done). */
-  to: { url: string; path: string; branch: string; sha: string; version: string; files: string[] };
+  to: { url: string; path: string; branch: string; sha: string; version: string; files: string[]; /** The key its release was signed with (lib/kernel/release.ts). */ signed?: string };
   from: { version: string | null; sha: string | null };
   files: FilePlan[];
   at: string;

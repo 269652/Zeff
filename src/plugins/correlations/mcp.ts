@@ -1,6 +1,7 @@
 import type { McpServer } from "@modelcontextprotocol/server";
 import { z } from "zod";
 import { isInstalled } from "@/plugins/state";
+import { pluginToolNames } from "@/plugins/workspace/mcp-plugin-tools";
 
 type Helpers = {
   run: (fn: () => unknown) => Promise<never>;
@@ -14,6 +15,8 @@ type Helpers = {
  * asked for too, and is answered whether it holds or not.
  */
 export function registerCorrelationTools(server: McpServer, h: Helpers): void {
+  // Not installed, and its port brings the tool (zeff-plugins/plugins/correlations-ext): that one answers.
+  if (!isInstalled("correlations") && pluginToolNames().has("correlations")) return;
   server.registerTool(
     "correlations",
     {
@@ -36,21 +39,12 @@ export function registerCorrelationTools(server: McpServer, h: Helpers): void {
     async ({ database, field, days, from, to, other, limit }) =>
       h.run(async () => {
         if (!isInstalled("correlations")) return h.fail("Correlations is not installed in Zeff (Menu → Plugins) — this tool isn't available.");
-        const { correlationReport, comparePair, findSeries, pairText, period, reportText, targetChoices } = await import("./report");
+        const { period, seriesOf } = await import("./report");
+        const { toolAnswer } = await import("./core");
+        const { t } = await import("@/lib/i18n/server");
         const p = period({ days, from, to });
-        const res = await correlationReport({ database, field }, p, { limit });
-        if ("error" in res) {
-          const names = targetChoices(res.all).map((s) => s.label);
-          return h.fail(`${res.error} ${names.length ? `Series with values from ${p.from} to ${p.to}: ${names.join("; ")}.` : "No series has values in this period."}`);
-        }
-        if (other) {
-          const x = findSeries(res.all, { field: other });
-          if (!x) return h.fail(`There is no series “${other}”. Series: ${targetChoices(res.all).map((s) => s.label).join("; ")}.`);
-          const y = findSeries(res.all, { database, field })!;
-          const inPeriod = (s: typeof y) => ({ ...s, values: new Map([...s.values].filter(([d]) => d >= p.from && d <= p.to)) });
-          return h.ok([0, 1].map((lag) => pairText(x, y, lag as 0 | 1, comparePair(lag ? x : inPeriod(x), inPeriod(y), lag as 0 | 1))).join("\n"));
-        }
-        return h.ok(reportText(res.report));
+        const r = toolAnswer(await seriesOf(p), { database, field, other, limit }, p, t);
+        return "ok" in r ? h.ok(r.ok) : h.fail(r.fail);
       }),
   );
 }

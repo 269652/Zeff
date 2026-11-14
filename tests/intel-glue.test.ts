@@ -199,7 +199,7 @@ test("correlations × boundaries: secret series for nobody; personal ones (a jou
   const journal = mk("Stimmung");
   const work = mk("Sprints");
   await mail("wa:c1", "wa:Julia", "Julia", "Hallo", "2026-10-01T10:00:00.000Z");
-  const { allSeries, seriesCatalog } = await import("@/plugins/correlations/series");
+  const { allSeries, seriesCatalog } = await import("@/lib/series/series");
   const ids = (c: "open" | "personal") => withClearance(c, () => allSeries({ from: "2026-09-25", to: "2026-10-05" })).then((all) => all.map((s) => s.id));
   const mine = await ids("personal");
   assert.ok(mine.some((id) => id.startsWith(`db:${journal}:`)));

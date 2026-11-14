@@ -1,5 +1,5 @@
 import { translator, type T } from "@/lib/i18n/shared";
-import type { Series, SeriesInfo } from "./series-point";
+import type { Series, SeriesInfo } from "@/lib/series/series-point";
 import { addDays, benjaminiHochberg, pairUp, pearson, permutationGroupsP, permutationP, rankBiserial, spearman, splitHalfStable } from "./stats";
 
 /**

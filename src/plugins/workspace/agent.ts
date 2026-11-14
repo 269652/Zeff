@@ -10,6 +10,7 @@ import { runAi } from "@/lib/ai";
 import { docToMarkdown } from "./doc";
 import { registerWorkspaceTools } from "./mcp";
 import { registerWebSearchTools } from "@/plugins/web-search/mcp";
+import { registerPluginTools } from "./mcp-plugin-tools";
 import { registerBrowserTools } from "@/plugins/browser/mcp";
 import { registerEntityTools } from "@/plugins/entities/mcp";
 import { registerJiraPickTools } from "@/plugins/jira-lage/mcp";
@@ -27,6 +28,8 @@ function collectTools(): Map<string, Tool> {
   const tools = new Map<string, Tool>();
   const stand = {
     registerTool: (name: string, meta: { description: string; inputSchema: z.ZodType; annotations?: { readOnlyHint?: boolean } }, handler: Tool["handler"]) => {
+      // (a name that is taken stays with the first: Zeff's own tools are registered before the plugins')
+      if (tools.has(name)) throw new Error(`Tool ${name} is already registered`);
       tools.set(name, { name, description: meta.description, schema: meta.inputSchema, handler, readOnly: !!meta.annotations?.readOnlyHint });
     },
   } as unknown as McpServer;
@@ -51,6 +54,8 @@ function collectTools(): Map<string, Tool> {
   registerEntityTools(stand, helpers);
   // Tickets for you on the mirrored Jira boards: read them, show a board filtered (its tickets under the answer).
   registerJiraPickTools(stand, helpers);
+  // The tools external plugins bring (contributes.tools) — last, so a name Zeff has stays Zeff's.
+  registerPluginTools(stand, helpers);
   return tools;
 }
 

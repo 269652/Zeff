@@ -227,6 +227,7 @@ const widgetSettingDecl = z.object({
   min: z.number().optional(),
   max: z.number().optional(),
   options: z.array(z.object({ value: z.string().max(100), label: z.string().max(100) })).max(50).optional(),
+  optionsFrom: z.enum(["series"]).optional().describe("A select's options from Zeff: \"series\" — the daily series you may see (your databases' fields first)."),
 });
 const widgetDecl = z.object({
   id: shortId.describe("Its id: <plugin id>.<this>."),
@@ -235,8 +236,11 @@ const widgetDecl = z.object({
   description: z.string().max(200).default(""),
   size: z.enum(["third", "half", "full"]).default("half"),
   ttl: z.number().int().min(5).max(86400).default(60).describe("Seconds its data is kept."),
+  replaces: z.string().regex(/^[a-z][a-z0-9-]*.[a-z0-9.-]+$/).max(80).optional().describe("A built-in widget's id this one takes over (a port): its id is that one then, so the widgets on your pages go on working; while the built-in is there, the built-in's counts."),
   settings: z.array(widgetSettingDecl).max(10).default([]),
-  function: shortId.describe('The plugin function that gives its data, called with { config }: { "kind": "list", "items": [{ id, text, detail?, meta?, href?, badge?, tone?, done?, actions? }] }, { "kind": "stats", "tiles": [{ label, value, detail?, tone?, href? }] } or { "kind": "figure", value, caption, detail?, href? }.'),
+  lambda: z.string().regex(/^[a-z][a-z0-9_-]*(.[a-z0-9_-]+)*$/).max(80).optional().describe("Or one of its lambdas (kind function), called the same way — no Notebook needed."),
+  function: shortId.optional().describe('The plugin function that gives its data, called with { config }: { "kind": "list", "items": [{ id, text, detail?, meta?, href?, badge?, tone?, done?, actions? }] }, { "kind": "stats", "tiles": [{ label, value, detail?, tone?, href? }] } or { "kind": "figure", value, caption, detail?, href? }.'),
+  actLambda: z.string().regex(/^[a-z][a-z0-9_-]*(.[a-z0-9_-]+)*$/).max(80).optional().describe("Or one of its lambdas for the buttons."),
   act: shortId.optional().describe("The plugin function a button of it runs, called with { action, payload, config }; what it gives (data as above) is shown, else the data is read again."),
 });
 const pageNavDecl = z.object({
@@ -247,6 +251,27 @@ const reviewSourceDecl = z.object({
   label: z.string().min(1).max(60),
   list: shortId.describe("The plugin function that gives what waits for a word: [{ id, title, detail?, confidence?, href?, actions: [{ id, label, primary? }] }]."),
   act: shortId.describe("The plugin function a button runs, called with { item, action }; what it gives (a text) is said."),
+});
+const toolDecl = z.object({
+  name: z.string().regex(/^[a-z][a-z0-9_]{2,40}$/, "a tool name: lower-case letters, digits and _, 3–41 characters (web_search)").describe("Its name among Zeff's tools — one Zeff or another plugin already has is left out."),
+  title: z.string().max(80).default(""),
+  description: z.string().min(1).max(1500).describe("What it does and when the AI should use it — the AI reads only this."),
+  function: shortId.optional().describe("The plugin function that does it: called with the arguments; what it returns is the answer (text, or JSON)."),
+  lambda: z.string().regex(/^[a-z][a-z0-9_-]*(\.[a-z0-9_-]+)*$/).max(80).optional().describe("Or one of its lambdas (contributes.lambdas, kind function) — runs without the Notebook: a Node process of its own, only the domains it names."),
+  input: z
+    .array(z.object({ name: z.string().regex(/^[A-Za-z][A-Za-z0-9_]*$/).max(40), type: z.enum(["text", "number", "boolean", "json", "list"]).default("text"), description: z.string().max(300).default(""), required: z.boolean().default(false) }))
+    .max(20)
+    .default([]),
+  readOnly: z.boolean().default(false).describe("It only reads: the AI may call it without asking where its tools are limited to reading."),
+});
+const settingDecl = z.object({
+  key: z.string().regex(/^[a-zA-Z][\w]{0,39}$/),
+  label: z.string().min(1).max(60),
+  kind: z.enum(["text", "secret", "number", "checkbox", "select"]).default("text").describe("secret: kept encrypted, never shown again once saved (an API key)."),
+  help: z.string().max(300).default(""),
+  required: z.boolean().default(false),
+  default: z.union([z.string().max(500), z.number(), z.boolean()]).optional(),
+  options: z.array(z.string().max(100)).max(50).optional(),
 });
 const reviewLinkDecl = z.object({
   id: shortId,
@@ -280,6 +305,14 @@ const contributes = z.object({
   widgets: z.array(widgetDecl).max(20).default([]).describe("Widgets for pages and the dashboard (New block → widget): a list, figures or one figure, given by a plugin function, with buttons that run another."),
   pageNav: z.array(pageNavDecl).max(5).default([]).describe("Entries under its pages in the Workspace tree, given by a plugin function."),
   reviewSources: z.array(reviewSourceDecl).max(10).default([]).describe("Things that wait for your word in the review queue, listed and decided by plugin functions."),
+  services: z
+    .array(z.object({ name: z.enum(["web.search"]).describe("A service of the kernel (lib/kernel/contract.ts KERNEL_SERVICES)."), lambda: z.string().regex(/^[a-z][a-z0-9_-]*(\.[a-z0-9_-]+)*$/).max(80).describe("Its lambda (kind function) that answers in the service's shape.") }))
+    .max(10)
+    .default([])
+    .describe("Places of the kernel it fills (web.search …): what Zeff calls stays the same, this plugin answers."),
+  lambdas: relPath.optional().describe("A folder of lambdas (<name>/lambda.json and its code, _lib.mjs shared): lookups and functions that run without the Notebook, each in a Node process of its own with only the domains and Zeff calls it names. Their secrets are the plugin's settings they name."),
+  tools: z.array(toolDecl).max(30).default([]).describe("Tools for the AI (Zeff's MCP, the Workspace chat, agents), each done by a plugin function — beside Zeff's own."),
+  settings: z.array(settingDecl).max(30).default([]).describe("What the user sets for it (Plugins → its Settings): texts, numbers, choices and secrets (kept encrypted). Its functions get them as `inputs.zeffSettings`."),
   reviewLinks: z.array(reviewLinkDecl).max(10).default([]).describe("Things waiting on a page of their own: the review queue shows how many and links there."),
   workspacePackages: z.array(relPath).max(20).default([]).describe("Workspace apps it brings: package files (JSON — a page exported with its databases, widgets, flows), offered under New → templates and made with one click."),
   locales: z
@@ -316,7 +349,7 @@ export const manifestSchema = z
       .describe("Where newer versions of it are: a GitHub repository (one repository may hold many plugins, each in a folder with its own zeff-plugin.json and version). Plugins → Sources checks it and updates on a click."),
     apiVersion: z.number().int().min(1).max(API_VERSION).describe(`The extension API version it was written for (this Zeff speaks up to ${API_VERSION}).`),
     permissions: z.array(permissionId).max(30).default([]).describe("What it may do (granted by you): exec, network, prompt, and the permissions plugins bring (work.read, todos.write, workspace.write …)."),
-    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], apps: [], hooks: {}, workspacePackages: [], functions: [], flowActions: [], lookups: [], sources: [], fieldTypes: [], chats: [], schedules: [], locales: {}, formulaFunctions: [], metrics: [], rowBadges: [], tabMenus: [], widgets: [], pageNav: [], reviewSources: [], reviewLinks: [] }),
+    contributes: contributes.default({ workerRules: [], workCommands: [], workerMcpServers: {}, workPanels: [], apps: [], hooks: {}, workspacePackages: [], functions: [], flowActions: [], lookups: [], sources: [], fieldTypes: [], chats: [], schedules: [], locales: {}, formulaFunctions: [], metrics: [], rowBadges: [], tabMenus: [], widgets: [], pageNav: [], reviewSources: [], reviewLinks: [], tools: [], settings: [], services: [] }),
   })
   .superRefine((m, ctx) => {
     const has = (p: Permission) => m.permissions.includes(p);
@@ -344,6 +377,15 @@ export const manifestSchema = z
     const hasFn = (n: string) => m.contributes.functions.some((f) => f.name === n);
     m.contributes.lookups.forEach((l, i) => {
       for (const k of ["search", "details"] as const) if (!hasFn(l[k])) ctx.addIssue({ code: "custom", path: ["contributes", "lookups", i, k], message: `no function "${l[k]}" in contributes.functions` });
+    });
+    m.contributes.widgets.forEach((w, i) => {
+      if (!w.function === !w.lambda) ctx.addIssue({ code: "custom", path: ["contributes", "widgets", i], message: "a widget names a function or a lambda (one of them)" });
+      else if (w.lambda && !m.contributes.lambdas) ctx.addIssue({ code: "custom", path: ["contributes", "widgets", i, "lambda"], message: "a widget's lambda needs contributes.lambdas" });
+    });
+    m.contributes.tools.forEach((x, i) => {
+      if (!x.function === !x.lambda) ctx.addIssue({ code: "custom", path: ["contributes", "tools", i], message: "a tool names a function or a lambda (one of them)" });
+      else if (x.function && !hasFn(x.function)) ctx.addIssue({ code: "custom", path: ["contributes", "tools", i, "function"], message: `no function "${x.function}" in contributes.functions` });
+      else if (x.lambda && !m.contributes.lambdas) ctx.addIssue({ code: "custom", path: ["contributes", "tools", i, "lambda"], message: "a tool's lambda needs contributes.lambdas (the folder of its lambdas)" });
     });
     m.contributes.sources.forEach((s, i) => {
       if (!hasFn(s.read)) ctx.addIssue({ code: "custom", path: ["contributes", "sources", i, "read"], message: `no function "${s.read}" in contributes.functions` });

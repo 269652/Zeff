@@ -1,8 +1,37 @@
 import assert from "node:assert/strict";
-import test, { afterEach, beforeEach } from "node:test";
+import fs from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import test, { afterEach, before, beforeEach } from "node:test";
 import { setupTempData } from "./helpers";
+import { repoPlugin } from "./plugins-repo";
 
 setupTempData();
+
+/**
+ * ZEFF_LOOKUPS_EXT=1 (tests/lookups-ext.test.ts): the same tests against Lookups as an external plugin from the zeff-plugins
+ * repository (plugins/lookups-ext) instead of the built-in one — the port is 1:1 when both pass.
+ */
+const EXT = process.env.ZEFF_LOOKUPS_EXT === "1";
+before(async () => {
+  if (!EXT) return;
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), "zeff-lookups-ext-"));
+  process.env.ZEFF_PLUGINS_DIR = dir;
+  fs.cpSync(repoPlugin("lookups-ext"), path.join(dir, "lookups-ext"), { recursive: true });
+  const reg = await import("@/lib/ext/registry");
+  reg.scanPlugins(true);
+  reg.setEnabled("lookups-ext", true);
+  (await import("@/plugins/state")).setInstalled("lookups", false);
+});
+/** The TMDB key, where the Lookups in use keep it: the built-in's settings, or the plugin's (encrypted). */
+async function setTmdbKey(key: string) {
+  if (!EXT) return (await import("@/plugins/lookups/config")).saveLookupConfig({ tmdbKey: key });
+  const reg = await import("@/lib/ext/registry");
+  const ps = await import("@/lib/ext/plugin-settings");
+  const m = reg.getPlugin("lookups-ext")!.manifest;
+  if (key) ps.saveSettings("lookups-ext", m, { TMDB_KEY: key });
+  else ps.saveSettings("lookups-ext", m, {}, ["TMDB_KEY"]);
+}
 
 const realFetch = globalThis.fetch;
 let asked: { url: string; auth: string | null }[] = [];
@@ -100,10 +129,9 @@ test("the sources: every one lists its fields; one that needs a key says so and 
 });
 
 test("without a key: a film from Wikidata, with TMDB's id and its poster; a series from TVmaze — one view works before and after a key", async () => {
-  const { saveLookupConfig } = await import("@/plugins/lookups/config");
   const { addLookupRow, searchLookup } = await import("@/plugins/workspace/lookups");
   const { rowsOf } = await import("@/plugins/workspace/store");
-  saveLookupConfig({ tmdbKey: "" });
+  await setTmdbKey("");
   const found = await searchLookup("tmdb.movies", "Dune", "de-DE");
   assert.deepEqual(found.hits[0], { id: "Q63985561", title: "Dune", subtitle: "2021 · Film von Denis Villeneuve", image: "https://upload.wikimedia.org/wikipedia/en/d/dune.jpg" });
   assert.match(found.credit, /Wikidata/);
@@ -155,16 +183,15 @@ test("a slow source waits for Enter; the document behind the hit picked becomes 
 });
 
 test("TMDB: a v3 key goes into the address, a token into the header; a hit is short, one picked is complete", async () => {
-  const { saveLookupConfig } = await import("@/plugins/lookups/config");
   const { searchLookup } = await import("@/plugins/workspace/lookups");
-  saveLookupConfig({ tmdbKey: "0123456789abcdef0123456789abcdef" });
+  await setTmdbKey("0123456789abcdef0123456789abcdef");
   const r = await searchLookup("tmdb.movies", "Dune", "de-DE");
   assert.deepEqual(r.hits[0], { id: "438631", title: "Dune", subtitle: "2021 · Paul Atreides", image: "https://image.tmdb.org/t/p/w92/p.jpg" });
   assert.match(r.credit, /not endorsed or certified by TMDB/);
   assert.match(asked[0].url, /api_key=0123/);
   assert.match(asked[0].url, /language=de-DE/);
 
-  saveLookupConfig({ tmdbKey: "eyJhbGciOi.token" });
+  await setTmdbKey("eyJhbGciOi.token");
   await searchLookup("tmdb.movies", "Dune", "de-DE");
   assert.equal(asked[1].auth, "Bearer eyJhbGciOi.token");
   assert.doesNotMatch(asked[1].url, /api_key/);
@@ -174,10 +201,9 @@ test("TMDB: a v3 key goes into the address, a token into the header; a hit is sh
 });
 
 test("the hit picked becomes a row: its data in the properties, a new genre an option, the poster linked — picked again it stays one", async () => {
-  const { saveLookupConfig } = await import("@/plugins/lookups/config");
   const { addLookupRow } = await import("@/plugins/workspace/lookups");
   const { rowsOf } = await import("@/plugins/workspace/store");
-  saveLookupConfig({ tmdbKey: "eyJtoken" });
+  await setTmdbKey("eyJtoken");
   const { id, db } = await films();
   const made = await addLookupRow({ dbId: id, source: "tmdb.movies", hit: "438631", language: "de-DE", map: MAP, unique: "TMDB" });
   assert.equal(made.existed, false);
@@ -200,10 +226,9 @@ test("the hit picked becomes a row: its data in the properties, a new genre an o
 });
 
 test("what can't be filled makes no row: a field the source hasn't, an answer that fails — and the key stays out of the message", async () => {
-  const { saveLookupConfig } = await import("@/plugins/lookups/config");
   const { addLookupRow } = await import("@/plugins/workspace/lookups");
   const { rowsOf } = await import("@/plugins/workspace/store");
-  saveLookupConfig({ tmdbKey: "0123456789abcdef0123456789abcdef" });
+  await setTmdbKey("0123456789abcdef0123456789abcdef");
   const { id } = await films();
   await assert.rejects(addLookupRow({ dbId: id, source: "tmdb.movies", hit: "438631", language: "de-DE", map: [["Poster", "cover"], ["Jahr", "yeer"]] }), /no field “cover”, “yeer”.*poster/);
   await assert.rejects(addLookupRow({ dbId: id, source: "tmdb.movies", hit: "1", language: "de-DE", map: MAP }), (e: Error) => /Invalid API key/.test(e.message) && !e.message.includes("0123"));

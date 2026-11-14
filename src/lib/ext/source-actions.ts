@@ -57,6 +57,13 @@ function told(r: import("./sources").InstallReport): string {
 
 export async function installFromSourceAction(sourceId: string, pluginId: string): Promise<Res<{ message: string; conflicts: string[] }>> {
   try {
+    // A patch to Zeff itself ("mod:<id>"): only a signed release, built and loaded (lib/mods/feed.ts).
+    if (String(pluginId).startsWith("mod:")) {
+      const m = await (await import("./sources")).installModFromSource(String(sourceId), String(pluginId).slice(4));
+      await (await import("./packages-sync")).checkForUpdates().catch(() => {});
+      done();
+      return { ok: true, message: `${m.id} ${m.from ? `${m.from} → ` : ""}${m.to}${m.problems.length ? ` — it didn't build: ${m.problems[0]}` : ""}`, conflicts: [] };
+    }
     const r = await (await import("./sources")).installFromSource(String(sourceId), String(pluginId));
     const sync = await import("./packages-sync");
     // (packages.json says what this Zeff has: the plugin and where it came from)

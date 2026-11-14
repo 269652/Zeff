@@ -103,7 +103,7 @@ A kernel update may add to the contract. It may only remove something after a de
    - **A conflict** only happens where both sides changed the same field or the same lines. The update goes ahead with everything
      else and waits only for those spots. You see them side by side, and the AI proposes a resolution that you accept or change. The
      package's tests then run on the merged result, not on the new base alone.
-4. **Signed.** Code from a feed runs with the rights its manifest asks for, so every release tag is signed. Zeff checks the signature
+4. **Signed** (built as a signed release file instead of a tag, see stage 1). Code from a feed runs with the rights its manifest asks for, so every release tag is signed. Zeff checks the signature
    against a public key that comes with the kernel. Only a kernel update can change that key. Access to the repository alone is not
    enough to ship code: a commit without a valid signed tag is never installed. A package from anywhere else is installed as today: switched off, and you grant what it needs.
 5. **Kernel updates** stay ordinary releases (build, Drizzle migrations, restart). Before an update, Zeff checks which installed
@@ -154,35 +154,66 @@ Each stage ends with tests and docs, like the stages of Zeff in Zeff.
 
 ### 1. The update channel
 
-- Built-ins as packages `zeff.<plugin>` in the zeff-plugins repository, released by signed tags. The kernel's public key, and the
-  tag check (a test with a forged tag and an unsigned commit). The offer, the overlay merge per field and line (with stable ids
-  inside every structured part, and the conflict view) and whole-update rollback.
-- Kernel-version checks in package requirements.
-- First real use: move Learn from "files installed by setup.ts" to "a package from the feed".
+*Largely done (2026-11-14).*
+
+- **Signed releases.** *Done, with a change from the plan: a release isn't a signed git tag but a file `zeff-release.json` in the plugin's
+  folder.* It holds every file's SHA-256 and an Ed25519 signature (`lib/kernel/release.ts`). The reason: plugins also come through
+  GitHub's web API, where a tag's signature can't be checked without GPG or SSH tools. The file works for every source and catches
+  any file that was changed, added or is missing. The kernel's public keys are in `RELEASE_KEYS`. A release that doesn't hold is
+  refused, and a plugin installed signed is only updated signed. Unsigned plugins install as before (switched off, granted by you).
+  Publishers have `npm run release:keygen` and `release:sign` ([repository](plugins/repository.md#signed-releases)). Tested in
+  `tests/release-signing.test.ts`. **Still open:** no publisher key has been made yet, so `RELEASE_KEYS` is empty and every release
+  reads as unsigned.
+- **The merge per field and line.** *Done* (`plugins/workspace/merge-parts.ts`). An app update brings in what only it changed and
+  keeps what only you changed:
+  - a database's fields and views field by field, matched by their stable ids;
+  - a flow's steps by their ids;
+  - a form's settings key by key;
+  - a page's text block by block, through git's three-way merge.
+
+  Where both changed the same thing, yours stays and the update's report names it (`conflicts`). A part you left as an older version
+  had it still takes the update. Tested in `tests/merge-parts.test.ts`. **Still open:** a conflict view where you choose per spot
+  (today yours is kept and the spot is named).
+- **Kernel-version checks.** *Done.* A package says which kernel contract it was made for (`kernel`); one made for a newer contract is
+  refused. Before a kernel update, `appsBlockingKernel(version)` names the apps it couldn't run (`tests/package-kernel.test.ts`).
+- **Still open:** the built-ins as packages `zeff.<plugin>`, which is the porting of stages 3–5. Learn already comes from the
+  repository; its release still has to be signed.
 
 ### 2. The bridge: mods in the database
 
 *Decided (2026-11-13): the bridge is built.* The remaining TypeScript can't be ported in one go. Until it is, the Mods hooks make it
 updatable anyway:
 
-- Mods stored as database parts, with versions and the feed, like packages. They are built with the esbuild that ships with Zeff.
-- A shipped **patch** is a mod pinned to the hash of the code it replaces. The hook catalog already holds back a hook written for
-  other code.
-- This is a bridge, not the goal. A patch has Zeff's own rights, so it comes only from the signed feed, and each port deletes the
-  patches it no longer needs.
+*Done (2026-11-14).* `lib/mods/feed.ts`, `installModFromSource` in `lib/ext/sources.ts`, tested in `tests/mod-feed.test.ts`:
+
+- A repository holds **patches** beside plugins: folders with `zeff-mod.json`. A patch is installed from there **only as a signed
+  release** (the same `zeff-release.json`; `npm run release:sign` signs a mod folder too). An unsigned patch, or one with a file changed
+  after signing, is never installed. Mods you or the AI write here stay as they always were.
+- It is built by the esbuild that ships with Zeff and loaded at once: no rebuild. A newer version is an update note (`mod:<id>`), and
+  *Update* installs it. A new patch comes on (your click is the approval), and an update keeps your switch as it was. The version before
+  is kept, and safe mode switches patches off too.
+- A patch names the code it was written for (`targets`: each hook's hash). When a Zeff update changes that code, the hook is held back
+  by itself. So a patch stops when the fix it stood in for has landed, and it never runs on code it wasn't written for.
+- **Changed from the plan:** patches are files in `data/mods/`, not database rows. They are runtime state like the database (no
+  rebuild, versions, rollback), but esbuild builds from files. They are only a bridge, and each port deletes the patches it no longer
+  needs.
 
 After stage 2, **every** change to Zeff can ship without a rebuild: a package version for what's ported, a patch for what isn't yet.
 The stages after this one shrink the patch surface.
 
 ### 3. Port tier A: little or no UI
 
+*Capabilities A (a plugin's tools for the AI) and B (settings with secrets) are done (2026-11-14). The order of the ports and the capabilities each still needs (A–I) are kept in one place: [runtime conversion](plugins/runtime-conversion.md).
+The table below is the sizes. Next are capability A (a plugin's functions as Zeff's MCP tools) and B (settings with secrets), then lookups,
+web-search and browser.*
+
 | Plugin | Lines | Note |
 | --- | --- | --- |
 | lang-de, lang-en, lang-es | 33 | Texts are data already (`bundle.json`). ✅ de and es are language packs in zeff-plugins now (runtime plugins, `contributes.language`); lang-en (overrides only) stays. |
-| knowledge-hub, lookups, zeiterfassung, work-elevated | ~350 | |
-| teams, google-calendar, web-search, revolut, outlook, gmail | ~1.8k | Their logic, over the mail/calendar/HTTP drivers. |
+| knowledge-hub, lookups, zeiterfassung, work-elevated | ~350 | ✅ lookups ported (`lookups-ext`, lambdas; the built-in's tests pass against it). |
+| teams, google-calendar, web-search, revolut, outlook, gmail | ~1.8k | Their logic, over the mail/calendar/HTTP drivers. ✅ web-search ported (`web-search-ext`): its page reading and the Claude-login search moved into the kernel (`src/lib/web/`, `ai.websearch`), the search fills the kernel's service `web.search`. |
 | auto-actions, jira, gitlab, work | ~2.9k | |
-| correlations, entities, todos | ~3.5k | No UI of their own. |
+| correlations, entities, todos | ~3.5k | No UI of their own. ✅ correlations ported (`correlations-ext`): the series moved into the kernel, its pure core bundled into lambdas (one source with the built-in); its explore page not yet. |
 | google-drive, imap-mail | ~2.5k | The IMAP connection becomes a driver, the rest is ported. |
 
 About 11k lines and about 20 plugins. Each one is a few days. Expect a handful of new contract pieces, mostly driver capabilities.

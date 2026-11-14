@@ -6,7 +6,7 @@ import { ME_SENDER } from "@/lib/mail/shared";
 import { isInstalled } from "@/plugins/state";
 import { filled, localDate, localDay } from "./days";
 import type { Series, SeriesInfo, SeriesProvider, SeriesRange } from "./series-point";
-import { addDays } from "./stats";
+import { addDays } from "@/lib/dates";
 
 /**
  * Zeff's own signals as daily series, read where they live: meeting hours (the calendars that block time, overlaps counted once, not

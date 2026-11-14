@@ -60,6 +60,8 @@ async function run(job) {
     if (typeof handler !== "function") throw new Error("index.mjs exports no handler (export async function handler(event, context) { … }).");
     const context = {
       name: job.name,
+      /** The user's language ("de", "en" …): what the lambda says, it says in it. */
+      language: job.language ?? "en",
       secrets: Object.freeze({ ...job.secrets }),
       log: say,
       deadline: started + job.timeoutMs,

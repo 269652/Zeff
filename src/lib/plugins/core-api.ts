@@ -10,6 +10,7 @@ apiPoint.contribute("core", {
     prompt: t("Add rules to what Code's workers are told"),
     exec: t("Run programs on this computer (event hooks, MCP servers) — with your rights"),
     network: t("Let its panels contact other websites (otherwise they can't)"),
+    browser: t("Open public web pages in an automated Chrome on this computer — it can click and type there (no logins, never your own network)"),
   }),
   methods: {
     hello: {

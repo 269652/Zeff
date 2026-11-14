@@ -9,6 +9,21 @@ import { canSearch, saveSearchConfig, webSearch } from "./search";
 const text = (fd: FormData, k: string) => (typeof fd.get(k) === "string" ? String(fd.get(k)) : undefined);
 
 /** Settings → Web search: the provider and its keys. A key left empty stays as it is (they are never shown again). */
+/** To the Web search plugin (to-plugin.ts): provider and keys carried over, the plugin on, this built-in off. */
+export async function switchWebSearchToPluginAction(): Promise<void> {
+  let msg: string;
+  let ok = true;
+  try {
+    await (await import("./to-plugin")).switchWebSearchToPlugin();
+    msg = t("Web search runs as a plugin now; your settings came along.");
+  } catch (e) {
+    ok = false;
+    msg = errorMessage(e);
+  }
+  revalidatePath("/", "layout");
+  redirect(ok ? `/plugins?ok=${encodeURIComponent(msg)}` : `/settings/web-search?error=${encodeURIComponent(msg)}`);
+}
+
 export async function saveWebSearchAction(fd: FormData): Promise<void> {
   const provider = text(fd, "provider") === "brave" ? "brave" : "google";
   saveSearchConfig({

@@ -14,6 +14,10 @@ The contract's version is the **extension API version** that external plugins al
 `API_VERSION` in `lib/ext/manifest.ts`). It is **1** today. A plugin written for a higher version than the running Zeff knows is
 refused.
 
+A **package** says the contract version it was made for in `"kernel": 1` (none means 1). A package made for a newer version is refused.
+`OLDEST_CONTRACT` is the oldest version a kernel still speaks, and a package made for an older one is refused too. Before a kernel
+update, `appsBlockingKernel(version)` (in `package-life.ts`) names the installed apps that kernel couldn't run.
+
 | Change | What to do |
 | --- | --- |
 | Something **new** (an element, a call, a manifest key, an extension point) | Add it to `contract.ts`. The version stays the same, because old parts keep working. |
@@ -24,7 +28,7 @@ refused.
 | Surface | Source of truth in the code | Count (2026-11-13) |
 | --- | --- | --- |
 | Extension points | `extensionPoint<…>("name")` anywhere in `src/` | 24 |
-| What a manifest may contribute | the `contributes` schema in `lib/ext/manifest.ts` | 24 |
+| What a manifest may contribute | the `contributes` schema in `lib/ext/manifest.ts` | 28 |
 | `zeff.*` in server functions and Notebook cells | `accessFor` in `plugins/notebook/zeff-access.ts` | 16 |
 | `zeff.*` in widgets | `CALL_METHODS` in `lib/widgets/bridge.ts` | 25 |
 | Meta operations (structure) | `META_OPS` in `plugins/workspace/meta.ts` | 17 |
@@ -40,8 +44,8 @@ Every extension point says in `contract.ts` how an external plugin reaches it:
 | --- | --- | --- |
 | **stored** (13) | From its manifest, with no TypeScript ([the manifest](plugins/manifest.md)). | `fieldTypes`, `flowActions`, `lookups`, `sources`, `workspacePackages`; since stage 0 also `formulaFunctions` (a formula), and `metrics`, `rowBadges`, `tabMenus`, `widgets`, `pageNav`, `reviewSources`, `reviewLinks` (each answered by a plugin function) |
 | **covered** (5) | It already gets what it needs another way; the point is how built-in TypeScript does the same. | `items.collections` and `workspace.templates` (a package's databases and pages), `workspace.pageApps` (a package's pages with their views and blocks), `proposals.sources` (`reviewSources`), `workspace.appNav` (the view's own `<nav>`) |
-| **kernel** (3) | TypeScript on purpose, because it is part of the kernel. A plugin uses `functions` instead. | `api.methods`, `notebook.kernelLanguages`, `workspace.lambdas` |
-| **owner** (3) | The point of one built-in plugin's own domain. It gets its stored form when that plugin is rebuilt as a package. | `correlations.series`, `documents.texts`, `questions.views` |
+| **kernel** (3) | TypeScript on purpose, because it is part of the kernel. A plugin uses its lambdas or functions instead. | `api.methods`, `notebook.kernelLanguages`, `correlations.series` (the daily series, `src/lib/series`: built-ins add theirs, a plugin reads them through `series.read`) |
+| **owner** (2) | The point of one built-in plugin's own domain. It gets its stored form when that plugin is rebuilt as a package. | `documents.texts`, `questions.views` |
 | **todo** (0) | Still TypeScript only. | none |
 
 The test fails when a point has no form. A new extension point must say how a plugin reaches it.

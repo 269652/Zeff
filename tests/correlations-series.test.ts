@@ -19,7 +19,7 @@ async function world() {
   const { setInstalled } = await import("@/plugins/state");
   for (const id of ["workspace", "correlations", "calendar", "zeiterfassung", "teams", "finances", "cases", "todos"]) setInstalled(id, true);
   await import("@/plugins/contributions");
-  return await import("@/plugins/correlations/series");
+  return await import("@/lib/series/series");
 }
 
 test("a Workspace database with a date: numbers, a select by its option's place, tags as 0/1 — the days without an entry are missing", async () => {
@@ -127,7 +127,7 @@ test("Zeff's own signals per day: meeting hours (overlaps once, declined and all
 
 test("another plugin adds its own series through the point — gone while it is uninstalled", async () => {
   const series = await world();
-  const { correlationSeries } = await import("@/plugins/correlations/series-point");
+  const { correlationSeries } = await import("@/lib/series/series-point");
   const { setInstalled } = await import("@/plugins/state");
   correlationSeries.contribute("news", [{ id: "news.read", series: () => [{ id: "news:read", label: "News read", group: "News", kind: "number", values: new Map([["2026-10-01", 3]]) }] }]);
   setInstalled("news", true);

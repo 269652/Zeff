@@ -1,7 +1,7 @@
 import { reviewSources } from "@/lib/review/point";
 import { proposalSources } from "@/lib/proposals/point";
 import { PEOPLE_PROPOSALS } from "./proposals";
-import { correlationSeries } from "@/plugins/correlations/series-point";
+import { correlationSeries } from "@/lib/series/series-point";
 import { workspaceSources } from "@/plugins/workspace/source-point";
 import { workspaceWidgets } from "@/plugins/workspace/widget-point";
 import { rowBadgeSources } from "@/plugins/workspace/row-badge-point";

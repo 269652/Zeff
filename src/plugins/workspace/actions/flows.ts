@@ -22,6 +22,22 @@ export async function runFlowAction(name: string, input: Record<string, unknown>
   });
 }
 
+/**
+ * A lambda run by its name for a view (<data lambda="…">): a function lambda — a plugin's or yours — with the view's values as its event;
+ * its result as a flow's output. Lambdas only read (their own sandbox: lambdas/run.ts), so a view may ask one like a flow.
+ */
+export async function runLambdaAction(name: string, input: Record<string, unknown> = {}) {
+  return run(async () => {
+    const { getLambda } = await import("../lambdas/store");
+    const l = getLambda(String(name));
+    if (!l) throw new Error(`There is no lambda “${String(name)}”.`);
+    if (l.manifest.kind !== "function") throw new Error(`“${l.manifest.name}” is a lookup, not a function.`);
+    const { runLambda } = await import("../lambdas/run");
+    const r = await runLambda(l, inputOf(input));
+    return r.ok ? { status: "done" as const, output: r.result, error: null } : { status: "failed" as const, output: null, error: r.error };
+  });
+}
+
 /** Every flow (name, title, inputs, whether it is a lookup), for the Studio and a template's checks. */
 export async function listFlowsAction() {
   return run(async () => ({ flows: (await import("../flows/store")).listFlows().map((f) => ({ pageId: f.pageId, parentId: f.parentId, name: f.name, title: f.title, description: f.description ?? "", inputs: f.inputs, lookup: !!f.lookup, enabled: f.enabled !== false, triggers: f.triggers, lastRunAt: f.lastRunAt })) }));

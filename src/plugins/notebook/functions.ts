@@ -35,6 +35,13 @@ const MAX_DEPTH = 4;
 let depth = 0;
 
 /** A function called: its code run with `args`; the result is what it returned. */
+/** The settings a plugin declares, as its functions get them (null: it declares none). */
+async function ownSettings(plugin: string): Promise<Record<string, unknown> | null> {
+  const p = getPlugin(plugin);
+  if (!p?.manifest.contributes.settings?.length) return null;
+  return (await import("@/lib/ext/plugin-settings")).pluginSettings(plugin, p.manifest);
+}
+
 export async function callFunction(plugin: string, name: string, args: Record<string, unknown> = {}): Promise<FnResult> {
   const f = listFunctions().find((x) => x.plugin === plugin && x.name === name);
   if (!f) return { ok: false, error: `There is no function “${plugin}.${name}” (the plugin must be on and bring it).`, log: "" };
@@ -52,7 +59,9 @@ export async function callFunction(plugin: string, name: string, args: Record<st
   const session = depth === 0 ? `fn-${plugin}` : `fn-${plugin}.${depth}`;
   depth++;
   try {
-    const ex = startExecution({ session, language: f.runtime, code, args });
+    // The plugin's own settings (lib/ext/plugin-settings.ts), secrets in clear — only to its own functions, never kept with the run.
+    const settings = await ownSettings(plugin);
+    const ex = startExecution({ session, language: f.runtime, code, args: settings ? { ...args, zeffSettings: settings } : args });
     const t0 = Date.now();
     for (;;) {
       const r = readExecution(ex.id);

@@ -101,7 +101,16 @@ export async function commitsBetween(dir: string, from: string | null, to: strin
  * Git's own three-way merge of one text (git merge-file): what changed between `base` and each side, put together. `conflicts`: how many
  * places both changed differently — there the text holds both, between <<<<<<< mine / ======= / >>>>>>> theirs (with ||||||| base).
  */
-export async function mergeText(base: string, mine: string, theirs: string): Promise<{ text: string; conflicts: number }> {
+export async function mergeText(base: string, mine: string, theirs: string, opts: { /** Where both changed: mine is kept (no markers; `conflicts` still counts them). */ favorMine?: boolean } = {}): Promise<{ text: string; conflicts: number }> {
+  if (opts.favorMine) {
+    const counted = await mergeText(base, mine, theirs);
+    if (!counted.conflicts) return counted;
+    return { text: (await mergeFile(base, mine, theirs, ["--ours"])).text, conflicts: counted.conflicts };
+  }
+  return mergeFile(base, mine, theirs, []);
+}
+
+async function mergeFile(base: string, mine: string, theirs: string, extra: string[]): Promise<{ text: string; conflicts: number }> {
   const tmp = fs.mkdtempSync(path.join((await import("node:os")).tmpdir(), "zeff-merge-"));
   try {
     const [m, b, t] = ["mine", "base", "theirs"].map((n) => path.join(tmp, n));
@@ -109,7 +118,7 @@ export async function mergeText(base: string, mine: string, theirs: string): Pro
     fs.writeFileSync(b, base);
     fs.writeFileSync(t, theirs);
     return await new Promise((resolve, reject) =>
-      execFile("git", ["merge-file", "-p", "--diff3", "-L", "mine", "-L", "base", "-L", "theirs", m, b, t], { encoding: "utf8", maxBuffer: MAX_BUFFER, windowsHide: true }, (err, stdout) => {
+      execFile("git", ["merge-file", "-p", ...(extra.length ? extra : ["--diff3"]), "-L", "mine", "-L", "base", "-L", "theirs", m, b, t], { encoding: "utf8", maxBuffer: MAX_BUFFER, windowsHide: true }, (err, stdout) => {
         // (its exit code is the number of conflicts; above 127 something went wrong)
         const code = err ? Number((err as { code?: number }).code) : 0;
         if (err && !(code > 0 && code < 128)) return reject(new Error(`git merge-file: ${err.message}`));

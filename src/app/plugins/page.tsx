@@ -11,6 +11,8 @@ import { findClaudeCli } from "@/plugins/claude-cli/cli";
 import { PLUGIN_CATEGORY_LABELS, featuresOf, listedPlugins, pluginById, type PluginCategory, type PluginManifest } from "@/plugins/catalog";
 import { findCopilotCli } from "@/plugins/copilot-cli/cli";
 import { ExternalPlugins } from "@/components/ext/ExternalPlugins";
+import { SwitchToPort } from "@/components/ext/SwitchToPort";
+import { PORTS, portOf } from "@/plugins/ports";
 import { extensionStates } from "@/plugins/extension-state";
 import { catalogText } from "@/plugins/catalog-text";
 import { extensionOrigin } from "@/plugins/extensions";
@@ -36,6 +38,8 @@ export default async function PluginsPage() {
   await connection();
   const on = installedPlugins();
   const set = chosenPlugins();
+  // The built-ins whose port is in the plugins folder (plugins/ports.ts): their cards offer the switch.
+  const ported = new Set((await Promise.all(PORTS.map(async (p) => ((await portOf(p.builtin)) ? p.builtin : null)))).filter((x): x is string => !!x));
   // Extensions: under the plugin they extend; the plugin bringing them names where they go.
   const exts = extensionStates();
   const extRows = (host: string): ExtensionRow[] =>
@@ -94,6 +98,7 @@ export default async function PluginsPage() {
                   </div>
                   {p.beta && <BetaWarning warning={p.beta} />}
                   {p.experimental && <ExperimentalWarning warning={p.experimental} />}
+                  {installed && ported.has(p.id) && <SwitchToPort builtin={p.id} />}
                   {p.dependsOn?.length ? (
                     <p className="text-xs text-zinc-500">
                       {t("Builds on: {names}", { names: p.dependsOn.map((d) => catalogText(t, pluginById(d).name)).join(", ") })}

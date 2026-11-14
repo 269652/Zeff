@@ -88,6 +88,18 @@ export default (mod) => {
   without any mod until you leave it. It is Zeff's one safe mode ([the kernel](zeff-kernel.md#safe-mode-for-everything)): external
   plugins and what starts by itself are off too, and a bar on every page shows it. No mod can hook `lib/kernel/`.
 
+## Patches from a repository
+
+A plugin repository can hold mods beside plugins (a folder with `zeff-mod.json`). These are **patches** to Zeff itself, shipped
+without a rebuild ([the kernel's stage 2](zeff-kernel.md#2-the-bridge-mods-in-the-database), `src/lib/mods/feed.ts`):
+
+- **Only signed.** A patch runs with Zeff's own rights, so it is installed from a source only as a signed release
+  ([signed releases](plugins/repository.md#signed-releases)). An unsigned patch, or one changed after signing, is refused.
+- **Like a plugin update.** A newer version shows in the update notes. *Update* installs it, builds it and loads it at once. A new
+  patch comes on with your click, and an update keeps it on or off as you had it. The version before is kept.
+- **Pinned to the code it was written for.** Its `targets` (the hash of each hook's code) are part of what was signed. When a Zeff
+  update changes that code, the hook is held back by itself.
+
 ## For your case: point, say, try, keep or undo
 
 The way a change you want reaches Zeff — *"this would work better for me"* — without leaving the page:

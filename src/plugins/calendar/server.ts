@@ -1,4 +1,4 @@
-import { correlationSeries } from "@/plugins/correlations/series-point";
+import { correlationSeries } from "@/lib/series/series-point";
 import { proposalSources } from "@/lib/proposals/point";
 import { CALENDAR_PROPOSALS } from "./proposals";
 import { workspaceSources } from "@/plugins/workspace/source-point";

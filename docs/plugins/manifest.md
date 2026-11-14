@@ -434,3 +434,90 @@ The functions are the plugin's own (`contributes.functions`) and do only what yo
   `{ item, action }`, and what it gives (a text) is said.
 - **`reviewLinks`**: things waiting on a page of their own. The queue shows how many (`count` gives a number) and links to `href` (inside
   Zeff).
+
+## `contributes.tools` and `contributes.settings` — tools for the AI, settings with secrets
+
+```json
+"tools": [
+  { "name": "film_find", "title": "Find a film", "description": "Find a film by its title — use it when …", "function": "find",
+    "input": [{ "name": "title", "type": "text", "description": "Its title", "required": true }, { "name": "year", "type": "number" }],
+    "readOnly": true }
+],
+"settings": [
+  { "key": "apiKey", "label": "API key", "kind": "secret", "required": true, "help": "From your account at …" },
+  { "key": "language", "label": "Language", "kind": "select", "options": ["de", "en"], "default": "en" }
+]
+```
+
+- **`tools`**: each one is a function of the plugin that the AI calls by `name`. It shows beside Zeff's own tools in Zeff's MCP, the
+  Workspace chat and agents. `input` types: `text`, `number`, `boolean`, `json`, `list`. The function gets the arguments, and what it
+  returns is the answer (text as it is, anything else as JSON). A name Zeff or another plugin already has is left out: Zeff's own come
+  first. The tool is there only while the plugin is on, so safe mode has none. `readOnly` marks a tool that only reads.
+- **`settings`**: what the user sets on the plugin's card on the Plugins page (⚙️ Settings). Kinds: `text`, `number`, `checkbox`,
+  `select` (with `options`) and `secret`.
+  - A secret is kept encrypted (AES-256-GCM, with a key file beside the data, never in the database) and never shown again: the form
+    says only that one is set, and leaving it empty keeps it.
+  - The plugin's own functions get every value as `inputs.zeffSettings` (secrets in clear). No other plugin sees them, and they are not
+    kept with the run.
+  - `required` settings not set yet show as *needs setting up* on the card.
+
+## `contributes.lambdas` — code that runs without the Notebook
+
+```json
+"lambdas": "lambdas",
+"tools": [{ "name": "film_find", "description": "…", "lambda": "films.find", "input": [{ "name": "title", "type": "text", "required": true }] }]
+```
+
+A folder of lambdas: `<name>/lambda.json` with its code (`index.mjs`, exporting `handler`), and `_lib.mjs` beside them, which each
+lambda gets as its `lib.mjs`. These are the same as the Studio's lambdas: lookups (`kind: "lookup"`) and functions (`kind:
+"function"`).
+
+- **The sandbox.** Each lambda runs in a Node process of its own. It may read only its folder, it may reach only the domains its
+  `lambda.json` names (never a private address), and it may call only the Zeff functions it names. There is a memory and a time limit.
+  No Notebook or Docker is needed.
+- **Secrets.** Its secrets (`"secrets": ["TMDB_KEY"]`) come from the plugin's settings of that key, and from the Studio's secrets.
+  Only its own plugin's settings are used, and only the keys it names.
+- **Your changes.** A change you make to one in the Studio wins over the plugin's until you reset it.
+- **Tools.** A tool can name a lambda (kind `function`) instead of a function: `"lambda": "<name>"`.
+
+Lookups is built this way ([zeff-plugins/plugins/lookups-ext](../../../zeff-plugins/plugins/lookups-ext)).
+
+## `contributes.services` — filling a place of the kernel
+
+```json
+"services": [{ "name": "web.search", "lambda": "web.search.run" }]
+```
+
+Some things the rest of Zeff calls have a fixed shape in the kernel: a **service** (`KERNEL_SERVICES` in `src/lib/kernel/contract.ts`).
+A plugin fills one with a lambda of its own (kind `function`). Everything that calls the service keeps calling it the same way,
+whichever plugin answers: a built-in, or a port of it. The answer is checked against the shape.
+
+| Service | Called with | Answers |
+| --- | --- | --- |
+| `web.search` | `{ query, count?, site?, language? }` | `{ hits: [{ title, url, snippet }] }` (only http(s) addresses) |
+
+`web.search` is used by flows, by the lookups' web source and by Learn's research. While the built-in Web search is installed, it
+answers; otherwise the first plugin that is on and fills the service does.
+
+Lambdas also reach the kernel's own actions (name them in `lambda.json`'s `"zeff"`). These include `web.read` (a page as text, never
+the machine's own network) and `ai.websearch` (a search through the Claude login, no key needed).
+
+### The `browser` permission
+
+`"permissions": ["browser"]` lets the plugin's lambdas open public pages in Zeff's automated Chrome (`context.zeff.call("web.browse",
+{ url, steps?, maxChars? })`, with `"zeff": ["web.browse"]` in `lambda.json`). The Chrome is a driver of the kernel
+(`src/lib/web/browser.ts`): an empty profile, no logins, and never the machine's own network, also for what a page loads. You grant the
+permission when you switch the plugin on. The address must be one the lambda's `"web"` allows. The answer is `{ url, status, title,
+text, truncated, mainImage, images: [{ src, alt, width, height }], links: [{ href, text }] }`.
+
+### Porting a built-in's pure code
+
+Code of a built-in that reads nothing of Zeff (computing, wording) doesn't have to be written twice. Pull it into a pure module whose
+translator and data come as arguments (Correlations: `src/plugins/correlations/core.ts`), let the built-in use it, and bundle it into
+the port's lambdas with esbuild (`scripts/port-correlations.mts` writes `lambdas/_lib.mjs`, with the German and Spanish texts it says).
+The built-in and its port then say the same, word for word. A lambda knows the user's language as `context.language`; data comes
+through the kernel's reads (`series.read`, `series.catalog`, `web.read` …).
+
+Widgets can name a lambda too (`"lambda"` and `"actLambda"` instead of `"function"` and `"act"`). A select setting can take its options
+from Zeff (`"optionsFrom": "series"`). A port's widget takes over the id of the built-in it replaces (`"replaces": "correlations.findings"`),
+so the widgets on your pages keep working after the switch.

@@ -62,3 +62,22 @@ package) is brought up to date the usual way — what you changed there stays.
 
 Change the plugin in `zeff-plugins`, raise `version` in its `zeff-plugin.json`, commit. Every Zeff that has it offers the update at
 its next check, with your commit messages as the notes.
+
+## Signed releases
+
+A release can be signed. The plugin's folder then holds `zeff-release.json`, with every file's SHA-256 and an Ed25519 signature over
+them (`src/lib/kernel/release.ts`). Zeff checks it against the publisher keys it ships with (`RELEASE_KEYS`):
+
+| What the repository serves | What Zeff does |
+| --- | --- |
+| Signed, every file as signed | Installs or updates. The origin remembers the key. |
+| A file changed, added or missing after signing; another key; a forged signature | Refuses, and nothing is written. |
+| Not signed | As before: installed switched off, with what you grant. |
+| Not signed, but the plugin was installed signed | Refuses: a signed plugin is only updated signed. |
+
+Publishing a signed version (of a plugin, or of a patch — a folder with `zeff-mod.json`, see [mods](../mods.md#patches-from-a-repository)):
+
+1. Once: `npm run release:keygen -- <name>` makes a key pair. The private key goes to `~/.zeff-release/<name>.pem` (never into a
+   repository). Put the printed public key into `RELEASE_KEYS`; that takes a kernel update.
+2. Each version: change the plugin, raise `version`, then `npm run release:sign -- <plugin folder> ~/.zeff-release/<name>.pem <name>`,
+   and commit `zeff-release.json` with it. Signing comes last: any later change makes the release refused.

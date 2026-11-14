@@ -168,7 +168,7 @@ test("a view of the package you left as an older version had it takes the new ve
   const rep = await life.updateTracked("views", pkg("1.1.0", "<text>two</text>") as never);
   assert.equal(app().template, "<text>two</text>");
   assert.deepEqual(app().hidden, [nId]);
-  assert.ok(rep.changes.some((c) => c.includes("view “App” updated")), rep.changes.join("|"));
+  assert.ok(rep.changes.some((c) => /view “App” updated|merged with yours/.test(c)), rep.changes.join("|"));
   // A view that once missed a version (its template still 1.0.0's) is still reached.
   mine({ template: "<text>one</text>" });
   await life.updateTracked("views", pkg("1.2.0", "<text>three</text>") as never);

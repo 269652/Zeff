@@ -5,9 +5,10 @@ import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { BarList } from "@/components/charts";
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
+import { getPlugin } from "@/lib/ext/registry";
 import { analyze, comparePair, num, type Pair } from "@/plugins/correlations/engine";
 import { findSeries, pairText, period, scaleText, seriesOf, targetChoices } from "@/plugins/correlations/report";
-import type { Series } from "@/plugins/correlations/series-point";
+import type { Series } from "@/lib/series/series-point";
 import { exploreHref } from "@/plugins/correlations/widgets";
 
 export async function generateMetadata(): Promise<Metadata> {
@@ -53,7 +54,8 @@ function Scatter({ pair, x, y }: { pair: Pair; x: Series; y: Series }) {
  */
 export default async function CorrelationsPage({ searchParams }: { searchParams: Promise<{ y?: string; x?: string; lag?: string; days?: string }> }) {
   await connection();
-  if (!isInstalled("correlations")) return <PluginNotInstalled id="correlations" />;
+  // (the built-in, or its port — correlations-ext: the page reads the same core and the kernel's series)
+  if (!isInstalled("correlations") && !getPlugin("correlations-ext")?.enabled) return <PluginNotInstalled id="correlations" />;
   const sp = await searchParams;
   const days = Math.max(14, Math.min(730, Number(sp.days) || 90));
   const lag: 0 | 1 = sp.lag === "1" ? 1 : 0;

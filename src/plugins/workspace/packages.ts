@@ -71,6 +71,8 @@ export type WorkspacePackage = {
   version?: string;
   /** Other packages (id + range: "^1.0.0") and plugins it needs. */
   requires?: { package: string; version?: string }[];
+  /** The kernel contract version it was written for (docs/kernel-contract.md; the extension API version): a newer one than this Zeff's is refused. None: 1. */
+  kernel?: number;
   plugins?: string[];
   migrations?: PackageMigration[];
   tests?: PackageTest[];

@@ -15,6 +15,8 @@ type Tool = (a: Record<string, unknown>) => Promise<{ content: { text: string }[
 async function tools() {
   const { setInstalled } = await import("@/plugins/state");
   for (const id of ["workspace", "correlations", "calendar"]) setInstalled(id, true);
+  // (ZEFF_CORRELATIONS_EXT=1: against the port — tests/correlations-ext.test.ts)
+  await (await import("./correlations-port")).useCorrelationsPort();
   const { registerZeffTools } = await import("@/mcp/server");
   const t: Record<string, Tool> = {};
   registerZeffTools({ registerTool: (name: string, _c: unknown, fn: never) => void (t[name] = fn) } as never);

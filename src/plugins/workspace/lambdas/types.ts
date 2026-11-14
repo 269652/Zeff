@@ -40,7 +40,7 @@ export type LambdaManifest = {
   memoryMb?: number;
 };
 
-export type Lambda = { manifest: LambdaManifest; files: Record<string, string>; builtin: boolean; /** A built-in changed by you (reset gives back Zeff's). */ changed: boolean; updatedAt: string | null };
+export type Lambda = { manifest: LambdaManifest; files: Record<string, string>; builtin: boolean; /** A built-in changed by you (reset gives back Zeff's). */ changed: boolean; updatedAt: string | null; /** Whose it is: the plugin that brings it ("lookups", or "ext:<id>" for an external plugin's) — its secrets come from there. */ plugin?: string };
 
 export const LAMBDA_NAME = /^[a-z][a-z0-9_-]*(\.[a-z0-9_-]+)*$/;
 export const FILE_NAME = /^[A-Za-z0-9_-]+(\.[A-Za-z0-9_-]+)*\.(mjs|js|json|txt|md)$/;

@@ -12,6 +12,8 @@ import { createRoutine } from "./routines";
 import { compareVersions, satisfies } from "./semver";
 import { getInstalled, hashOf, keepSnapshot, listInstalled, MAX_HISTORY, packageIdOf, read, readSnaps, versionsKept, write, type HistoryEntry, type TestResult } from "./package-registry";
 import { migrate } from "./package-migrations";
+import { mergeDoc, mergeRecord, type Merged } from "./merge-parts";
+import { CONTRACT_VERSION, OLDEST_CONTRACT } from "@/lib/kernel/contract";
 import { runPackageTests } from "./package-tests";
 
 // What used to live in this file, still found here: versions, the registry, the tests that ship with a package.
@@ -32,6 +34,8 @@ export { runPackageTests } from "./package-tests";
 /** What stands in the way of installing this package (empty: nothing). */
 export function checkRequirements(pkg: WorkspacePackage): string[] {
   const problems: string[] = [];
+  const k = kernelProblem(pkg, CONTRACT_VERSION);
+  if (k) problems.push(k);
   for (const p of pkg.plugins ?? []) if (!isInstalled(p as never)) problems.push(`The plugin “${p}” is needed (Menu → Plugins).`);
   const have = read();
   for (const r of pkg.requires ?? []) {
@@ -40,6 +44,28 @@ export function checkRequirements(pkg: WorkspacePackage): string[] {
     else if (!satisfies(d.version, r.version)) problems.push(`The package “${r.package}” is installed in version ${d.version}, but ${r.version} is needed.`);
   }
   return problems;
+}
+
+/** Why a package can't run on a kernel of this contract version (null: it can). Today a contract version only grows; one below the
+ * oldest a kernel still speaks would be refused too, once there is one (OLDEST_CONTRACT). */
+export function kernelProblem(pkg: Pick<WorkspacePackage, "kernel" | "name">, version: number): string | null {
+  const wants = Number.isInteger(pkg.kernel) && pkg.kernel! > 0 ? pkg.kernel! : 1;
+  if (wants > version) return `“${pkg.name}” is made for a newer Zeff (kernel contract ${wants}; this one speaks ${version}) — update Zeff first.`;
+  if (wants < OLDEST_CONTRACT) return `“${pkg.name}” is made for kernel contract ${wants}, which this Zeff no longer speaks (${OLDEST_CONTRACT}–${version}).`;
+  return null;
+}
+
+/**
+ * Before a kernel update: the installed apps that a kernel of `version` couldn't run, with why — shown before Zeff is updated, so
+ * nothing stops working unannounced (docs/zeff-kernel.md, "How an update arrives").
+ */
+export function appsBlockingKernel(version: number): { id: string; name: string; problem: string }[] {
+  const snaps = readSnaps();
+  return listInstalled().flatMap((i) => {
+    const pkg = snaps[i.id]?.[i.version];
+    const problem = pkg ? kernelProblem(pkg, version) : null;
+    return problem ? [{ id: i.id, name: i.name, problem }] : [];
+  });
 }
 
 const describePerm = (o: unknown): string[] =>
@@ -132,7 +158,7 @@ function allowRequested(rootId: number, id: string): string[] {
 // Update in place
 // ---------------------------------------------------------------------------
 
-export type UpdateReport = { id: string; from: string; to: string; changes: string[]; kept: string[]; tests: TestResult[]; /** The flows given what they ask for (allow). */ allowed?: string[] };
+export type UpdateReport = { id: string; from: string; to: string; changes: string[]; kept: string[]; /** Spots both you and the update changed: yours kept (also in `kept`). */ conflicts?: string[]; tests: TestResult[]; /** The flows given what they ask for (allow). */ allowed?: string[] };
 
 /**
  * Properties and views the package adds to a database you changed; yours stay as they are. A view of the package's own takes what the new
@@ -175,12 +201,31 @@ function mergeSchema(current: DbSchema, next: DbSchema, before: DbSchema[] = [])
 }
 
 /** What an item is updated with: whether it is new, whether it is as the package left it (else it is yours), the package's numbers → pages. */
-type ItemEnv = { isNew: boolean; untouched: boolean; f: (local: unknown) => number | undefined; changes: string[]; kept: string[]; /** The item as the versions before had it (their snapshots, those kept). */ before: PackageItem[] };
+type ItemEnv = {
+  isNew: boolean;
+  untouched: boolean;
+  f: (local: unknown) => number | undefined;
+  changes: string[];
+  kept: string[];
+  /** The item as the versions before had it (their snapshots, those kept). */
+  before: PackageItem[];
+  /** The item as the version installed until now had it: the base of the three-way merge (merge-parts.ts) — none: kept the old way. */
+  base?: PackageItem;
+  /** Spots both you and the new version changed: yours kept, named here. */
+  conflicts: string[];
+};
 type PageOf = NonNullable<ReturnType<typeof getPage>>;
 /** One kind of item brought to the new version; true: it was one of this kind. Add a kind of item = add one function here. */
-type Applier = (i: PackageItem, page: PageOf, env: ItemEnv) => boolean;
+type Applier = (i: PackageItem, page: PageOf, env: ItemEnv) => boolean | Promise<boolean>;
 
-const applyDatabase: Applier = (i, page, { isNew, untouched, f, changes, kept, before }) => {
+/** A merge's outcome said in the report: what came from the update, where both changed (yours kept). */
+function report(page: PageOf, r: Merged<unknown>, env: ItemEnv): void {
+  if (r.took.length) env.changes.push(`“${page.title}”: ${r.took.length} change${r.took.length === 1 ? "" : "s"} of the update merged with yours`);
+  for (const c of r.conflicts) env.conflicts.push(`“${page.title}” ${c.where}: changed by you and by the update — yours stays`);
+}
+
+const applyDatabase: Applier = (i, page, env) => {
+  const { isNew, untouched, f, changes, kept, before, base } = env;
   if (i.kind !== "database" || !i.schema) return false;
   const mapped = mapSchema(i.schema, f);
   if (untouched) {
@@ -188,6 +233,12 @@ const applyDatabase: Applier = (i, page, { isNew, untouched, f, changes, kept, b
       updateSchema(page.id, mapped);
       if (!isNew) changes.push(`“${page.title}”: structure updated`);
     }
+  } else if (base?.kind === "database" && base.schema && page.schema) {
+    // Field by field, view by view, by their ids.
+    const older = before.flatMap((b) => (b.kind === "database" && b.schema ? [mapSchema(b.schema, f) as never] : []));
+    const r = mergeRecord(mapSchema(base.schema, f) as never, page.schema as never, mapped as never, "", older);
+    if (JSON.stringify(r.value) !== JSON.stringify(page.schema)) updateSchema(page.id, r.value as unknown as DbSchema);
+    report(page, r, env);
   } else {
     const merged = mergeSchema(page.schema!, mapped, before.flatMap((b) => (b.kind === "database" && b.schema ? [mapSchema(b.schema, f)] : [])));
     if (merged.added.length) {
@@ -203,19 +254,37 @@ const applyDatabase: Applier = (i, page, { isNew, untouched, f, changes, kept, b
   return true;
 };
 
-const applyForm: Applier = (i, page, { untouched, f, kept }) => {
+const applyForm: Applier = (i, page, env) => {
+  const { untouched, f, kept, base } = env;
   if (i.kind !== "form" || !i.form) return false;
-  if (untouched) setPageProps(page.id, { form: normalizeForm({ ...i.form, dbId: f(i.form.dbId) ?? null }) });
-  else kept.push(`“${page.title}” (form): your version stays`);
+  const theirs = normalizeForm({ ...i.form, dbId: f(i.form.dbId) ?? null });
+  const mine = (page.props as { form?: unknown } | undefined)?.form;
+  if (untouched) setPageProps(page.id, { form: theirs });
+  else if (base?.kind === "form" && base.form && mine && typeof mine === "object") {
+    const r = mergeRecord(normalizeForm({ ...base.form, dbId: f(base.form.dbId) ?? null }) as never, mine as never, theirs as never, "");
+    setPageProps(page.id, { form: normalizeForm(r.value as never) });
+    report(page, r, env);
+  } else kept.push(`“${page.title}” (form): your version stays`);
   return true;
 };
 
-const applyFlow: Applier = (i, page, { isNew, untouched, changes, kept }) => {
+const applyFlow: Applier = (i, page, env) => {
+  const { isNew, untouched, changes, kept, base } = env;
   if (!i.flow || typeof i.flow !== "object") return false;
   const cur = getFlow(page.id);
   if (cur && untouched) {
     saveFlow(page.id, { ...i.flow, permissions: cur.permissions });
     if (!isNew) changes.push(`flow “${page.title}” updated (its permissions stay as you gave them)`);
+  } else if (cur && base?.flow && typeof base.flow === "object") {
+    // Step by step (by their ids), its settings key by key; its permissions stay as you gave them.
+    const strip = (x: object) => {
+      const { permissions: _p, requested: _r, pageId: _i, ...rest } = x as Record<string, unknown>;
+      void _p, void _r, void _i;
+      return rest;
+    };
+    const r = mergeRecord(strip(base.flow), strip(cur), strip(i.flow), "");
+    if (r.took.length) saveFlow(page.id, { ...(r.value as typeof cur), permissions: cur.permissions });
+    report(page, r, env);
   } else if (cur) kept.push(`flow “${page.title}”: your version stays`);
   else if (isNew) {
     try {
@@ -227,9 +296,20 @@ const applyFlow: Applier = (i, page, { isNew, untouched, changes, kept }) => {
   return true;
 };
 
-const applyContent: Applier = (i, page, { isNew, untouched, f, changes, kept }) => {
+const applyContent: Applier = async (i, page, env) => {
+  const { isNew, untouched, f, changes, kept, base } = env;
   if (!i.content) return false;
-  if (!untouched) kept.push(`“${page.title}”: your version stays`);
+  if (!untouched && base?.content && page.content) {
+    // Block by block (a paragraph, a heading, a widget), the way git merges lines.
+    const theirs = mapDoc(i.content, f);
+    const was = mapDoc(base.content, f);
+    if (theirs && was) {
+      const r = await mergeDoc(sanitizeDoc(was) as never, page.content as never, sanitizeDoc(theirs) as never, "text");
+      const doc = sanitizeDoc(r.value as never);
+      if (JSON.stringify(doc) !== JSON.stringify(page.content)) updatePage(page.id, { content: doc });
+      report(page, r, env);
+    } else kept.push(`“${page.title}”: your version stays`);
+  } else if (!untouched) kept.push(`“${page.title}”: your version stays`);
   else {
     const c = mapDoc(i.content, f);
     if (c && JSON.stringify(sanitizeDoc(c)) !== JSON.stringify(page.content)) {
@@ -304,6 +384,9 @@ export async function updateTracked(id: string, pkg: WorkspacePackage, opts: { f
   // What the versions before were (their snapshots): what you left as one of them had it may take what the new version changed.
   const oldItems = new Map<string, PackageItem[]>();
   for (const snap of Object.values(readSnaps()[id] ?? {})) for (const x of snap.items ?? []) oldItems.set(String(x.id), [...(oldItems.get(String(x.id)) ?? []), x]);
+  // The base of the three-way merge: each item as the version installed until now had it.
+  const baseItems = new Map((readSnaps()[id]?.[inst.version]?.items ?? []).map((x) => [String(x.id), x] as const));
+  const conflicts: string[] = [];
 
   if (!opts.rollback) {
     // (A page that was yours-untouched stays so after the migration changed it: the new structure still replaces it.)
@@ -340,7 +423,8 @@ export async function updateTracked(id: string, pkg: WorkspacePackage, opts: { f
       continue;
     }
     const before = oldItems.get(key) ?? [];
-    for (const apply of APPLIERS) if (apply(i, page, { isNew, untouched, f, changes, kept, before })) break;
+    const base = baseItems.get(key);
+    for (const apply of APPLIERS) if (await apply(i, page, { isNew, untouched, f, changes, kept, before, base, conflicts })) break;
     if (isNew && i.widgetState && typeof i.widgetState === "object") for (const [k, v] of Object.entries(i.widgetState).slice(0, 100)) {
       try {
         setPageState(pid, k, v);
@@ -369,7 +453,7 @@ export async function updateTracked(id: string, pkg: WorkspacePackage, opts: { f
     h[h.length - 1].tests = tests;
     write(m);
   }
-  return { id, from: oldVersion, to: pkg.version, changes: entry.changes, kept, tests, allowed };
+  return { id, from: oldVersion, to: pkg.version, changes: entry.changes, kept: [...kept, ...conflicts], conflicts, tests, allowed };
 }
 
 /** Back to a version kept: the structure of that version is brought back over yours (migrated data is not undone). */

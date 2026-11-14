@@ -50,7 +50,9 @@
     "plugin:schema": "tsx scripts/plugin-schema.mts",
     "release:check": "node scripts/smoke-release.mjs",
     "publish:github": "node scripts/publish-github.mjs",
-    "launcher:start": "npm --prefix launcher start"
+    "launcher:start": "npm --prefix launcher start",
+    "release:keygen": "tsx scripts/release-plugin.mts keygen",
+    "release:sign": "tsx scripts/release-plugin.mts sign"
   },
   "dependencies": {
     "@jitl/quickjs-wasmfile-release-sync": "^0.32.0",

@@ -6,6 +6,9 @@ import { dataDir } from "@/db";
 import { checkedUrl, flowAction } from "../flows/actions";
 import type { FlowPermissions } from "../flows/types";
 import { getLookupConfig } from "@/plugins/lookups/config";
+import { getPlugin } from "@/lib/ext/registry";
+import { getLanguage } from "@/lib/i18n/server";
+import { pluginSettings } from "@/lib/ext/plugin-settings";
 import { secretValues } from "../flows/store";
 import { getLambda } from "./store";
 import type { Lambda, LambdaManifest } from "./types";
@@ -37,12 +40,52 @@ const slot = async () => {
 };
 
 /** The secrets a lambda may read: your Studio secrets, and the Lookups settings' keys as TMDB_KEY / GOOGLE_KEY — only those it names. */
-export function secretsFor(m: Pick<LambdaManifest, "secrets">): Record<string, string> {
+export function secretsFor(m: Pick<LambdaManifest, "secrets">, plugin?: string): Record<string, string> {
   const all: Record<string, string> = { ...secretValues() };
+  // An external plugin's lambda: its plugin's settings (lib/ext/plugin-settings.ts) — its own, never another plugin's — over yours.
+  if (plugin?.startsWith("ext:")) Object.assign(all, extSettingsFor(plugin.slice(4)));
   const c = getLookupConfig();
   if (c.tmdbKey && !all.TMDB_KEY) all.TMDB_KEY = c.tmdbKey;
   if (c.googleKey && !all.GOOGLE_KEY) all.GOOGLE_KEY = c.googleKey;
   return Object.fromEntries((m.secrets ?? []).filter((k) => all[k]).map((k) => [k, all[k]]));
+}
+
+/**
+ * The kernel's automated Chrome (lib/web/browser.ts) for a lambda: only an external plugin's, only while it is on and you granted it the
+ * `browser` permission (it clicks and types on public sites), only an address its lambda.json allows — and the driver's own check of
+ * every address the page loads (never the machine's own network).
+ */
+async function browse(m: LambdaManifest, input: unknown, plugin?: string) {
+  const p = plugin?.startsWith("ext:") ? getPlugin(plugin.slice(4)) : undefined;
+  if (!p?.enabled || !p.permissions.has("browser")) throw new Error("Opening pages in a browser needs the plugin's “browser” permission (granted when you switch the plugin on).");
+  const i = (input && typeof input === "object" ? input : {}) as { url?: unknown; steps?: unknown; maxChars?: unknown };
+  const url = await checkedUrl(String(i.url ?? ""), { web: m.web ?? [] });
+  const { browserOpen, MAX_STEPS } = await import("@/lib/web/browser");
+  const steps = (Array.isArray(i.steps) ? i.steps : []).slice(0, MAX_STEPS).flatMap((x) => {
+    const o = x && typeof x === "object" ? (x as Record<string, unknown>) : {};
+    return ["click", "fill", "press", "wait", "scroll"].includes(String(o.action)) ? [{ action: o.action as "click", ...(typeof o.target === "string" ? { target: o.target } : {}), ...(typeof o.text === "string" ? { text: o.text } : {}) }] : [];
+  });
+  const opts = { steps, maxChars: Math.min(40000, Math.max(1000, Number(i.maxChars) || 12000)) };
+  // (Tests: a stand-in for the Chrome — the driver itself is tested on its own, tests/browser-plugin.test.ts.)
+  const stand = (globalThis as { __zeffBrowseStandIn?: typeof browserOpen }).__zeffBrowseStandIn;
+  return (stand ?? browserOpen)(url.toString(), opts);
+}
+
+/** The user's language now ("de", "en" …): a lambda says things in it (context.language). */
+function languageNow(): string {
+  try {
+    return getLanguage();
+  } catch {
+    return "en";
+  }
+}
+
+/** An external plugin's settings as a lambda's secrets: the values set, as text. */
+function extSettingsFor(pluginId: string): Record<string, string> {
+  const p = getPlugin(pluginId);
+  if (!p?.enabled) return {};
+  const v = pluginSettings(pluginId, p.manifest);
+  return Object.fromEntries(Object.entries(v).filter(([, x]) => x !== null && x !== "").map(([k, x]) => [k, String(x)]));
 }
 
 const hide = (s: string, secrets: Record<string, string>) => Object.values(secrets).filter((v) => v.length >= 4).reduce((acc, v) => acc.split(v).join("•••"), s);
@@ -110,8 +153,9 @@ async function proxyFetch(m: LambdaManifest, req: { url: string; method?: string
 }
 
 /** A Zeff function the lambda named: one that changes nothing, with the lambda's web. */
-async function proxyCall(m: LambdaManifest, name: string, input: unknown) {
+async function proxyCall(m: LambdaManifest, name: string, input: unknown, plugin?: string) {
   if (!(m.zeff ?? []).includes(name)) throw new Error(`This lambda may not call “${name}” — name it in lambda.json's "zeff".`);
+  if (name === "web.browse") return browse(m, input, plugin);
   const a = flowAction(name);
   if (!a) throw new Error(`There is no Zeff function “${name}”.`);
   if (a.writes) throw new Error(`“${name}” changes something — a lambda only reads; a flow can write what it returns.`);
@@ -133,7 +177,7 @@ async function proxyCall(m: LambdaManifest, name: string, input: unknown) {
 /** A lambda run with this event: what it returned (unchecked — see invokeLookup / invokeFunction), its log, how long it took. */
 export async function runLambda(l: Lambda, event: unknown, opts: { resolve?: (host: string) => Promise<string[]> } = {}): Promise<LambdaRun> {
   const t0 = Date.now();
-  const secrets = secretsFor(l.manifest);
+  const secrets = secretsFor(l.manifest, l.plugin);
   const { dir, install } = await materialize(l);
   if (!install.ok) return { ok: false, error: `Its dependencies couldn't be installed: ${install.log}`, logs: [], ms: Date.now() - t0 };
   const release = await slot();
@@ -166,11 +210,11 @@ export async function runLambda(l: Lambda, event: unknown, opts: { resolve?: (ho
             (e: unknown) => !done && child.connected && child.send({ id: msg.id, error: hide(e instanceof Error ? e.message : String(e), secrets) }),
           );
         if (msg.type === "fetch") void answer(proxyFetch(l.manifest, { url: String(msg.url), method: msg.method, headers: msg.headers, body: msg.body }, opts.resolve));
-        else if (msg.type === "call") void answer(Promise.resolve().then(() => proxyCall(l.manifest, String(msg.name), msg.input)));
+        else if (msg.type === "call") void answer(Promise.resolve().then(() => proxyCall(l.manifest, String(msg.name), msg.input, l.plugin)));
       });
       child.on("exit", (code) => finish({ ok: false, error: `the process ended (${code ?? "killed"})${stderr ? `: ${stderr.trim().split("\n").slice(-3).join(" ")}` : ""}`, logs: [], ms: Date.now() - t0 }));
       child.on("error", (e) => finish({ ok: false, error: e.message, logs: [], ms: Date.now() - t0 }));
-      child.send({ type: "job", dir, name: l.manifest.name, event, secrets, timeoutMs: l.manifest.timeoutMs ?? 20000 });
+      child.send({ type: "job", dir, name: l.manifest.name, event, secrets, timeoutMs: l.manifest.timeoutMs ?? 20000, language: languageNow() });
     });
   } finally {
     release();

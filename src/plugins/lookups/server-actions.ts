@@ -15,6 +15,22 @@ export async function saveLookupsAction(fd: FormData): Promise<void> {
   redirect(`/settings/lookups?ok=${encodeURIComponent(t("Saved."))}`);
 }
 
+/** To the Lookups plugin (to-plugin.ts): the keys carried over, the plugin on, this built-in off. */
+export async function switchLookupsToPluginAction(): Promise<void> {
+  let msg: string;
+  let ok = true;
+  try {
+    const { switchLookupsToPlugin } = await import("./to-plugin");
+    const r = await switchLookupsToPlugin();
+    msg = r.keys.length ? t("Lookups runs as a plugin now; your keys came along.") : t("Lookups runs as a plugin now.");
+  } catch (e) {
+    ok = false;
+    msg = errorMessage(e);
+  }
+  revalidatePath("/", "layout");
+  redirect(ok ? `/plugins?ok=${encodeURIComponent(msg)}` : `/settings/lookups?error=${encodeURIComponent(msg)}`);
+}
+
 /** One search at TMDB to see the key works. */
 export async function testTmdbAction(): Promise<void> {
   let msg: string;

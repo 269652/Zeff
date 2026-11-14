@@ -1,4 +1,4 @@
-import { webFetch } from "@/plugins/web-search/search";
+import { webFetch } from "@/lib/web/read";
 import { markdownToDoc } from "./doc";
 import { addRow, getDatabase, rawRows, updatePage } from "./store";
 

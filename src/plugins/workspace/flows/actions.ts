@@ -215,7 +215,7 @@ const CORE: FlowAction[] = [
     needs: ["web"],
     run: async (i, ctx) => {
       const url = await ctx.web(text(i.url));
-      const { webFetch } = await import("@/plugins/web-search/search");
+      const { webFetch } = await import("@/lib/web/read");
       return webFetch(url.toString(), { maxChars: Math.min(200000, Number(i.maxChars) || 20000) });
     },
   },
@@ -240,10 +240,58 @@ const CORE: FlowAction[] = [
     input: [f("query", "text", { required: true }), f("count", "number", { default: 5 }), f("site", "text", { help: "only this domain" }), f("language", "text")],
     output: "{ hits: [{ title, url, snippet }] }",
     run: async (i) => {
+      const args = { query: text(i.query), count: Number(i.count) || 5, site: text(i.site) || undefined, language: text(i.language) || undefined };
       const { isInstalled } = await import("@/plugins/state");
-      if (!isInstalled("web-search")) throw new Error("The Web search plugin is off (Menu → Plugins).");
-      const { webSearch } = await import("@/plugins/web-search/search");
-      return { hits: await webSearch(text(i.query), { count: Number(i.count) || 5, site: text(i.site) || undefined, language: text(i.language) || undefined }) };
+      if (isInstalled("web-search")) {
+        const { webSearch } = await import("@/plugins/web-search/search");
+        return { hits: await webSearch(args.query, args) };
+      }
+      // The kernel's service (lib/kernel/contract.ts KERNEL_SERVICES): a Web search plugin answers in the same shape.
+      const r = await (await import("../ext-services")).runService("web.search", args);
+      if (r !== undefined) return r;
+      throw new Error("The Web search plugin is off (Menu → Plugins).");
+    },
+  },
+  {
+    name: "series.catalog",
+    group: "data",
+    label: "Daily series: which there are",
+    summary: "The daily series of your data (Workspace databases' fields, meeting hours, booked hours, messages, todos, spending …) without values: id, label, group, kind, unit, levels — only those the caller may see.",
+    input: [],
+    output: "{ series: [{ id, label, group, kind, unit?, levels? }] }",
+    run: async () => {
+      const { seriesCatalog } = await import("@/lib/series/series");
+      return { series: seriesCatalog() };
+    },
+  },
+  {
+    name: "series.read",
+    group: "data",
+    label: "Daily series: their values",
+    summary: "Every daily series with its values from one day to another (YYYY-MM-DD, at most ten years): a day to a number, a day missing has no value — only those the caller may see.",
+    input: [f("from", "text", { required: true }), f("to", "text", { required: true })],
+    output: "{ series: [{ id, label, group, kind, unit?, levels?, values: { YYYY-MM-DD: number } }] }",
+    run: async (i) => {
+      const day = (v: unknown) => (/^\d{4}-\d{2}-\d{2}$/.test(text(v)) ? text(v) : null);
+      const from = day(i.from);
+      const to = day(i.to);
+      if (!from || !to || from > to) throw new Error("series.read: from and to are days (YYYY-MM-DD), from before to.");
+      if (Date.parse(to) - Date.parse(from) > 3660 * 86400000) throw new Error("series.read: at most ten years.");
+      const { allSeries } = await import("@/lib/series/series");
+      return { series: (await allSeries({ from, to })).map(({ values, ...info }) => ({ ...info, values: Object.fromEntries(values) })) };
+    },
+  },
+  {
+    name: "ai.websearch",
+    group: "web",
+    label: "Web search by the Claude login",
+    summary: "Searches the web through the web search of your Claude login — no key, no card, only the Claude CLI signed in: hits with title, url, snippet. What the Web search plugins use without an API key.",
+    input: [f("query", "text", { required: true }), f("count", "number", { default: 5 }), f("language", "text")],
+    output: "{ hits: [{ title, url, snippet }] }",
+    run: async (i) => {
+      const { aiWebSearch, canAiSearch } = await import("@/lib/web/ai-search");
+      if (!canAiSearch()) throw new Error("Web search needs the Claude CLI, signed in, or a search API key in the Web search plugin's settings.");
+      return { hits: await aiWebSearch(text(i.query), Math.min(10, Math.max(1, Number(i.count) || 5)), text(i.language) || undefined) };
     },
   },
   {

@@ -4,7 +4,7 @@ import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { t } from "@/lib/i18n/server";
 import { getLookupConfig } from "@/plugins/lookups/config";
-import { saveLookupsAction, testTmdbAction } from "@/plugins/lookups/server-actions";
+import { saveLookupsAction, switchLookupsToPluginAction, testTmdbAction } from "@/plugins/lookups/server-actions";
 import { TMDB_CREDIT } from "@/plugins/lookups/config";
 import { isInstalled } from "@/plugins/state";
 import { lookupSources } from "@/plugins/workspace/lookups";
@@ -54,6 +54,11 @@ export default async function LookupsSettingsPage({ searchParams }: { searchPara
             {t("Try TMDB")}
           </button>
         </div>
+      </form>
+      <form action={switchLookupsToPluginAction} className="card space-y-2 p-4">
+        <h2 className="text-sm font-semibold">{t("Lookups as a plugin")}</h2>
+        <p className="text-xs text-zinc-500">{t("The same sources as a plugin from its repository: it updates without a new Zeff, and its keys are kept encrypted. Your keys and views come along. Install it first under Plugins → Sources.")}</p>
+        <button className="btn btn-sm">{t("Switch to the plugin")}</button>
       </form>
       <section className="card space-y-2 p-4">
         <h2 className="text-sm font-semibold">{t("Sources")}</h2>

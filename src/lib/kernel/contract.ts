@@ -14,6 +14,17 @@ import { API_VERSION } from "@/lib/ext/manifest";
  * one contract. Data only.
  */
 export const CONTRACT_VERSION = API_VERSION;
+/**
+ * Services: places in the kernel that one plugin fills (`contributes.services`), each with a fixed shape — what the rest of Zeff calls
+ * stays the same whichever plugin answers (a built-in, or a port of it). Its answer is checked against the shape.
+ */
+export const KERNEL_SERVICES = {
+  "web.search": { input: "{ query: text, count?: 1–10, site?: domain, language?: de|en|… }", output: "{ hits: [{ title, url, snippet }] }" },
+} as const;
+export type KernelService = keyof typeof KERNEL_SERVICES;
+
+/** The oldest contract version this kernel still speaks: a package or plugin made for an older one is refused (none yet: 1). */
+export const OLDEST_CONTRACT = 1;
 
 export const KERNEL_CONTRACT = {
   /**
@@ -27,7 +38,8 @@ export const KERNEL_CONTRACT = {
    */
   extensionPoints: {
     "api.methods": { form: "kernel", via: "functions" },
-    "correlations.series": { form: "owner", owner: "correlations" },
+    // The daily series are the kernel's (lib/series): built-ins add theirs here; a plugin reads them (series.read) from its lambdas.
+    "correlations.series": { form: "kernel", via: "lambdas" },
     "documents.texts": { form: "owner", owner: "documents" },
     // A plugin's lists are its package's databases — every Workspace database is a collection already.
     "items.collections": { form: "covered", by: "workspacePackages" },
@@ -43,7 +55,7 @@ export const KERNEL_CONTRACT = {
     "workspace.fieldTypes": { form: "stored", manifest: "fieldTypes" },
     "workspace.flowActions": { form: "stored", manifest: "flowActions" },
     "workspace.formulaFunctions": { form: "stored", manifest: "formulaFunctions" },
-    "workspace.lambdas": { form: "kernel", via: "functions" },
+    "workspace.lambdas": { form: "stored", manifest: "lambdas" },
     "workspace.lookups": { form: "stored", manifest: "lookups" },
     "workspace.metrics": { form: "stored", manifest: "metrics" },
     "workspace.packages": { form: "stored", manifest: "workspacePackages" },
@@ -58,7 +70,7 @@ export const KERNEL_CONTRACT = {
   },
 
   /** What a plugin's manifest may bring (`contributes` in zeff-plugin.json, lib/ext/manifest.ts). */
-  manifestContributes: ["apps", "chats", "fieldTypes", "flowActions", "formulaFunctions", "functions", "hooks", "language", "locales", "lookups", "metrics", "pageNav", "reviewLinks", "reviewSources", "rowBadges", "schedules", "sources", "tabMenus", "widgets", "workCommands", "workPanels", "workerMcpServers", "workerRules", "workspacePackages"],
+  manifestContributes: ["apps", "chats", "fieldTypes", "flowActions", "formulaFunctions", "functions", "hooks", "lambdas", "language", "locales", "lookups", "metrics", "pageNav", "reviewLinks", "reviewSources", "rowBadges", "schedules", "services", "settings", "sources", "tabMenus", "tools", "widgets", "workCommands", "workPanels", "workerMcpServers", "workerRules", "workspacePackages"],
 
   /** What a server function or a Notebook cell may ask Zeff for (`zeff.*` in Python and Node.js; notebook/zeff-access.ts). */
   functionCalls: ["add_row", "ai", "api", "call", "database", "databases", "delete_row", "meta", "metric", "metrics", "output", "outputs", "publish", "table", "tables", "update_row"],

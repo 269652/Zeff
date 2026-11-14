@@ -1,7 +1,7 @@
 import { getSqlite } from "@/db";
 import { t } from "@/lib/i18n/server";
 import { ME_SENDER } from "@/lib/mail/shared";
-import type { SeriesProvider } from "@/plugins/correlations/series-point";
+import type { SeriesProvider } from "@/lib/series/series-point";
 import { isInstalled } from "@/plugins/state";
 import { withThem } from "./appointments";
 import type { Channel } from "./pulse";
@@ -313,7 +313,7 @@ export async function contactDaysByPerson(range: { from: string; to: string }, t
 export const PEOPLE_SERIES: SeriesProvider = {
   id: "people.contact",
   series: async (range) => {
-    const { filled } = await import("@/plugins/correlations/days");
+    const { filled } = await import("@/lib/series/days");
     const group = t("People");
     return (await contactDaysByPerson(range)).map(({ person, days, first }) => ({
       id: `people:${person.id}:contact`,

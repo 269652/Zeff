@@ -42,7 +42,8 @@ export function builtinLambdas(): Map<string, Lambda> {
   if (cache && Date.now() - cache.at < 5000) return cache.list;
   const list = new Map<string, Lambda>();
   for (const c of builtinLambdasPoint.list()) {
-    const dir = path.join(process.cwd(), c.impl.dir);
+    // (a built-in plugin's folder is relative to the checkout; an external plugin's is where its plugin is — absolute)
+    const dir = path.resolve(process.cwd(), c.impl.dir);
     let names: string[] = [];
     try {
       names = fs.readdirSync(dir).filter((n) => fs.existsSync(path.join(dir, n, "lambda.json")));
@@ -51,7 +52,7 @@ export function builtinLambdas(): Map<string, Lambda> {
     }
     for (const n of names) {
       const l = readFolder(path.join(dir, n));
-      if (l) list.set(l.manifest.name, l);
+      if (l) list.set(l.manifest.name, { ...l, plugin: c.plugin });
     }
   }
   cache = { at: Date.now(), list };
@@ -74,7 +75,8 @@ export function listLambdas(): Lambda[] {
   for (const r of db().prepare("select * from ws_lambdas order by name").all() as Row[]) {
     const l = fromRow(r);
     // (A change of a built-in whose plugin is gone stays stored, but isn't there.)
-    if (l && (!l.builtin || out.has(l.manifest.name))) out.set(l.manifest.name, l);
+    // (a built-in you changed stays its plugin's: its secrets still come from there)
+    if (l && (!l.builtin || out.has(l.manifest.name))) out.set(l.manifest.name, l.builtin ? { ...l, plugin: out.get(l.manifest.name)?.plugin } : l);
   }
   return [...out.values()].sort((a, b) => Number(b.builtin) - Number(a.builtin) || a.manifest.name.localeCompare(b.manifest.name));
 }

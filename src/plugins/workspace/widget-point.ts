@@ -49,6 +49,8 @@ export type WidgetData =
 export type WorkspaceWidget = {
   /** "<plugin>.<what>" — unique. */
   id: string;
+  /** A built-in widget's id it stands in for (a port's: correlations.findings) — found by that id too while that one isn't there. */
+  replaces?: string;
   label: string;
   icon: string;
   /** One line: what it shows — why it is worth a place on a page. */

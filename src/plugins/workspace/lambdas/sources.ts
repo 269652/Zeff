@@ -1,6 +1,8 @@
 import { t } from "@/lib/i18n/server";
 import { isInstalled } from "@/plugins/state";
 import { canSearch } from "@/plugins/web-search/search";
+import { serviceProvider } from "../ext-services";
+import { getPlugin } from "@/lib/ext/registry";
 import type { LookupSource } from "../lookup-point";
 import { lookupDetails, lookupSearch, secretsFor } from "./run";
 import { listLambdas } from "./store";
@@ -13,14 +15,21 @@ import type { LambdaManifest } from "./types";
  */
 
 /** What a lambda still needs before it can run — null: ready. */
-export function lambdaMissing(m: LambdaManifest): string | null {
-  const have = secretsFor({ secrets: m.requires });
+export function lambdaMissing(m: LambdaManifest, plugin?: string): string | null {
+  const have = secretsFor({ secrets: m.requires }, plugin);
   const lacking = (m.requires ?? []).filter((k) => !have[k]);
+  // (an external plugin's lambda: its keys are the plugin's settings — Plugins page, its card)
+  if (lacking.length && plugin?.startsWith("ext:")) {
+    const labels = getPlugin(plugin.slice(4))?.manifest.contributes.settings ?? [];
+    const names = lacking.map((k) => `“${labels.find((s) => s.key === k)?.label ?? k}”`).join(", ");
+    return t("Set {names} in the plugin's settings (Plugins page, its card → Settings).", { names });
+  }
   if (lacking.includes("GOOGLE_KEY")) return t("Add a Google API key under Settings → Lookups.");
   if (lacking.includes("TMDB_KEY")) return t("Add the TMDB key under Settings → Lookups.");
   if (lacking.length) return t("Set the secret {names} in the Studio (Secrets).", { names: lacking.join(", ") });
   if (m.zeff?.includes("web.search")) {
-    if (!isInstalled("web-search")) return t("Install the Web search plugin (Menu → Plugins).");
+    // (the built-in Web search, or a plugin that fills the kernel's web.search service)
+    if (!isInstalled("web-search")) return serviceProvider("web.search") ? null : t("Install the Web search plugin (Menu → Plugins).");
     if (!canSearch()) return t("The Claude CLI or a key is needed: Settings → Web search.");
   }
   return null;
@@ -29,14 +38,14 @@ export function lambdaMissing(m: LambdaManifest): string | null {
 export function lambdaLookupSources(): LookupSource[] {
   return listLambdas()
     .filter((l) => l.manifest.kind === "lookup")
-    .map(({ manifest: m }) => ({
+    .map(({ manifest: m, plugin }) => ({
       id: m.name,
       label: m.label,
       what: m.what,
       fields: m.fields ?? {},
       ...(m.credit ? { credit: m.credit } : {}),
       ...(m.slow ? { slow: true } : {}),
-      missing: () => lambdaMissing(m),
+      missing: () => lambdaMissing(m, plugin),
       search: (q, language) => lookupSearch(m.name, q, language),
       details: (id, language) => lookupDetails(m.name, id, language),
     }));

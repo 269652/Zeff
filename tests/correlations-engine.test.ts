@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { analyze, comparePair } from "@/plugins/correlations/engine";
-import type { Series, SeriesKind } from "@/plugins/correlations/series-point";
+import type { Series, SeriesKind } from "@/lib/series/series-point";
 import { addDays, rng } from "@/plugins/correlations/stats";
 
 /**

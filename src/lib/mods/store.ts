@@ -26,7 +26,10 @@ export type ModManifest = {
   /** The hooks it was written for, with their code's hash then: a hook whose code changed since is held back (filled in on save). */
   targets?: Record<string, string>;
 };
-export type ModState = { enabled: boolean; /** The accounts it is for — a change asked for in one account stays there (unset: every account). */ accounts?: string[]; changedAt?: string; by?: "you" | "ai"; disabledReason?: string; errors?: { hook: string; message: string; at: string; where: string }[]; built?: { at: string; server?: boolean; client?: boolean; css?: boolean; problems?: string[] } };
+export type ModState = {
+  /** A patch from a source (lib/mods/feed.ts): where it came from, its version there, the key its release was signed with. */
+  from?: { url: string; path: string; sha: string; version: string; key: string; at: string };
+  enabled: boolean; /** The accounts it is for — a change asked for in one account stays there (unset: every account). */ accounts?: string[]; changedAt?: string; by?: "you" | "ai" | "feed"; disabledReason?: string; errors?: { hook: string; message: string; at: string; where: string }[]; built?: { at: string; server?: boolean; client?: boolean; css?: boolean; problems?: string[] } };
 export type Mod = { manifest: ModManifest; dir: string; state: ModState };
 
 export const MOD_ID = /^[a-z][a-z0-9-]{1,39}$/;

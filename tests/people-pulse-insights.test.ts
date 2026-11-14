@@ -182,8 +182,8 @@ test("drifting: the people well beyond their rhythm, the furthest first; a day w
 
   // Through the Correlations: there for you, not for an agent without clearance for personal data.
   await import("@/plugins/contributions");
-  const { allSeries } = await import("@/plugins/correlations/series");
-  const { visibleSeries } = await import("@/plugins/correlations/boundaries");
+  const { allSeries } = await import("@/lib/series/series");
+  const { visibleSeries } = await import("@/lib/series/boundaries");
   const all = await allSeries(range);
   assert.ok(all.some((s) => s.id === ana.id));
   assert.ok(visibleSeries(all, "personal").some((s) => s.id === ana.id));

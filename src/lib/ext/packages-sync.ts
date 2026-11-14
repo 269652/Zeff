@@ -111,6 +111,11 @@ export async function checkForUpdates(): Promise<UpdateNote[]> {
       if (!p.updateAvailable || !p.fromHere) continue;
       out.push({ id: p.id, name: p.name, from: p.installed, to: p.version, sourceId: st.source.id, source: st.source.fromPackages ?? st.source.url, notes: await updateNotes(st.source.id, p.id).catch(() => []), conflicts: [] });
     }
+    // Patches to Zeff itself (lib/mods/feed.ts) from where they came: "mod:<id>" — Update installs the signed release.
+    for (const m of st.mods ?? []) {
+      if (!m.updateAvailable) continue;
+      out.push({ id: `mod:${m.id}`, name: `${m.name} (patch)`, from: m.installed, to: m.version, sourceId: st.source.id, source: st.source.fromPackages ?? st.source.url, notes: [], conflicts: [] });
+    }
   }
   for (const m of pendingMerges()) {
     const open = m.files.filter((f) => f.outcome === "conflict" && !f.resolved).map((f) => f.rel);

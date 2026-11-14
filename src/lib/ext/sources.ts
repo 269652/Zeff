@@ -1,11 +1,13 @@
 import fs from "node:fs";
 import path from "node:path";
+import { BASE_DIR } from "@/db/accounts";
 import { getPref, setPref } from "@/lib/prefs";
 import * as git from "./git";
 import { parseManifest, type Manifest } from "./manifest";
 import { allPending, applyPlan, dropPending, openConflicts, pending, planFile, savePending, type FilePlan, type PendingMerge } from "./merge3";
 import { readPackagesFile } from "./packages-file";
 import { isEnabled, pluginsRoot, scanPlugins } from "./registry";
+import { checkRelease } from "@/lib/kernel/release";
 
 /**
  * Where plugins and apps come from, and newer versions of them: repositories — on GitHub (read through its web API), or any git
@@ -30,7 +32,7 @@ const CACHE_MS = 10 * 60_000;
 export type Source = { id: string; url: string; branch?: string; token?: string; addedAt: string };
 /** What the user sees of a source (never its token). */
 export type SourceView = { id: string; url: string; branch?: string; hasToken: boolean; fromManifest?: boolean; fromPackages?: string; git?: boolean };
-export type Origin = { url: string; path: string; branch: string; sha: string; version: string; at: string; files: string[] };
+export type Origin = { url: string; path: string; branch: string; sha: string; version: string; at: string; files: string[]; /** Installed from a signed release: the key (lib/kernel/release.ts) — its updates must be signed too. */ signed?: string };
 export type Remote = {
   id: string;
   name: string;
@@ -42,7 +44,10 @@ export type Remote = {
   touched?: boolean;
 };
 export type RemoteState = Remote & { installed: string | null; fromHere: boolean; updateAvailable: boolean; enabled: boolean; conflicts: number };
-export type SourceState = { source: SourceView; branch: string; sha: string; plugins: RemoteState[]; problems: string[]; error?: string; checkedAt: string };
+/** A patch to Zeff itself in a source (a folder with zeff-mod.json): installed only signed (lib/mods/feed.ts). */
+export type RemoteMod = { id: string; name: string; version: string; description: string; path: string };
+export type RemoteModState = RemoteMod & { installed: string | null; fromHere: boolean; updateAvailable: boolean };
+export type SourceState = { source: SourceView; branch: string; sha: string; plugins: RemoteState[]; mods?: RemoteModState[]; problems: string[]; error?: string; checkedAt: string };
 
 // ---------------------------------------------------------------------------
 // Fetching (one place: tests put a stand-in for GitHub here)
@@ -256,7 +261,19 @@ export async function checkSource(id: string, opts: { fresh?: boolean } = {}): P
       if (from && norm(from.url) === norm(s.url) && from.path === p.path && from.sha && from.sha !== tree.sha && compareVersions(p.version, from.version) === 0)
         p.touched = (await b.notes(from.sha, tree.sha, p.path).catch(() => [{}])).length > 0;
     }
-    state = { source: viewOf(s), branch: tree.branch, sha: tree.sha, plugins: plugins.map((p) => ({ ...p, installed: null, fromHere: false, updateAvailable: false, enabled: false, conflicts: 0 })), problems, checkedAt: new Date().toISOString() };
+    // Patches to Zeff itself: folders with a zeff-mod.json.
+    const mods: RemoteMod[] = [];
+    const { normalizeManifest } = await import("@/lib/mods/store");
+    for (const m of tree.files.filter((f) => /(^|\/)zeff-mod\.json$/.test(f.path) && f.path.split("/").length <= 5).slice(0, 40)) {
+      const dir = m.path.replace(/\/?zeff-mod\.json$/, "");
+      try {
+        const man = normalizeManifest(JSON.parse(((await b.file(tree.sha, m.path)) ?? Buffer.from("{}")).toString("utf8")));
+        mods.push({ id: man.id, name: man.name, version: man.version, description: man.description, path: dir });
+      } catch (e) {
+        problems.push(`${dir || "(top)"}: ${e instanceof Error ? e.message : String(e)}`);
+      }
+    }
+    state = { source: viewOf(s), branch: tree.branch, sha: tree.sha, plugins: plugins.map((p) => ({ ...p, installed: null, fromHere: false, updateAvailable: false, enabled: false, conflicts: 0 })), mods: mods.map((m) => ({ ...m, installed: null, fromHere: false, updateAvailable: false })), problems, checkedAt: new Date().toISOString() };
   } catch (e) {
     state = { source: viewOf(s), branch: s.branch ?? "", sha: "", plugins: [], problems: [], error: e instanceof Error ? e.message : String(e), checkedAt: new Date().toISOString() };
   }
@@ -266,8 +283,14 @@ export async function checkSource(id: string, opts: { fresh?: boolean } = {}): P
 
 function withInstalled(state: SourceState): SourceState {
   const here = new Map(scanPlugins().plugins.map((p) => [p.id, p]));
+  const modsHere = modsInstalled();
   return {
     ...state,
+    mods: (state.mods ?? []).map((m) => {
+      const inst = modsHere.get(m.id);
+      const fromHere = !!inst?.from && norm(inst.from.url) === norm(state.source.url) && inst.from.path === m.path;
+      return { ...m, installed: inst?.version ?? null, fromHere, updateAvailable: !!inst && fromHere && compareVersions(m.version, inst.version) > 0 };
+    }),
     plugins: state.plugins.map((p) => {
       const inst = here.get(p.id);
       const from = origin(p.id);
@@ -284,6 +307,58 @@ function withInstalled(state: SourceState): SourceState {
       };
     }),
   };
+}
+
+/** The mods here, by id: their version and where a patch came from (lib/mods/store.ts — read without loading the mods). */
+function modsInstalled(): Map<string, { version: string; from?: { url: string; path: string } }> {
+  const out = new Map<string, { version: string; from?: { url: string; path: string } }>();
+  try {
+    const root = process.env.ZEFF_MODS_DIR ? path.resolve(process.env.ZEFF_MODS_DIR) : path.join(BASE_DIR, "mods"); // (as lib/mods/store.ts modsRoot)
+    for (const e of fs.readdirSync(root, { withFileTypes: true })) {
+      if (!e.isDirectory() || e.name.startsWith(".")) continue;
+      try {
+        const man = JSON.parse(fs.readFileSync(path.join(root, e.name, "zeff-mod.json"), "utf8")) as { id?: string; version?: string };
+        let from: { url: string; path: string } | undefined;
+        try {
+          from = (JSON.parse(fs.readFileSync(path.join(root, e.name, ".state.json"), "utf8")) as { from?: { url: string; path: string } }).from;
+        } catch {
+          /* (no state yet) */
+        }
+        if (man.id === e.name) out.set(e.name, { version: String(man.version ?? "0.1.0"), ...(from ? { from } : {}) });
+      } catch {
+        /* (not a mod) */
+      }
+    }
+  } catch {
+    /* (no mods folder) */
+  }
+  return out;
+}
+
+/**
+ * A patch of a source installed or updated (lib/mods/feed.ts): only a signed release — a mod runs with Zeff's own rights, so an unsigned
+ * one is never taken from a repository (one written here, by you or the AI, stays as it always was).
+ */
+export async function installModFromSource(sourceId: string, modId: string): Promise<{ id: string; from: string | null; to: string; problems: string[] }> {
+  const s = sourceById(sourceId);
+  const b = backendFor(s);
+  const state = await checkSource(sourceId, { fresh: true });
+  if (state.error) throw new Error(state.error);
+  const remote = state.mods?.find((m) => m.id === modId);
+  if (!remote) throw new Error(`The source has no patch “${modId}”.`);
+  const tree = await b.tree();
+  const prefix = remote.path ? `${remote.path}/` : "";
+  const list = tree.files.filter((f) => f.path.startsWith(prefix) && safeRel(f.path.slice(prefix.length)));
+  if (list.length > MAX_FILES) throw new Error(`The folder has too many files (${list.length}).`);
+  if (list.reduce((a, f) => a + f.size, 0) > MAX_BYTES) throw new Error("The folder is too large.");
+  const files = new Map<string, Buffer>();
+  for (const f of list) files.set(f.path.slice(prefix.length), (await b.file(tree.sha, f.path)) ?? Buffer.from(""));
+  const release = checkRelease(files, { id: remote.id, version: remote.version });
+  if (release.status !== "signed") throw new Error(`“${modId}” changes Zeff itself, so only a signed release is installed — ${release.status === "bad" ? release.reason : "this one is not signed"}.`);
+  const { installFeedMod } = await import("@/lib/mods/feed");
+  const r = await installFeedMod(modId, files, { url: s.url, path: remote.path, sha: tree.sha, version: remote.version, key: release.key });
+  cache().delete(sourceId);
+  return { id: modId, from: r.from, to: remote.version, problems: r.problems };
 }
 
 /** Every source checked (each cached): what can be updated, in all. */
@@ -372,6 +447,11 @@ export async function installFromSource(sourceId: string, pluginId: string): Pro
   const parsed = man ? parseManifest(man.toString("utf8")) : null;
   if (!parsed?.ok) throw new Error(`Its zeff-plugin.json doesn't hold: ${parsed && !parsed.ok ? parsed.error : "missing"}`);
   if (parsed.manifest.id !== pluginId) throw new Error("The plugin's id changed in the source.");
+  // Signed releases (lib/kernel/release.ts): a release whose files don't match its signature is never installed; one installed signed is
+  // only updated signed.
+  const release = checkRelease(theirs, { id: pluginId, version: parsed.manifest.version });
+  if (release.status === "bad") throw new Error(`Not installed — the release doesn't hold: ${release.reason}`);
+  if (before?.signed && release.status !== "signed") throw new Error(`“${pluginId}” was installed from a signed release; ${parsed.manifest.version} is not signed, so it is not installed.`);
 
   // Base: the version installed before — read where it came from (this source, or the one it came from before it moved: packages.json
   // naming another repository); none when that isn't known — then every difference is a conflict.
@@ -388,7 +468,7 @@ export async function installFromSource(sourceId: string, pluginId: string): Pro
     // (a file made here that the plugin never had and the update doesn't bring: not part of the merge — it stays)
     plans.push(await planFile(rel, base, mine.get(rel) ?? null, theirs.get(rel) ?? null));
   }
-  const to: PendingMerge["to"] = { url: s.url, path: remote.path, branch: tree.branch, sha: tree.sha, version: parsed.manifest.version, files: [...theirs.keys()] };
+  const to: PendingMerge["to"] = { url: s.url, path: remote.path, branch: tree.branch, sha: tree.sha, version: parsed.manifest.version, files: [...theirs.keys()], ...(release.status === "signed" ? { signed: release.key } : {}) };
   const conflicts = plans.filter((p) => p.outcome === "conflict");
   const report: InstallReport = {
     id: pluginId,
@@ -412,7 +492,7 @@ export async function installFromSource(sourceId: string, pluginId: string): Pro
 async function finish(pluginId: string, dest: string, plans: FilePlan[], to: PendingMerge["to"], sourceId?: string): Promise<InstallReport["app"]> {
   fs.mkdirSync(dest, { recursive: true });
   applyPlan(dest, plans);
-  setOrigin(pluginId, { url: to.url, path: to.path, branch: to.branch, sha: to.sha, version: to.version, at: new Date().toISOString(), files: to.files });
+  setOrigin(pluginId, { url: to.url, path: to.path, branch: to.branch, sha: to.sha, version: to.version, at: new Date().toISOString(), files: to.files, ...(to.signed ? { signed: to.signed } : {}) });
   scanPlugins(true);
   if (sourceId) cache().delete(sourceId);
   else cache().clear();

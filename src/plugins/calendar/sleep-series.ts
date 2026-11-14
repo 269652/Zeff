@@ -1,6 +1,6 @@
 import { eventsBetween } from "@/lib/calendar/ir";
 import { t } from "@/lib/i18n/server";
-import type { Series, SeriesProvider, SeriesRange } from "@/plugins/correlations/series-point";
+import type { Series, SeriesProvider, SeriesRange } from "@/lib/series/series-point";
 
 /**
  * Sleep as daily series (the Calendar plugin, for the Correlations): what a sleep tracker writes into a calendar of its own — Sleep

@@ -7,7 +7,11 @@ import { currentAccountId } from "@/db/accounts";
 
 export type CatalogWidget = { id: string; plugin: string; label: string; icon: string; description: string; settings: WidgetSetting[]; actions: boolean; /** Shown with its header line (unless the block says otherwise). */ header: boolean };
 
-const all = (): (WorkspaceWidget & { plugin: string })[] => workspaceWidgets.list().flatMap((c) => c.impl.map((w) => ({ ...w, plugin: c.plugin })));
+/** Every widget there is — one id once: a built-in's before the port that takes over its id (the built-ins are registered first). */
+const all = (): (WorkspaceWidget & { plugin: string })[] => {
+  const seen = new Set<string>();
+  return workspaceWidgets.list().flatMap((c) => c.impl.flatMap((w) => (seen.has(w.id) ? [] : (seen.add(w.id), [{ ...w, plugin: c.plugin }]))));
+};
 
 export const widgetCatalog = (): CatalogWidget[] => all().map((w) => ({ id: w.id, plugin: w.plugin, label: w.label, icon: w.icon, description: w.description, settings: w.settings ?? [], actions: !!w.act, header: w.header !== false }));
 
@@ -15,7 +19,8 @@ export const widgetCatalog = (): CatalogWidget[] => all().map((w) => ({ id: w.id
 export const widgetById = (id: string): (WorkspaceWidget & { plugin: string }) | undefined => all().find((x) => x.id === id);
 
 const find = (id: string) => {
-  const w = all().find((x) => x.id === id);
+  // (a port's widget answers for the built-in's id it replaces: the widgets on your pages go on working after the switch)
+  const w = all().find((x) => x.id === id) ?? all().find((x) => x.replaces === id);
   if (!w) throw new Error(`There is no such widget “${id}”.`);
   return w;
 };

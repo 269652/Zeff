@@ -18,6 +18,8 @@ const day = (i: number) => {
 async function world() {
   const { setInstalled } = await import("@/plugins/state");
   for (const id of ["workspace", "correlations", "calendar"]) setInstalled(id, true);
+  // (ZEFF_CORRELATIONS_EXT=1: against the port — tests/correlations-ext.test.ts)
+  await (await import("./correlations-port")).useCorrelationsPort();
   await import("@/plugins/contributions");
   return await import("@/plugins/workspace/widgets");
 }

@@ -3,7 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useT } from "@/components/I18nProvider";
 import { toast } from "@/components/Toaster";
-import { rowLifecycleAction, runFlowAction, takeTransitionAction } from "../actions";
+import { rowLifecycleAction, runFlowAction, runLambdaAction, takeTransitionAction } from "../actions";
 import { parseWith } from "../flows/with";
 
 /**
@@ -24,13 +24,14 @@ type FlowAnswer = Awaited<ReturnType<typeof runFlowAction>>;
  */
 const SHARE_MS = 2000;
 const shared = new Map<string, { done: number; answer: Promise<FlowAnswer> }>();
-export function runFlowShared(flow: string, inputs: Record<string, unknown>, opts: { row?: number } = {}): Promise<FlowAnswer> {
-  const key = JSON.stringify([flow, inputs, opts.row ?? null]);
+export function runFlowShared(flow: string, inputs: Record<string, unknown>, opts: { row?: number; lambda?: boolean } = {}): Promise<FlowAnswer> {
+  const key = JSON.stringify([opts.lambda ? "lambda" : "flow", flow, inputs, opts.row ?? null]);
   const now = Date.now();
   for (const [k, v] of shared) if (now - v.done > SHARE_MS) shared.delete(k);
   const hit = shared.get(key);
   if (hit) return hit.answer;
-  const entry = { done: Infinity, answer: runFlowAction(flow, inputs, opts) };
+  // (<data lambda="…">: a lambda answers instead of a flow — read-only, the same shape of answer)
+  const entry = { done: Infinity, answer: (opts.lambda ? runLambdaAction(flow, inputs) : runFlowAction(flow, inputs, { row: opts.row })) as Promise<FlowAnswer> };
   entry.answer.finally(() => (entry.done = Date.now())).catch(() => undefined);
   shared.set(key, entry);
   return entry.answer;
@@ -45,7 +46,7 @@ export function reloadFlowData(): void {
 
 /** Loads a flow's output into data.<name> (nothing drawn): again when its input changes, after a pause while it is typed. */
 export function FlowData({ a, setData, row }: { a: Record<string, string>; setData: SetData; row?: number }) {
-  const key = JSON.stringify([a.flow, a.with ?? "", a.when ?? "__"]);
+  const key = JSON.stringify([a.flow ?? `lambda:${a.lambda}`, a.with ?? "", a.when ?? "__"]);
   const seq = useRef(0);
   const keptFor = useRef("");
   const keptText = useRef<string | null>(null);
@@ -63,7 +64,7 @@ export function FlowData({ a, setData, row }: { a: Record<string, string>; setDa
       return;
     }
     // What this flow gave the last time (kept in the browser, per page): shown at once while it loads again — the screen is there, not empty.
-    const cacheKey = `zeff.flowdata:${typeof location !== "undefined" ? location.pathname : ""}:${JSON.stringify([a.flow, a.with ?? ""])}`;
+    const cacheKey = `zeff.flowdata:${typeof location !== "undefined" ? location.pathname : ""}:${JSON.stringify([a.flow ?? `lambda:${a.lambda}`, a.with ?? ""])}`;
     // (Only when it is asked anew — not at every poll of every=, when what it shows is already the last answer.)
     if (keptFor.current !== cacheKey) {
       keptFor.current = cacheKey;
@@ -78,7 +79,7 @@ export function FlowData({ a, setData, row }: { a: Record<string, string>; setDa
     const timer = setTimeout(
       async () => {
         setData(name, { [`${name}_status`]: "loading" });
-        const r = await runFlowShared(a.flow, parseWith(a.with), row ? { row } : {});
+        const r = await runFlowShared(a.lambda && !a.flow ? a.lambda : a.flow, parseWith(a.with), { ...(row ? { row } : {}), ...(a.lambda && !a.flow ? { lambda: true } : {}) });
         if (mine !== seq.current) return;
         if (!r.ok) return setData(name, { [`${name}_status`]: "error", [`${name}_error`]: r.error });
         const res = r;

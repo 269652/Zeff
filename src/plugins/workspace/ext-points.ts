@@ -15,7 +15,9 @@
  *
  * Functions run as every plugin function does (plugin-fn.ts): through the Notebook plugin, with what the user granted them. Server only.
  */
+import path from "node:path";
 import { currentAccountId } from "@/db/accounts";
+import { builtinLambdasPoint } from "./lambdas/store";
 import { enabledPlugins, type ExtPlugin } from "@/lib/ext/registry";
 import type { Contributor } from "@/lib/plugin-kit/extension-point";
 import { tabMenus } from "@/plugins/tab-menus-point";
@@ -141,6 +143,16 @@ export function menuFrom(v: unknown): TabMenuItem[] {
   });
 }
 
+// Lambdas (contributes.lambdas): the folder of an external plugin's lambdas, while it is on — lookups and functions without the Notebook.
+builtinLambdasPoint.provide("ext:lambdas", () =>
+  enabledPlugins().flatMap((p) => {
+    const rel = p.manifest.contributes.lambdas;
+    if (!rel) return [];
+    const dir = path.resolve(p.dir, rel);
+    return dir.startsWith(path.resolve(p.dir) + path.sep) ? [{ plugin: who(p), impl: { dir } }] : [];
+  }),
+);
+
 tabMenus.provide("ext:tabMenus", () =>
   enabledPlugins().flatMap((p) => p.manifest.contributes.tabMenus.map((m) => ({ plugin: who(p), impl: { tab: m.tab, items: async () => menuFrom(await runPluginFunction(p.id, m.function, {})) } }))),
 );
@@ -169,6 +181,17 @@ const buttons = (v: unknown, extra: (b: Record<string, unknown>) => Record<strin
     return b && str(b.id, 60) && str(b.label, 60) ? [{ id: str(b.id, 60), label: str(b.label, 60), ...extra(b) }] : [];
   });
 
+/** A row's tiny chart: a few bars (label, a number, a tone), its unit. */
+function miniOf(v: unknown): { mini?: NonNullable<WidgetItem["mini"]> } {
+  const m = obj(v);
+  if (!m || !Array.isArray(m.bars)) return {};
+  const bars = m.bars.slice(0, 12).flatMap((b) => {
+    const o = obj(b);
+    return o && typeof o.value === "number" && Number.isFinite(o.value) ? [{ label: str(o.label, 40), value: o.value, ...tone3(o.tone) }] : [];
+  });
+  return bars.length ? { mini: { bars, ...opt("unit", m.unit, 12) } } : {};
+}
+
 /** A widget function's answer as the Workspace draws widgets: a list, figures or one figure — anything else is said, not drawn. */
 export function widgetDataFrom(v: unknown): WidgetData {
   const o = obj(v);
@@ -190,6 +213,7 @@ export function widgetDataFrom(v: unknown): WidgetData {
           ...(typeof i.done === "boolean" ? { done: i.done } : {}),
           ...(i.wrap === true ? { wrap: true } : {}),
           ...(actions.length ? { actions } : {}),
+          ...miniOf(i.mini),
         },
       ];
     });
@@ -218,22 +242,46 @@ export function widgetDataFrom(v: unknown): WidgetData {
   return { kind: "error", message: "The plugin's function gave no widget data (a list, stats or a figure)." };
 }
 
+/** A plugin's part run: its lambda (no Notebook) or its function. */
+async function runPart(plugin: string, part: { function?: string; lambda?: string }, args: Record<string, unknown>): Promise<unknown> {
+  if (part.lambda) return (await import("./mcp-plugin-tools")).runOwnLambda(plugin, part.lambda, args);
+  return runPluginFunction(plugin, part.function!, args);
+}
+
+/** The daily series you may see, as a select's options — your own databases' fields first (optionsFrom: "series"). */
+function seriesOptions(): { value: string; label: string }[] {
+  try {
+    // (lib/series reads the kernel's series — the series.catalog flow action's list)
+    // eslint-disable-next-line @typescript-eslint/no-require-imports
+    const { seriesCatalog } = require("@/lib/series/series") as typeof import("@/lib/series/series");
+    return seriesCatalog()
+      .sort((a, b) => Number(b.id.startsWith("db:")) - Number(a.id.startsWith("db:")))
+      .map((s) => ({ value: s.id, label: s.label }));
+  } catch {
+    return [];
+  }
+}
+
 workspaceWidgets.provide("ext:widgets", () =>
   enabledPlugins().flatMap((p) => {
     const list = p.manifest.contributes.widgets.map(
       (w): WorkspaceWidget => ({
-        id: `${p.id}.${w.id}`,
+        // (a port takes over the built-in widget's id it replaces: the widgets on your pages are its own then)
+        id: w.replaces ?? `${p.id}.${w.id}`,
         label: w.label,
         icon: w.icon,
         description: w.description || p.manifest.name,
         size: w.size,
         ttl: w.ttl,
-        settings: w.settings,
-        data: async (config) => widgetDataFrom(await runPluginFunction(p.id, w.function, { config })),
-        ...(w.act
+        ...(w.replaces ? { replaces: w.replaces } : {}),
+        get settings() {
+          return w.settings.map(({ optionsFrom, ...s }) => (optionsFrom === "series" ? { ...s, kind: "select" as const, options: seriesOptions(), default: s.default ?? seriesOptions()[0]?.value ?? "" } : s));
+        },
+        data: async (config) => widgetDataFrom(await runPart(p.id, { function: w.function, lambda: w.lambda }, { config })),
+        ...(w.act || w.actLambda
           ? {
               act: async (action: string, payload: Record<string, string>, config: Record<string, string | number | boolean>) => {
-                const v = await runPluginFunction(p.id, w.act!, { action, payload, config });
+                const v = await runPart(p.id, { function: w.act, lambda: w.actLambda }, { action, payload, config });
                 return obj(v)?.kind ? widgetDataFrom(v) : undefined;
               },
             }
