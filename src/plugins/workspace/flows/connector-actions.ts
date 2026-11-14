@@ -33,4 +33,4 @@ export const CONNECTOR_ACTIONS: FlowAction[] = [
 ];
 
 // The kernel's own: always there (read with the other flow actions — flows/actions.ts flowActions()).
-extensionPoint<FlowAction[]>("workspace.flowActions").contribute("core", CONNECTOR_ACTIONS);
+extensionPoint<FlowAction[]>("workspace.flowActions").contribute("core:connectors", CONNECTOR_ACTIONS);

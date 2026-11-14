@@ -541,8 +541,8 @@ so the widgets on your pages keep working after the switch.
   `format: "iife", globalName: "ZeffCompute"`).
 - **Doing things.** A view's button does one of the kernel's actions as you: `<button do="row.op" with='…' confirm="…"/>`, with
   `fill="state=field"` (fields of the answer into the view's state), `into=`, `done=`, `then="a=1; b="`. A `<data do="…">` does one by
-  itself, but only those that read or mark read (`AUTO_ACTIONS` in `src/plugins/workspace/flows/mail-actions.ts`); `reload=true` reads
-  the rows again after it. Which actions a button may do is fixed by the kernel (`USER_ACTIONS`): a conversation read, a reply drafted
+  itself, but only those that read or mark read (`AUTO_ACTIONS`, same file); `reload=true` reads
+  the rows again after it. Which actions a button may do is fixed by the kernel (`USER_ACTIONS` in `src/plugins/workspace/flows/user-actions.ts`): a conversation read, a reply drafted
   by the AI, a row's action (a reply sent, kept as a draft or opened in Outlook), mails archived or marked read, a field set on rows,
   Gmail's archive and unread, a new inbox.
 - **Text inputs** keep what you type per row when their state's name holds the row (`bind="reply{{ data.app.current.id }}"`).

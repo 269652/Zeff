@@ -40,11 +40,11 @@ export async function runLambdaAction(name: string, input: Record<string, unknow
 
 /**
  * One of Zeff's own actions done by you from a view's button (<button do="…">): only those the kernel lets a button do (USER_ACTIONS in
- * flows/mail-actions.ts) — with your authority, as the built-in views' buttons act, so no flow permission is asked. Its answer.
+ * flows/user-actions.ts) — with your authority, as the built-in views' buttons act, so no flow permission is asked. Its answer.
  */
 export async function runUserAction(name: string, input: Record<string, unknown> = {}, opts: { /** Without a click (<data do>): only what a view may do by itself. */ auto?: boolean } = {}) {
   return run(async () => {
-    const { AUTO_ACTIONS, USER_ACTIONS } = await import("../flows/mail-actions");
+    const { AUTO_ACTIONS, USER_ACTIONS } = await import("../flows/user-actions");
     if (opts.auto === true && !AUTO_ACTIONS.has(String(name))) throw new Error(`A view can't do “${String(name)}” by itself — only ${[...AUTO_ACTIONS].join(", ")}; the rest takes a click (a button's do=).`);
     const { flowAction, checkedUrl } = await import("../flows/actions");
     if (!USER_ACTIONS.has(String(name))) throw new Error(`A button can't do “${String(name)}” — only ${[...USER_ACTIONS].join(", ")}.`);

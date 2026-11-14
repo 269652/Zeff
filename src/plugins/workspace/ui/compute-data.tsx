@@ -76,8 +76,14 @@ export function ComputeData({ a, setData, rows, props, state, extras }: { a: Rec
           if (r.error) setData(name, { [`${name}_status`]: "error", [`${name}_error`]: r.error });
           else setData(name, { [name]: r.out, [`${name}_status`]: "ok", [`${name}_error`]: null });
         });
-        // (what crosses into the frame is copied — rows, fields, state: data, nothing to call back with)
-        frame.win?.postMessage({ zeffCompute: id, fn, input: { rows, props, state, extras: extras ?? {}, with: parseWith(a.with), now: Date.now() } }, "*");
+        // (what crosses into the frame is copied as plain data — rows, fields, state; nothing to call back with — and a failure is said)
+        try {
+          const input = JSON.parse(JSON.stringify({ rows, props, state, extras: extras ?? {}, with: parseWith(a.with), now: Date.now() })) as unknown;
+          frame.win?.postMessage({ zeffCompute: id, fn, input }, "*");
+        } catch (e) {
+          frame.waiting.delete(id);
+          setData(name, { [`${name}_status`]: "error", [`${name}_error`]: e instanceof Error ? e.message : String(e) });
+        }
       },
       (e: unknown) => setData(name, { [`${name}_status`]: "error", [`${name}_error`]: e instanceof Error ? e.message : String(e) }),
     );

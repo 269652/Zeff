@@ -12,7 +12,7 @@ import type { PluginId } from "@/plugins/catalog";
  */
 
 /** Who contributes: a built-in plugin, "core" (Zeff itself, always there), or an external plugin ("ext:<id>", through a provider). */
-export type Contributor = PluginId | "core" | `ext:${string}`;
+export type Contributor = PluginId | "core" | `core:${string}` | `ext:${string}`;
 
 export type Contribution<T> = { plugin: Contributor; impl: T };
 
@@ -57,7 +57,8 @@ export function extensionPoint<T>(name: string): ExtensionPoint<T> {
       if (at >= 0) items[at] = { plugin, impl };
       else items.push({ plugin, impl });
     },
-    list: () => [...items.filter((c) => c.plugin === "core" || (!c.plugin.startsWith("ext:") && isInstalled(c.plugin as PluginId))), ...provided()],
+    // ("core:<part>": more than one of the kernel's own lists — a contribution is kept per name)
+    list: () => [...items.filter((c) => c.plugin === "core" || c.plugin.startsWith("core:") || (!c.plugin.startsWith("ext:") && isInstalled(c.plugin as PluginId))), ...provided()],
     all: () => [...items, ...provided()],
     provide(key, fn) {
       providers.set(key, fn);

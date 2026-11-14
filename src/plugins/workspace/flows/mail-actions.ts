@@ -224,16 +224,5 @@ export const MAIL_ACTIONS: FlowAction[] = [
   },
 ];
 
-/**
- * What a view's button may do as you (<button do="…">), the way the built-in views' own buttons act — your click is the yes, so no
- * flow permission is asked: reading a conversation, a draft by the AI, a row's action (a reply sent: confirm= asks first), mails archived
- * or marked read, fields set on rows. Nothing else of the flow actions (a flow is automation: it needs what it was granted).
- */
-/** What a view may do by itself, without a click (<data do="…">), as the built-in views do: read a conversation, what is unread, and mark
- * read the one you looked at for a moment. */
-export const AUTO_ACTIONS = new Set(["mail.thread", "mail.unread", "mail.mark-read", "zeff.grants", "mail.inbox-templates"]);
-
-export const USER_ACTIONS = new Set(["mail.thread", "mail.unread", "row.reply.draft", "row.op", "mail.archive", "mail.archive-read", "mail.mark-read", "rows.set", "mail.gmail-change", "zeff.grants", "mail.inbox-templates", "mail.new-inbox"]);
-
 // The kernel's own: always there (read with the other flow actions — flows/actions.ts flowActions()).
-extensionPoint<FlowAction[]>("workspace.flowActions").contribute("core", MAIL_ACTIONS);
+extensionPoint<FlowAction[]>("workspace.flowActions").contribute("core:mail", MAIL_ACTIONS);

@@ -87,3 +87,9 @@ test("a built-in whose port is on is there through it — not its own sync step;
   gcal!.settings.intervals[0].set(30);
   assert.equal(gcal!.settings.intervals[0].get(), 30);
 });
+
+test("the kernel's action lists stand side by side: mail, connectors and the local AI's all there", async () => {
+  await world();
+  const { flowAction } = await import("@/plugins/workspace/flows/actions");
+  for (const name of ["mail.thread", "row.op", "rows.set", "gcal.sync", "localai.save", "http.request"]) assert.ok(flowAction(name), name);
+});

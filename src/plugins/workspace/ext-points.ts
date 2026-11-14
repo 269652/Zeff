@@ -159,7 +159,8 @@ builtinLambdasPoint.provide("ext:lambdas", () =>
 // App views (contributes.appViews): a template of the view language for the databases of a type — read from the plugin's file.
 extAppViews.provide("ext:appViews", () =>
   enabledPlugins().flatMap((p) => {
-    const list = p.manifest.contributes.appViews.flatMap((a) => {
+    // (a manifest read before appViews existed: none)
+    const list = (p.manifest.contributes.appViews ?? []).flatMap((a) => {
       const file = path.resolve(p.dir, a.template);
       if (!file.startsWith(path.resolve(p.dir) + path.sep)) return [];
       try {

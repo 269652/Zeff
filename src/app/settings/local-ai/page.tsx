@@ -3,7 +3,8 @@ import Link from "next/link";
 import { connection } from "next/server";
 import { PluginNotInstalled } from "@/components/PluginNotInstalled";
 import { t } from "@/lib/i18n/server";
-import { isInstalled } from "@/plugins/state";
+import { redirect } from "next/navigation";
+import { isInstalled, onlyThroughPort } from "@/plugins/state";
 import { localAiConfig } from "@/plugins/local-ai/config";
 import { LocalAiSettings } from "@/plugins/local-ai/LocalAiSettings";
 
@@ -15,6 +16,11 @@ export async function generateMetadata(): Promise<Metadata> {
 export default async function LocalAiSettingsPage() {
   await connection();
   if (!isInstalled("local-ai")) return <PluginNotInstalled id="local-ai" />;
+  // (its port on: the plugin's page — its settings block)
+  if (onlyThroughPort("local-ai")) {
+    const page = await (await import("@/plugins/local-ai/to-plugin")).localAiPortPage();
+    if (page) redirect(`/workspace/${page}`);
+  }
   return (
     <div className="mx-auto max-w-2xl space-y-4">
       <Link href="/settings" className="text-sm text-zinc-500 hover:underline">

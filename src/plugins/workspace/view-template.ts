@@ -766,9 +766,19 @@ function interpolate(raw: string, ctx: Ctx, line: number, words = false): string
 // Drawing
 // ---------------------------------------------------------------------------
 
+/** Options as a list (options="{{ data.models | tojson }}"): each a value, or [value, label] — values may hold commas and colons (a model "qwen3:8b"). */
+function jsonOptions(s: string): [string, string][] {
+  try {
+    const v = JSON.parse(s) as unknown;
+    return (Array.isArray(v) ? v : []).slice(0, 500).flatMap((x): [string, string][] => (typeof x === "string" || typeof x === "number" ? [[String(x), String(x)]] : Array.isArray(x) && x.length ? [[String(x[0]), String(x[1] ?? x[0])]] : []));
+  } catch {
+    return [];
+  }
+}
+
 /** "a:Label A, b:Label B" (or "a, b") as [value, label] pairs — "a:Label A:12": with a count shown beside the label. */
 const optionPairs = (s: string): ([string, string] | [string, string, string])[] =>
-  s
+  s.trim().startsWith("[") ? jsonOptions(s) : s
     .split(",")
     .map((x) => x.trim())
     .filter(Boolean)

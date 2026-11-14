@@ -11,7 +11,7 @@ import { PLUGINS, STEP_NEEDS, isPluginId, pluginById, pluginOfProvider, pluginsO
  * port is on, the built-in counts as there for everything that asks (its settings, its actions, Google's write access …), but its own
  * sync steps don't run (the port brings its sync as a flow). Ports that replace a built-in's screens and data aren't here.
  */
-export const PROVIDED_BY: Partial<Record<PluginId, string>> = { "google-calendar": "google-calendar-ext" };
+export const PROVIDED_BY: Partial<Record<PluginId, string>> = { "google-calendar": "google-calendar-ext", "local-ai": "local-ai-ext" };
 
 /** The built-ins there only through their port (PROVIDED_BY), per account — set by chosen(). */
 const providedOnlyBy = new Map<string, Set<PluginId>>();
