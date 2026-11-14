@@ -14,6 +14,8 @@ import { TreeBadgeLook } from "@/plugins/workspace/ui/TreeBadge";
 export default async function WorkspaceLayout({ children }: { children: React.ReactNode }) {
   await connection();
   if (!isInstalled("workspace")) return <PluginNotInstalled id="workspace" />;
+  // (Mail & Chat's port: its views made before its current template brought up to date — once per account, a single read after)
+  await (await import("@/plugins/mail-client/to-plugin")).upgradeMailPortViews().catch((e) => console.error("[mail-client-ext] upgrading its views failed", e));
   // What the Workspace makes for itself (its databases, the prompts' pages …): once per account and set of plugins — not on every
   // page opened (it cost most of a second each time), again after a while for what was connected since.
   await setupOnce(`workspace:${currentAccountId()}:${[...installedPlugins()].sort().join(",")}`, async () => {

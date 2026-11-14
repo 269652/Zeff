@@ -29,14 +29,16 @@ function text(field: string, strong: string | undefined, t: T): string {
 }
 
 /** The conversation of the one picked, oldest first — fetched (its own, not the one picked before), else the message itself. */
-const thread = (t: T) => `{{#if ${C}.fetch}}<data name="thread" do="mail.thread" with='{"conv": {{ ${C}.conv | tojson }}}'/>{{/if}}
+// (a list of messages goes through {{#each}} as it is — a formula's ?: would make it text)
+const thread = (t: T) => {
+  const each = (list: string) => `{{#each ${list}}}<box tone="{{ mine ? 'accent' : 'plain' }}"><row gap=2><small><b>{{ mine ? ${q(t("Me"))} : name }}</b></small><small><muted>{{ at }}</muted></small></row><text pre=true>{{ preview }}</text></box>{{/each}}`;
+  return `{{#if ${C}.fetch}}<data name="thread" do="mail.thread" with='{"conv": {{ ${C}.conv | tojson }}}'/>{{/if}}
 <let name="mailLoaded" value="data.thread.conv == ${C}.conv"/>
 <let name="mailN" value="data.thread.messages | count"/>
-<let name="mailMsgs" value="${C}.fetch and mailLoaded and mailN ? data.thread.messages : ${C}.fallbackList"/>
-{{#if ${C}.fetch}}{{#if not mailLoaded}}<muted>…</muted>{{/if}}{{/if}}
 <col gap=2>
-{{#if not (${C}.fetch and not mailLoaded)}}{{#each mailMsgs}}<box tone="{{ mine ? 'accent' : 'plain' }}"><row gap=2><small><b>{{ mine ? ${q(t("Me"))} : name }}</b></small><small><muted>{{ at }}</muted></small></row><text pre=true>{{ preview }}</text></box>{{/each}}{{/if}}
+{{#if ${C}.fetch}}{{#if not mailLoaded}}<muted>…</muted>{{#else}}{{#if mailN}}${each("data.thread.messages")}{{#else}}${each(`${C}.fallbackList`)}{{/if}}{{/if}}{{#else}}${each(`${C}.fallbackList`)}{{/if}}
 </col>`;
+};
 
 const know = () => `{{#if ${C}.id}}<know row="{{ ${C}.id }}" compact=true/>{{/if}}`;
 const suggested = () => `{{#if ${C}.actions}}<suggested row="{{ ${C}.actions.rowId }}"/>{{/if}}`;
@@ -140,12 +142,19 @@ const attrsOf = (tag: string): Record<string, string> => Object.fromEntries([...
 /** strong="{{ X ? 'true' : '' }}" → X. */
 const strongOf = (v: string | undefined) => v?.match(/^\{\{\s*(.+?)\s*\?\s*'true'\s*:\s*''\s*\}\}$/)?.[1];
 
+/** The port's first conversation block (1.0.0: its messages lost their fields once fetched) — in a port's template already: the current one. */
+const OLD_THREAD = /\{\{#if data\.app\.current\.fetch\}\}<data name="thread"[\s\S]*?<let name="mailMsgs"[\s\S]*?\{\{\/each\}\}\{\{\/if\}\}\s*<\/col>/;
+export const upgradePortMail = (template: string, t: T): string => template.replace(OLD_THREAD, () => thread(t));
+
+/** Which mail app a port's template is (by its compute function). */
+export const portMailApp = (template: string | undefined): MailApp | null => (template?.match(new RegExp(`compute="${MAIL_PORT.plugin}\\.(mail|chat|inbox)"`))?.[1] as MailApp | undefined) ?? null;
+
 /**
  * A built-in Mail & Chat view template — the plugin's own, or one you changed — as the port's: its app data from the plugin's compute
  * script, every <part> the view language's. A template already the port's stays as it is.
  */
 export function toPortMail(template: string, app: MailApp, t: T): string {
-  if (template.includes(`compute="${MAIL_PORT.plugin}.`)) return template;
+  if (template.includes(`compute="${MAIL_PORT.plugin}.`)) return upgradePortMail(template, t);
   let s = template.replace(/(?<![\w.])app\./g, "data.app.");
   s = s.replace(/<part\s+name="([\w.-]+)"([^>]*?)\/>/g, (whole, name: string, rest: string) => {
     const a = attrsOf(rest);

@@ -169,3 +169,15 @@ test("the port's templates draw without an error and without a part; the buttons
   assert.ok(find(inbox.nodes, "button").some((b) => b.a.do === "mail.archive"));
   assert.ok(find(inbox.nodes, "button").some((b) => b.a.do === "mail.archive-read"));
 });
+
+test("a conversation fetched draws its messages (none: the message itself); a port's first template is brought up to date", { skip: !have && "zeff-plugins isn't beside Zeff" }, () => {
+  const msg = { key: "k", name: "Anna", email: null, at: "20.10.", unread: false, subject: "s", preview: "Please find attached.", mine: true };
+  for (const thread of [{ conv: "imap:c1", messages: [msg] }, { conv: "imap:c1", messages: [] }]) {
+    const { r } = drawPort(CASES[2], { selected: "21" }, { thread });
+    assert.deepEqual(r.errors, [], JSON.stringify(thread));
+    assert.match(vnodeToString(r.nodes), thread.messages.length ? /Please find attached\.[\s\S]*/ : /AW: Invoice/);
+  }
+  const old = `<data name="app" compute="mail-client-ext.inbox"/>\n{{#if data.app.current.fetch}}<data name="thread" do="mail.thread" with='{}'/>{{/if}}\n<let name="mailMsgs" value="x"/>\n<col gap=2>\n{{#if a}}{{#each mailMsgs}}<box>{{ at }}</box>{{/each}}{{/if}}\n</col>\nrest`;
+  const up = toPortMail(old, "inbox", t);
+  assert.ok(!up.includes("mailMsgs") && up.includes('{{#each data.thread.messages}}') && up.endsWith("rest"));
+});
